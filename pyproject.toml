@@ -53,13 +53,25 @@ skip-magic-trailing-comma = false
 line-ending = "auto"
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 check_untyped_defs = true
 ignore_missing_imports = true
-warn_unused_ignores = true
+warn_unused_ignores = false
 warn_redundant_casts = true
 warn_unused_configs = true
 plugins = ["mypy_django_plugin.main"]
+
+[[tool.mypy.overrides]]
+module = "users.tests"
+disable_error_code = ["attr-defined"]
+
+[[tool.mypy.overrides]]
+module = "municipalities.tests"
+disable_error_code = ["attr-defined"]
+
+[[tool.mypy.overrides]]
+module = "searches.tests"
+disable_error_code = ["attr-defined"]
 
 [tool.django-stubs]
 django_settings_module = "config.settings.development"

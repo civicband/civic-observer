@@ -60,9 +60,9 @@ class TestSearchModel:
         search1 = Search.objects.create(muni=muni, search_term="first")
         search2 = Search.objects.create(muni=muni, search_term="second")
 
-        assert search1 in muni.searches.all()  # type: ignore[attr-defined]
-        assert search2 in muni.searches.all()  # type: ignore[attr-defined]
-        assert muni.searches.count() == 2  # type: ignore[attr-defined]
+        assert search1 in muni.searches.all()
+        assert search2 in muni.searches.all()
+        assert muni.searches.count() == 2
 
     def test_cascade_delete(self):
         muni = Muni.objects.create(
