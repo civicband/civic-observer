@@ -43,9 +43,13 @@ jobs:
         run: |
           uv run python manage.py check
 
-      - name: Run migrations (dry run)
+      - name: Create database and run migrations
         run: |
-          uv run python manage.py migrate --check
+          uv run python manage.py migrate
+
+      - name: Check for missing migrations
+        run: |
+          uv run python manage.py makemigrations --check
 
       - name: Run tests with coverage
         run: |
