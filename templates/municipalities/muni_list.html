@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+
+{% block title %}Municipalities - CivicObserver{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>Municipalities</h1>
+        <a href="{% url 'munis:muni-create' %}" class="btn btn-primary">Add Municipality</a>
+    </div>
+
+    {% if object_list %}
+        <table>
+            <thead>
+                <tr>
+                    <th>Name</th>
+                    <th>State</th>
+                    <th>Kind</th>
+                    <th>Pages</th>
+                    <th>Last Updated</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for muni in object_list %}
+                    <tr>
+                        <td><a href="{% url 'munis:muni-detail' muni.pk %}">{{ muni.name }}</a></td>
+                        <td>{{ muni.state }}</td>
+                        <td>{{ muni.kind }}</td>
+                        <td>{{ muni.pages }}</td>
+                        <td>{{ muni.last_updated|default:"—" }}</td>
+                        <td>
+                            <a href="{% url 'munis:muni-detail' muni.pk %}" class="btn btn-secondary">View</a>
+                            <a href="{% url 'munis:muni-update' muni.pk %}" class="btn btn-primary">Edit</a>
+                            <a href="{% url 'munis:muni-delete' muni.pk %}" class="btn btn-danger">Delete</a>
+                        </td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% else %}
+        <p>No municipalities found. <a href="{% url 'munis:muni-create' %}">Add the first one</a>.</p>
+    {% endif %}
+{% endblock content %}

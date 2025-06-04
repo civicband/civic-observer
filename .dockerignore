@@ -1,0 +1,8 @@
+**/__pycache__
+*.pyc
+.*
+compose.override.yml
+Dockerfile
+justfile
+LICENSE
+README.md

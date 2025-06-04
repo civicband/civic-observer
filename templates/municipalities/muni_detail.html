@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+
+{% block title %}{{ object.name }} - CivicObserver{% endblock %}
+
+{% block content %}
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1>{{ object.name }}, {{ object.state }}</h1>
+        <div>
+            <a href="{% url 'munis:muni-list' %}" class="btn btn-secondary">Back to List</a>
+            <a href="{% url 'munis:muni-update' object.pk %}" class="btn btn-primary">Edit</a>
+            <a href="{% url 'munis:muni-delete' object.pk %}" class="btn btn-danger">Delete</a>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-6">
+            <h3>Basic Information</h3>
+            <p><strong>Subdomain:</strong> {{ object.subdomain }}</p>
+            <p><strong>Name:</strong> {{ object.name }}</p>
+            <p><strong>State:</strong> {{ object.state }}</p>
+            <p><strong>Country:</strong> {{ object.country }}</p>
+            <p><strong>Kind:</strong> {{ object.kind }}</p>
+            <p><strong>Pages:</strong> {{ object.pages }}</p>
+            <p><strong>Last Updated:</strong> {{ object.last_updated|default:"—" }}</p>
+        </div>
+
+        <div class="col-md-6">
+            <h3>Location</h3>
+            <p><strong>Latitude:</strong> {{ object.latitude|default:"—" }}</p>
+            <p><strong>Longitude:</strong> {{ object.longitude|default:"—" }}</p>
+
+            {% if object.popup_data %}
+                <h3>Additional Data</h3>
+        <pre>{{ object.popup_data|pprint }}</pre>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-4">
+        <h3>Timestamps</h3>
+        <p><strong>Created:</strong> {{ object.created }}</p>
+        <p><strong>Modified:</strong> {{ object.modified }}</p>
+        <p><strong>ID:</strong> {{ object.id }}</p>
+    </div>
+{% endblock content %}

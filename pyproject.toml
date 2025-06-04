@@ -1,0 +1,142 @@
+[project]
+name = "civicobserver"
+version = "0.1.0"
+description = "CivicObserver - A Django application for civic monitoring"
+readme = "README.md"
+authors = [
+    { name = "Philip James", email = "phildini@phildini.net" }
+]
+requires-python = ">=3.13.3"
+dependencies = [
+    "django>=5.2.1",
+    "whitenoise>=6.7.0",
+    "django-model-utils>=5.0.0",
+    "neapolitan",
+]
+
+[project.optional-dependencies]
+dev = [
+    "django-extensions",
+    "pytest",
+    "pytest-django",
+    "ruff",
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line too long, handled by black
+    "B008",  # do not perform function calls in argument defaults
+    "C901",  # too complex
+]
+
+[tool.ruff.lint.per-file-ignores]
+"migrations/*.py" = ["E501", "F401"]
+"**/settings/*.py" = ["F403", "F405"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
+[tool.mypy]
+python_version = "3.11"
+check_untyped_defs = true
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unused_configs = true
+plugins = ["mypy_django_plugin.main"]
+
+[tool.django-stubs]
+django_settings_module = "config.settings.development"
+
+[tool.pytest.ini_options]
+DJANGO_SETTINGS_MODULE = "config.settings.development"
+python_files = ["tests.py", "test_*.py", "*_tests.py"]
+python_classes = ["Test*", "*Test", "*Tests"]
+python_functions = ["test_*"]
+addopts = [
+    "--reuse-db",
+    "--cov=src",
+    "--cov=users",
+    "--cov=municipalities",
+    "--cov=searches",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-fail-under=80",
+    "--strict-markers",
+    "--disable-warnings",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+]
+testpaths = ["tests", "users/tests.py", "municipalities/tests.py", "searches/tests.py"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[dependency-groups]
+dev = [
+    "django-extensions>=4.1",
+    "django-stubs>=5.2.0",
+    "mypy>=1.16.0",
+    "pre-commit>=4.2.0",
+    "ruff>=0.11.12",
+]
+test = [
+    "pytest>=8.0.0",
+    "pytest-django>=4.9.0",
+    "pytest-cov>=6.0.0",
+    "factory-boy>=3.3.0",
+    "coverage[toml]>=7.0.0",
+]
+
+[tool.coverage.run]
+source = [".", "users"]
+omit = [
+    "*/migrations/*",
+    "*/venv/*",
+    "*/env/*",
+    "manage.py",
+    "config/wsgi.py",
+    "config/asgi.py",
+    "*/settings/*",
+    "*/tests/*",
+    "*/__pycache__/*",
+    "*/static/*",
+    "*/media/*",
+]
+branch = true
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+show_missing = true
+skip_covered = false
+
+[tool.coverage.html]
+directory = "htmlcov"
