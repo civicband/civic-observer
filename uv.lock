@@ -114,6 +114,7 @@ source = { editable = "." }
 dependencies = [
     { name = "django" },
     { name = "django-model-utils" },
+    { name = "django-tailwind-cli" },
     { name = "neapolitan" },
     { name = "whitenoise" },
 ]
@@ -148,6 +149,7 @@ requires-dist = [
     { name = "django", specifier = ">=5.2.1" },
     { name = "django-extensions", marker = "extra == 'dev'" },
     { name = "django-model-utils", specifier = ">=5.0.0" },
+    { name = "django-tailwind-cli", specifier = ">=2.2.0" },
     { name = "neapolitan" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest-django", marker = "extra == 'dev'" },
@@ -346,6 +348,36 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/7c/7a/84338605817960942c1ea9d852685923ccccd0d91ba0d49532605973491f/django_stubs_ext-5.2.0.tar.gz", hash = "sha256:00c4ae307b538f5643af761a914c3f8e4e3f25f4e7c6d7098f1906c0d8f2aac9", size = 9618, upload-time = "2025-04-26T10:48:38.05Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/e2/65/9f5ca467d84a67c0c547f10b0ece9fd9c26c5efc818a01bf6a3d306c2a0c/django_stubs_ext-5.2.0-py3-none-any.whl", hash = "sha256:b27ae0aab970af4894ba4e9b3fcd3e03421dc8731516669659ee56122d148b23", size = 9066, upload-time = "2025-04-26T10:48:36.032Z" },
+]
+
+[[package]]
+name = "django-tailwind-cli"
+version = "4.2.3"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "django" },
+    { name = "django-typer" },
+    { name = "requests" },
+    { name = "semver" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/c4/45/9687d619fd75ba0a35c6bdf4f07780aeac8b87d82c0bfac01bafbd1065e4/django_tailwind_cli-4.2.3.tar.gz", hash = "sha256:80f86acca3002c4c6274fe864c1c0dc2946dcdd39854f3810593538a04d25a9a", size = 65652, upload-time = "2025-04-07T16:58:13.711Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/28/0f/aba9f69e79cca9c3e8a16b238fcc0528ce288b214851fb29b9cc2a119528/django_tailwind_cli-4.2.3-py3-none-any.whl", hash = "sha256:51bf2ebeb0123291cbfdf78efd2043c12352962d46baaf42cea637523691b822", size = 12208, upload-time = "2025-04-07T16:58:12.095Z" },
+]
+
+[[package]]
+name = "django-typer"
+version = "3.2.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "django" },
+    { name = "shellingham" },
+    { name = "typer-slim" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f7/24/606d027e7dab212eb5c27abaf3f1259eb6ecbb015eaa165d1aac2df1c167/django_typer-3.2.0.tar.gz", hash = "sha256:9c4bfb3b8fbc9f49c5e847994ce8ea2130052e4207f8b0e6edd2ebcf743a8cc3", size = 2907087, upload-time = "2025-05-31T17:23:15.052Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/ab/f3/8d95ee14d4c5120584a45aadbcd3b93e32c52f2774c9f4fc1e134b82a561/django_typer-3.2.0-py3-none-any.whl", hash = "sha256:e9727ac3ffc24cc2fc954a3a4b1c710552240692cc3bb21f1b7725c45c3d6de7", size = 295600, upload-time = "2025-05-31T17:23:12.978Z" },
 ]
 
 [[package]]
@@ -934,6 +966,15 @@ wheels = [
 ]
 
 [[package]]
+name = "semver"
+version = "3.0.4"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/72/d1/d3159231aec234a59dd7d601e9dd9fe96f3afff15efd33c1070019b26132/semver-3.0.4.tar.gz", hash = "sha256:afc7d8c584a5ed0a11033af086e8af226a9c0b206f313e0301f8dd7b6b589602", size = 269730, upload-time = "2025-01-24T13:19:27.617Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a6/24/4d91e05817e92e3a61c8a21e08fd0f390f5301f1c448b137c57c4bc6e543/semver-3.0.4-py3-none-any.whl", hash = "sha256:9c824d87ba7f7ab4a1890799cec8596f15c1241cb473404ea1cb0c55e4b04746", size = 17912, upload-time = "2025-01-24T13:19:24.949Z" },
+]
+
+[[package]]
 name = "setuptools"
 version = "80.9.0"
 source = { registry = "https://pypi.org/simple" }
@@ -1012,6 +1053,19 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/c5/8c/7d682431efca5fd290017663ea4588bf6f2c6aad085c7f108c5dbc316e70/typer-0.16.0.tar.gz", hash = "sha256:af377ffaee1dbe37ae9440cb4e8f11686ea5ce4e9bae01b84ae7c63b87f1dd3b", size = 102625, upload-time = "2025-05-26T14:30:31.824Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/76/42/3efaf858001d2c2913de7f354563e3a3a2f0decae3efe98427125a8f441e/typer-0.16.0-py3-none-any.whl", hash = "sha256:1f79bed11d4d02d4310e3c1b7ba594183bcedb0ac73b27a9e5f28f6fb5b98855", size = 46317, upload-time = "2025-05-26T14:30:30.523Z" },
+]
+
+[[package]]
+name = "typer-slim"
+version = "0.16.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "click" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/ae/96/5749d5b6920fab0db15ce39d850b86dfee21518cd1c81b7a5fe5a495a92a/typer_slim-0.16.0.tar.gz", hash = "sha256:d6483c367f98529884a5d45a028f5d2686ae93cd9d33d518661069f382c08546", size = 102664, upload-time = "2025-05-26T14:30:33.966Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/41/2d/dc1f0c872615aef018783408ac993be7832726a4b30032e317e9f2858267/typer_slim-0.16.0-py3-none-any.whl", hash = "sha256:8aa94eef73b876506b9d239cd70cfedefac95541be8f060688aabfc800f53d67", size = 46377, upload-time = "2025-05-26T14:30:32.268Z" },
 ]
 
 [[package]]
