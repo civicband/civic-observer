@@ -3,43 +3,95 @@
 {% block title %}{{ object.name }} - CivicObserver{% endblock %}
 
 {% block content %}
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>{{ object.name }}, {{ object.state }}</h1>
-        <div>
-            <a href="{% url 'munis:muni-list' %}" class="btn btn-secondary">Back to List</a>
-            <a href="{% url 'munis:muni-update' object.pk %}" class="btn btn-primary">Edit</a>
-            <a href="{% url 'munis:muni-delete' object.pk %}" class="btn btn-danger">Delete</a>
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold text-gray-900">{{ object.name }}, {{ object.state }}</h1>
+        <div class="flex space-x-3">
+            <a href="{% url 'munis:muni-list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                Back to List
+            </a>
+            <a href="{% url 'munis:muni-update' object.pk %}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700">
+                Edit
+            </a>
+            <a href="{% url 'munis:muni-delete' object.pk %}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700">
+                Delete
+            </a>
         </div>
     </div>
 
-    <div class="row">
-        <div class="col-md-6">
-            <h3>Basic Information</h3>
-            <p><strong>Subdomain:</strong> {{ object.subdomain }}</p>
-            <p><strong>Name:</strong> {{ object.name }}</p>
-            <p><strong>State:</strong> {{ object.state }}</p>
-            <p><strong>Country:</strong> {{ object.country }}</p>
-            <p><strong>Kind:</strong> {{ object.kind }}</p>
-            <p><strong>Pages:</strong> {{ object.pages }}</p>
-            <p><strong>Last Updated:</strong> {{ object.last_updated|default:"—" }}</p>
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div class="bg-gray-50 rounded-lg p-6">
+            <h3 class="text-lg font-semibold text-gray-900 mb-4">Basic Information</h3>
+            <dl class="space-y-3">
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Subdomain</dt>
+                    <dd class="text-sm text-gray-900">{{ object.subdomain }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Name</dt>
+                    <dd class="text-sm text-gray-900">{{ object.name }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">State</dt>
+                    <dd class="text-sm text-gray-900">{{ object.state }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Country</dt>
+                    <dd class="text-sm text-gray-900">{{ object.country }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Kind</dt>
+                    <dd class="text-sm text-gray-900">{{ object.kind }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Pages</dt>
+                    <dd class="text-sm text-gray-900">{{ object.pages }}</dd>
+                </div>
+                <div>
+                    <dt class="text-sm font-medium text-gray-500">Last Updated</dt>
+                    <dd class="text-sm text-gray-900">{{ object.last_updated|default:"—" }}</dd>
+                </div>
+            </dl>
         </div>
 
-        <div class="col-md-6">
-            <h3>Location</h3>
-            <p><strong>Latitude:</strong> {{ object.latitude|default:"—" }}</p>
-            <p><strong>Longitude:</strong> {{ object.longitude|default:"—" }}</p>
+        <div class="space-y-6">
+            <div class="bg-gray-50 rounded-lg p-6">
+                <h3 class="text-lg font-semibold text-gray-900 mb-4">Location</h3>
+                <dl class="space-y-3">
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Latitude</dt>
+                        <dd class="text-sm text-gray-900">{{ object.latitude|default:"—" }}</dd>
+                    </div>
+                    <div>
+                        <dt class="text-sm font-medium text-gray-500">Longitude</dt>
+                        <dd class="text-sm text-gray-900">{{ object.longitude|default:"—" }}</dd>
+                    </div>
+                </dl>
+            </div>
 
             {% if object.popup_data %}
-                <h3>Additional Data</h3>
-        <pre>{{ object.popup_data|pprint }}</pre>
+                <div class="bg-gray-50 rounded-lg p-6">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Additional Data</h3>
+                    <pre class="text-xs text-gray-700 whitespace-pre-wrap bg-white p-3 rounded border">{{ object.popup_data|pprint }}</pre>
+                </div>
             {% endif %}
         </div>
     </div>
 
-    <div class="mt-4">
-        <h3>Timestamps</h3>
-        <p><strong>Created:</strong> {{ object.created }}</p>
-        <p><strong>Modified:</strong> {{ object.modified }}</p>
-        <p><strong>ID:</strong> {{ object.id }}</p>
+    <div class="mt-8 bg-gray-50 rounded-lg p-6">
+        <h3 class="text-lg font-semibold text-gray-900 mb-4">Timestamps</h3>
+        <dl class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div>
+                <dt class="text-sm font-medium text-gray-500">Created</dt>
+                <dd class="text-sm text-gray-900">{{ object.created }}</dd>
+            </div>
+            <div>
+                <dt class="text-sm font-medium text-gray-500">Modified</dt>
+                <dd class="text-sm text-gray-900">{{ object.modified }}</dd>
+            </div>
+            <div>
+                <dt class="text-sm font-medium text-gray-500">ID</dt>
+                <dd class="text-sm text-gray-900">{{ object.id }}</dd>
+            </div>
+        </dl>
     </div>
 {% endblock content %}

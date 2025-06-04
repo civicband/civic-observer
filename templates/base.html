@@ -1,113 +1,29 @@
+{% load static %}
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="h-full">
     <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>{% block title %}CivicObserver{% endblock %}</title>
-        <style>
-            body {
-                font-family: Arial, sans-serif;
-                margin: 40px;
-                background-color: #f5f5f5;
-            }
-            .container {
-                max-width: 1200px;
-                margin: 0 auto;
-                background: white;
-                padding: 20px;
-                border-radius: 8px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-            }
-            nav {
-                margin-bottom: 20px;
-                padding-bottom: 10px;
-                border-bottom: 1px solid #ddd;
-            }
-            nav a {
-                margin-right: 15px;
-                text-decoration: none;
-                color: #007bff;
-            }
-            nav a:hover {
-                text-decoration: underline;
-            }
-            table {
-                width: 100%;
-                border-collapse: collapse;
-                margin-top: 20px;
-            }
-            th, td {
-                padding: 12px;
-                text-align: left;
-                border-bottom: 1px solid #ddd;
-            }
-            th {
-                background-color: #f8f9fa;
-                font-weight: bold;
-            }
-            tr:hover {
-                background-color: #f5f5f5;
-            }
-            .btn {
-                display: inline-block;
-                padding: 8px 16px;
-                margin: 4px 2px;
-                text-decoration: none;
-                border-radius: 4px;
-                border: none;
-                cursor: pointer;
-            }
-            .btn-primary {
-                background-color: #007bff;
-                color: white;
-            }
-            .btn-secondary {
-                background-color: #6c757d;
-                color: white;
-            }
-            .btn-danger {
-                background-color: #dc3545;
-                color: white;
-            }
-            .btn:hover {
-                opacity: 0.8;
-            }
-            .form-group {
-                margin-bottom: 15px;
-            }
-            label {
-                display: block;
-                margin-bottom: 5px;
-                font-weight: bold;
-            }
-            input, select, textarea {
-                width: 100%;
-                padding: 8px;
-                border: 1px solid #ddd;
-                border-radius: 4px;
-                box-sizing: border-box;
-            }
-            .search-form {
-                margin-bottom: 20px;
-            }
-            .search-form input {
-                width: auto;
-                display: inline-block;
-                margin-right: 10px;
-            }
-        </style>
+        <link href="{% static 'css/tailwind.css' %}" rel="stylesheet">
     </head>
-    <body>
-        <div class="container">
-            <nav>
-                <a href="{% url 'munis:muni-list' %}">Municipalities</a>
-                <a href="{% url 'admin:index' %}">Admin</a>
-            </nav>
+    <body class="h-full bg-gray-100 font-sans">
+        <div class="min-h-full">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+                <div class="bg-white rounded-lg shadow-sm">
+                    <nav class="border-b border-gray-200 px-6 py-4">
+                        <div class="flex space-x-6">
+                            <a href="{% url 'munis:muni-list' %}" class="text-blue-600 hover:text-blue-800 hover:underline font-medium">Municipalities</a>
+                            <a href="{% url 'admin:index' %}" class="text-blue-600 hover:text-blue-800 hover:underline font-medium">Admin</a>
+                        </div>
+                    </nav>
 
-            <main>
-                {% block content %}
-                {% endblock content %}
-            </main>
+                    <main class="p-6">
+                        {% block content %}
+                        {% endblock content %}
+                    </main>
+                </div>
+            </div>
         </div>
     </body>
 </html>

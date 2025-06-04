@@ -12,6 +12,7 @@ dependencies = [
     "whitenoise>=6.7.0",
     "django-model-utils>=5.0.0",
     "neapolitan",
+    "django-tailwind-cli>=2.2.0",
 ]
 
 [project.optional-dependencies]
