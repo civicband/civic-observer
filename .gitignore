@@ -167,3 +167,7 @@ cython_debug/
 
 # Custom compose options
 compose.override.yml
+.aider*
+
+# Tailwind CSS binary
+tailwindcss/

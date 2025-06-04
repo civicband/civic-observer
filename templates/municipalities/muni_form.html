@@ -5,115 +5,107 @@
 {% endblock title %}
 
 {% block content %}
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h1>{% if object %}Edit {{ object.name }}{% else %}Add Municipality{% endif %}</h1>
-        <a href="{% url 'munis:muni-list' %}" class="btn btn-secondary">Back to List</a>
+    <div class="flex justify-between items-center mb-6">
+        <h1 class="text-3xl font-bold text-gray-900">{% if object %}Edit {{ object.name }}{% else %}Add Municipality{% endif %}</h1>
+        <a href="{% url 'munis:muni-list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+            Back to List
+        </a>
     </div>
 
-    <form method="post">
+    <form method="post" class="space-y-6">
         {% csrf_token %}
 
-        <div class="form-group">
-            <label for="{{ form.subdomain.id_for_label }}">{{ form.subdomain.label }}</label>
+        <div>
+            <label for="{{ form.subdomain.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.subdomain.label }}</label>
             {{ form.subdomain }}
             {% if form.subdomain.errors %}
-                <div class="text-danger">{{ form.subdomain.errors }}</div>
+                <div class="mt-1 text-sm text-red-600">{{ form.subdomain.errors }}</div>
             {% endif %}
         </div>
 
-        <div class="form-group">
-            <label for="{{ form.name.id_for_label }}">{{ form.name.label }}</label>
+        <div>
+            <label for="{{ form.name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.name.label }}</label>
             {{ form.name }}
             {% if form.name.errors %}
-                <div class="text-danger">{{ form.name.errors }}</div>
+                <div class="mt-1 text-sm text-red-600">{{ form.name.errors }}</div>
             {% endif %}
         </div>
 
-        <div class="row">
-            <div class="col-md-6">
-                <div class="form-group">
-                    <label for="{{ form.state.id_for_label }}">{{ form.state.label }}</label>
-                    {{ form.state }}
-                    {% if form.state.errors %}
-                        <div class="text-danger">{{ form.state.errors }}</div>
-                    {% endif %}
-                </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label for="{{ form.state.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.state.label }}</label>
+                {{ form.state }}
+                {% if form.state.errors %}
+                    <div class="mt-1 text-sm text-red-600">{{ form.state.errors }}</div>
+                {% endif %}
             </div>
-            <div class="col-md-6">
-                <div class="form-group">
-                    <label for="{{ form.country.id_for_label }}">{{ form.country.label }}</label>
-                    {{ form.country }}
-                    {% if form.country.errors %}
-                        <div class="text-danger">{{ form.country.errors }}</div>
-                    {% endif %}
-                </div>
+            <div>
+                <label for="{{ form.country.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.country.label }}</label>
+                {{ form.country }}
+                {% if form.country.errors %}
+                    <div class="mt-1 text-sm text-red-600">{{ form.country.errors }}</div>
+                {% endif %}
             </div>
         </div>
 
-        <div class="row">
-            <div class="col-md-6">
-                <div class="form-group">
-                    <label for="{{ form.kind.id_for_label }}">{{ form.kind.label }}</label>
-                    {{ form.kind }}
-                    {% if form.kind.errors %}
-                        <div class="text-danger">{{ form.kind.errors }}</div>
-                    {% endif %}
-                </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label for="{{ form.kind.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.kind.label }}</label>
+                {{ form.kind }}
+                {% if form.kind.errors %}
+                    <div class="mt-1 text-sm text-red-600">{{ form.kind.errors }}</div>
+                {% endif %}
             </div>
-            <div class="col-md-6">
-                <div class="form-group">
-                    <label for="{{ form.pages.id_for_label }}">{{ form.pages.label }}</label>
-                    {{ form.pages }}
-                    {% if form.pages.errors %}
-                        <div class="text-danger">{{ form.pages.errors }}</div>
-                    {% endif %}
-                </div>
+            <div>
+                <label for="{{ form.pages.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.pages.label }}</label>
+                {{ form.pages }}
+                {% if form.pages.errors %}
+                    <div class="mt-1 text-sm text-red-600">{{ form.pages.errors }}</div>
+                {% endif %}
             </div>
         </div>
 
-        <div class="form-group">
-            <label for="{{ form.last_updated.id_for_label }}">{{ form.last_updated.label }}</label>
+        <div>
+            <label for="{{ form.last_updated.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.last_updated.label }}</label>
             {{ form.last_updated }}
             {% if form.last_updated.errors %}
-                <div class="text-danger">{{ form.last_updated.errors }}</div>
+                <div class="mt-1 text-sm text-red-600">{{ form.last_updated.errors }}</div>
             {% endif %}
         </div>
 
-        <div class="row">
-            <div class="col-md-6">
-                <div class="form-group">
-                    <label for="{{ form.latitude.id_for_label }}">{{ form.latitude.label }}</label>
-                    {{ form.latitude }}
-                    {% if form.latitude.errors %}
-                        <div class="text-danger">{{ form.latitude.errors }}</div>
-                    {% endif %}
-                </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div>
+                <label for="{{ form.latitude.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.latitude.label }}</label>
+                {{ form.latitude }}
+                {% if form.latitude.errors %}
+                    <div class="mt-1 text-sm text-red-600">{{ form.latitude.errors }}</div>
+                {% endif %}
             </div>
-            <div class="col-md-6">
-                <div class="form-group">
-                    <label for="{{ form.longitude.id_for_label }}">{{ form.longitude.label }}</label>
-                    {{ form.longitude }}
-                    {% if form.longitude.errors %}
-                        <div class="text-danger">{{ form.longitude.errors }}</div>
-                    {% endif %}
-                </div>
+            <div>
+                <label for="{{ form.longitude.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.longitude.label }}</label>
+                {{ form.longitude }}
+                {% if form.longitude.errors %}
+                    <div class="mt-1 text-sm text-red-600">{{ form.longitude.errors }}</div>
+                {% endif %}
             </div>
         </div>
 
-        <div class="form-group">
-            <label for="{{ form.popup_data.id_for_label }}">{{ form.popup_data.label }}</label>
+        <div>
+            <label for="{{ form.popup_data.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.popup_data.label }}</label>
             {{ form.popup_data }}
             {% if form.popup_data.errors %}
-                <div class="text-danger">{{ form.popup_data.errors }}</div>
+                <div class="mt-1 text-sm text-red-600">{{ form.popup_data.errors }}</div>
             {% endif %}
-            <small class="form-text text-muted">Enter valid JSON data</small>
+            <p class="mt-1 text-sm text-gray-500">Enter valid JSON data</p>
         </div>
 
-        <div class="form-group">
-            <button type="submit" class="btn btn-primary">
+        <div class="flex justify-end space-x-3 pt-6 border-t border-gray-200">
+            <a href="{% url 'munis:muni-list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                Cancel
+            </a>
+            <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
                 {% if object %}Update Municipality{% else %}Create Municipality{% endif %}
             </button>
-            <a href="{% url 'munis:muni-list' %}" class="btn btn-secondary">Cancel</a>
         </div>
     </form>
 {% endblock content %}
