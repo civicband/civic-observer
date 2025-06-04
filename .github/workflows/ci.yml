@@ -74,6 +74,7 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
+
       - name: Install dependencies
         run: |
           uv sync --group dev
@@ -101,6 +102,7 @@ jobs:
       - name: Set up Python
         run: uv python install 3.12
 
+
       - name: Install dependencies
         run: |
           uv sync --group dev
@@ -127,6 +129,7 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync --group dev
+
 
       - name: Run safety check
         run: |
