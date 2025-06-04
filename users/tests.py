@@ -57,10 +57,10 @@ class TestUserModel:
 
     def test_user_factory(self):
         user = UserFactory()
-        assert user.pk is not None  # type: ignore[attr-defined]
+        assert user.pk is not None
         assert user.email
         assert user.username
-        assert user.check_password("defaultpass123")  # type: ignore[attr-defined]
+        assert user.check_password("defaultpass123")
 
     def test_admin_user_factory(self):
         from tests.factories import AdminUserFactory
