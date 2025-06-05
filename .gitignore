@@ -175,3 +175,5 @@ tailwindcss/
 
 # Claude Code cache
 .ocode/
+
+tailwind.css
