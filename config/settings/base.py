@@ -103,9 +103,6 @@ STATICFILES_DIRS: list[Path] = [_STATIC_DIR] if _STATIC_DIR.exists() else []
 
 STATICFILES_STORAGE: str = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
-MEDIA_URL: str = "/media/"
-MEDIA_ROOT: Path = BASE_DIR / "media"
-
 DEFAULT_AUTO_FIELD: str = "django.db.models.BigAutoField"
 
 AUTH_USER_MODEL: str = "users.User"
@@ -113,9 +110,3 @@ AUTH_USER_MODEL: str = "users.User"
 # Cookie settings for civic.observer domain
 SESSION_COOKIE_DOMAIN: str = ".civic.observer"
 CSRF_COOKIE_DOMAIN: str = ".civic.observer"
-
-# Django Tailwind CLI settings
-TAILWIND_CLI_PATH: str = "tailwindcss"
-TAILWIND_CLI_CONFIG_FILE: str = str(BASE_DIR / "tailwind.config.js")
-TAILWIND_CLI_SRC_CSS: str = str(BASE_DIR / "static" / "src" / "input.css")
-TAILWIND_CLI_DIST_CSS: str = str(BASE_DIR / "static" / "css" / "tailwind.css")

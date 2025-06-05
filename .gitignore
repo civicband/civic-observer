@@ -171,6 +171,7 @@ compose.override.yml
 
 # Tailwind CSS binary
 tailwindcss/
+.django_tailwind_cli
 
 # Claude Code cache
 .ocode/

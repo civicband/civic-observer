@@ -1,6 +1,7 @@
 import json
 import os
 
+from django.db.models import Count
 from django.http import JsonResponse
 from django.utils.decorators import method_decorator
 from django.views import View
@@ -27,9 +28,23 @@ class MuniCRUDView(CRUDView):
         "longitude",
         "popup_data",
     ]
-    list_display = ["name", "state", "kind", "pages", "last_updated"]
+    list_display = [
+        "name",
+        "state",
+        "kind",
+        "pages",
+        "last_updated",
+        "saved_searches_count",
+    ]
     search_fields = ["name", "subdomain", "state"]
     filterset_fields = ["state", "kind", "country"]
+
+    def get_queryset(self):
+        return (
+            super()
+            .get_queryset()
+            .annotate(saved_searches_count=Count("searches__saved_by", distinct=True))
+        )
 
     def dispatch(self, request, *args, **kwargs):
         # Check if this is a protected operation (create, update, delete)

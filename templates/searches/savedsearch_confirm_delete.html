@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+
+{% block title %}Delete {{ object.name }} - CivicObserver{% endblock %}
+
+{% block content %}
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+        <div class="md:flex md:items-center md:justify-between mb-8">
+            <div class="min-w-0 flex-1">
+                <h1 class="text-3xl font-bold tracking-tight text-gray-900">Delete Saved Search</h1>
+                <p class="mt-2 text-sm text-gray-600">This action cannot be undone</p>
+            </div>
+            <div class="mt-4 md:mt-0">
+                <a href="{% url 'searches:savedsearch-list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                    Back to List
+                </a>
+            </div>
+        </div>
+
+    <!-- Warning Card -->
+        <div class="bg-white shadow-lg rounded-xl border border-red-200 overflow-hidden mb-8">
+            <div class="bg-red-50 px-6 py-4 border-b border-red-200">
+                <div class="flex items-center">
+                    <div class="flex-shrink-0">
+                        <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                        </svg>
+                    </div>
+                    <div class="ml-3">
+                        <h3 class="text-lg font-semibold text-red-800">Confirm Deletion</h3>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-6 py-6">
+                <div class="mb-6">
+                    <p class="text-gray-700 text-base mb-4">
+                        You are about to permanently delete the following saved search:
+                    </p>
+
+                <!-- Saved Search Info -->
+                    <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
+                        <div class="flex items-center mb-4">
+                            <div class="flex-shrink-0">
+                                <svg class="h-8 w-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                </svg>
+                            </div>
+                            <div class="ml-3">
+                                <h4 class="text-lg font-semibold text-gray-900">{{ object.name }}</h4>
+                                <p class="text-sm text-gray-600">{{ object.search.muni.name }}, {{ object.search.muni.state }}</p>
+                            </div>
+                        </div>
+
+                        <dl class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm">
+                            <div class="bg-white rounded-md p-3 border border-gray-200">
+                                <dt class="font-medium text-gray-600">Search Type</dt>
+                                <dd class="mt-1 text-gray-900">
+                                    {% if object.search.search_term %}
+                                        Keyword: "{{ object.search.search_term }}"
+                                    {% else %}
+                                        All Results
+                                    {% endif %}
+                                </dd>
+                            </div>
+                            <div class="bg-white rounded-md p-3 border border-gray-200">
+                                <dt class="font-medium text-gray-600">Created</dt>
+                                <dd class="mt-1 text-gray-900">{{ object.created|date:"M d, Y" }}</dd>
+                            </div>
+                        </dl>
+                    </div>
+                </div>
+
+            <!-- Warning Message -->
+                <div class="bg-red-50 border border-red-200 rounded-lg p-4">
+                    <div class="flex">
+                        <div class="flex-shrink-0">
+                            <svg class="h-5 w-5 text-red-400" fill="currentColor" viewBox="0 0 20 20">
+                                <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                            </svg>
+                        </div>
+                        <div class="ml-3">
+                            <h4 class="text-sm font-medium text-red-800">This action is irreversible</h4>
+                            <div class="mt-2 text-sm text-red-700">
+                                <ul class="list-disc list-inside space-y-1">
+                                    <li>This saved search configuration will be permanently deleted</li>
+                                    <li>You will lose access to this search shortcut</li>
+                                    <li>The underlying search data will remain intact</li>
+                                    <li>You can recreate this saved search later if needed</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    <!-- Action Buttons -->
+        <form method="post">
+            {% csrf_token %}
+            <div class="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-3 space-y-3 space-y-reverse sm:space-y-0">
+                <a href="{% url 'searches:savedsearch-detail' object.pk %}" class="inline-flex items-center justify-center px-6 py-3 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                    Cancel
+                </a>
+                <button type="submit" class="inline-flex items-center justify-center px-6 py-3 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                    </svg>
+                    Yes, Delete Saved Search
+                </button>
+            </div>
+        </form>
+    </div>
+{% endblock content %}

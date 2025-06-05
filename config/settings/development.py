@@ -22,3 +22,7 @@ EMAIL_BACKEND: str = "django.core.mail.backends.console.EmailBackend"
 INTERNAL_IPS: list[str] = [
     "127.0.0.1",
 ]
+
+# Override cookie domains for local development
+SESSION_COOKIE_DOMAIN = None
+CSRF_COOKIE_DOMAIN = None
