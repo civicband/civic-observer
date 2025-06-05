@@ -5,107 +5,260 @@
 {% endblock title %}
 
 {% block content %}
-    <div class="flex justify-between items-center mb-6">
-        <h1 class="text-3xl font-bold text-gray-900">{% if object %}Edit {{ object.name }}{% else %}Add Municipality{% endif %}</h1>
-        <a href="{% url 'munis:muni-list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-            Back to List
-        </a>
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <!-- Header -->
+        <div class="md:flex md:items-center md:justify-between mb-8">
+            <div class="min-w-0 flex-1">
+                <h1 class="text-3xl font-bold tracking-tight text-gray-900">
+                    {% if object %}
+                        Edit Municipality
+                    {% else %}
+                        Add New Municipality
+                    {% endif %}
+                </h1>
+                <p class="mt-2 text-sm text-gray-600">
+                    {% if object %}
+                        Update the information for {{ object.name }}
+                    {% else %}
+                        Add a new municipality to the CivicBand network
+                    {% endif %}
+                </p>
+            </div>
+            <div class="mt-4 md:mt-0">
+                <a href="{% url 'munis:muni-list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                    <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                    </svg>
+                    Back to List
+                </a>
+            </div>
+        </div>
+
+    <!-- Form -->
+        <div class="bg-white shadow-lg rounded-xl border border-gray-200 overflow-hidden">
+            <form method="post" class="divide-y divide-gray-200">
+                {% csrf_token %}
+
+            <!-- Basic Information Section -->
+                <div class="px-6 py-6 sm:px-8">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-6 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        Basic Information
+                    </h3>
+
+                    <div class="space-y-6">
+                    <!-- Subdomain -->
+                        <div>
+                            <label for="{{ form.subdomain.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                                {{ form.subdomain.label }}
+                                <span class="text-red-500">*</span>
+                            </label>
+                            <div class="relative">
+                                <input type="text" name="{{ form.subdomain.name }}"
+                                       value="{{ form.subdomain.value|default:'' }}"
+                                       id="{{ form.subdomain.id_for_label }}"
+                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.subdomain.errors %} border-red-300 text-red-900 placeholder-red-300 focus:ring-red-500 focus:border-red-500{% endif %}"
+                                       placeholder="e.g., berkeley">
+                                {% if form.subdomain.errors %}
+                                    <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                                        <svg class="h-5 w-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path>
+                                        </svg>
+                                    </div>
+                                {% endif %}
+                            </div>
+                            {% if form.subdomain.errors %}
+                                <p class="mt-2 text-sm text-red-600">{{ form.subdomain.errors.0 }}</p>
+                            {% endif %}
+                            <p class="mt-1 text-sm text-gray-500">The subdomain for the municipality's CivicBand site</p>
+                        </div>
+
+                    <!-- Name -->
+                        <div>
+                            <label for="{{ form.name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                                {{ form.name.label }}
+                                <span class="text-red-500">*</span>
+                            </label>
+                            <input type="text" name="{{ form.name.name }}"
+                                   value="{{ form.name.value|default:'' }}"
+                                   id="{{ form.name.id_for_label }}"
+                                   class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.name.errors %} border-red-300 text-red-900 placeholder-red-300 focus:ring-red-500 focus:border-red-500{% endif %}"
+                                   placeholder="e.g., City of Berkeley">
+                            {% if form.name.errors %}
+                                <p class="mt-2 text-sm text-red-600">{{ form.name.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+
+                    <!-- State and Country -->
+                        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                            <div>
+                                <label for="{{ form.state.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                                    {{ form.state.label }}
+                                    <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" name="{{ form.state.name }}"
+                                       value="{{ form.state.value|default:'' }}"
+                                       id="{{ form.state.id_for_label }}"
+                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.state.errors %} border-red-300 text-red-900 placeholder-red-300 focus:ring-red-500 focus:border-red-500{% endif %}"
+                                       placeholder="e.g., CA">
+                                {% if form.state.errors %}
+                                    <p class="mt-2 text-sm text-red-600">{{ form.state.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <label for="{{ form.country.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                                    {{ form.country.label }}
+                                    <span class="text-red-500">*</span>
+                                </label>
+                                <input type="text" name="{{ form.country.name }}"
+                                       value="{{ form.country.value|default:'' }}"
+                                       id="{{ form.country.id_for_label }}"
+                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.country.errors %} border-red-300 text-red-900 placeholder-red-300 focus:ring-red-500 focus:border-red-500{% endif %}"
+                                       placeholder="e.g., US">
+                                {% if form.country.errors %}
+                                    <p class="mt-2 text-sm text-red-600">{{ form.country.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                    <!-- Kind and Pages -->
+                        <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                            <div>
+                                <label for="{{ form.kind.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                                    {{ form.kind.label }}
+                                </label>
+                                <input type="text" name="{{ form.kind.name }}"
+                                       value="{{ form.kind.value|default:'' }}"
+                                       id="{{ form.kind.id_for_label }}"
+                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.kind.errors %} border-red-300 text-red-900 placeholder-red-300 focus:ring-red-500 focus:border-red-500{% endif %}"
+                                       placeholder="e.g., city">
+                                {% if form.kind.errors %}
+                                    <p class="mt-2 text-sm text-red-600">{{ form.kind.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+                            <div>
+                                <label for="{{ form.pages.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                                    {{ form.pages.label }}
+                                </label>
+                                <input type="number" name="{{ form.pages.name }}"
+                                       value="{{ form.pages.value|default:'' }}"
+                                       id="{{ form.pages.id_for_label }}"
+                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.pages.errors %} border-red-300 text-red-900 placeholder-red-300 focus:ring-red-500 focus:border-red-500{% endif %}"
+                                       placeholder="e.g., 150">
+                                {% if form.pages.errors %}
+                                    <p class="mt-2 text-sm text-red-600">{{ form.pages.errors.0 }}</p>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                    <!-- Last Updated -->
+                        <div>
+                            <label for="{{ form.last_updated.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                                {{ form.last_updated.label }}
+                            </label>
+                            <input type="datetime-local" name="{{ form.last_updated.name }}"
+                                   value="{{ form.last_updated.value|default:'' }}"
+                                   id="{{ form.last_updated.id_for_label }}"
+                                   class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.last_updated.errors %} border-red-300 text-red-900 placeholder-red-300 focus:ring-red-500 focus:border-red-500{% endif %}">
+                            {% if form.last_updated.errors %}
+                                <p class="mt-2 text-sm text-red-600">{{ form.last_updated.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+            <!-- Location Section -->
+                <div class="px-6 py-6 sm:px-8">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-6 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        </svg>
+                        Location Information
+                    </h3>
+
+                    <div class="grid grid-cols-1 gap-6 sm:grid-cols-2">
+                        <div>
+                            <label for="{{ form.latitude.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                                {{ form.latitude.label }}
+                            </label>
+                            <input type="number" step="any" name="{{ form.latitude.name }}"
+                                   value="{{ form.latitude.value|default:'' }}"
+                                   id="{{ form.latitude.id_for_label }}"
+                                   class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.latitude.errors %} border-red-300 text-red-900 placeholder-red-300 focus:ring-red-500 focus:border-red-500{% endif %}"
+                                   placeholder="e.g., 37.8715">
+                            {% if form.latitude.errors %}
+                                <p class="mt-2 text-sm text-red-600">{{ form.latitude.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                        <div>
+                            <label for="{{ form.longitude.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                                {{ form.longitude.label }}
+                            </label>
+                            <input type="number" step="any" name="{{ form.longitude.name }}"
+                                   value="{{ form.longitude.value|default:'' }}"
+                                   id="{{ form.longitude.id_for_label }}"
+                                   class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.longitude.errors %} border-red-300 text-red-900 placeholder-red-300 focus:ring-red-500 focus:border-red-500{% endif %}"
+                                   placeholder="e.g., -122.2730">
+                            {% if form.longitude.errors %}
+                                <p class="mt-2 text-sm text-red-600">{{ form.longitude.errors.0 }}</p>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+            <!-- Additional Data Section -->
+                <div class="px-6 py-6 sm:px-8">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-6 flex items-center">
+                        <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        Additional Data
+                    </h3>
+
+                    <div>
+                        <label for="{{ form.popup_data.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">
+                            {{ form.popup_data.label }}
+                        </label>
+                        <textarea name="{{ form.popup_data.name }}"
+                                  id="{{ form.popup_data.id_for_label }}"
+                                  rows="6"
+                                  class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm font-mono{% if form.popup_data.errors %} border-red-300 text-red-900 placeholder-red-300 focus:ring-red-500 focus:border-red-500{% endif %}"
+                                  placeholder='{"key": "value"}'>{{ form.popup_data.value|default:'' }}</textarea>
+                        {% if form.popup_data.errors %}
+                            <p class="mt-2 text-sm text-red-600">{{ form.popup_data.errors.0 }}</p>
+                        {% endif %}
+                        <p class="mt-2 text-sm text-gray-500">
+                            <svg class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                            </svg>
+                            Enter valid JSON data for additional municipality information
+                        </p>
+                    </div>
+                </div>
+
+            <!-- Form Actions -->
+                <div class="px-6 py-4 sm:px-8 bg-gray-50 flex justify-end space-x-3">
+                    <a href="{% url 'munis:muni-list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                        Cancel
+                    </a>
+                    <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {% if object %}
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                            {% else %}
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                            {% endif %}
+                        </svg>
+                        {% if object %}Update Municipality{% else %}Create Municipality{% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
     </div>
-
-    <form method="post" class="space-y-6">
-        {% csrf_token %}
-
-        <div>
-            <label for="{{ form.subdomain.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.subdomain.label }}</label>
-            {{ form.subdomain }}
-            {% if form.subdomain.errors %}
-                <div class="mt-1 text-sm text-red-600">{{ form.subdomain.errors }}</div>
-            {% endif %}
-        </div>
-
-        <div>
-            <label for="{{ form.name.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.name.label }}</label>
-            {{ form.name }}
-            {% if form.name.errors %}
-                <div class="mt-1 text-sm text-red-600">{{ form.name.errors }}</div>
-            {% endif %}
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-                <label for="{{ form.state.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.state.label }}</label>
-                {{ form.state }}
-                {% if form.state.errors %}
-                    <div class="mt-1 text-sm text-red-600">{{ form.state.errors }}</div>
-                {% endif %}
-            </div>
-            <div>
-                <label for="{{ form.country.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.country.label }}</label>
-                {{ form.country }}
-                {% if form.country.errors %}
-                    <div class="mt-1 text-sm text-red-600">{{ form.country.errors }}</div>
-                {% endif %}
-            </div>
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-                <label for="{{ form.kind.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.kind.label }}</label>
-                {{ form.kind }}
-                {% if form.kind.errors %}
-                    <div class="mt-1 text-sm text-red-600">{{ form.kind.errors }}</div>
-                {% endif %}
-            </div>
-            <div>
-                <label for="{{ form.pages.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.pages.label }}</label>
-                {{ form.pages }}
-                {% if form.pages.errors %}
-                    <div class="mt-1 text-sm text-red-600">{{ form.pages.errors }}</div>
-                {% endif %}
-            </div>
-        </div>
-
-        <div>
-            <label for="{{ form.last_updated.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.last_updated.label }}</label>
-            {{ form.last_updated }}
-            {% if form.last_updated.errors %}
-                <div class="mt-1 text-sm text-red-600">{{ form.last_updated.errors }}</div>
-            {% endif %}
-        </div>
-
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-                <label for="{{ form.latitude.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.latitude.label }}</label>
-                {{ form.latitude }}
-                {% if form.latitude.errors %}
-                    <div class="mt-1 text-sm text-red-600">{{ form.latitude.errors }}</div>
-                {% endif %}
-            </div>
-            <div>
-                <label for="{{ form.longitude.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.longitude.label }}</label>
-                {{ form.longitude }}
-                {% if form.longitude.errors %}
-                    <div class="mt-1 text-sm text-red-600">{{ form.longitude.errors }}</div>
-                {% endif %}
-            </div>
-        </div>
-
-        <div>
-            <label for="{{ form.popup_data.id_for_label }}" class="block text-sm font-medium text-gray-700 mb-2">{{ form.popup_data.label }}</label>
-            {{ form.popup_data }}
-            {% if form.popup_data.errors %}
-                <div class="mt-1 text-sm text-red-600">{{ form.popup_data.errors }}</div>
-            {% endif %}
-            <p class="mt-1 text-sm text-gray-500">Enter valid JSON data</p>
-        </div>
-
-        <div class="flex justify-end space-x-3 pt-6 border-t border-gray-200">
-            <a href="{% url 'munis:muni-list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
-                Cancel
-            </a>
-            <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                {% if object %}Update Municipality{% else %}Create Municipality{% endif %}
-            </button>
-        </div>
-    </form>
 {% endblock content %}
