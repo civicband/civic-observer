@@ -7,23 +7,23 @@
     <!-- Header -->
         <div class="md:flex md:items-center md:justify-between">
             <div class="min-w-0 flex-1">
-                <h1 class="text-3xl font-bold tracking-tight text-slate-900">{{ object.name }}</h1>
+                <h1 class="text-3xl font-bold tracking-tight text-gray-900">{{ object.name }}</h1>
                 <div class="mt-1 flex flex-col sm:flex-row sm:flex-wrap sm:space-x-6">
-                    <div class="mt-2 flex items-center text-sm text-slate-500">
-                        <svg class="flex-shrink-0 mr-1.5 h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="mt-2 flex items-center text-sm text-gray-500">
+                        <svg class="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
                         </svg>
                         {{ object.state }}, {{ object.country }}
                     </div>
-                    <div class="mt-2 flex items-center text-sm text-slate-500">
-                        <svg class="flex-shrink-0 mr-1.5 h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="mt-2 flex items-center text-sm text-gray-500">
+                        <svg class="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
                         </svg>
                         {{ object.kind }}
                     </div>
-                    <div class="mt-2 flex items-center text-sm text-slate-500">
-                        <svg class="flex-shrink-0 mr-1.5 h-5 w-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div class="mt-2 flex items-center text-sm text-gray-500">
+                        <svg class="flex-shrink-0 mr-1.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                         </svg>
                         {{ object.pages }} pages
@@ -31,7 +31,7 @@
                 </div>
             </div>
             <div class="mt-4 flex md:mt-0 md:ml-4">
-                <a href="{% url 'munis:muni-list' %}" class="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                <a href="{% url 'munis:muni-list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                     </svg>
@@ -55,9 +55,9 @@
     <!-- Content -->
         <div class="mt-8 grid grid-cols-1 lg:grid-cols-2 gap-8">
         <!-- Basic Information Card -->
-            <div class="bg-white shadow-lg rounded-xl border border-slate-200 overflow-hidden">
-                <div class="bg-slate-50 px-6 py-4 border-b border-slate-200">
-                    <h3 class="text-lg font-semibold text-slate-900 flex items-center">
+            <div class="bg-white shadow-lg rounded-xl border border-gray-200 overflow-hidden">
+                <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-900 flex items-center">
                         <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
@@ -67,40 +67,40 @@
                 <div class="px-6 py-4">
                     <dl class="space-y-4">
                         <div class="flex justify-between">
-                            <dt class="text-sm font-medium text-slate-600">Subdomain</dt>
-                            <dd class="text-sm text-slate-900 font-medium">{{ object.subdomain }}</dd>
+                            <dt class="text-sm font-medium text-gray-600">Subdomain</dt>
+                            <dd class="text-sm text-gray-900 font-medium">{{ object.subdomain }}</dd>
                         </div>
                         <div class="flex justify-between">
-                            <dt class="text-sm font-medium text-slate-600">Full Name</dt>
-                            <dd class="text-sm text-slate-900 font-medium">{{ object.name }}</dd>
+                            <dt class="text-sm font-medium text-gray-600">Full Name</dt>
+                            <dd class="text-sm text-gray-900 font-medium">{{ object.name }}</dd>
                         </div>
                         <div class="flex justify-between">
-                            <dt class="text-sm font-medium text-slate-600">State</dt>
-                            <dd class="text-sm text-slate-900 font-medium">{{ object.state }}</dd>
+                            <dt class="text-sm font-medium text-gray-600">State</dt>
+                            <dd class="text-sm text-gray-900 font-medium">{{ object.state }}</dd>
                         </div>
                         <div class="flex justify-between">
-                            <dt class="text-sm font-medium text-slate-600">Country</dt>
-                            <dd class="text-sm text-slate-900 font-medium">{{ object.country }}</dd>
+                            <dt class="text-sm font-medium text-gray-600">Country</dt>
+                            <dd class="text-sm text-gray-900 font-medium">{{ object.country }}</dd>
                         </div>
                         <div class="flex justify-between">
-                            <dt class="text-sm font-medium text-slate-600">Type</dt>
-                            <dd class="text-sm text-slate-900 font-medium">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-800">
+                            <dt class="text-sm font-medium text-gray-600">Type</dt>
+                            <dd class="text-sm text-gray-900 font-medium">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
                                     {{ object.kind }}
                                 </span>
                             </dd>
                         </div>
                         <div class="flex justify-between">
-                            <dt class="text-sm font-medium text-slate-600">Pages</dt>
-                            <dd class="text-sm text-slate-900 font-medium">
+                            <dt class="text-sm font-medium text-gray-600">Pages</dt>
+                            <dd class="text-sm text-gray-900 font-medium">
                                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800">
                                     {{ object.pages }} pages
                                 </span>
                             </dd>
                         </div>
                         <div class="flex justify-between">
-                            <dt class="text-sm font-medium text-slate-600">Last Updated</dt>
-                            <dd class="text-sm text-slate-900 font-medium">{{ object.last_updated|default:"—" }}</dd>
+                            <dt class="text-sm font-medium text-gray-600">Last Updated</dt>
+                            <dd class="text-sm text-gray-900 font-medium">{{ object.last_updated|default:"—" }}</dd>
                         </div>
                     </dl>
                 </div>
@@ -109,9 +109,9 @@
         <!-- Location and Additional Data -->
             <div class="space-y-8">
             <!-- Location Card -->
-                <div class="bg-white shadow-lg rounded-xl border border-slate-200 overflow-hidden">
-                    <div class="bg-slate-50 px-6 py-4 border-b border-slate-200">
-                        <h3 class="text-lg font-semibold text-slate-900 flex items-center">
+                <div class="bg-white shadow-lg rounded-xl border border-gray-200 overflow-hidden">
+                    <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                        <h3 class="text-lg font-semibold text-gray-900 flex items-center">
                             <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"></path>
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"></path>
@@ -122,12 +122,12 @@
                     <div class="px-6 py-4">
                         <dl class="space-y-4">
                             <div class="flex justify-between">
-                                <dt class="text-sm font-medium text-slate-600">Latitude</dt>
-                                <dd class="text-sm text-slate-900 font-medium">{{ object.latitude|default:"—" }}</dd>
+                                <dt class="text-sm font-medium text-gray-600">Latitude</dt>
+                                <dd class="text-sm text-gray-900 font-medium">{{ object.latitude|default:"—" }}</dd>
                             </div>
                             <div class="flex justify-between">
-                                <dt class="text-sm font-medium text-slate-600">Longitude</dt>
-                                <dd class="text-sm text-slate-900 font-medium">{{ object.longitude|default:"—" }}</dd>
+                                <dt class="text-sm font-medium text-gray-600">Longitude</dt>
+                                <dd class="text-sm text-gray-900 font-medium">{{ object.longitude|default:"—" }}</dd>
                             </div>
                         </dl>
                     </div>
@@ -135,9 +135,9 @@
 
                 {% if object.popup_data %}
                 <!-- Additional Data Card -->
-                    <div class="bg-white shadow-lg rounded-xl border border-slate-200 overflow-hidden">
-                        <div class="bg-slate-50 px-6 py-4 border-b border-slate-200">
-                            <h3 class="text-lg font-semibold text-slate-900 flex items-center">
+                    <div class="bg-white shadow-lg rounded-xl border border-gray-200 overflow-hidden">
+                        <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                            <h3 class="text-lg font-semibold text-gray-900 flex items-center">
                                 <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                 </svg>
@@ -145,7 +145,7 @@
                             </h3>
                         </div>
                         <div class="px-6 py-4">
-                        <pre class="text-xs text-slate-700 whitespace-pre-wrap bg-slate-50 p-4 rounded-lg border border-slate-200 overflow-x-auto">{{ object.popup_data|pprint }}</pre>
+                        <pre class="text-xs text-gray-700 whitespace-pre-wrap bg-gray-50 p-4 rounded-lg border border-gray-200 overflow-x-auto">{{ object.popup_data|pprint }}</pre>
                         </div>
                     </div>
                 {% endif %}
@@ -153,9 +153,9 @@
         </div>
 
     <!-- Timestamps Card -->
-        <div class="mt-8 bg-white shadow-lg rounded-xl border border-slate-200 overflow-hidden">
-            <div class="bg-slate-50 px-6 py-4 border-b border-slate-200">
-                <h3 class="text-lg font-semibold text-slate-900 flex items-center">
+        <div class="mt-8 bg-white shadow-lg rounded-xl border border-gray-200 overflow-hidden">
+            <div class="bg-gray-50 px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-semibold text-gray-900 flex items-center">
                     <svg class="w-5 h-5 mr-2 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                     </svg>
@@ -164,19 +164,19 @@
             </div>
             <div class="px-6 py-4">
                 <dl class="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                    <div class="text-center p-4 bg-slate-50 rounded-lg">
-                        <dt class="text-sm font-medium text-slate-600 mb-1">Created</dt>
-                        <dd class="text-sm text-slate-900 font-medium">{{ object.created|date:"M d, Y" }}</dd>
-                        <dd class="text-xs text-slate-500">{{ object.created|time:"g:i A" }}</dd>
+                    <div class="text-center p-4 bg-gray-50 rounded-lg">
+                        <dt class="text-sm font-medium text-gray-600 mb-1">Created</dt>
+                        <dd class="text-sm text-gray-900 font-medium">{{ object.created|date:"M d, Y" }}</dd>
+                        <dd class="text-xs text-gray-500">{{ object.created|time:"g:i A" }}</dd>
                     </div>
-                    <div class="text-center p-4 bg-slate-50 rounded-lg">
-                        <dt class="text-sm font-medium text-slate-600 mb-1">Modified</dt>
-                        <dd class="text-sm text-slate-900 font-medium">{{ object.modified|date:"M d, Y" }}</dd>
-                        <dd class="text-xs text-slate-500">{{ object.modified|time:"g:i A" }}</dd>
+                    <div class="text-center p-4 bg-gray-50 rounded-lg">
+                        <dt class="text-sm font-medium text-gray-600 mb-1">Modified</dt>
+                        <dd class="text-sm text-gray-900 font-medium">{{ object.modified|date:"M d, Y" }}</dd>
+                        <dd class="text-xs text-gray-500">{{ object.modified|time:"g:i A" }}</dd>
                     </div>
-                    <div class="text-center p-4 bg-slate-50 rounded-lg">
-                        <dt class="text-sm font-medium text-slate-600 mb-1">System ID</dt>
-                        <dd class="text-sm text-slate-900 font-medium font-mono">{{ object.id }}</dd>
+                    <div class="text-center p-4 bg-gray-50 rounded-lg">
+                        <dt class="text-sm font-medium text-gray-600 mb-1">System ID</dt>
+                        <dd class="text-sm text-gray-900 font-medium font-mono">{{ object.id }}</dd>
                     </div>
                 </dl>
             </div>

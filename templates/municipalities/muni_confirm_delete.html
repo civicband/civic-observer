@@ -7,11 +7,11 @@
     <!-- Header -->
         <div class="md:flex md:items-center md:justify-between mb-8">
             <div class="min-w-0 flex-1">
-                <h1 class="text-3xl font-bold tracking-tight text-slate-900">Delete Municipality</h1>
-                <p class="mt-2 text-sm text-slate-600">This action cannot be undone</p>
+                <h1 class="text-3xl font-bold tracking-tight text-gray-900">Delete Municipality</h1>
+                <p class="mt-2 text-sm text-gray-600">This action cannot be undone</p>
             </div>
             <div class="mt-4 md:mt-0">
-                <a href="{% url 'munis:muni-list' %}" class="inline-flex items-center px-4 py-2 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                <a href="{% url 'munis:muni-list' %}" class="inline-flex items-center px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
                     </svg>
@@ -37,12 +37,12 @@
 
             <div class="px-6 py-6">
                 <div class="mb-6">
-                    <p class="text-slate-700 text-base mb-4">
+                    <p class="text-gray-700 text-base mb-4">
                         You are about to permanently delete the following municipality from the CivicBand network:
                     </p>
 
                 <!-- Municipality Info -->
-                    <div class="bg-slate-50 rounded-lg p-4 border border-slate-200">
+                    <div class="bg-gray-50 rounded-lg p-4 border border-gray-200">
                         <div class="flex items-center mb-4">
                             <div class="flex-shrink-0">
                                 <svg class="h-8 w-8 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -50,23 +50,23 @@
                                 </svg>
                             </div>
                             <div class="ml-3">
-                                <h4 class="text-lg font-semibold text-slate-900">{{ object.name }}</h4>
-                                <p class="text-sm text-slate-600">{{ object.state }}, {{ object.country }}</p>
+                                <h4 class="text-lg font-semibold text-gray-900">{{ object.name }}</h4>
+                                <p class="text-sm text-gray-600">{{ object.state }}, {{ object.country }}</p>
                             </div>
                         </div>
 
                         <dl class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-sm">
-                            <div class="bg-white rounded-md p-3 border border-slate-200">
-                                <dt class="font-medium text-slate-600">Subdomain</dt>
-                                <dd class="mt-1 text-slate-900 font-mono">{{ object.subdomain }}</dd>
+                            <div class="bg-white rounded-md p-3 border border-gray-200">
+                                <dt class="font-medium text-gray-600">Subdomain</dt>
+                                <dd class="mt-1 text-gray-900 font-mono">{{ object.subdomain }}</dd>
                             </div>
-                            <div class="bg-white rounded-md p-3 border border-slate-200">
-                                <dt class="font-medium text-slate-600">Type</dt>
-                                <dd class="mt-1 text-slate-900">{{ object.kind }}</dd>
+                            <div class="bg-white rounded-md p-3 border border-gray-200">
+                                <dt class="font-medium text-gray-600">Type</dt>
+                                <dd class="mt-1 text-gray-900">{{ object.kind }}</dd>
                             </div>
-                            <div class="bg-white rounded-md p-3 border border-slate-200">
-                                <dt class="font-medium text-slate-600">Pages</dt>
-                                <dd class="mt-1 text-slate-900">{{ object.pages }}</dd>
+                            <div class="bg-white rounded-md p-3 border border-gray-200">
+                                <dt class="font-medium text-gray-600">Pages</dt>
+                                <dd class="mt-1 text-gray-900">{{ object.pages }}</dd>
                             </div>
                         </dl>
                     </div>
@@ -100,7 +100,7 @@
         <form method="post">
             {% csrf_token %}
             <div class="flex flex-col-reverse sm:flex-row sm:justify-end sm:space-x-3 space-y-3 space-y-reverse sm:space-y-0">
-                <a href="{% url 'munis:muni-detail' object.pk %}" class="inline-flex items-center justify-center px-6 py-3 border border-slate-300 rounded-md shadow-sm text-sm font-medium text-slate-700 bg-white hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                <a href="{% url 'munis:muni-detail' object.pk %}" class="inline-flex items-center justify-center px-6 py-3 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
                     <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                     </svg>
