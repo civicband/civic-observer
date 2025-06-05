@@ -178,6 +178,8 @@ class TestMuniCRUDViews:
             "name": "Auth City",
             "state": "TX",
             "kind": "city",
+            "country": "USA",
+            "pages": "0",
         }
         response = client.post(url, data)
         assert response.status_code == 302  # Redirect after successful creation
@@ -199,6 +201,8 @@ class TestMuniCRUDViews:
             "name": "Updated Test City",
             "state": "CA",
             "kind": "city",
+            "country": "USA",
+            "pages": "100",
         }
         response = client.post(url, data)
         assert response.status_code == 302  # Redirect after successful update

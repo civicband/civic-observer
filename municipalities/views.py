@@ -1,7 +1,6 @@
 import json
 import os
 
-from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
 from django.utils.decorators import method_decorator
 from django.views import View
@@ -13,6 +12,9 @@ from .models import Muni
 
 class MuniCRUDView(CRUDView):
     model = Muni
+    url_base = (
+        "munis:muni"  # This tells neapolitan what URL pattern to use for redirects
+    )
     fields = [
         "subdomain",
         "name",
@@ -29,17 +31,15 @@ class MuniCRUDView(CRUDView):
     search_fields = ["name", "subdomain", "state"]
     filterset_fields = ["state", "kind", "country"]
 
-    @method_decorator(login_required)
-    def post(self, request, *args, **kwargs):
-        return super().post(request, *args, **kwargs)
+    def dispatch(self, request, *args, **kwargs):
+        # Check if this is a protected operation (create, update, delete)
+        # Based on the role passed in the view configuration
+        if hasattr(self, "role") and self.role.name in ["CREATE", "UPDATE", "DELETE"]:
+            if not request.user.is_authenticated:
+                from django.contrib.auth.views import redirect_to_login
 
-    @method_decorator(login_required)
-    def put(self, request, *args, **kwargs):
-        return super().put(request, *args, **kwargs)
-
-    @method_decorator(login_required)
-    def delete(self, request, *args, **kwargs):
-        return super().delete(request, *args, **kwargs)
+                return redirect_to_login(request.get_full_path())
+        return super().dispatch(request, *args, **kwargs)
 
 
 @method_decorator(csrf_exempt, name="dispatch")
