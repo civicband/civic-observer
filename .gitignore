@@ -171,3 +171,6 @@ compose.override.yml
 
 # Tailwind CSS binary
 tailwindcss/
+
+# Claude Code cache
+.ocode/
