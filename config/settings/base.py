@@ -110,6 +110,10 @@ DEFAULT_AUTO_FIELD: str = "django.db.models.BigAutoField"
 
 AUTH_USER_MODEL: str = "users.User"
 
+# Cookie settings for civic.observer domain
+SESSION_COOKIE_DOMAIN: str = ".civic.observer"
+CSRF_COOKIE_DOMAIN: str = ".civic.observer"
+
 # Django Tailwind CLI settings
 TAILWIND_CLI_PATH: str = "tailwindcss"
 TAILWIND_CLI_CONFIG_FILE: str = str(BASE_DIR / "tailwind.config.js")
