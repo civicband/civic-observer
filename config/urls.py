@@ -18,7 +18,10 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import URLPattern, URLResolver, include, path
 
+from . import views
+
 urlpatterns: list[URLPattern | URLResolver] = [
+    path("", views.homepage, name="homepage"),
     path("admin/", admin.site.urls),
     path("munis/", include("municipalities.urls")),
     path("users/", include("users.urls")),
