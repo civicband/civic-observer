@@ -1,6 +1,8 @@
 import pytest
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
+from django.test import Client
+from django.urls import reverse
 
 from tests.factories import UserFactory
 
@@ -68,3 +70,44 @@ class TestUserModel:
         admin = AdminUserFactory()
         assert admin.is_staff
         assert admin.is_superuser
+
+
+@pytest.mark.django_db
+class TestDatasetteAuthView:
+    def test_datasette_auth_authenticated_user(self):
+        """Test that authenticated users get their id and email."""
+        user = UserFactory(email="test@example.com")
+        client = Client()
+        client.force_login(user)
+
+        response = client.get(reverse("users:datasette_auth"))
+
+        assert response.status_code == 200
+        assert response["Content-Type"] == "application/json"
+        data = response.json()
+        assert data["id"] == user.id
+        assert data["name"] == "test@example.com"
+
+    def test_datasette_auth_unauthenticated_user(self):
+        """Test that unauthenticated users are redirected to login."""
+        client = Client()
+
+        response = client.get(reverse("users:datasette_auth"))
+
+        assert response.status_code == 302
+        assert "/accounts/login/" in response["Location"]
+
+    def test_datasette_auth_only_allows_get(self):
+        """Test that only GET requests are allowed."""
+        user = UserFactory()
+        client = Client()
+        client.force_login(user)
+
+        response = client.post(reverse("users:datasette_auth"))
+        assert response.status_code == 405
+
+        response = client.put(reverse("users:datasette_auth"))
+        assert response.status_code == 405
+
+        response = client.delete(reverse("users:datasette_auth"))
+        assert response.status_code == 405
