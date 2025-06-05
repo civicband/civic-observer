@@ -12,7 +12,7 @@ User = get_user_model()
 @pytest.mark.django_db
 class TestUserModel:
     def test_create_user_with_email(self):
-        user = User.objects.create_user(
+        user = User.objects.create_user(  # type: ignore
             username="testuser", email="test@example.com", password="testpass123"
         )
         assert user.email == "test@example.com"
@@ -23,7 +23,7 @@ class TestUserModel:
         assert not user.is_superuser
 
     def test_create_superuser(self):
-        admin = User.objects.create_superuser(
+        admin = User.objects.create_superuser(  # type: ignore
             username="admin", email="admin@example.com", password="adminpass123"
         )
         assert admin.email == "admin@example.com"
@@ -32,17 +32,17 @@ class TestUserModel:
         assert admin.is_superuser
 
     def test_email_is_unique(self):
-        User.objects.create_user(
+        User.objects.create_user(  # type: ignore
             username="user1", email="test@example.com", password="pass123"
         )
 
         with pytest.raises(IntegrityError):
-            User.objects.create_user(
+            User.objects.create_user(  # type: ignore
                 username="user2", email="test@example.com", password="pass123"
             )
 
     def test_username_field_is_email(self):
-        assert User.USERNAME_FIELD == "email"
+        assert User.USERNAME_FIELD == "email"  # type: ignore
 
     def test_required_fields(self):
         assert "username" in User.REQUIRED_FIELDS
@@ -52,7 +52,7 @@ class TestUserModel:
         assert str(user) == "test@example.com"
 
     def test_email_normalization(self):
-        user = User.objects.create_user(
+        user = User.objects.create_user(  # type: ignore
             username="testuser", email="Test@EXAMPLE.COM", password="testpass123"
         )
         assert user.email == "Test@example.com"
@@ -78,7 +78,7 @@ class TestDatasetteAuthView:
         """Test that authenticated users get their id and email."""
         user = UserFactory(email="test@example.com")
         client = Client()
-        client.force_login(user)
+        client.force_login(user)  # type: ignore
 
         response = client.get(reverse("users:datasette_auth"))
 
@@ -101,7 +101,7 @@ class TestDatasetteAuthView:
         """Test that only GET requests are allowed."""
         user = UserFactory()
         client = Client()
-        client.force_login(user)
+        client.force_login(user)  # type: ignore
 
         response = client.post(reverse("users:datasette_auth"))
         assert response.status_code == 405

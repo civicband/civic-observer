@@ -14,6 +14,14 @@ check:
     uv run --group dev ruff check .
     uv run --group dev mypy .
 
+# Run type checking (mypy) for type safety and correctness of code
+mypy:
+    uv run --group dev mypy .
+
+# Run linting (ruff) for consistent code formatting and style
+ruff:
+    uv run --group dev ruff check .
+
 # Django management command passthrough
 manage *args:
     uv run python manage.py {{args}}
@@ -45,7 +53,3 @@ createsuperuser:
 # Install dependencies
 install:
     uv sync --group dev --group test
-
-# Show available commands
-list:
-    @just --list

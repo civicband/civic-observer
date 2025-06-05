@@ -92,7 +92,7 @@ class TestMuniCRUDViews:
 
     @pytest.fixture
     def user(self):
-        return User.objects.create_user(
+        return User.objects.create_user(  # type: ignore
             username="testuser", email="test@example.com", password="testpass123"
         )
 

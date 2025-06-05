@@ -108,5 +108,5 @@ DEFAULT_AUTO_FIELD: str = "django.db.models.BigAutoField"
 AUTH_USER_MODEL: str = "users.User"
 
 # Cookie settings for civic.observer domain
-SESSION_COOKIE_DOMAIN: str = ".civic.observer"
-CSRF_COOKIE_DOMAIN: str = ".civic.observer"
+SESSION_COOKIE_DOMAIN: str | None = ".civic.observer"
+CSRF_COOKIE_DOMAIN: str | None = ".civic.observer"

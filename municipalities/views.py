@@ -13,9 +13,7 @@ from .models import Muni
 
 class MuniCRUDView(CRUDView):
     model = Muni
-    url_base = (
-        "munis:muni"  # This tells neapolitan what URL pattern to use for redirects
-    )
+    url_base = "munis:muni"  # type: ignore
     fields = [
         "subdomain",
         "name",
