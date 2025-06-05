@@ -1,7 +1,7 @@
 from django.urls import path
 from neapolitan.views import Role
 
-from .views import MuniCRUDView
+from .views import MuniCRUDView, MuniWebhookUpdateView
 
 app_name = "munis"
 
@@ -14,5 +14,11 @@ urlpatterns = [
     ),
     path(
         "<uuid:pk>/delete/", MuniCRUDView.as_view(role=Role.DELETE), name="muni-delete"
+    ),
+    # Webhook API endpoint for updating/creating municipalities by subdomain
+    path(
+        "api/update/<str:subdomain>/",
+        MuniWebhookUpdateView.as_view(),
+        name="muni-webhook-update",
     ),
 ]
