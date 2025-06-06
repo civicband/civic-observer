@@ -23,6 +23,7 @@ dev = [
     "pytest",
     "pytest-django",
     "ruff",
+    "django-stubs[compatible-mypy]>=5.2.0",
 ]
 
 [tool.ruff]
@@ -106,8 +107,7 @@ testpaths = ["tests", "users/tests.py", "municipalities/tests.py", "searches/tes
 [dependency-groups]
 dev = [
     "django-extensions>=4.1",
-    "django-stubs>=5.2.0",
-    "mypy>=1.16.0",
+    "django-stubs[compatible-mypy]>=5.2.0",
     "pre-commit>=4.2.0",
     "ruff>=0.11.12",
     "safety>=3.0.0",
