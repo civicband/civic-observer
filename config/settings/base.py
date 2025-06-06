@@ -24,6 +24,7 @@ DJANGO_APPS: list[str] = [
 THIRD_PARTY_APPS: list[str] = [
     "django_tailwind_cli",
     "anymail",
+    "widget_tweaks",
 ]
 
 LOCAL_APPS: list[str] = [

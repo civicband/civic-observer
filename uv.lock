@@ -116,6 +116,7 @@ dependencies = [
     { name = "django-anymail" },
     { name = "django-model-utils" },
     { name = "django-tailwind-cli" },
+    { name = "django-widget-tweaks" },
     { name = "neapolitan" },
     { name = "whitenoise" },
 ]
@@ -152,6 +153,7 @@ requires-dist = [
     { name = "django-extensions", marker = "extra == 'dev'" },
     { name = "django-model-utils", specifier = ">=5.0.0" },
     { name = "django-tailwind-cli", specifier = ">=2.2.0" },
+    { name = "django-widget-tweaks", specifier = ">=1.5.0" },
     { name = "neapolitan" },
     { name = "pytest", marker = "extra == 'dev'" },
     { name = "pytest-django", marker = "extra == 'dev'" },
@@ -394,6 +396,15 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/f7/24/606d027e7dab212eb5c27abaf3f1259eb6ecbb015eaa165d1aac2df1c167/django_typer-3.2.0.tar.gz", hash = "sha256:9c4bfb3b8fbc9f49c5e847994ce8ea2130052e4207f8b0e6edd2ebcf743a8cc3", size = 2907087, upload-time = "2025-05-31T17:23:15.052Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/ab/f3/8d95ee14d4c5120584a45aadbcd3b93e32c52f2774c9f4fc1e134b82a561/django_typer-3.2.0-py3-none-any.whl", hash = "sha256:e9727ac3ffc24cc2fc954a3a4b1c710552240692cc3bb21f1b7725c45c3d6de7", size = 295600, upload-time = "2025-05-31T17:23:12.978Z" },
+]
+
+[[package]]
+name = "django-widget-tweaks"
+version = "1.5.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/a5/fe/26eb92fba83844e71bbec0ced7fc2e843e5990020e3cc676925204031654/django-widget-tweaks-1.5.0.tar.gz", hash = "sha256:1c2180681ebb994e922c754804c7ffebbe1245014777ac47897a81f57cc629c7", size = 14767, upload-time = "2023-08-25T15:29:12.778Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/46/6a/6cb6deb5c38b785c77c3ba66f53051eada49205979c407323eb666930915/django_widget_tweaks-1.5.0-py3-none-any.whl", hash = "sha256:a41b7b2f05bd44d673d11ebd6c09a96f1d013ee98121cb98c384fe84e33b881e", size = 8960, upload-time = "2023-08-25T15:29:05.644Z" },
 ]
 
 [[package]]

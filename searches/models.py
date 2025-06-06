@@ -11,6 +11,19 @@ from model_utils.models import TimeStampedModel
 from municipalities.models import Muni
 
 
+class SearchManager(models.Manager):
+    def get_or_create_for_params(self, muni, search_term="", all_results=False):
+        """Get or create a Search object for the given parameters."""
+        # Normalize search_term
+        search_term = search_term.strip() if search_term else ""
+
+        return self.get_or_create(
+            muni=muni,
+            search_term=search_term,
+            all_results=all_results,
+        )
+
+
 class Search(TimeStampedModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     muni = models.ForeignKey(Muni, on_delete=models.CASCADE, related_name="searches")
@@ -22,10 +35,13 @@ class Search(TimeStampedModel):
     agenda_match_json = models.JSONField(null=True, blank=True)
     minutes_match_json = models.JSONField(null=True, blank=True)
 
+    objects = SearchManager()
+
     class Meta:
         verbose_name = "Search"
         verbose_name_plural = "Searches"
         ordering = ["-created"]
+        unique_together = ["muni", "search_term", "all_results"]
 
     def __str__(self) -> str:
         if self.search_term:
