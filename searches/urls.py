@@ -1,7 +1,13 @@
 from django.urls import path
 from neapolitan.views import Role
 
-from .views import SavedSearchCRUDView, saved_search_email_preview
+from .views import (
+    SavedSearchCreateView,
+    SavedSearchCRUDView,
+    SavedSearchEditView,
+    municipality_search,
+    saved_search_email_preview,
+)
 
 app_name = "searches"
 
@@ -9,7 +15,7 @@ urlpatterns = [
     path("", SavedSearchCRUDView.as_view(role=Role.LIST), name="savedsearch-list"),
     path(
         "create/",
-        SavedSearchCRUDView.as_view(role=Role.CREATE),
+        SavedSearchCreateView.as_view(),
         name="savedsearch-create",
     ),
     path(
@@ -19,13 +25,19 @@ urlpatterns = [
     ),
     path(
         "<uuid:pk>/update/",
-        SavedSearchCRUDView.as_view(role=Role.UPDATE),
+        SavedSearchEditView.as_view(),
         name="savedsearch-update",
     ),
     path(
         "<uuid:pk>/delete/",
         SavedSearchCRUDView.as_view(role=Role.DELETE),
         name="savedsearch-delete",
+    ),
+    # HTMX endpoints
+    path(
+        "municipality-search/",
+        municipality_search,
+        name="municipality-search",
     ),
     # Email preview URLs (staff only)
     path(

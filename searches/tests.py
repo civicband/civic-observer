@@ -1,4 +1,5 @@
 import pytest
+from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 
@@ -306,10 +307,10 @@ class TestSavedSearchViews:
         from django.urls import reverse
 
         # Create two users with saved searches
-        user1 = User.objects.create_user(
+        user1 = User.objects.create_user(  # type: ignore
             username="user1", password="pass1", email="user1@test.com"
         )  # type: ignore
-        user2 = User.objects.create_user(
+        user2 = User.objects.create_user(  # type: ignore
             username="user2", password="pass2", email="user2@test.com"
         )  # type: ignore
 
@@ -335,19 +336,24 @@ class TestSavedSearchViews:
         """Test that form_valid automatically sets the current user"""
         from django.urls import reverse
 
-        user = User.objects.create_user(
+        user = User.objects.create_user(  # type: ignore
             username="testuser", password="testpass", email="test@test.com"
-        )  # type: ignore
+        )
         client.force_login(user)
 
         muni = Muni.objects.create(
             subdomain="testcity", name="Test City", state="CA", kind="city"
         )
-        search = Search.objects.create(muni=muni, search_term="budget")
 
         url = reverse("searches:savedsearch-create")
         response = client.post(
-            url, {"name": "My Budget Search", "search": str(search.id)}
+            url,
+            {
+                "name": "My Budget Search",
+                "municipality": str(muni.id),
+                "search_term": "budget",
+                "all_results": False,
+            },
         )
 
         # Should redirect after successful creation
@@ -356,7 +362,7 @@ class TestSavedSearchViews:
         # Check that the saved search was created with the correct user
         saved_search = SavedSearch.objects.get(name="My Budget Search")
         assert saved_search.user == user
-        assert saved_search.search == search
+        assert saved_search.search.search_term == "budget"
 
     def test_email_preview_requires_staff(self, client):
         """Test that email preview requires staff permissions"""
@@ -493,7 +499,7 @@ class TestSavedSearchAdmin:
             user=user, search=search, name="Test Search"
         )
 
-        admin = SavedSearchAdmin(SavedSearch, None)
+        admin = SavedSearchAdmin(SavedSearch, AdminSite())
         result = admin.preview_email(saved_search)
 
         # Should contain HTML links to both formats
@@ -517,7 +523,7 @@ class TestSavedSearchAdmin:
             user=user, search=search, name="Test Search"
         )
 
-        admin = SavedSearchAdmin(SavedSearch, None)
+        admin = SavedSearchAdmin(SavedSearch, AdminSite())
         result = admin.preview_email_links(saved_search)
 
         # Should contain detailed HTML links
@@ -533,8 +539,471 @@ class TestSavedSearchAdmin:
         # Create unsaved object (no pk)
         saved_search = SavedSearch()
 
-        admin = SavedSearchAdmin(SavedSearch, None)
+        admin = SavedSearchAdmin(SavedSearch, AdminSite())
         result = admin.preview_email_links(saved_search)
 
         # Should show message for unsaved objects
         assert "Save the search first" in result
+
+
+@pytest.mark.django_db
+class TestSearchManager:
+    def test_get_or_create_for_params(self):
+        """Test the SearchManager.get_or_create_for_params method"""
+        muni = Muni.objects.create(
+            subdomain="testcity", name="Test City", state="CA", kind="city"
+        )
+
+        # First call should create
+        search1, created1 = Search.objects.get_or_create_for_params(
+            muni=muni, search_term="budget", all_results=False
+        )
+        assert created1 is True
+        assert search1.search_term == "budget"
+        assert search1.all_results is False
+
+        # Second call with same params should return existing
+        search2, created2 = Search.objects.get_or_create_for_params(
+            muni=muni, search_term="budget", all_results=False
+        )
+        assert created2 is False
+        assert search1.id == search2.id
+
+        # Different params should create new
+        search3, created3 = Search.objects.get_or_create_for_params(
+            muni=muni, search_term="", all_results=True
+        )
+        assert created3 is True
+        assert search3.id != search1.id
+
+
+@pytest.mark.django_db
+class TestSavedSearchCreateForm:
+    def test_form_valid_with_search_term(self):
+        """Test form validation with search term"""
+        from searches.forms import SavedSearchCreateForm
+
+        muni = Muni.objects.create(
+            subdomain="testcity", name="Test City", state="CA", kind="city"
+        )
+
+        form_data = {
+            "name": "My Budget Search",
+            "municipality": muni.id,
+            "search_term": "budget",
+            "all_results": False,
+        }
+
+        form = SavedSearchCreateForm(data=form_data)
+        assert form.is_valid()
+
+    def test_form_valid_with_all_results(self):
+        """Test form validation with all_results"""
+        from searches.forms import SavedSearchCreateForm
+
+        muni = Muni.objects.create(
+            subdomain="testcity", name="Test City", state="CA", kind="city"
+        )
+
+        form_data = {
+            "name": "All Updates",
+            "municipality": muni.id,
+            "search_term": "",
+            "all_results": True,
+        }
+
+        form = SavedSearchCreateForm(data=form_data)
+        assert form.is_valid()
+
+    def test_form_invalid_neither_search_term_nor_all_results(self):
+        """Test form validation fails when neither search_term nor all_results is provided"""
+        from searches.forms import SavedSearchCreateForm
+
+        muni = Muni.objects.create(
+            subdomain="testcity", name="Test City", state="CA", kind="city"
+        )
+
+        form_data = {
+            "name": "Invalid Search",
+            "municipality": muni.id,
+            "search_term": "",
+            "all_results": False,
+        }
+
+        form = SavedSearchCreateForm(data=form_data)
+        assert not form.is_valid()
+        assert "You must either enter a search term" in str(form.errors)
+
+    def test_form_save_creates_search_and_saved_search(self):
+        """Test that form.save() creates both Search and SavedSearch objects"""
+        from searches.forms import SavedSearchCreateForm
+
+        user = User.objects.create_user(
+            username="testuser", email="test@example.com", password="testpass"
+        )  # type: ignore
+        muni = Muni.objects.create(
+            subdomain="testcity", name="Test City", state="CA", kind="city"
+        )
+
+        form_data = {
+            "name": "My Budget Search",
+            "municipality": muni.id,
+            "search_term": "budget",
+            "all_results": False,
+        }
+
+        form = SavedSearchCreateForm(data=form_data)
+        assert form.is_valid()
+
+        saved_search = form.save(user=user)
+
+        # Check SavedSearch was created
+        assert saved_search.name == "My Budget Search"
+        assert saved_search.user == user
+
+        # Check Search was created
+        search = saved_search.search
+        assert search.muni == muni
+        assert search.search_term == "budget"
+        assert search.all_results is False
+
+
+@pytest.mark.django_db
+class TestSavedSearchCreateView:
+    def test_create_view_requires_auth(self, client):
+        """Test that create view requires authentication"""
+        from django.urls import reverse
+
+        url = reverse("searches:savedsearch-create")
+        response = client.get(url)
+
+        assert response.status_code == 302
+        assert "/accounts/login/" in response.url
+
+    def test_create_view_get(self, client):
+        """Test GET request to create view"""
+        from django.urls import reverse
+
+        user = User.objects.create_user(
+            username="testuser", email="test@example.com", password="testpass"
+        )  # type: ignore
+        client.force_login(user)
+
+        url = reverse("searches:savedsearch-create")
+        response = client.get(url)
+
+        assert response.status_code == 200
+        assert "Create Saved Search" in response.content.decode()
+
+    def test_create_view_post_success(self, client):
+        """Test successful POST to create view"""
+        from django.urls import reverse
+
+        user = User.objects.create_user(
+            username="testuser", email="test@example.com", password="testpass"
+        )  # type: ignore
+        muni = Muni.objects.create(
+            subdomain="testcity", name="Test City", state="CA", kind="city"
+        )
+        client.force_login(user)
+
+        url = reverse("searches:savedsearch-create")
+        response = client.post(
+            url,
+            {
+                "name": "My Budget Search",
+                "municipality": muni.id,
+                "search_term": "budget",
+                "all_results": False,
+            },
+        )
+
+        assert response.status_code == 302
+        assert response.url == reverse("searches:savedsearch-list")
+
+        # Check objects were created
+        saved_search = SavedSearch.objects.get(user=user)
+        assert saved_search.name == "My Budget Search"
+        assert saved_search.search.search_term == "budget"
+
+    def test_create_view_prevents_duplicate(self, client):
+        """Test that creating duplicate saved search shows error"""
+        from django.urls import reverse
+
+        user = User.objects.create_user(
+            username="testuser", email="test@example.com", password="testpass"
+        )  # type: ignore
+        muni = Muni.objects.create(
+            subdomain="testcity", name="Test City", state="CA", kind="city"
+        )
+        client.force_login(user)
+
+        # Create first saved search
+        search, _ = Search.objects.get_or_create_for_params(
+            muni=muni, search_term="budget", all_results=False
+        )
+        SavedSearch.objects.create(
+            user=user, search=search, name="Existing Budget Search"
+        )
+
+        # Try to create duplicate
+        url = reverse("searches:savedsearch-create")
+        response = client.post(
+            url,
+            {
+                "name": "Another Budget Search",
+                "municipality": muni.id,
+                "search_term": "budget",
+                "all_results": False,
+            },
+        )
+
+        assert response.status_code == 200  # Form redisplayed with errors
+        assert "You already have a saved search" in response.content.decode()
+
+
+@pytest.mark.django_db
+class TestSavedSearchEditForm:
+    def test_form_initialization_with_existing_search(self):
+        """Test that form is properly initialized with existing search data"""
+        from searches.forms import SavedSearchEditForm
+
+        user = User.objects.create_user(
+            username="testuser", email="test@example.com", password="testpass"
+        )  # type: ignore
+        muni = Muni.objects.create(
+            subdomain="testcity", name="Test City", state="CA", kind="city"
+        )
+        search = Search.objects.create(
+            muni=muni, search_term="budget", all_results=False
+        )
+        saved_search = SavedSearch.objects.create(
+            user=user, search=search, name="Budget Updates"
+        )
+
+        form = SavedSearchEditForm(instance=saved_search)
+
+        assert form.fields["municipality"].initial == muni
+        assert form.fields["search_term"].initial == "budget"
+        assert form.fields["all_results"].initial is False
+
+    def test_form_save_updates_search(self):
+        """Test that form.save() updates the search object"""
+        from searches.forms import SavedSearchEditForm
+
+        user = User.objects.create_user(
+            username="testuser", email="test@example.com", password="testpass"
+        )  # type: ignore
+        muni1 = Muni.objects.create(
+            subdomain="city1", name="City 1", state="CA", kind="city"
+        )
+        muni2 = Muni.objects.create(
+            subdomain="city2", name="City 2", state="CA", kind="city"
+        )
+        search = Search.objects.create(
+            muni=muni1, search_term="budget", all_results=False
+        )
+        saved_search = SavedSearch.objects.create(
+            user=user, search=search, name="Budget Updates"
+        )
+
+        form_data = {
+            "name": "Planning Updates",
+            "municipality": muni2.id,
+            "search_term": "planning",
+            "all_results": False,
+        }
+
+        form = SavedSearchEditForm(data=form_data, instance=saved_search)
+        assert form.is_valid()
+
+        updated_saved_search = form.save(user=user)
+
+        assert updated_saved_search.name == "Planning Updates"
+        assert updated_saved_search.search.muni == muni2
+        assert updated_saved_search.search.search_term == "planning"
+        assert updated_saved_search.search.all_results is False
+
+
+@pytest.mark.django_db
+class TestSavedSearchEditView:
+    def test_edit_view_requires_auth(self, client):
+        """Test that edit view requires authentication"""
+        import uuid
+
+        from django.urls import reverse
+
+        url = reverse("searches:savedsearch-update", kwargs={"pk": uuid.uuid4()})
+        response = client.get(url)
+
+        assert response.status_code == 302
+        assert "/accounts/login/" in response.url
+
+    def test_edit_view_only_shows_user_searches(self, client):
+        """Test that users can only edit their own searches"""
+        from django.urls import reverse
+
+        user1 = User.objects.create_user(
+            username="user1", email="user1@example.com", password="testpass"
+        )  # type: ignore
+        user2 = User.objects.create_user(
+            username="user2", email="user2@example.com", password="testpass"
+        )  # type: ignore
+        muni = Muni.objects.create(
+            subdomain="testcity", name="Test City", state="CA", kind="city"
+        )
+        search = Search.objects.create(muni=muni, search_term="budget")
+        saved_search = SavedSearch.objects.create(
+            user=user2, search=search, name="User 2 Search"
+        )
+
+        client.force_login(user1)
+
+        url = reverse("searches:savedsearch-update", kwargs={"pk": saved_search.pk})
+        response = client.get(url)
+
+        assert response.status_code == 404
+
+    def test_edit_view_get(self, client):
+        """Test GET request to edit view"""
+        from django.urls import reverse
+
+        user = User.objects.create_user(
+            username="testuser", email="test@example.com", password="testpass"
+        )  # type: ignore
+        muni = Muni.objects.create(
+            subdomain="testcity", name="Test City", state="CA", kind="city"
+        )
+        search = Search.objects.create(muni=muni, search_term="budget")
+        saved_search = SavedSearch.objects.create(
+            user=user, search=search, name="Budget Updates"
+        )
+        client.force_login(user)
+
+        url = reverse("searches:savedsearch-update", kwargs={"pk": saved_search.pk})
+        response = client.get(url)
+
+        assert response.status_code == 200
+        assert "Edit Saved Search" in response.content.decode()
+        assert saved_search.name in response.content.decode()
+
+    def test_edit_view_post_success(self, client):
+        """Test successful POST to edit view"""
+        from django.urls import reverse
+
+        user = User.objects.create_user(
+            username="testuser", email="test@example.com", password="testpass"
+        )  # type: ignore
+        muni = Muni.objects.create(
+            subdomain="testcity", name="Test City", state="CA", kind="city"
+        )
+        search = Search.objects.create(muni=muni, search_term="budget")
+        saved_search = SavedSearch.objects.create(
+            user=user, search=search, name="Budget Updates"
+        )
+        client.force_login(user)
+
+        url = reverse("searches:savedsearch-update", kwargs={"pk": saved_search.pk})
+        response = client.post(
+            url,
+            {
+                "name": "Planning Updates",
+                "municipality": muni.id,
+                "search_term": "planning",
+                "all_results": False,
+            },
+        )
+
+        assert response.status_code == 302
+        assert response.url == reverse("searches:savedsearch-list")
+
+        # Check object was updated
+        saved_search.refresh_from_db()
+        assert saved_search.name == "Planning Updates"
+        assert saved_search.search.search_term == "planning"
+
+    def test_edit_view_prevents_duplicate(self, client):
+        """Test that editing to duplicate saved search shows error"""
+        from django.urls import reverse
+
+        user = User.objects.create_user(
+            username="testuser", email="test@example.com", password="testpass"
+        )  # type: ignore
+        muni = Muni.objects.create(
+            subdomain="testcity", name="Test City", state="CA", kind="city"
+        )
+        client.force_login(user)
+
+        # Create two saved searches
+        search1, _ = Search.objects.get_or_create_for_params(
+            muni=muni, search_term="budget", all_results=False
+        )
+        search2, _ = Search.objects.get_or_create_for_params(
+            muni=muni, search_term="planning", all_results=False
+        )
+        SavedSearch.objects.create(user=user, search=search1, name="Budget Updates")
+        saved_search2 = SavedSearch.objects.create(
+            user=user, search=search2, name="Planning Updates"
+        )
+
+        # Try to edit saved_search2 to have same parameters as saved_search1
+        url = reverse("searches:savedsearch-update", kwargs={"pk": saved_search2.pk})
+        response = client.post(
+            url,
+            {
+                "name": "Another Budget Search",
+                "municipality": muni.id,
+                "search_term": "budget",
+                "all_results": False,
+            },
+        )
+
+        assert response.status_code == 200  # Form redisplayed with errors
+        assert "You already have a saved search" in response.content.decode()
+
+
+@pytest.mark.django_db
+class TestMunicipalitySearch:
+    def test_municipality_search_endpoint(self, client):
+        """Test the municipality search HTMX endpoint"""
+        from django.urls import reverse
+
+        # Create test municipalities
+        Muni.objects.create(
+            subdomain="oakland", name="Oakland", state="CA", kind="city"
+        )
+        Muni.objects.create(
+            subdomain="berkeley", name="Berkeley", state="CA", kind="city"
+        )
+        Muni.objects.create(
+            subdomain="richmond", name="Richmond", state="VA", kind="city"
+        )
+
+        url = reverse("searches:municipality-search")
+
+        # Test empty query returns all (limited)
+        response = client.get(url)
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "Oakland" in content
+        assert "Berkeley" in content
+
+        # Test search by name
+        response = client.get(url, {"q": "Oakland"})
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "Oakland" in content
+        assert "Berkeley" not in content
+
+        # Test search by state
+        response = client.get(url, {"q": "VA"})
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "Richmond" in content
+        assert "Oakland" not in content
+
+        # Test no results
+        response = client.get(url, {"q": "nonexistent"})
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "No municipalities found" in content
