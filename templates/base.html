@@ -6,6 +6,11 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>{% block title %}CivicObserver{% endblock %}</title>
         {% tailwind_css %}
+
+        <!-- HTMX -->
+        <script src="https://unpkg.com/htmx.org@1.9.10" defer></script>
+        <!-- Alpine.js -->
+        <script src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
     </head>
     <body class="min-h-full bg-white">
         <div class="min-h-full">

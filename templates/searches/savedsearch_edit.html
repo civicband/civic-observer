@@ -1,15 +1,15 @@
 {% extends "base.html" %}
 {% load widget_tweaks %}
 
-{% block title %}Create Saved Search{% endblock %}
+{% block title %}Edit Saved Search{% endblock %}
 
 {% block content %}
     <div class="max-w-2xl mx-auto">
         <div class="bg-white shadow-sm rounded-lg">
             <div class="px-6 py-4 border-b border-gray-200">
-                <h1 class="text-2xl font-bold text-gray-900">Create Saved Search</h1>
+                <h1 class="text-2xl font-bold text-gray-900">Edit Saved Search</h1>
                 <p class="mt-1 text-sm text-gray-600">
-                    Set up notifications for municipal agendas and minutes from your chosen municipality.
+                    Update your notifications for municipal agendas and minutes.
                 </p>
             </div>
 
@@ -39,7 +39,7 @@
                 </div>
 
             <!-- Municipality Field -->
-                {% include "searches/partials/municipality_searchable_field.html" with field_name="municipality" field_id=form.municipality.id_for_label field_label=form.municipality.label field_help_text=form.municipality.help_text field_errors=form.municipality.errors %}
+                {% include "searches/partials/municipality_searchable_field.html" with field_name="municipality" field_id=form.municipality.id_for_label field_label=form.municipality.label field_help_text=form.municipality.help_text field_errors=form.municipality.errors field_value=form.municipality.value field_display=form.instance.search.muni.name|add:", "|add:form.instance.search.muni.state %}
 
             <!-- Search Options -->
                 <div class="bg-gray-50 rounded-lg p-4">
@@ -95,7 +95,7 @@
                         Cancel
                     </a>
                     <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
-                        Create Saved Search
+                        Update Saved Search
                     </button>
                 </div>
             </form>

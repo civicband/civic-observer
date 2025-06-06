@@ -1,0 +1,138 @@
+<!-- Searchable Municipality Field Component -->
+<div x-data="municipalitySearch({% if field_value %}'{{ field_value }}'{% else %}null{% endif %}, '{{ field_display|default:'' }}')"
+     @municipality-selected="selectMunicipality($event.detail.id, $event.detail.name)"
+     class="relative">
+
+    <!-- Hidden input for form submission -->
+    <input type="hidden"
+           name="{{ field_name }}"
+           :value="selectedId"
+           id="{{ field_id }}">
+
+    <!-- Label -->
+    <label for="{{ field_id }}_display" class="block text-sm font-medium text-gray-700">
+        {{ field_label }}
+    </label>
+
+    <!-- Search input -->
+    <div class="relative mt-1">
+        <input type="text"
+               id="{{ field_id }}_display"
+               x-model="displayValue"
+               @input="search()"
+               @focus="isOpen = true"
+               @click.away="closeDropdown()"
+               placeholder="Search municipalities..."
+               class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+               autocomplete="off">
+
+        <!-- Search icon -->
+        <div class="absolute inset-y-0 right-0 flex items-center pr-3">
+            <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="m21 21-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+            </svg>
+        </div>
+    </div>
+
+    <!-- Dropdown results -->
+    <div x-show="isOpen && (displayValue.length > 0 || selectedId)"
+         x-transition:enter="transition ease-out duration-100"
+         x-transition:enter-start="transform opacity-0 scale-95"
+         x-transition:enter-end="transform opacity-100 scale-100"
+         x-transition:leave="transition ease-in duration-75"
+         x-transition:leave-start="transform opacity-100 scale-100"
+         x-transition:leave-end="transform opacity-0 scale-95"
+         class="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none"
+         style="display: none;">
+
+        <!-- Loading state -->
+        <div x-show="isLoading" class="px-3 py-2 text-gray-500 text-sm">
+            <div class="flex items-center">
+                <svg class="animate-spin -ml-1 mr-3 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Searching...
+            </div>
+        </div>
+
+        <!-- Results container -->
+        <div id="municipality-results"
+             hx-get="{% url 'searches:municipality-search' %}"
+             hx-trigger="search-municipalities"
+             hx-include="[name='q']"
+             x-show="!isLoading">
+            <!-- Results will be loaded here by HTMX -->
+        </div>
+    </div>
+
+    <!-- Hidden input for search query (used by HTMX) -->
+    <input type="hidden" name="q" x-model="displayValue">
+    <input type="hidden" name="selected" :value="selectedId">
+
+    <!-- Help text -->
+    {% if field_help_text %}
+        <p class="mt-1 text-sm text-gray-500">{{ field_help_text }}</p>
+    {% endif %}
+
+    <!-- Error display -->
+    {% if field_errors %}
+        <p class="mt-1 text-sm text-red-600">{{ field_errors.0 }}</p>
+    {% endif %}
+</div>
+
+<script>
+    function municipalitySearch(initialId = null, initialDisplay = '') {
+        return {
+            selectedId: initialId,
+            displayValue: initialDisplay,
+            isOpen: false,
+            isLoading: false,
+            searchTimeout: null,
+
+            init() {
+            // If we have an initial value, load the initial options
+                if (this.selectedId || this.displayValue) {
+                    this.triggerSearch();
+                }
+            },
+
+            search() {
+            // Clear existing timeout
+                if (this.searchTimeout) {
+                    clearTimeout(this.searchTimeout);
+                }
+
+            // Debounce the search
+                this.searchTimeout = setTimeout(() => {
+                    this.triggerSearch();
+                }, 300);
+            },
+
+            triggerSearch() {
+                this.isLoading = true;
+                this.isOpen = true;
+
+            // Trigger HTMX request
+                htmx.trigger('#municipality-results', 'search-municipalities');
+
+            // Hide loading after a short delay (HTMX will handle the actual loading)
+                setTimeout(() => {
+                    this.isLoading = false;
+                }, 100);
+            },
+
+            selectMunicipality(id, name) {
+                this.selectedId = id;
+                this.displayValue = name;
+                this.isOpen = false;
+            },
+
+            closeDropdown() {
+                setTimeout(() => {
+                    this.isOpen = false;
+                }, 150); // Small delay to allow for clicks on dropdown items
+            }
+        }
+    }
+</script>
