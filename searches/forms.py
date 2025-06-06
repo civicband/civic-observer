@@ -39,8 +39,12 @@ class SavedSearchCreateForm(forms.ModelForm):
             )
         }
 
-    def clean(self):
+    def clean(self) -> dict | None:
         cleaned_data = super().clean()
+        if not cleaned_data:
+            raise forms.ValidationError(
+                "You must either enter a search term or select 'Subscribe to all updates'."
+            )
         search_term = cleaned_data.get("search_term", "").strip()
         all_results = cleaned_data.get("all_results", False)
 
@@ -63,7 +67,7 @@ class SavedSearchCreateForm(forms.ModelForm):
         all_results = self.cleaned_data.get("all_results", False)
 
         # Get or create the Search object
-        search, created = Search.objects.get_or_create_for_params(
+        search, created = Search.objects.get_or_create_for_params(  # type: ignore
             muni=municipality, search_term=search_term, all_results=all_results
         )
 
@@ -122,6 +126,10 @@ class SavedSearchEditForm(forms.ModelForm):
 
     def clean(self):
         cleaned_data = super().clean()
+        if not cleaned_data:
+            raise forms.ValidationError(
+                "You must either enter a search term or select 'Subscribe to all updates'."
+            )
         search_term = cleaned_data.get("search_term", "").strip()
         all_results = cleaned_data.get("all_results", False)
 
@@ -144,7 +152,7 @@ class SavedSearchEditForm(forms.ModelForm):
         all_results = self.cleaned_data.get("all_results", False)
 
         # Get or create the Search object
-        search, created = Search.objects.get_or_create_for_params(
+        search, created = Search.objects.get_or_create_for_params(  # type: ignore
             muni=municipality, search_term=search_term, all_results=all_results
         )
 
