@@ -4,7 +4,7 @@ from .base import *
 
 DEBUG: bool = True  # type: ignore[no-redef]
 
-ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1", "0.0.0.0"]  # type: ignore[no-redef]
+ALLOWED_HOSTS: list[str] = ["localhost", "127.0.0.1", "0.0.0.0", "testserver"]  # type: ignore[no-redef]
 
 INSTALLED_APPS += [
     "django_extensions",

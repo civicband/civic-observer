@@ -1,7 +1,7 @@
 from django.urls import path
 from neapolitan.views import Role
 
-from .views import SavedSearchCRUDView
+from .views import SavedSearchCRUDView, saved_search_email_preview
 
 app_name = "searches"
 
@@ -26,5 +26,16 @@ urlpatterns = [
         "<uuid:pk>/delete/",
         SavedSearchCRUDView.as_view(role=Role.DELETE),
         name="savedsearch-delete",
+    ),
+    # Email preview URLs (staff only)
+    path(
+        "<uuid:pk>/email-preview/",
+        saved_search_email_preview,
+        name="savedsearch-email-preview",
+    ),
+    path(
+        "<uuid:pk>/email-preview/<str:format>/",
+        saved_search_email_preview,
+        name="savedsearch-email-preview-format",
     ),
 ]

@@ -19,7 +19,7 @@
                                 <a href="{% url 'homepage' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Home</a>
                                 <a href="{% url 'munis:muni-list' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Municipalities</a>
                                 <a href="{% url 'searches:savedsearch-list' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Saved Searches</a>
-                                <a href="{% url 'admin:index' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Admin</a>
+                                {% if user.is_staff %} <a href="{% url 'admin:index' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Admin</a> {% endif %}
                             </div>
                         </div>
                     </div>

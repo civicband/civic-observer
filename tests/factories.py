@@ -11,15 +11,15 @@ class UserFactory(DjangoModelFactory):
     class Meta:
         model = User
 
-    username = factory.Sequence(lambda n: f"user{n}")
-    email = factory.LazyAttribute(lambda obj: f"{obj.username}@example.com")
-    first_name = factory.Faker("first_name")
-    last_name = factory.Faker("last_name")
+    username = factory.Sequence(lambda n: f"user{n}")  # type: ignore
+    email = factory.LazyAttribute(lambda obj: f"{obj.username}@example.com")  # type: ignore
+    first_name = factory.Faker("first_name")  # type: ignore
+    last_name = factory.Faker("last_name")  # type: ignore
     is_active = True
     is_staff = False
     is_superuser = False
 
-    @factory.post_generation
+    @factory.post_generation  # type: ignore
     def password(obj: Any, create: bool, extracted: Any, **kwargs: Any) -> None:
         if not create:
             return
@@ -31,5 +31,5 @@ class UserFactory(DjangoModelFactory):
 class AdminUserFactory(UserFactory):
     is_staff = True
     is_superuser = True
-    username = factory.Sequence(lambda n: f"admin{n}")
-    email = factory.LazyAttribute(lambda obj: f"{obj.username}@example.com")
+    username = factory.Sequence(lambda n: f"admin{n}")  # type: ignore
+    email = factory.LazyAttribute(lambda obj: f"{obj.username}@example.com")  # type: ignore

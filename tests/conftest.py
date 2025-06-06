@@ -18,12 +18,12 @@ def user_data():
 
 @pytest.fixture
 def user(db, user_data):
-    return User.objects.create_user(**user_data)
+    return User.objects.create_user(**user_data)  # type: ignore
 
 
 @pytest.fixture
 def superuser(db):
-    return User.objects.create_superuser(
+    return User.objects.create_superuser(  # type: ignore
         username="admin",
         email="admin@example.com",
         password="adminpass123",

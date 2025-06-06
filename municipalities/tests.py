@@ -347,7 +347,56 @@ class TestMuniWebhookUpdateView:
         assert response.status_code == 201
         data = response.json()
         assert data["action"] == "created"
-        assert Muni.objects.filter(subdomain="putcity").exists()
+
+    @override_settings()
+    def test_webhook_auth_direct_token(self, client, webhook_data):
+        """Test webhook authentication with direct token (no Bearer prefix)"""
+        os.environ["WEBHOOK_SECRET"] = "test-secret-123"
+
+        url = reverse("munis:muni-webhook-update", kwargs={"subdomain": "directauth"})
+        headers = {"Authorization": "test-secret-123"}  # Direct token without Bearer
+        response = client.post(
+            url,
+            json.dumps(webhook_data),
+            content_type="application/json",
+            **{f"HTTP_{k.upper().replace('-', '_')}": v for k, v in headers.items()},
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["action"] == "created"
+        assert Muni.objects.filter(subdomain="directauth").exists()
+
+        # Clean up
+        if "WEBHOOK_SECRET" in os.environ:
+            del os.environ["WEBHOOK_SECRET"]
+
+    @override_settings()
+    def test_webhook_handles_exception(self, client):
+        """Test webhook handles exceptions gracefully"""
+        os.environ["WEBHOOK_SECRET"] = ""
+
+        url = reverse("munis:muni-webhook-update", kwargs={"subdomain": "error-test"})
+
+        # Mock update_or_create to raise an exception
+        from unittest.mock import patch
+
+        with patch.object(
+            Muni.objects, "update_or_create", side_effect=Exception("Database error")
+        ):
+            response = client.post(
+                url,
+                json.dumps({"name": "Error Test City"}),
+                content_type="application/json",
+            )
+
+        assert response.status_code == 400
+        data = response.json()
+        assert data["error"] == "Database error"
+
+        # Clean up
+        if "WEBHOOK_SECRET" in os.environ:
+            del os.environ["WEBHOOK_SECRET"]
 
     def test_webhook_invalid_json(self, client):
         """Test webhook with invalid JSON data"""

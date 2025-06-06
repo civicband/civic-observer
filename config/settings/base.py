@@ -23,6 +23,7 @@ DJANGO_APPS: list[str] = [
 
 THIRD_PARTY_APPS: list[str] = [
     "django_tailwind_cli",
+    "anymail",
 ]
 
 LOCAL_APPS: list[str] = [
@@ -110,3 +111,13 @@ AUTH_USER_MODEL: str = "users.User"
 # Cookie settings for civic.observer domain
 SESSION_COOKIE_DOMAIN: str | None = ".civic.observer"
 CSRF_COOKIE_DOMAIN: str | None = ".civic.observer"
+
+# Email configuration
+EMAIL_BACKEND = "anymail.backends.postmark.EmailBackend"
+ANYMAIL = {
+    "POSTMARK_SERVER_TOKEN": os.environ.get("POSTMARK_SERVER_TOKEN", ""),
+}
+
+# Default email settings
+DEFAULT_FROM_EMAIL = "Civic Observer <noreply@civic.observer>"
+SERVER_EMAIL = "Civic Observer <server@civic.observer>"

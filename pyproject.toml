@@ -13,6 +13,7 @@ dependencies = [
     "django-model-utils>=5.0.0",
     "neapolitan",
     "django-tailwind-cli>=2.2.0",
+    "django-anymail[postmark]>=10.2",
 ]
 
 [project.optional-dependencies]
