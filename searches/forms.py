@@ -60,8 +60,11 @@ class SavedSearchCreateForm(forms.ModelForm):
 
         return cleaned_data
 
-    def save(self, user, commit=True):
+    def save(self, commit=True, user=None):
         """Save the form by creating or finding the appropriate Search object."""
+        if user is None:
+            raise ValueError("User must be provided to save SavedSearch")
+
         municipality = self.cleaned_data["municipality"]
         search_term = self.cleaned_data.get("search_term", "").strip()
         all_results = self.cleaned_data.get("all_results", False)
@@ -145,8 +148,11 @@ class SavedSearchEditForm(forms.ModelForm):
 
         return cleaned_data
 
-    def save(self, user, commit=True):
+    def save(self, commit=True, user=None):
         """Save the form by creating or finding the appropriate Search object."""
+        if user is None:
+            raise ValueError("User must be provided to save SavedSearch")
+
         municipality = self.cleaned_data["municipality"]
         search_term = self.cleaned_data.get("search_term", "").strip()
         all_results = self.cleaned_data.get("all_results", False)

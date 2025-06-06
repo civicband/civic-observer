@@ -60,6 +60,9 @@ class SavedSearchCreateView(CreateView):
         all_results = form.cleaned_data.get("all_results", False)
 
         # Check for existing saved search with same parameters
+        if not self.request.user.is_authenticated:
+            return self.form_invalid(form)
+
         existing_saved_search = SavedSearch.objects.filter(
             user=self.request.user,
             search__muni=municipality,
@@ -96,6 +99,9 @@ class SavedSearchEditView(UpdateView):
 
     def get_queryset(self):
         # Ensure users can only edit their own saved searches
+        if not self.request.user.is_authenticated:
+            return SavedSearch.objects.none()
+
         return SavedSearch.objects.filter(user=self.request.user).select_related(
             "search", "search__muni"
         )
@@ -107,6 +113,9 @@ class SavedSearchEditView(UpdateView):
         all_results = form.cleaned_data.get("all_results", False)
 
         # Check for existing saved search with same parameters
+        if not self.request.user.is_authenticated:
+            return self.form_invalid(form)
+
         existing_saved_search = (
             SavedSearch.objects.filter(
                 user=self.request.user,

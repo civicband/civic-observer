@@ -17,7 +17,7 @@ DATABASES: dict[str, dict[str, Any]] = {  # type: ignore[no-redef]
     }
 }
 
-EMAIL_BACKEND: str = "django.core.mail.backends.console.EmailBackend"
+EMAIL_BACKEND: str = "django.core.mail.backends.console.EmailBackend"  # type: ignore[no-redef]
 
 INTERNAL_IPS: list[str] = [
     "127.0.0.1",

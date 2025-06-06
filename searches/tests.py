@@ -1,4 +1,5 @@
 import pytest
+from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 
@@ -306,10 +307,10 @@ class TestSavedSearchViews:
         from django.urls import reverse
 
         # Create two users with saved searches
-        user1 = User.objects.create_user(
+        user1 = User.objects.create_user(  # type: ignore
             username="user1", password="pass1", email="user1@test.com"
         )  # type: ignore
-        user2 = User.objects.create_user(
+        user2 = User.objects.create_user(  # type: ignore
             username="user2", password="pass2", email="user2@test.com"
         )  # type: ignore
 
@@ -335,9 +336,9 @@ class TestSavedSearchViews:
         """Test that form_valid automatically sets the current user"""
         from django.urls import reverse
 
-        user = User.objects.create_user(
+        user = User.objects.create_user(  # type: ignore
             username="testuser", password="testpass", email="test@test.com"
-        )  # type: ignore
+        )
         client.force_login(user)
 
         muni = Muni.objects.create(
@@ -498,7 +499,7 @@ class TestSavedSearchAdmin:
             user=user, search=search, name="Test Search"
         )
 
-        admin = SavedSearchAdmin(SavedSearch, None)
+        admin = SavedSearchAdmin(SavedSearch, AdminSite())
         result = admin.preview_email(saved_search)
 
         # Should contain HTML links to both formats
@@ -522,7 +523,7 @@ class TestSavedSearchAdmin:
             user=user, search=search, name="Test Search"
         )
 
-        admin = SavedSearchAdmin(SavedSearch, None)
+        admin = SavedSearchAdmin(SavedSearch, AdminSite())
         result = admin.preview_email_links(saved_search)
 
         # Should contain detailed HTML links
@@ -538,7 +539,7 @@ class TestSavedSearchAdmin:
         # Create unsaved object (no pk)
         saved_search = SavedSearch()
 
-        admin = SavedSearchAdmin(SavedSearch, None)
+        admin = SavedSearchAdmin(SavedSearch, AdminSite())
         result = admin.preview_email_links(saved_search)
 
         # Should show message for unsaved objects
