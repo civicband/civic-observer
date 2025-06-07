@@ -38,11 +38,51 @@ class MuniCRUDView(CRUDView):
     filterset_fields = ["state", "kind", "country"]
 
     def get_queryset(self):
-        return (
+        queryset = (
             super()
             .get_queryset()
             .annotate(saved_searches_count=Count("searches__saved_by", distinct=True))
         )
+
+        # Handle sorting for HTMX requests
+        sort_by = self.request.GET.get("sort", "name")
+        sort_order = self.request.GET.get("order", "asc")
+
+        # Define allowed sort fields with their database field names
+        sort_fields = {
+            "name": "name",
+            "state": "state",
+            "kind": "kind",
+            "pages": "pages",
+            "saved_searches": "saved_searches_count",
+            "last_updated": "last_updated",
+        }
+
+        if sort_by in sort_fields:
+            order_field = sort_fields[sort_by]
+            if sort_order == "desc":
+                order_field = f"-{order_field}"
+            queryset = queryset.order_by(order_field)
+
+        return queryset
+
+    def list(self, request, *args, **kwargs):
+        """Override to handle HTMX requests for sorting."""
+        # For HTMX requests, return just the table body
+        if request.headers.get("HX-Request"):
+            self.object_list = self.get_queryset()
+            context = self.get_context_data()
+            from django.template.loader import render_to_string
+
+            html = render_to_string(
+                "municipalities/partials/muni_table_body.html", context, request=request
+            )
+            from django.http import HttpResponse
+
+            return HttpResponse(html)
+
+        # For regular requests, use the default behavior
+        return super().list(request, *args, **kwargs)
 
     def dispatch(self, request, *args, **kwargs):
         # Check if this is a protected operation (create, update, delete)
