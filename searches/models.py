@@ -51,6 +51,9 @@ class Search(TimeStampedModel):
     def update_search(self) -> None:
         # Implement logic to update search results based on the search_term and muni
         subdomain = self.muni.subdomain
+        agenda_updated = False
+        minutes_updated = False
+
         if self.all_results:
             agendas_query = "/meetings/-/query.json?sql=select+distinct+meeting%2C+date%2C+count(page)+from+agendas+where+date+>%3D+current_date+group+by+meeting%2C+date+order+by+date+asc"
             minutes_query = "/meetings/-/query?sql=select+distinct+meeting%2C+date%2C+count(page)+from+minutes+where+date+<%3D+current_date+group+by+meeting%2C+date+order+by+date+desc"
@@ -68,6 +71,7 @@ class Search(TimeStampedModel):
             if agendas_resp.json()["rows"] != self.agenda_match_json:
                 self.agenda_match_json = agendas_resp.json()["rows"]
                 self.last_agenda_matched = timezone.now()
+                agenda_updated = True
         if (
             minutes_resp.status_code == 200
             and len(minutes_resp.json().get("rows", [])) > 0
@@ -75,6 +79,15 @@ class Search(TimeStampedModel):
             if minutes_resp.json()["rows"] != self.minutes_match_json:
                 self.minutes_match_json = minutes_resp.json()["rows"]
                 self.last_minutes_matched = timezone.now()
+                minutes_updated = True
+
+        # Save changes before sending notifications
+        self.save()
+
+        # Send notifications if there were updates
+        if agenda_updated or minutes_updated:
+            for saved_search in self.saved_by.all():
+                saved_search.send_search_notification()
 
 
 class SavedSearch(TimeStampedModel):
@@ -88,6 +101,9 @@ class SavedSearch(TimeStampedModel):
         Search, on_delete=models.CASCADE, related_name="saved_by"
     )
     name = models.CharField(max_length=200, help_text="A name for this saved search")
+    last_notification_sent = models.DateTimeField(
+        null=True, blank=True, help_text="When the last notification email was sent"
+    )
 
     class Meta:
         verbose_name = "Saved Search"
@@ -112,3 +128,7 @@ class SavedSearch(TimeStampedModel):
         msg.esp_extra = {"MessageStream": "outbound"}  # type: ignore
 
         msg.send()
+
+        # Update the last notification sent timestamp
+        self.last_notification_sent = timezone.now()
+        self.save(update_fields=["last_notification_sent"])

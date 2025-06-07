@@ -220,6 +220,157 @@ class TestSearchModel:
         assert search.minutes_match_json is None
         assert search.last_minutes_matched is None
 
+    def test_search_update_search_sends_notifications_on_agenda_update(self):
+        """Test update_search sends notifications when agenda is updated"""
+        user = User.objects.create_user(  # type: ignore
+            username="testuser", email="test@example.com", password="testpass"
+        )
+        muni = Muni.objects.create(
+            subdomain="testcity", name="Test City", state="CA", kind="city"
+        )
+        search = Search.objects.create(muni=muni, search_term="budget")
+        SavedSearch.objects.create(user=user, search=search, name="Budget Search")
+
+        # Mock the httpx calls and email sending
+        from unittest.mock import Mock, patch
+
+        import httpx
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "rows": [{"meeting": "Budget", "date": "2024-02-01"}]
+        }
+
+        with patch.object(httpx, "get", return_value=mock_response):
+            with patch(
+                "searches.models.SavedSearch.send_search_notification"
+            ) as mock_send:
+                search.update_search()
+
+        # Should have called send_search_notification
+        mock_send.assert_called_once()
+        assert search.agenda_match_json == [{"meeting": "Budget", "date": "2024-02-01"}]
+        assert search.last_agenda_matched is not None
+
+    def test_search_update_search_sends_notifications_on_minutes_update(self):
+        """Test update_search sends notifications when minutes are updated"""
+        user = User.objects.create_user(  # type: ignore
+            username="testuser", email="test@example.com", password="testpass"
+        )
+        muni = Muni.objects.create(
+            subdomain="testcity", name="Test City", state="CA", kind="city"
+        )
+        search = Search.objects.create(
+            muni=muni,
+            search_term="parks",
+            agenda_match_json=[{"meeting": "Old", "date": "2023-01-01"}],
+        )
+        SavedSearch.objects.create(user=user, search=search, name="Parks Search")
+
+        # Mock the httpx calls
+        from unittest.mock import Mock, patch
+
+        import httpx
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+
+        # Return old agenda data but new minutes data
+        def side_effect(url):
+            response = Mock()
+            response.status_code = 200
+            if "agendas" in url:
+                response.json.return_value = {
+                    "rows": [{"meeting": "Old", "date": "2023-01-01"}]
+                }
+            else:  # minutes
+                response.json.return_value = {
+                    "rows": [{"meeting": "Parks", "date": "2024-03-01"}]
+                }
+            return response
+
+        with patch.object(httpx, "get", side_effect=side_effect):
+            with patch(
+                "searches.models.SavedSearch.send_search_notification"
+            ) as mock_send:
+                search.update_search()
+
+        # Should have called send_search_notification for minutes update
+        mock_send.assert_called_once()
+        assert search.minutes_match_json == [{"meeting": "Parks", "date": "2024-03-01"}]
+        assert search.last_minutes_matched is not None
+
+    def test_search_update_search_no_notification_when_no_changes(self):
+        """Test update_search does not send notifications when nothing changes"""
+        user = User.objects.create_user(  # type: ignore
+            username="testuser", email="test@example.com", password="testpass"
+        )
+        muni = Muni.objects.create(
+            subdomain="testcity", name="Test City", state="CA", kind="city"
+        )
+        existing_data = [{"meeting": "Council", "date": "2024-01-01"}]
+        search = Search.objects.create(
+            muni=muni,
+            search_term="council",
+            agenda_match_json=existing_data,
+            minutes_match_json=existing_data,
+        )
+        SavedSearch.objects.create(user=user, search=search, name="Council Search")
+
+        # Mock the httpx calls
+        from unittest.mock import Mock, patch
+
+        import httpx
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"rows": existing_data}
+
+        with patch.object(httpx, "get", return_value=mock_response):
+            with patch(
+                "searches.models.SavedSearch.send_search_notification"
+            ) as mock_send:
+                search.update_search()
+
+        # Should NOT have called send_search_notification
+        mock_send.assert_not_called()
+
+    def test_search_update_search_notifies_multiple_saved_searches(self):
+        """Test update_search notifies all saved searches for a search"""
+        user1 = User.objects.create_user(  # type: ignore
+            username="user1", email="user1@example.com", password="pass1"
+        )
+        user2 = User.objects.create_user(  # type: ignore
+            username="user2", email="user2@example.com", password="pass2"
+        )
+        muni = Muni.objects.create(
+            subdomain="testcity", name="Test City", state="CA", kind="city"
+        )
+        search = Search.objects.create(muni=muni, search_term="zoning")
+        SavedSearch.objects.create(user=user1, search=search, name="User1 Zoning")
+        SavedSearch.objects.create(user=user2, search=search, name="User2 Zoning")
+
+        # Mock the httpx calls
+        from unittest.mock import Mock, patch
+
+        import httpx
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "rows": [{"meeting": "Zoning", "date": "2024-04-01"}]
+        }
+
+        with patch.object(httpx, "get", return_value=mock_response):
+            with patch(
+                "searches.models.SavedSearch.send_search_notification"
+            ) as mock_send:
+                search.update_search()
+
+        # Should have called send_search_notification twice (once for each saved search)
+        assert mock_send.call_count == 2
+
 
 @pytest.mark.django_db
 class TestSavedSearchModel:
@@ -237,6 +388,22 @@ class TestSavedSearchModel:
         )
 
         assert str(saved_search) == "Parks Search - test@example.com"
+
+    def test_savedsearch_last_notification_sent_field(self):
+        """Test last_notification_sent field is None by default"""
+        user = User.objects.create_user(  # type: ignore
+            username="testuser", email="test@example.com", password="testpass"
+        )
+        muni = Muni.objects.create(
+            subdomain="testcity", name="Test City", state="CA", kind="city"
+        )
+        search = Search.objects.create(muni=muni, search_term="parks")
+        saved_search = SavedSearch.objects.create(
+            user=user, search=search, name="Parks Search"
+        )
+
+        # Should be None by default
+        assert saved_search.last_notification_sent is None
 
 
 @pytest.mark.django_db
@@ -479,6 +646,42 @@ class TestSavedSearchViews:
 
             # Verify that send was called
             mock_send.assert_called_once()
+
+    def test_savedsearch_send_notification_updates_timestamp(self):
+        """Test that send_search_notification updates last_notification_sent"""
+        from unittest.mock import patch
+
+        from django.utils import timezone
+
+        user = User.objects.create_user(
+            username="user", password="pass", email="user@test.com"
+        )  # type: ignore
+        muni = Muni.objects.create(
+            subdomain="testcity", name="Test City", state="CA", kind="city"
+        )
+        search = Search.objects.create(muni=muni, search_term="budget")
+        saved_search = SavedSearch.objects.create(
+            user=user, search=search, name="Budget Updates"
+        )
+
+        # Verify it starts as None
+        assert saved_search.last_notification_sent is None
+
+        # Mock the send method and capture the time before sending
+        with patch("django.core.mail.EmailMultiAlternatives.send") as mock_send:
+            before_send = timezone.now()
+            saved_search.send_search_notification()
+            after_send = timezone.now()
+
+            # Verify that send was called
+            mock_send.assert_called_once()
+
+            # Refresh from database to get updated value
+            saved_search.refresh_from_db()
+
+            # Verify timestamp was updated
+            assert saved_search.last_notification_sent is not None
+            assert before_send <= saved_search.last_notification_sent <= after_send
 
 
 @pytest.mark.django_db
