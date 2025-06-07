@@ -24,15 +24,31 @@ class SearchAdmin(admin.ModelAdmin):
 
 @admin.register(SavedSearch)
 class SavedSearchAdmin(admin.ModelAdmin):
-    list_display = ["name", "user", "search", "created", "preview_email"]
-    list_filter = ["created"]
+    list_display = [
+        "name",
+        "user",
+        "search",
+        "created",
+        "last_notification_sent",
+        "preview_email",
+    ]
+    list_filter = ["created", "last_notification_sent"]
     search_fields = ["name", "user__email", "search__search_term"]
     ordering = ["-created"]
-    readonly_fields = ["id", "created", "modified", "preview_email_links"]
+    readonly_fields = [
+        "id",
+        "created",
+        "modified",
+        "last_notification_sent",
+        "preview_email_links",
+    ]
 
     fieldsets = [
         ("Saved Search", {"fields": ["name", "user", "search"]}),
-        ("Email Preview", {"fields": ["preview_email_links"]}),
+        (
+            "Email Notifications",
+            {"fields": ["last_notification_sent", "preview_email_links"]},
+        ),
         (
             "Timestamps",
             {"fields": ["id", "created", "modified"], "classes": ["collapse"]},
