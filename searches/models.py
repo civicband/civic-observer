@@ -86,7 +86,7 @@ class Search(TimeStampedModel):
 
         # Send notifications if there were updates
         if agenda_updated or minutes_updated:
-            for saved_search in self.saved_by.all():
+            for saved_search in self.saved_by.all():  # type: ignore
                 saved_search.send_search_notification()
 
 

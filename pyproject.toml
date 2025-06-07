@@ -93,7 +93,7 @@ addopts = [
     "--cov=searches",
     "--cov-report=term-missing",
     "--cov-report=html",
-    "--cov-fail-under=80",
+    "--cov-fail-under=90",
     "--strict-markers",
     "--disable-warnings",
 ]
@@ -102,7 +102,7 @@ markers = [
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
 ]
-testpaths = ["tests", "users/tests.py", "municipalities/tests.py", "searches/tests.py"]
+testpaths = ["tests", "users/tests.py", "municipalities/tests.py", "searches/"]
 
 [dependency-groups]
 dev = [
@@ -132,6 +132,9 @@ omit = [
     "config/asgi.py",
     "*/settings/*",
     "*/tests/*",
+    "*/test_*.py",
+    "*/tests.py",
+    "*/*_tests.py",
     "*/__pycache__/*",
     "*/static/*",
     "*/media/*",

@@ -79,7 +79,7 @@ class SavedSearchCreateView(CreateView):
 
         # Save the form with the current user
         self.object = form.save(user=self.request.user)
-        return redirect(self.success_url)
+        return redirect(self.success_url)  # type: ignore
 
 
 class SavedSearchEditView(UpdateView):
@@ -136,7 +136,7 @@ class SavedSearchEditView(UpdateView):
 
         # Save the form with the current user
         self.object = form.save(user=self.request.user)
-        return redirect(self.success_url)
+        return redirect(self.success_url)  # type: ignore
 
 
 class SavedSearchEmailPreviewView(View):

@@ -145,29 +145,115 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                     </svg>
                     Search Summary
+                    {% if object.search.agenda_match_json or object.search.minutes_match_json %}
+                        <span class="ml-2 text-sm font-normal text-gray-600">
+                            ({{ object.search.agenda_match_json|length|add:object.search.minutes_match_json|length }} total results)
+                        </span>
+                    {% endif %}
                 </h3>
             </div>
             <div class="px-6 py-4">
-                <div class="bg-gray-50 rounded-lg p-6 border border-gray-200">
-                    <div class="text-center">
-                        <svg class="mx-auto h-12 w-12 text-indigo-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                        </svg>
-                        <p class="text-lg text-gray-900 mb-2">
-                            {% if object.search.search_term %}
-                                Searching for <strong>"{{ object.search.search_term }}"</strong>
-                            {% else %}
-                                Monitoring <strong>all results</strong>
-                            {% endif %}
-                        </p>
-                        <p class="text-gray-600">
-                            in <strong>{{ object.search.muni.name }}</strong>, {{ object.search.muni.state }}
-                        </p>
-                        <div class="mt-4 text-sm text-gray-500">
-                            Search created on {{ object.created|date:"M d, Y" }}
-                        </div>
+                <!-- Search Description -->
+                <div class="text-center mb-6">
+                    <svg class="mx-auto h-12 w-12 text-indigo-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    <p class="text-lg text-gray-900 mb-2">
+                        {% if object.search.search_term %}
+                            Searching for <strong>"{{ object.search.search_term }}"</strong>
+                        {% else %}
+                            Monitoring <strong>all results</strong>
+                        {% endif %}
+                    </p>
+                    <p class="text-gray-600">
+                        in <strong>{{ object.search.muni.name }}</strong>, {{ object.search.muni.state }}
+                    </p>
+                    <div class="mt-2 text-sm text-gray-500">
+                        Search created on {{ object.created|date:"M d, Y" }}
                     </div>
                 </div>
+
+                <!-- Search Results -->
+                {% if object.search.agenda_match_json or object.search.minutes_match_json %}
+                    <div class="border-t border-gray-200 pt-6">
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <!-- Agenda Results -->
+                            {% if object.search.agenda_match_json %}
+                                <div>
+                                    <h4 class="text-md font-semibold text-gray-900 mb-3 flex items-center">
+                                        <svg class="w-4 h-4 mr-2 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                                        </svg>
+                                        Agenda Matches ({{ object.search.agenda_match_json|length }})
+                                    </h4>
+                                    <div class="space-y-3 max-h-64 overflow-y-auto">
+                                        {% for agenda in object.search.agenda_match_json|slice:":8" %}
+                                            <div class="border-l-3 border-green-500 pl-3 py-1">
+                                                <a href="https://{{ object.search.muni.subdomain }}.civic.band/meetings/agendas?meeting={{ agenda.meeting|urlencode }}&date={{ agenda.date|urlencode }}"
+                                                   target="_blank"
+                                                   class="text-indigo-600 hover:text-indigo-800 font-medium text-sm">
+                                                    {{ agenda.meeting }} - {{ agenda.date }}
+                                                </a>
+                                                {% if agenda.text %}
+                                                    <p class="text-xs text-gray-600 mt-1">{{ agenda.text|truncatewords:20 }}</p>
+                                                {% endif %}
+                                                {% if agenda.page %}
+                                                    <p class="text-xs text-gray-500">Page {{ agenda.page }}</p>
+                                                {% endif %}
+                                            </div>
+                                        {% endfor %}
+                                        {% if object.search.agenda_match_json|length > 8 %}
+                                            <p class="text-xs text-gray-500 italic text-center pt-1">
+                                                And {{ object.search.agenda_match_json|length|add:"-8" }} more...
+                                            </p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endif %}
+
+                            <!-- Minutes Results -->
+                            {% if object.search.minutes_match_json %}
+                                <div>
+                                    <h4 class="text-md font-semibold text-gray-900 mb-3 flex items-center">
+                                        <svg class="w-4 h-4 mr-2 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                                        </svg>
+                                        Minutes Matches ({{ object.search.minutes_match_json|length }})
+                                    </h4>
+                                    <div class="space-y-3 max-h-64 overflow-y-auto">
+                                        {% for minutes in object.search.minutes_match_json|slice:":8" %}
+                                            <div class="border-l-3 border-blue-500 pl-3 py-1">
+                                                <a href="https://{{ object.search.muni.subdomain }}.civic.band/meetings/minutes?meeting={{ minutes.meeting|urlencode }}&date={{ minutes.date|urlencode }}"
+                                                   target="_blank"
+                                                   class="text-indigo-600 hover:text-indigo-800 font-medium text-sm">
+                                                    {{ minutes.meeting }} - {{ minutes.date }}
+                                                </a>
+                                                {% if minutes.text %}
+                                                    <p class="text-xs text-gray-600 mt-1">{{ minutes.text|truncatewords:20 }}</p>
+                                                {% endif %}
+                                                {% if minutes.page %}
+                                                    <p class="text-xs text-gray-500">Page {{ minutes.page }}</p>
+                                                {% endif %}
+                                            </div>
+                                        {% endfor %}
+                                        {% if object.search.minutes_match_json|length > 8 %}
+                                            <p class="text-xs text-gray-500 italic text-center pt-1">
+                                                And {{ object.search.minutes_match_json|length|add:"-8" }} more...
+                                            </p>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                {% else %}
+                    <div class="border-t border-gray-200 pt-6 text-center">
+                        <svg class="mx-auto h-8 w-8 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <p class="text-sm text-gray-500">No search results found yet. Results will appear here after the next search run.</p>
+                    </div>
+                {% endif %}
             </div>
         </div>
     </div>
