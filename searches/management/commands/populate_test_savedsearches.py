@@ -1,11 +1,8 @@
-import random
-from datetime import timedelta
-
 from django.contrib.auth import get_user_model
 from django.core.management.base import BaseCommand
-from django.utils import timezone
 
 from searches.models import SavedSearch, Search
+from searches.test_data_utils import TestDataGenerator
 
 User = get_user_model()
 
@@ -59,55 +56,12 @@ class Command(BaseCommand):
             )
             return
 
-        # Sample saved search names
-        search_name_templates = [
-            "{search_type} in {muni}",
-            "Monitor {search_type} - {muni}",
-            "{muni} {search_type} Watch",
-            "Weekly {search_type} Updates",
-            "{search_type} Notifications",
-            "Track {search_type} Changes",
-            "{muni} Municipal {search_type}",
-        ]
+        created_count = TestDataGenerator.create_test_saved_searches(count)
 
-        created_count = 0
-
-        for _ in range(count):
-            # Randomly select a user and search
-            user = random.choice(users)
-            search = random.choice(searches)
-
-            # Generate a descriptive name
-            if search.search_term:
-                search_type = f'"{search.search_term}"'
-            else:
-                search_type = "All Results"
-
-            name_template = random.choice(search_name_templates)
-            name = name_template.format(
-                search_type=search_type,
-                muni=search.muni.name,
-            )
-
-            # Create saved search (avoid duplicates with get_or_create)
-            saved_search, created = SavedSearch.objects.get_or_create(
-                user=user,
-                search=search,
-                defaults={"name": name},
-            )
-
-            if created:
-                created_count += 1
-                self.stdout.write(f"Created saved search: {saved_search}")
-
-                # Randomly set some notification timestamps to simulate activity
-                if random.choice([True, False]):
-                    # Simulate past notifications
-                    days_ago = random.randint(1, 30)
-                    saved_search.last_notification_sent = timezone.now() - timedelta(
-                        days=days_ago
-                    )
-                    saved_search.save(update_fields=["last_notification_sent"])
+        # Get the created saved searches to show them
+        recent_saved_searches = SavedSearch.objects.order_by("-created")[:created_count]
+        for saved_search in recent_saved_searches:
+            self.stdout.write(f"Created saved search: {saved_search}")
 
         self.stdout.write(
             self.style.SUCCESS(
