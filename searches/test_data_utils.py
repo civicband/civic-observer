@@ -62,7 +62,9 @@ class TestDataGenerator:
 
     @classmethod
     def _generate_agenda_matches(
-        cls, search, now: timezone.datetime
+        cls,
+        search,
+        now: timezone.datetime,  # type: ignore
     ) -> list[dict[str, Any]]:  # type: ignore
         """Generate agenda match data for a search."""
         agenda_matches = []
@@ -102,7 +104,9 @@ class TestDataGenerator:
 
     @classmethod
     def _generate_minutes_matches(
-        cls, search, now: timezone.datetime
+        cls,
+        search,
+        now: timezone.datetime,  # type: ignore
     ) -> list[dict[str, Any]]:  # type: ignore
         """Generate minutes match data for a search."""
         minutes_matches = []
