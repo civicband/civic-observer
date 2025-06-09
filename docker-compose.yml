@@ -1,0 +1,48 @@
+x-common-settings: &common-settings
+  build:
+    context: .
+    dockerfile: ./Dockerfile
+    target: release
+  depends_on:
+    db:
+      condition: service_healthy
+  environment:
+    - "ALLOWED_HOSTS=*"
+    - "DATABASE_URL=postgres://postgres@db/postgres"
+    - "DJANGO_DEBUG=true"
+    - "DJANGO_SETTINGS_MODULE=config.settings.production"
+  restart: on-failure
+  volumes:
+    - .:/src:cache
+
+services:
+
+  db:
+    environment:
+      - "POSTGRES_HOST_AUTH_METHOD=trust"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready", "-d", "postgres"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    image: "pgautoupgrade/pgautoupgrade:latest"
+    init: true
+    volumes:
+      - .:/src:cache
+      - postgres-data:/var/lib/postgresql/data/
+
+  utility:
+    <<: *common-settings
+    tty: true
+
+  web:
+    <<: *common-settings
+    command: ["uvicorn", "config.asgi:application", "--host", "0.0.0.0", "--limit-max-requests", "100", "--timeout-graceful-shutdown", "7"]
+    entrypoint: ["/src/compose-entrypoint.sh"]
+    init: true
+    ports:
+      - "8000:8000"
+    tty: true
+
+volumes:
+  postgres-data:

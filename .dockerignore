@@ -6,3 +6,4 @@ Dockerfile
 justfile
 LICENSE
 README.md
+.venv

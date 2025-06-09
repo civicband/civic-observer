@@ -22,6 +22,7 @@ from . import views
 
 urlpatterns: list[URLPattern | URLResolver] = [
     path("", views.homepage, name="homepage"),
+    path("health/", views.health_check, name="health_check"),
     path("admin/", admin.site.urls),
     path("munis/", include("municipalities.urls")),
     path("users/", include("users.urls")),

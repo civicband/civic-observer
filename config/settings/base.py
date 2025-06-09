@@ -1,16 +1,17 @@
-import os
 from pathlib import Path
 from typing import Any
 
+from environs import env
+
 BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
 
-SECRET_KEY: str = os.environ.get(
+SECRET_KEY: str = env.str(
     "SECRET_KEY", "django-insecure-b-epto38!pfzefkm75o8^mi88b*=lu+r$bw^_op6frmhj$zo0m"
 )
 
 DEBUG: bool = False
 
-ALLOWED_HOSTS: list[str] = []
+ALLOWED_HOSTS: list[str] = env.list("ALLOWED_HOSTS", ["localhost", "127.0.0.1"])
 
 DJANGO_APPS: list[str] = [
     "django.contrib.admin",
@@ -116,7 +117,7 @@ CSRF_COOKIE_DOMAIN: str | None = ".civic.observer"
 # Email configuration
 EMAIL_BACKEND = "anymail.backends.postmark.EmailBackend"
 ANYMAIL = {
-    "POSTMARK_SERVER_TOKEN": os.environ.get("POSTMARK_SERVER_TOKEN", ""),
+    "POSTMARK_SERVER_TOKEN": env.str("POSTMARK_SERVER_TOKEN", ""),
 }
 
 # Default email settings

@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "Philip James", email = "phildini@phildini.net" }
 ]
-requires-python = ">=3.13.3"
+requires-python = ">=3.13"
 dependencies = [
     "django>=5.2.1",
     "whitenoise>=6.7.0",
@@ -15,6 +15,11 @@ dependencies = [
     "django-tailwind-cli>=2.2.0",
     "django-anymail[postmark]>=10.2",
     "django-widget-tweaks>=1.5.0",
+    "environs[django]>=14.2.0",
+    "uvicorn>=0.34.3",
+    "psycopg[binary]>=3.2.9",
+    "django-extensions>=4.1",
+    "httpx>=0.28.1",
 ]
 
 [project.optional-dependencies]
@@ -24,6 +29,23 @@ dev = [
     "pytest-django",
     "ruff",
     "django-stubs[compatible-mypy]>=5.2.0",
+]
+
+[dependency-groups]
+dev = [
+    "django-extensions>=4.1",
+    "django-stubs[compatible-mypy]>=5.2.0",
+    "pre-commit>=4.2.0",
+    "pytest-cov>=6.1.1",
+    "ruff>=0.11.12",
+    "safety>=3.0.0",
+]
+test = [
+    "pytest>=8.0.0",
+    "pytest-django>=4.9.0",
+    "pytest-cov>=6.0.0",
+    "factory-boy>=3.3.0",
+    "coverage[toml]>=7.0.0",
 ]
 
 [tool.ruff]
@@ -103,23 +125,6 @@ markers = [
     "unit: marks tests as unit tests",
 ]
 testpaths = ["tests", "users/tests.py", "municipalities/tests.py", "searches/"]
-
-[dependency-groups]
-dev = [
-    "django-extensions>=4.1",
-    "django-stubs[compatible-mypy]>=5.2.0",
-    "pre-commit>=4.2.0",
-    "pytest-cov>=6.1.1",
-    "ruff>=0.11.12",
-    "safety>=3.0.0",
-]
-test = [
-    "pytest>=8.0.0",
-    "pytest-django>=4.9.0",
-    "pytest-cov>=6.0.0",
-    "factory-boy>=3.3.0",
-    "coverage[toml]>=7.0.0",
-]
 
 [tool.coverage.run]
 source = [".", "users"]
