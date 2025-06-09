@@ -6,9 +6,9 @@ from .base import *
 
 DEBUG: bool = True  # type: ignore[no-redef]
 
-ALLOWED_HOSTS: list[str] = env.list(
+ALLOWED_HOSTS: list[str] = env.list(  # type: ignore[no-redef]
     "ALLOWED_HOSTS", ["localhost", "127.0.0.1", "0.0.0.0", "testserver"]
-)  # type: ignore[no-redef]
+)
 
 INSTALLED_APPS += [
     "django_extensions",
