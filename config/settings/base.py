@@ -9,7 +9,7 @@ SECRET_KEY: str = env.str(
     "SECRET_KEY", "django-insecure-b-epto38!pfzefkm75o8^mi88b*=lu+r$bw^_op6frmhj$zo0m"
 )
 
-DEBUG: bool = False
+DEBUG: bool = env.bool("DJANGO_DEBUG", default=False)
 
 ALLOWED_HOSTS: list[str] = env.list("ALLOWED_HOSTS", ["localhost", "127.0.0.1"])
 
