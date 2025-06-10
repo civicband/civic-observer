@@ -18,6 +18,11 @@ DATABASES: dict[str, dict[str, Any]] = {  # type: ignore[no-redef]
 # Cookie settings for civic.observer domain
 # SESSION_COOKIE_DOMAIN: str | None = ".civic.observer"
 # CSRF_COOKIE_DOMAIN: str | None = ".civic.observer"
+CSRF_TRUSTED_ORIGINS: list[str] = [
+    "https://civic.observer",
+    "http://civic.observer",
+    "https://*.civic.observer",
+]  # type: ignore[no-redef]
 
 # SECURE_BROWSER_XSS_FILTER: bool = True
 # SECURE_CONTENT_TYPE_NOSNIFF: bool = True
@@ -26,7 +31,7 @@ DATABASES: dict[str, dict[str, Any]] = {  # type: ignore[no-redef]
 # SECURE_REDIRECT_EXEMPT: list[str] = []
 # SECURE_SSL_REDIRECT: bool = True
 # SESSION_COOKIE_SECURE: bool = True
-# CSRF_COOKIE_SECURE: bool = True
+CSRF_COOKIE_SECURE: bool = True
 # X_FRAME_OPTIONS: str = "DENY"
 
 LOGGING: dict[str, Any] = {
