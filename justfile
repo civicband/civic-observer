@@ -5,8 +5,8 @@ dev:
     uv run python manage.py tailwind runserver
 
 # Run the test suite
-test:
-    uv run --group test pytest
+test *args:
+    uv run --group test pytest {{args}}
 
 # Run all code quality checks (linting, type checking, tests)
 check:

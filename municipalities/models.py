@@ -1,16 +1,21 @@
 import uuid
 
 from django.db import models
+from django_countries.fields import CountryField
+from localflavor.ca.ca_provinces import PROVINCE_CHOICES
+from localflavor.us.us_states import STATE_CHOICES
 from model_utils.models import TimeStampedModel
 
 
 class Muni(TimeStampedModel):
+    STATE_FIELD_CHOICES = STATE_CHOICES + PROVINCE_CHOICES
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     subdomain = models.CharField(max_length=100, unique=True)
     name = models.CharField(max_length=200)
-    state = models.CharField(max_length=10)
-    country = models.CharField(max_length=50, default="USA")
-    kind = models.CharField(max_length=50)
+    state = models.CharField(max_length=10, choices=STATE_FIELD_CHOICES)
+    country = CountryField(max_length=255, default="US")
+    kind = models.CharField(max_length=255)
     pages = models.IntegerField(default=0)
     last_updated = models.DateField(null=True, blank=True)
     latitude = models.FloatField(null=True, blank=True)

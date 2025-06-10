@@ -20,6 +20,8 @@ dependencies = [
     "psycopg[binary]>=3.2.9",
     "django-extensions>=4.1",
     "httpx>=0.28.1",
+    "django-localflavor>=5.0",
+    "django-countries>=7.6.1",
 ]
 
 [project.optional-dependencies]

@@ -19,14 +19,14 @@ class TestMuniModel:
             subdomain="testcity",
             name="Test City",
             state="CA",
-            country="USA",
+            country="US",
             kind="city",
             pages=100,
         )
         assert muni.subdomain == "testcity"
         assert muni.name == "Test City"
         assert muni.state == "CA"
-        assert muni.country == "USA"
+        assert muni.country == "US"
         assert muni.kind == "city"
         assert muni.pages == 100
         assert muni.created is not None
@@ -51,7 +51,7 @@ class TestMuniModel:
         muni = Muni.objects.create(
             subdomain="testmuni", name="Test Municipality", state="TX", kind="city"
         )
-        assert muni.country == "USA"
+        assert muni.country == "US"
         assert muni.pages == 0
         assert muni.latitude is None
         assert muni.longitude is None
@@ -85,7 +85,7 @@ class TestMuniCRUDViews:
             subdomain="testcity",
             name="Test City",
             state="CA",
-            country="USA",
+            country="US",
             kind="city",
             pages=100,
         )
@@ -178,7 +178,7 @@ class TestMuniCRUDViews:
             "name": "Auth City",
             "state": "TX",
             "kind": "city",
-            "country": "USA",
+            "country": "US",
             "pages": "0",
         }
         response = client.post(url, data)
@@ -201,7 +201,7 @@ class TestMuniCRUDViews:
             "name": "Updated Test City",
             "state": "CA",
             "kind": "city",
-            "country": "USA",
+            "country": "US",
             "pages": "100",
         }
         response = client.post(url, data)
@@ -233,7 +233,7 @@ class TestMuniWebhookUpdateView:
         return {
             "name": "Webhook City",
             "state": "CA",
-            "country": "USA",
+            "country": "US",
             "kind": "city",
             "pages": 50,
         }
@@ -244,18 +244,12 @@ class TestMuniWebhookUpdateView:
         response = client.post(
             url, json.dumps(webhook_data), content_type="application/json"
         )
-
-        assert response.status_code == 201
-        data = response.json()
-        assert data["action"] == "created"
-        assert data["subdomain"] == "webhookcity"
-        assert data["name"] == "Webhook City"
-        assert Muni.objects.filter(subdomain="webhookcity").exists()
+        assert response.status_code == 401
 
     def test_update_existing_muni_without_auth(self, client, webhook_data):
         """Test updating an existing municipality without webhook secret"""
         # Create existing muni
-        existing_muni = Muni.objects.create(
+        Muni.objects.create(
             subdomain="webhookcity", name="Original City", state="NY", kind="city"
         )
 
@@ -265,13 +259,7 @@ class TestMuniWebhookUpdateView:
             url, json.dumps(webhook_data), content_type="application/json"
         )
 
-        assert response.status_code == 200
-        data = response.json()
-        assert data["action"] == "updated"
-        assert data["name"] == "Updated Webhook City"
-
-        existing_muni.refresh_from_db()
-        assert existing_muni.name == "Updated Webhook City"
+        assert response.status_code == 401
 
     @override_settings()
     def test_create_muni_with_valid_webhook_secret(self, client, webhook_data):
@@ -337,16 +325,24 @@ class TestMuniWebhookUpdateView:
         if "WEBHOOK_SECRET" in os.environ:
             del os.environ["WEBHOOK_SECRET"]
 
+    @override_settings()
     def test_webhook_with_put_method(self, client, webhook_data):
         """Test webhook endpoint accepts PUT requests"""
+        os.environ["WEBHOOK_SECRET"] = "test-secret-123"
+
         url = reverse("munis:muni-webhook-update", kwargs={"subdomain": "putcity"})
+        headers = {"Authorization": "Bearer test-secret-123"}
         response = client.put(
-            url, json.dumps(webhook_data), content_type="application/json"
+            url,
+            json.dumps(webhook_data),
+            content_type="application/json",
+            headers=headers,
         )
 
         assert response.status_code == 201
         data = response.json()
         assert data["action"] == "created"
+        assert Muni.objects.filter(subdomain="putcity").exists()
 
     @override_settings()
     def test_webhook_auth_direct_token(self, client, webhook_data):
@@ -374,9 +370,10 @@ class TestMuniWebhookUpdateView:
     @override_settings()
     def test_webhook_handles_exception(self, client):
         """Test webhook handles exceptions gracefully"""
-        os.environ["WEBHOOK_SECRET"] = ""
+        os.environ["WEBHOOK_SECRET"] = "test-secret-123"
 
         url = reverse("munis:muni-webhook-update", kwargs={"subdomain": "error-test"})
+        headers = {"Authorization": "Bearer test-secret-123"}
 
         # Mock update_or_create to raise an exception
         from unittest.mock import patch
@@ -388,6 +385,7 @@ class TestMuniWebhookUpdateView:
                 url,
                 json.dumps({"name": "Error Test City"}),
                 content_type="application/json",
+                headers=headers,
             )
 
         assert response.status_code == 400
@@ -398,28 +396,45 @@ class TestMuniWebhookUpdateView:
         if "WEBHOOK_SECRET" in os.environ:
             del os.environ["WEBHOOK_SECRET"]
 
+    @override_settings()
     def test_webhook_invalid_json(self, client):
         """Test webhook with invalid JSON data"""
+        os.environ["WEBHOOK_SECRET"] = "test-secret-123"
+
         url = reverse("munis:muni-webhook-update", kwargs={"subdomain": "invalidjson"})
-        response = client.post(url, "invalid json", content_type="application/json")
+        headers = {"Authorization": "Bearer test-secret-123"}
+        response = client.post(
+            url, "invalid json", content_type="application/json", headers=headers
+        )
 
         assert response.status_code == 400
         data = response.json()
         assert data["error"] == "Invalid JSON"
 
+    @override_settings()
     def test_webhook_missing_required_name(self, client):
         """Test webhook with missing required name field"""
+        os.environ["WEBHOOK_SECRET"] = "test-secret-123"
+
         url = reverse("munis:muni-webhook-update", kwargs={"subdomain": "noname"})
+        headers = {"Authorization": "Bearer test-secret-123"}
+
         data = {"state": "CA", "kind": "city"}
-        response = client.post(url, json.dumps(data), content_type="application/json")
+        response = client.post(
+            url, json.dumps(data), content_type="application/json", headers=headers
+        )
 
         assert response.status_code == 400
         response_data = response.json()
         assert response_data["error"] == "name field is required"
 
+    @override_settings()
     def test_webhook_filters_invalid_fields(self, client):
         """Test webhook filters out invalid model fields"""
+        os.environ["WEBHOOK_SECRET"] = "test-secret-123"
+
         url = reverse("munis:muni-webhook-update", kwargs={"subdomain": "filtered"})
+        headers = {"Authorization": "Bearer test-secret-123"}
         data = {
             "name": "Filtered City",
             "state": "CA",
@@ -427,7 +442,9 @@ class TestMuniWebhookUpdateView:
             "invalid_field": "should be ignored",
             "another_invalid": 123,
         }
-        response = client.post(url, json.dumps(data), content_type="application/json")
+        response = client.post(
+            url, json.dumps(data), content_type="application/json", headers=headers
+        )
 
         assert response.status_code == 201
         data = response.json()

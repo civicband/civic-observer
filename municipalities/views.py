@@ -107,8 +107,7 @@ class MuniWebhookUpdateView(View):
         """Check webhook secret if environment variable is set"""
         webhook_secret = os.environ.get("WEBHOOK_SECRET")
         if not webhook_secret:
-            return True  # No authentication required if secret not set
-
+            return False
         auth_header = request.headers.get("Authorization")
         if not auth_header:
             return False
@@ -159,7 +158,7 @@ class MuniWebhookUpdateView(View):
                 "subdomain": muni.subdomain,
                 "name": muni.name,
                 "state": muni.state,
-                "country": muni.country,
+                "country": str(muni.country),
                 "kind": muni.kind,
                 "pages": muni.pages,
                 "last_updated": muni.last_updated.isoformat()
