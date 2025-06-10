@@ -98,13 +98,16 @@ USE_I18N: bool = True
 USE_TZ: bool = True
 
 STATIC_URL: str = "/static/"
-STATIC_ROOT: Path = BASE_DIR / "staticfiles"
+STATIC_ROOT: Path = BASE_DIR / "static"
 
 # Only include static dir if it exists
-_STATIC_DIR = BASE_DIR / "static"
+_STATIC_DIR = BASE_DIR / "frontend"
 STATICFILES_DIRS: list[Path] = [_STATIC_DIR] if _STATIC_DIR.exists() else []
 
 STATICFILES_STORAGE: str = "whitenoise.storage.CompressedManifestStaticFilesStorage"
+
+MEDIA_URL = "/media/"
+MEDIA_ROOT: Path = BASE_DIR / "media"
 
 DEFAULT_AUTO_FIELD: str = "django.db.models.BigAutoField"
 
