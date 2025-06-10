@@ -11,7 +11,7 @@ test *args:
 # Run all code quality checks (linting, type checking, tests)
 check:
     uv run --group test pytest
-    uv run --group dev ruff check .
+    uv run --group dev ruff check . --fix
     uv run --group dev mypy .
 
 # Run type checking (mypy) for type safety and correctness of code
@@ -20,7 +20,7 @@ mypy:
 
 # Run linting (ruff) for consistent code formatting and style
 ruff:
-    uv run --group dev ruff check .
+    uv run --group dev ruff check . --fix
 
 # Django management command passthrough
 manage *args:

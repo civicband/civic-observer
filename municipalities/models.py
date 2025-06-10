@@ -17,7 +17,7 @@ class Muni(TimeStampedModel):
     country = CountryField(max_length=255, default="US")
     kind = models.CharField(max_length=255)
     pages = models.IntegerField(default=0)
-    last_updated = models.DateField(null=True, blank=True)
+    last_updated = models.DateTimeField(null=True, blank=True)
     latitude = models.FloatField(null=True, blank=True)
     longitude = models.FloatField(null=True, blank=True)
     popup_data = models.JSONField(null=True, blank=True)

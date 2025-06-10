@@ -1,4 +1,5 @@
 from django.urls import path
+from django.views.decorators.csrf import csrf_exempt
 from neapolitan.views import Role
 
 from .views import MuniCRUDView, MuniWebhookUpdateView
@@ -18,7 +19,7 @@ urlpatterns = [
     # Webhook API endpoint for updating/creating municipalities by subdomain
     path(
         "api/update/<str:subdomain>/",
-        MuniWebhookUpdateView.as_view(),
+        csrf_exempt(MuniWebhookUpdateView.as_view()),
         name="muni-webhook-update",
     ),
 ]

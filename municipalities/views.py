@@ -3,9 +3,7 @@ import os
 
 from django.db.models import Count
 from django.http import JsonResponse
-from django.utils.decorators import method_decorator
 from django.views import View
-from django.views.decorators.csrf import csrf_exempt
 from neapolitan.views import CRUDView
 
 from .models import Muni
@@ -95,7 +93,6 @@ class MuniCRUDView(CRUDView):
         return super().dispatch(request, *args, **kwargs)
 
 
-@method_decorator(csrf_exempt, name="dispatch")
 class MuniWebhookUpdateView(View):
     """
     API endpoint for updating/creating municipalities via webhook.
