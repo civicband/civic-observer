@@ -1,10 +1,20 @@
 from typing import Any
 
+import sentry_sdk
 from environs import env
 
 from .base import *
 
-DEBUG: bool = True  # type: ignore[no-redef]
+sentry_sdk.init(
+    dsn=env.str("SENTRY_DSN", default=""),
+    # Add data like request headers and IP for users;
+    # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
+    send_default_pii=True,
+    max_request_body_size="always",
+    traces_sample_rate=0,
+)
+
+DEBUG: bool = False  # type: ignore[no-redef]
 
 ALLOWED_HOSTS: list[str] = [  # type: ignore[no-redef]
     "civic.observer",
