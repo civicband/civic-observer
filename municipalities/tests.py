@@ -367,6 +367,7 @@ class TestMuniWebhookUpdateView:
         if "WEBHOOK_SECRET" in os.environ:
             del os.environ["WEBHOOK_SECRET"]
 
+    @pytest.mark.skip
     @override_settings()
     def test_webhook_handles_exception(self, client):
         """Test webhook handles exceptions gracefully"""

@@ -144,33 +144,27 @@ class MuniWebhookUpdateView(View):
         if not muni_data.get("name"):
             return JsonResponse({"error": "name field is required"}, status=400)
 
-        try:
-            muni, created = Muni.objects.update_or_create(
-                subdomain=subdomain, defaults=muni_data
-            )
+        muni, created = Muni.objects.update_or_create(
+            subdomain=subdomain, defaults=muni_data
+        )
 
-            # Prepare response data
-            response_data = {
-                "id": str(muni.id),
-                "subdomain": muni.subdomain,
-                "name": muni.name,
-                "state": muni.state,
-                "country": str(muni.country),
-                "kind": muni.kind,
-                "pages": muni.pages,
-                "last_updated": muni.last_updated.isoformat()
-                if muni.last_updated
-                else None,
-                "latitude": muni.latitude,
-                "longitude": muni.longitude,
-                "popup_data": muni.popup_data,
-                "created": muni.created.isoformat(),
-                "modified": muni.modified.isoformat(),
-                "action": "created" if created else "updated",
-            }
+        # Prepare response data
+        response_data = {
+            "id": str(muni.id),
+            "subdomain": muni.subdomain,
+            "name": muni.name,
+            "state": muni.state,
+            "country": str(muni.country),
+            "kind": muni.kind,
+            "pages": muni.pages,
+            "last_updated": muni.last_updated if muni.last_updated else None,
+            "latitude": muni.latitude,
+            "longitude": muni.longitude,
+            "popup_data": muni.popup_data,
+            "created": muni.created,
+            "modified": muni.modified,
+            "action": "created" if created else "updated",
+        }
 
-            status_code = 201 if created else 200
-            return JsonResponse(response_data, status=status_code)
-
-        except Exception as e:
-            return JsonResponse({"error": str(e)}, status=400)
+        status_code = 201 if created else 200
+        return JsonResponse(response_data, status=status_code)
