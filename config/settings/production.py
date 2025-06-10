@@ -6,6 +6,11 @@ from .base import *
 
 DEBUG: bool = True  # type: ignore[no-redef]
 
+ALLOWED_HOSTS: list[str] = [  # type: ignore[no-redef]
+    "civic.observer",
+    "*.civic.observer",
+]
+
 DATABASES: dict[str, dict[str, Any]] = {  # type: ignore[no-redef]
     "default": env.dj_db_url("DATABASE_URL"),
 }
