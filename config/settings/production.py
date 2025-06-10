@@ -11,8 +11,8 @@ DATABASES: dict[str, dict[str, Any]] = {  # type: ignore[no-redef]
 }
 
 # Cookie settings for civic.observer domain
-SESSION_COOKIE_DOMAIN: str | None = ".civic.observer"
-CSRF_COOKIE_DOMAIN: str | None = ".civic.observer"
+# SESSION_COOKIE_DOMAIN: str | None = ".civic.observer"
+# CSRF_COOKIE_DOMAIN: str | None = ".civic.observer"
 
 # SECURE_BROWSER_XSS_FILTER: bool = True
 # SECURE_CONTENT_TYPE_NOSNIFF: bool = True
