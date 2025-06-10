@@ -6,11 +6,7 @@ x-common-settings: &common-settings
   depends_on:
     db:
       condition: service_healthy
-  environment:
-    - "ALLOWED_HOSTS=*"
-    - "DATABASE_URL=postgres://postgres@db/postgres"
-    - "DJANGO_DEBUG=true"
-    - "DJANGO_SETTINGS_MODULE=config.settings.production"
+  env_file: .env
   restart: on-failure
   volumes:
     - .:/src:cache
@@ -21,7 +17,7 @@ services:
     environment:
       - "POSTGRES_HOST_AUTH_METHOD=trust"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready", "-d", "postgres"]
+      test: [ "CMD", "pg_isready", "-q", "-d", "postgres", "-U", "postgres" ]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -41,7 +37,7 @@ services:
     entrypoint: ["/src/compose-entrypoint.sh"]
     init: true
     ports:
-      - "8000:8000"
+      - "${DJANGO_PORT}:8000"
     tty: true
 
 volumes:
