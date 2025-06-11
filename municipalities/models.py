@@ -29,3 +29,7 @@ class Muni(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.name}, {self.state}"
+
+    def update_searches(self) -> None:
+        for search in self.searches:  # type: ignore
+            search.update_search()

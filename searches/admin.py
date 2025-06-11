@@ -24,6 +24,13 @@ class SearchAdmin(admin.ModelAdmin):
             "Timestamps",
             {"fields": ["id", "created", "modified"], "classes": ["collapse"]},
         ),
+        (
+            "Results",
+            {
+                "fields": ["agenda_match_json", "minutes_match_json"],
+                "classes": ["collapse"],
+            },
+        ),
     ]
 
     @admin.action(description="Populate selected searches with test results")

@@ -143,10 +143,10 @@ class MuniWebhookUpdateView(View):
 
         if not muni_data.get("name"):
             return JsonResponse({"error": "name field is required"}, status=400)
-
         muni, created = Muni.objects.update_or_create(
             subdomain=subdomain, defaults=muni_data
         )
+        muni.update_searches()
 
         # Prepare response data
         response_data = {

@@ -14,7 +14,7 @@ def homepage(request):
 
 def health_check(request):
     db_ok = all(conn.cursor().execute("SELECT 1") for conn in connections.all())
-    # TODO: Add cache check if there is every caching
+    # TODO: Add cache check if there is ever caching
     status = db_ok
     status_code = 200 if status else 503
     return JsonResponse({"status": "ok" if status else "unhealthy"}, status=status_code)

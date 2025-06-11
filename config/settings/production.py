@@ -44,6 +44,11 @@ CSRF_TRUSTED_ORIGINS: list[str] = [
 CSRF_COOKIE_SECURE: bool = True
 # X_FRAME_OPTIONS: str = "DENY"
 
+ANYMAIL = {
+    "POSTMARK_SERVER_TOKEN": env.str("POSTMARK_SERVER_TOKEN", ""),
+}
+EMAIL_USE_TLS = True
+
 LOGGING: dict[str, Any] = {
     "version": 1,
     "disable_existing_loggers": False,

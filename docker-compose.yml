@@ -36,6 +36,12 @@ services:
     command: ["uvicorn", "config.asgi:application", "--host", "0.0.0.0", "--limit-max-requests", "100", "--timeout-graceful-shutdown", "7"]
     entrypoint: ["/src/compose-entrypoint.sh"]
     init: true
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8888/health/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     ports:
       - "${DJANGO_PORT}:8000"
     tty: true

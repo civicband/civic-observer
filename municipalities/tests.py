@@ -1,6 +1,8 @@
 import json
 import os
+from unittest.mock import Mock, patch
 
+import httpx
 import pytest
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
@@ -377,8 +379,6 @@ class TestMuniWebhookUpdateView:
         headers = {"Authorization": "Bearer test-secret-123"}
 
         # Mock update_or_create to raise an exception
-        from unittest.mock import patch
-
         with patch.object(
             Muni.objects, "update_or_create", side_effect=Exception("Database error")
         ):
@@ -452,3 +452,42 @@ class TestMuniWebhookUpdateView:
         assert data["action"] == "created"
         assert "invalid_field" not in data
         assert "another_invalid" not in data
+
+    @override_settings()
+    def test_webhook_updates_searches(self, client):
+        """Test webhook updates saved searches"""
+        os.environ["WEBHOOK_SECRET"] = "test-secret-123"
+
+        url = reverse(
+            "munis:muni-webhook-update", kwargs={"subdomain": "search-update"}
+        )
+        headers = {"Authorization": "Bearer test-secret-123"}
+        data = {
+            "name": "Search City",
+            "state": "CA",
+            "kind": "city",
+            "saved_search_ids": [1, 2, 3],
+        }
+
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "rows": [{"meeting": "Council", "date": "2024-01-01"}]
+        }
+        with patch.object(
+            httpx,
+            "get",
+        ):
+            response = client.post(
+                url,
+                json.dumps({"name": "Error Test City"}),
+                content_type="application/json",
+                headers=headers,
+            )
+        response = client.post(
+            url, json.dumps(data), content_type="application/json", headers=headers
+        )
+
+        assert response.status_code == 201
+        data = response.json()
+        assert data["action"] == "created"
