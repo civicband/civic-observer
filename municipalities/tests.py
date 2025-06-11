@@ -488,6 +488,6 @@ class TestMuniWebhookUpdateView:
             url, json.dumps(data), content_type="application/json", headers=headers
         )
 
-        assert response.status_code == 201
+        assert response.status_code == 200
         data = response.json()
         assert data["action"] == "created"

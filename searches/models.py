@@ -56,10 +56,10 @@ class Search(TimeStampedModel):
 
         if self.all_results:
             agendas_query = "/meetings/-/query.json?sql=select+distinct+meeting%2C+date%2C+count(page)+from+agendas+where+date+>%3D+current_date+group+by+meeting%2C+date+order+by+date+asc"
-            minutes_query = "/meetings/-/query?sql=select+distinct+meeting%2C+date%2C+count(page)+from+minutes+where+date+<%3D+current_date+group+by+meeting%2C+date+order+by+date+desc"
+            minutes_query = "/meetings/-/query.json?sql=select+distinct+meeting%2C+date%2C+count(page)+from+minutes+where+date+<%3D+current_date+group+by+meeting%2C+date+order+by+date+desc"
         if self.search_term:
-            agendas_query = f"/meetings/-/query?sql=select+id%2C+meeting%2C+date%2C+page%2C+text%2C+page_image+from+agendas+where+rowid+in+(select+rowid+from+agendas_fts+where+agendas_fts+match+escape_fts(%3Asearch))+and+date+>%3D+current_date+order+by+date+asc&search={self.search_term.replace(' ', '+')}"
-            minutes_query = f"/meetings/-/query?sql=select+id%2C+meeting%2C+date%2C+page%2C+text%2C+page_image+from+minutes+where+rowid+in+(select+rowid+from+minutes_fts+where+minutes_fts+match+escape_fts(%3Asearch))+and+date+<%3D+current_date+order+by+date+desc&search={self.search_term.replace(' ', '+')}"
+            agendas_query = f"/meetings/-/query.json?sql=select+id%2C+meeting%2C+date%2C+page%2C+text%2C+page_image+from+agendas+where+rowid+in+(select+rowid+from+agendas_fts+where+agendas_fts+match+escape_fts(%3Asearch))+and+date+>%3D+current_date+order+by+date+asc&search={self.search_term.replace(' ', '+')}"
+            minutes_query = f"/meetings/-/query.json?sql=select+id%2C+meeting%2C+date%2C+page%2C+text%2C+page_image+from+minutes+where+rowid+in+(select+rowid+from+minutes_fts+where+minutes_fts+match+escape_fts(%3Asearch))+and+date+<%3D+current_date+order+by+date+desc&search={self.search_term.replace(' ', '+')}"
         agendas_query_url = f"https://{subdomain}.civic.band{agendas_query}"
         minutes_query_url = f"https://{subdomain}.civic.band{minutes_query}"
         agendas_resp = httpx.get(agendas_query_url)
