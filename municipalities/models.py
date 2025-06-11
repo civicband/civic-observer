@@ -31,5 +31,5 @@ class Muni(TimeStampedModel):
         return f"{self.name}, {self.state}"
 
     def update_searches(self) -> None:
-        for search in self.searches:  # type: ignore
+        for search in self.searches.all():  # type: ignore
             search.update_search()

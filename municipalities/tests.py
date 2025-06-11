@@ -470,7 +470,7 @@ class TestMuniWebhookUpdateView:
         }
 
         mock_response = Mock()
-        mock_response.status_code = 200
+        mock_response.status_code = 201
         mock_response.json.return_value = {
             "rows": [{"meeting": "Council", "date": "2024-01-01"}]
         }
