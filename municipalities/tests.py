@@ -490,4 +490,4 @@ class TestMuniWebhookUpdateView:
 
         assert response.status_code == 200
         data = response.json()
-        assert data["action"] == "created"
+        assert data["action"] == "updated"
