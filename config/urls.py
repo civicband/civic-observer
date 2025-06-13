@@ -18,13 +18,18 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import URLPattern, URLResolver, include, path
 
+from users.views import datasette_auth, login_view
+
 from . import views
 
 urlpatterns: list[URLPattern | URLResolver] = [
     path("", views.homepage, name="homepage"),
-    path("health/", views.health_check, name="health_check"),
     path("admin/", admin.site.urls),
+    path("auth/", include("stagedoor.urls", namespace="stagedoor")),
+    path("datasette-auth/", datasette_auth, name="datasette_auth"),
+    path("health/", views.health_check, name="health_check"),
+    path("login/", login_view, name="login"),
     path("munis/", include("municipalities.urls")),
-    path("users/", include("users.urls")),
     path("searches/", include("searches.urls")),
+    path("users/", include("users.urls")),
 ]

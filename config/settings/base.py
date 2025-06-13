@@ -26,6 +26,7 @@ THIRD_PARTY_APPS: list[str] = [
     "django_tailwind_cli",
     "anymail",
     "widget_tweaks",
+    "stagedoor",
 ]
 
 LOCAL_APPS: list[str] = [
@@ -73,6 +74,16 @@ DATABASES: dict[str, dict[str, Any]] = {
         "NAME": BASE_DIR / "db.sqlite3",
     }
 }
+
+AUTHENTICATION_BACKENDS = (
+    "stagedoor.backends.EmailTokenBackend",
+    "django.contrib.auth.backends.ModelBackend",
+)
+
+STAGEDOOR_LOGIN_REDIRECT = "/searches/"
+LOGIN_URL = "/login/"
+LOGOUT_REDIRECT_URL = "/"
+STAGEDOOR_DISABLE_USER_CREATION = True
 
 AUTH_PASSWORD_VALIDATORS: list[dict[str, str]] = [
     {

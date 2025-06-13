@@ -1,5 +1,6 @@
 from django.contrib.auth.decorators import login_required
 from django.http import JsonResponse
+from django.shortcuts import render
 from django.views.decorators.http import require_http_methods
 
 
@@ -14,3 +15,9 @@ def datasette_auth(request):
             "name": user.email,
         }
     )
+
+
+def login_view(request):
+    """Handle user login."""
+    # Implement your login logic here
+    return render(request, "login.html")  # Replace with your login template
