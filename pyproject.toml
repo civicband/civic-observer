@@ -23,8 +23,9 @@ dependencies = [
     "django-localflavor>=5.0",
     "django-countries>=7.6.1",
     "sentry-sdk[django]>=2.29.1",
-    "django-stagedoor",
+    "django-stagedoor>0.1.0",
 ]
+
 
 [project.optional-dependencies]
 dev = [
@@ -51,9 +52,6 @@ test = [
     "factory-boy>=3.3.0",
     "coverage[toml]>=7.0.0",
 ]
-
-[tool.uv.sources]
-django-stagedoor = { git = "https://github.com/galaxybrainco/django-stagedoor.git", rev = "HEAD" }
 
 [tool.ruff]
 line-length = 88

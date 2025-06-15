@@ -1,4 +1,5 @@
 import pytest
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.test import Client
@@ -95,7 +96,7 @@ class TestDatasetteAuthView:
         response = client.get(reverse("users:datasette_auth"))
 
         assert response.status_code == 302
-        assert "/accounts/login/" in response["Location"]
+        assert settings.LOGIN_URL in response["Location"]
 
     def test_datasette_auth_only_allows_get(self):
         """Test that only GET requests are allowed."""

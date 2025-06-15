@@ -4,6 +4,7 @@ from unittest.mock import Mock, patch
 
 import httpx
 import pytest
+from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
 from django.test import override_settings
@@ -115,7 +116,7 @@ class TestMuniCRUDViews:
         url = reverse("munis:muni-create")
         response = client.get(url)
         assert response.status_code == 302
-        assert "/accounts/login/" in response.url
+        assert settings.LOGIN_URL in response.url
 
     def test_create_post_requires_auth(self, client):
         """Test that POST to create view redirects to login for unauthenticated users"""
@@ -128,14 +129,14 @@ class TestMuniCRUDViews:
         }
         response = client.post(url, data)
         assert response.status_code == 302
-        assert "/accounts/login/" in response.url
+        assert settings.LOGIN_URL in response.url
 
     def test_update_view_requires_auth(self, client, muni):
         """Test that update view redirects to login for unauthenticated users"""
         url = reverse("munis:muni-update", kwargs={"pk": muni.pk})
         response = client.get(url)
         assert response.status_code == 302
-        assert "/accounts/login/" in response.url
+        assert settings.LOGIN_URL in response.url
 
     def test_update_post_requires_auth(self, client, muni):
         """Test that POST to update view redirects to login for unauthenticated users"""
@@ -148,21 +149,21 @@ class TestMuniCRUDViews:
         }
         response = client.post(url, data)
         assert response.status_code == 302
-        assert "/accounts/login/" in response.url
+        assert settings.LOGIN_URL in response.url
 
     def test_delete_view_requires_auth(self, client, muni):
         """Test that delete view redirects to login for unauthenticated users"""
         url = reverse("munis:muni-delete", kwargs={"pk": muni.pk})
         response = client.get(url)
         assert response.status_code == 302
-        assert "/accounts/login/" in response.url
+        assert settings.LOGIN_URL in response.url
 
     def test_delete_post_requires_auth(self, client, muni):
         """Test that POST to delete view redirects to login for unauthenticated users"""
         url = reverse("munis:muni-delete", kwargs={"pk": muni.pk})
         response = client.post(url)
         assert response.status_code == 302
-        assert "/accounts/login/" in response.url
+        assert settings.LOGIN_URL in response.url
 
     def test_create_view_authenticated_access(self, client, user):
         """Test that authenticated users can access create view"""

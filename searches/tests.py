@@ -3,6 +3,7 @@ from unittest.mock import Mock, patch
 
 import httpx
 import pytest
+from django.conf import settings
 from django.contrib.admin.sites import AdminSite
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
@@ -334,7 +335,7 @@ class TestSavedSearchViews:
 
         # Should redirect to login
         assert response.status_code == 302
-        assert "/accounts/login/" in response.url
+        assert settings.LOGIN_URL in response.url
 
     def test_savedsearch_create_requires_auth(self, client):
         """Test that SavedSearch create view requires authentication"""
@@ -343,7 +344,7 @@ class TestSavedSearchViews:
 
         # Should redirect to login
         assert response.status_code == 302
-        assert "/accounts/login/" in response.url
+        assert settings.LOGIN_URL in response.url
 
     def test_savedsearch_detail_requires_auth(self, client):
         """Test that SavedSearch detail view requires authentication"""
@@ -352,7 +353,7 @@ class TestSavedSearchViews:
 
         # Should redirect to login
         assert response.status_code == 302
-        assert "/accounts/login/" in response.url
+        assert settings.LOGIN_URL in response.url
 
     def test_savedsearch_update_requires_auth(self, client):
         """Test that SavedSearch update view requires authentication"""
@@ -361,7 +362,7 @@ class TestSavedSearchViews:
 
         # Should redirect to login
         assert response.status_code == 302
-        assert "/accounts/login/" in response.url
+        assert settings.LOGIN_URL in response.url
 
     def test_savedsearch_delete_requires_auth(self, client):
         """Test that SavedSearch delete view requires authentication"""
@@ -370,7 +371,7 @@ class TestSavedSearchViews:
 
         # Should redirect to login
         assert response.status_code == 302
-        assert "/accounts/login/" in response.url
+        assert settings.LOGIN_URL in response.url
 
     def test_savedsearch_list_shows_only_user_searches(self, client):
         """Test that SavedSearch list shows only the authenticated user's searches"""
@@ -718,7 +719,7 @@ class TestSavedSearchCreateView:
         response = client.get(url)
 
         assert response.status_code == 302
-        assert "/accounts/login/" in response.url
+        assert settings.LOGIN_URL in response.url
 
     def test_create_view_get(self, client):
         """Test GET request to create view"""
@@ -854,7 +855,7 @@ class TestSavedSearchEditView:
         response = client.get(url)
 
         assert response.status_code == 302
-        assert "/accounts/login/" in response.url
+        assert settings.LOGIN_URL in response.url
 
     def test_edit_view_only_shows_user_searches(self, client):
         """Test that users can only edit their own searches"""
