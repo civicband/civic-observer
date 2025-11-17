@@ -67,11 +67,10 @@ class MeetingDocumentAdmin(admin.ModelAdmin):
 
     inlines = [MeetingPageInline]
 
+    @admin.display(description="Pages")
     def page_count(self, obj):
         """Display the number of pages in this document."""
         return obj.pages.count()
-
-    page_count.short_description = "Pages"
 
 
 @admin.register(MeetingPage)
@@ -124,10 +123,9 @@ class MeetingPageAdmin(admin.ModelAdmin):
         ),
     ]
 
+    @admin.display(description="Text Preview")
     def text_preview(self, obj):
         """Display a preview of the page text."""
         if obj.text:
             return obj.text[:100] + "..." if len(obj.text) > 100 else obj.text
         return "(empty)"
-
-    text_preview.short_description = "Text Preview"

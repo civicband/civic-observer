@@ -7,7 +7,7 @@ import pytest
 from django.db import IntegrityError
 
 from meetings.models import MeetingDocument, MeetingPage
-from meetings.services import BackfillError, backfill_municipality_meetings
+from meetings.services import backfill_municipality_meetings
 from municipalities.models import Muni
 
 
@@ -104,7 +104,7 @@ class TestMeetingDocumentModel:
         assert doc2.document_type == "minutes"
 
     def test_cascade_delete(self, muni):
-        doc = MeetingDocument.objects.create(
+        MeetingDocument.objects.create(
             municipality=muni,
             meeting_name="Test",
             meeting_date=date(2024, 1, 1),
@@ -312,7 +312,7 @@ class TestBackfillService:
             meeting_date=date(2024, 1, 15),
             document_type="agenda",
         )
-        existing_page = MeetingPage.objects.create(
+        MeetingPage.objects.create(
             id="existing_page",
             document=existing_doc,
             page_number=1,

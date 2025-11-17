@@ -1,7 +1,7 @@
-from django.urls import path
+from django.urls import URLPattern, URLResolver
 
 app_name = "meetings"
 
-urlpatterns = [
+urlpatterns: list[URLPattern | URLResolver] = [
     # Add meeting-related views here in the future
 ]
