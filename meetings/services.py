@@ -98,7 +98,7 @@ def _backfill_document_type(
         "errors": 0,
     }
 
-    base_url = f"https://{muni.subdomain}.civic.band/{table_name}.json"
+    base_url = f"https://{muni.subdomain}.civic.band/meetings/{table_name}.json"
 
     try:
         with httpx.Client(timeout=timeout) as client:
