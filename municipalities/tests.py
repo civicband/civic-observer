@@ -492,3 +492,134 @@ class TestMuniWebhookUpdateView:
         assert response.status_code == 200
         data = response.json()
         assert data["action"] == "updated"
+
+
+@pytest.mark.django_db
+class TestMuniAdminActions:
+    """Test admin actions for municipalities."""
+
+    @pytest.fixture
+    def superuser(self):
+        return User.objects.create_superuser(
+            username="admin", email="admin@example.com", password="admin123"
+        )
+
+    @pytest.fixture
+    def muni(self):
+        return Muni.objects.create(
+            subdomain="testcity.ca",
+            name="Test City",
+            state="CA",
+            country="US",
+            kind="city",
+        )
+
+    @patch("meetings.services.backfill_municipality_meetings")
+    def test_backfill_meetings_action_success(self, mock_backfill, superuser, muni):
+        """Test backfill meetings admin action succeeds"""
+        from django.contrib.admin.sites import AdminSite
+
+        from municipalities.admin import MuniAdmin
+
+        # Mock successful backfill
+        mock_backfill.return_value = {
+            "documents_created": 5,
+            "documents_updated": 2,
+            "pages_created": 50,
+            "pages_updated": 10,
+            "errors": 0,
+        }
+
+        # Create admin instance and mock request
+        site = AdminSite()
+        admin = MuniAdmin(Muni, site)
+        request = Mock()
+        request.user = superuser
+
+        # Call the action
+        queryset = Muni.objects.filter(pk=muni.pk)
+        admin.backfill_meetings(request, queryset)
+
+        # Verify backfill was called
+        assert mock_backfill.called
+        assert mock_backfill.call_count == 1
+
+    @patch("meetings.services.backfill_municipality_meetings")
+    def test_backfill_meetings_action_with_errors(self, mock_backfill, superuser, muni):
+        """Test backfill meetings admin action handles errors in stats"""
+        from django.contrib.admin.sites import AdminSite
+
+        from municipalities.admin import MuniAdmin
+
+        # Mock backfill with errors
+        mock_backfill.return_value = {
+            "documents_created": 3,
+            "documents_updated": 1,
+            "pages_created": 20,
+            "pages_updated": 5,
+            "errors": 5,
+        }
+
+        site = AdminSite()
+        admin = MuniAdmin(Muni, site)
+        request = Mock()
+        request.user = superuser
+
+        queryset = Muni.objects.filter(pk=muni.pk)
+        admin.backfill_meetings(request, queryset)
+
+        # Verify it completed despite errors
+        assert mock_backfill.called
+
+    @patch("meetings.services.backfill_municipality_meetings")
+    def test_backfill_meetings_action_exception(self, mock_backfill, superuser, muni):
+        """Test backfill meetings admin action handles exceptions"""
+        from django.contrib.admin.sites import AdminSite
+
+        from municipalities.admin import MuniAdmin
+
+        # Mock backfill raising exception
+        mock_backfill.side_effect = Exception("Network error")
+
+        site = AdminSite()
+        admin = MuniAdmin(Muni, site)
+        request = Mock()
+        request.user = superuser
+
+        queryset = Muni.objects.filter(pk=muni.pk)
+        # Should not raise exception
+        admin.backfill_meetings(request, queryset)
+
+    @patch("meetings.services.backfill_municipality_meetings")
+    def test_backfill_meetings_multiple_munis(self, mock_backfill, superuser):
+        """Test backfill meetings action with multiple municipalities"""
+        from django.contrib.admin.sites import AdminSite
+
+        from municipalities.admin import MuniAdmin
+
+        # Create multiple municipalities
+        muni1 = Muni.objects.create(
+            subdomain="city1.ca", name="City 1", state="CA", kind="city"
+        )
+        muni2 = Muni.objects.create(
+            subdomain="city2.ca", name="City 2", state="NY", kind="city"
+        )
+
+        mock_backfill.return_value = {
+            "documents_created": 2,
+            "documents_updated": 0,
+            "pages_created": 10,
+            "pages_updated": 0,
+            "errors": 0,
+        }
+
+        site = AdminSite()
+        admin = MuniAdmin(Muni, site)
+        request = Mock()
+        request.user = superuser
+
+        queryset = Muni.objects.filter(pk__in=[muni1.pk, muni2.pk])
+        admin.backfill_meetings(request, queryset)
+
+        # Verify backfill was called for both
+        assert mock_backfill.call_count == 2

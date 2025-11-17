@@ -1,7 +1,11 @@
+import logging
+
 from django.contrib import admin
 from django.db.models import Count
 
 from .models import Muni
+
+logger = logging.getLogger(__name__)
 
 
 @admin.register(Muni)
@@ -20,6 +24,7 @@ class MuniAdmin(admin.ModelAdmin):
     search_fields = ["name", "subdomain", "state"]
     readonly_fields = ["id", "created", "modified"]
     ordering = ["name"]
+    actions = ["backfill_meetings"]
 
     # Enable sorting for all displayed columns
     sortable_by = [
@@ -60,3 +65,51 @@ class MuniAdmin(admin.ModelAdmin):
             {"fields": ["id", "created", "modified"], "classes": ["collapse"]},
         ),
     ]
+
+    @admin.action(description="Backfill meeting data from civic.band")
+    def backfill_meetings(self, request, queryset):
+        """Admin action to backfill meeting data for selected municipalities."""
+        from meetings.services import backfill_municipality_meetings
+
+        success_count = 0
+        error_count = 0
+        total_docs = 0
+        total_pages = 0
+
+        for muni in queryset:
+            try:
+                stats = backfill_municipality_meetings(muni)
+                success_count += 1
+                total_docs += stats["documents_created"] + stats["documents_updated"]
+                total_pages += stats["pages_created"] + stats["pages_updated"]
+
+                if stats["errors"] > 0:
+                    self.message_user(
+                        request,
+                        f"Backfilled {muni.name} with {stats['errors']} errors",
+                        level="warning",
+                    )
+            except Exception as e:
+                error_count += 1
+                logger.error(f"Failed to backfill {muni.name}: {e}", exc_info=True)
+                self.message_user(
+                    request,
+                    f"Failed to backfill {muni.name}: {str(e)}",
+                    level="error",
+                )
+
+        # Summary message
+        if success_count > 0:
+            self.message_user(
+                request,
+                f"Successfully backfilled {success_count} municipalit{'y' if success_count == 1 else 'ies'}. "
+                f"Created/updated {total_docs} documents and {total_pages} pages.",
+                level="success",
+            )
+
+        if error_count > 0:
+            self.message_user(
+                request,
+                f"Failed to backfill {error_count} municipalit{'y' if error_count == 1 else 'ies'}.",
+                level="error",
+            )
