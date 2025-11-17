@@ -67,3 +67,13 @@ LOGGING: dict[str, Any] = {
         },
     },
 }
+
+# Django-RQ for production
+REDIS_URL = env.str("REDIS_URL", "redis://redis:6379/0")  # type: ignore[no-redef]
+RQ_QUEUES: dict[str, dict[str, Any]] = {  # type: ignore[no-redef]
+    "default": {
+        "URL": REDIS_URL,
+        "DEFAULT_TIMEOUT": 360,
+        "ASYNC": True,
+    },
+}

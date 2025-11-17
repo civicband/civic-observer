@@ -27,6 +27,7 @@ THIRD_PARTY_APPS: list[str] = [
     "anymail",
     "widget_tweaks",
     "stagedoor",
+    "django_rq",
 ]
 
 LOCAL_APPS: list[str] = [
@@ -135,3 +136,13 @@ ANYMAIL = {
 # Default email settings
 DEFAULT_FROM_EMAIL = "Civic Observer <noreply@civic.observer>"
 SERVER_EMAIL = "Civic Observer <server@civic.observer>"
+
+# Django-RQ configuration
+REDIS_URL = env.str("REDIS_URL", "redis://localhost:6379/0")
+RQ_QUEUES: dict[str, dict[str, Any]] = {
+    "default": {
+        "URL": REDIS_URL,
+        "DEFAULT_TIMEOUT": 360,  # 6 minutes for backfill tasks
+    },
+}
+RQ_SHOW_ADMIN_LINK = True

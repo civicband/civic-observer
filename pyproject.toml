@@ -24,6 +24,8 @@ dependencies = [
     "django-countries>=7.6.1",
     "sentry-sdk[django]>=2.29.1",
     "django-stagedoor>0.1.0",
+    "django-rq>=3.0.0",
+    "redis>=5.0.0",
 ]
 
 
@@ -112,7 +114,7 @@ disable_error_code = ["attr-defined"]
 django_settings_module = "config.settings.development"
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "config.settings.development"
+DJANGO_SETTINGS_MODULE = "config.settings.test"
 python_files = ["tests.py", "test_*.py", "*_tests.py"]
 python_classes = ["Test*", "*Test", "*Tests"]
 python_functions = ["test_*"]

@@ -514,21 +514,19 @@ class TestMuniAdminActions:
             kind="city",
         )
 
-    @patch("meetings.services.backfill_municipality_meetings")
-    def test_backfill_meetings_action_success(self, mock_backfill, superuser, muni):
+    @patch("django_rq.get_queue")
+    def test_backfill_meetings_action_success(self, mock_get_queue, superuser, muni):
         """Test backfill meetings admin action succeeds"""
         from django.contrib.admin.sites import AdminSite
 
         from municipalities.admin import MuniAdmin
 
-        # Mock successful backfill
-        mock_backfill.return_value = {
-            "documents_created": 5,
-            "documents_updated": 2,
-            "pages_created": 50,
-            "pages_updated": 10,
-            "errors": 0,
-        }
+        # Mock the queue and enqueue method
+        mock_queue = Mock()
+        mock_job = Mock()
+        mock_job.id = "test-job-123"
+        mock_queue.enqueue.return_value = mock_job
+        mock_get_queue.return_value = mock_queue
 
         # Create admin instance and mock request
         site = AdminSite()
@@ -540,46 +538,27 @@ class TestMuniAdminActions:
         queryset = Muni.objects.filter(pk=muni.pk)
         admin.backfill_meetings(request, queryset)
 
-        # Verify backfill was called
-        assert mock_backfill.called
-        assert mock_backfill.call_count == 1
+        # Verify queue.enqueue was called
+        assert mock_queue.enqueue.called
+        assert mock_queue.enqueue.call_count == 1
+        # Verify it was called with the correct task and muni ID
+        from meetings.tasks import backfill_municipality_meetings_task
 
-    @patch("meetings.services.backfill_municipality_meetings")
-    def test_backfill_meetings_action_with_errors(self, mock_backfill, superuser, muni):
-        """Test backfill meetings admin action handles errors in stats"""
+        mock_queue.enqueue.assert_called_once_with(
+            backfill_municipality_meetings_task, muni.id
+        )
+
+    @patch("django_rq.get_queue")
+    def test_backfill_meetings_action_with_errors(self, mock_get_queue, superuser, muni):
+        """Test backfill meetings admin action handles errors in enqueuing"""
         from django.contrib.admin.sites import AdminSite
 
         from municipalities.admin import MuniAdmin
 
-        # Mock backfill with errors
-        mock_backfill.return_value = {
-            "documents_created": 3,
-            "documents_updated": 1,
-            "pages_created": 20,
-            "pages_updated": 5,
-            "errors": 5,
-        }
-
-        site = AdminSite()
-        admin = MuniAdmin(Muni, site)
-        request = Mock()
-        request.user = superuser
-
-        queryset = Muni.objects.filter(pk=muni.pk)
-        admin.backfill_meetings(request, queryset)
-
-        # Verify it completed despite errors
-        assert mock_backfill.called
-
-    @patch("meetings.services.backfill_municipality_meetings")
-    def test_backfill_meetings_action_exception(self, mock_backfill, superuser, muni):
-        """Test backfill meetings admin action handles exceptions"""
-        from django.contrib.admin.sites import AdminSite
-
-        from municipalities.admin import MuniAdmin
-
-        # Mock backfill raising exception
-        mock_backfill.side_effect = Exception("Network error")
+        # Mock the queue to raise an exception when enqueuing
+        mock_queue = Mock()
+        mock_queue.enqueue.side_effect = Exception("Queue connection error")
+        mock_get_queue.return_value = mock_queue
 
         site = AdminSite()
         admin = MuniAdmin(Muni, site)
@@ -590,8 +569,13 @@ class TestMuniAdminActions:
         # Should not raise exception
         admin.backfill_meetings(request, queryset)
 
-    @patch("meetings.services.backfill_municipality_meetings")
-    def test_backfill_meetings_multiple_munis(self, mock_backfill, superuser):
+        # Verify enqueue was attempted
+        assert mock_queue.enqueue.called
+
+    # Test removed - exception handling is already tested in test_backfill_meetings_action_with_errors
+
+    @patch("django_rq.get_queue")
+    def test_backfill_meetings_multiple_munis(self, mock_get_queue, superuser):
         """Test backfill meetings action with multiple municipalities"""
         from django.contrib.admin.sites import AdminSite
 
@@ -605,13 +589,12 @@ class TestMuniAdminActions:
             subdomain="city2.ca", name="City 2", state="NY", kind="city"
         )
 
-        mock_backfill.return_value = {
-            "documents_created": 2,
-            "documents_updated": 0,
-            "pages_created": 10,
-            "pages_updated": 0,
-            "errors": 0,
-        }
+        # Mock the queue and enqueue method
+        mock_queue = Mock()
+        mock_job = Mock()
+        mock_job.id = "test-job-123"
+        mock_queue.enqueue.return_value = mock_job
+        mock_get_queue.return_value = mock_queue
 
         site = AdminSite()
         admin = MuniAdmin(Muni, site)
@@ -621,5 +604,5 @@ class TestMuniAdminActions:
         queryset = Muni.objects.filter(pk__in=[muni1.pk, muni2.pk])
         admin.backfill_meetings(request, queryset)
 
-        # Verify backfill was called for both
-        assert mock_backfill.call_count == 2
+        # Verify enqueue was called for both
+        assert mock_queue.enqueue.call_count == 2

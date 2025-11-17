@@ -462,12 +462,19 @@ class TestWebhookIntegration:
             "pages": 500,
         }
 
-    @patch("meetings.services.backfill_municipality_meetings")
-    def test_webhook_triggers_backfill(self, mock_backfill, client, muni_data):
+    @patch("django_rq.get_queue")
+    def test_webhook_triggers_backfill(self, mock_get_queue, client, muni_data):
         # Set webhook secret
         import os
 
         os.environ["WEBHOOK_SECRET"] = "test-secret"
+
+        # Mock the queue and enqueue method
+        mock_queue = Mock()
+        mock_job = Mock()
+        mock_job.id = "test-job-456"
+        mock_queue.enqueue.return_value = mock_job
+        mock_get_queue.return_value = mock_queue
 
         # Call webhook endpoint
         response = client.post(
@@ -479,11 +486,18 @@ class TestWebhookIntegration:
 
         assert response.status_code in [200, 201]
 
-        # Verify backfill was called
-        assert mock_backfill.called
-        # Get the muni that was passed to backfill
-        call_args = mock_backfill.call_args
-        muni = call_args[0][0]
+        # Verify enqueue was called
+        assert mock_queue.enqueue.called
+        # Get the muni ID from the enqueue call
+        from meetings.tasks import backfill_municipality_meetings_task
+        from municipalities.models import Muni
+
+        call_args = mock_queue.enqueue.call_args
+        # First arg is the function, second is the muni_id
+        assert call_args[0][0] == backfill_municipality_meetings_task
+        muni_id = call_args[0][1]
+        # Verify the muni was created/updated
+        muni = Muni.objects.get(pk=muni_id)
         assert muni.subdomain == muni_data["subdomain"]
 
         # Cleanup

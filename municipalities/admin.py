@@ -69,47 +69,50 @@ class MuniAdmin(admin.ModelAdmin):
     @admin.action(description="Backfill meeting data from civic.band")
     def backfill_meetings(self, request, queryset):
         """Admin action to backfill meeting data for selected municipalities."""
-        from meetings.services import backfill_municipality_meetings
+        import django_rq
 
-        success_count = 0
+        from meetings.tasks import backfill_municipality_meetings_task
+
+        enqueued_count = 0
         error_count = 0
-        total_docs = 0
-        total_pages = 0
+        job_ids = []
+
+        queue = django_rq.get_queue("default")
 
         for muni in queryset:
             try:
-                stats = backfill_municipality_meetings(muni)
-                success_count += 1
-                total_docs += stats["documents_created"] + stats["documents_updated"]
-                total_pages += stats["pages_created"] + stats["pages_updated"]
-
-                if stats["errors"] > 0:
-                    self.message_user(
-                        request,
-                        f"Backfilled {muni.name} with {stats['errors']} errors",
-                        level="warning",
-                    )
+                job = queue.enqueue(backfill_municipality_meetings_task, muni.id)
+                job_ids.append(job.id)
+                enqueued_count += 1
+                logger.info(
+                    f"Enqueued backfill task for {muni.name} (job ID: {job.id})"
+                )
             except Exception as e:
                 error_count += 1
-                logger.error(f"Failed to backfill {muni.name}: {e}", exc_info=True)
+                logger.error(
+                    f"Failed to enqueue backfill task for {muni.name}: {e}",
+                    exc_info=True,
+                )
                 self.message_user(
                     request,
-                    f"Failed to backfill {muni.name}: {str(e)}",
+                    f"Failed to enqueue backfill task for {muni.name}: {str(e)}",
                     level="error",
                 )
 
         # Summary message
-        if success_count > 0:
+        if enqueued_count > 0:
             self.message_user(
                 request,
-                f"Successfully backfilled {success_count} municipalit{'y' if success_count == 1 else 'ies'}. "
-                f"Created/updated {total_docs} documents and {total_pages} pages.",
+                f"Successfully enqueued backfill tasks for {enqueued_count} "
+                f"municipalit{'y' if enqueued_count == 1 else 'ies'}. "
+                f"Tasks will run in the background. Check logs for results.",
                 level="success",
             )
 
         if error_count > 0:
             self.message_user(
                 request,
-                f"Failed to backfill {error_count} municipalit{'y' if error_count == 1 else 'ies'}.",
+                f"Failed to enqueue tasks for {error_count} "
+                f"municipalit{'y' if error_count == 1 else 'ies'}.",
                 level="error",
             )
