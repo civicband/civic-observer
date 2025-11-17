@@ -103,7 +103,7 @@ def _backfill_document_type(
     try:
         with httpx.Client(timeout=timeout) as client:
             # Start with the first page
-            url = f"{base_url}?_shape=array&_size=1000"
+            url = f"{base_url}?_size=1000"
 
             while url:
                 logger.debug(f"Fetching {url}")
@@ -112,29 +112,19 @@ def _backfill_document_type(
 
                 data = response.json()
 
-                # Process the rows
-                if isinstance(data, list):
-                    rows = data
-                    # For array shape, we need to manually handle pagination
-                    # by checking if we got a full page
-                    has_more = len(rows) == 1000
-                else:
-                    # Shouldn't happen with _shape=array, but handle it
-                    rows = data.get("rows", [])
-                    has_more = False
+                # Get rows from the response
+                rows = data.get("rows", [])
 
                 # Process rows in batches
                 _process_rows_batch(muni, rows, document_type, stats)
 
-                # Get next page if there's more data
-                if has_more and rows:
-                    # Use the last row's ID for pagination
-                    last_id = rows[-1].get("id")
-                    if last_id:
-                        url = f"{base_url}?_shape=array&_size=1000&id__gt={last_id}"
-                    else:
-                        break
+                # Check if there's a next page using the cursor
+                next_cursor = data.get("next")
+                if next_cursor:
+                    # Use the next cursor for pagination
+                    url = f"{base_url}?_size=1000&_next={next_cursor}"
                 else:
+                    # No more pages
                     break
 
     except httpx.HTTPError as e:

@@ -211,37 +211,45 @@ class TestBackfillService:
 
     @pytest.fixture
     def mock_agendas_response(self):
-        return [
-            {
-                "id": "agenda1page1",
-                "meeting": "CityCouncil",
-                "date": "2024-01-15",
-                "page": 1,
-                "text": "City Council Agenda Page 1",
-                "page_image": "/_agendas/CityCouncil/2024-01-15/1.png",
-            },
-            {
-                "id": "agenda1page2",
-                "meeting": "CityCouncil",
-                "date": "2024-01-15",
-                "page": 2,
-                "text": "City Council Agenda Page 2",
-                "page_image": "/_agendas/CityCouncil/2024-01-15/2.png",
-            },
-        ]
+        return {
+            "ok": True,
+            "rows": [
+                {
+                    "id": "agenda1page1",
+                    "meeting": "CityCouncil",
+                    "date": "2024-01-15",
+                    "page": 1,
+                    "text": "City Council Agenda Page 1",
+                    "page_image": "/_agendas/CityCouncil/2024-01-15/1.png",
+                },
+                {
+                    "id": "agenda1page2",
+                    "meeting": "CityCouncil",
+                    "date": "2024-01-15",
+                    "page": 2,
+                    "text": "City Council Agenda Page 2",
+                    "page_image": "/_agendas/CityCouncil/2024-01-15/2.png",
+                },
+            ],
+            "truncated": False,
+        }
 
     @pytest.fixture
     def mock_minutes_response(self):
-        return [
-            {
-                "id": "minutes1page1",
-                "meeting": "PlanningBoard",
-                "date": "2024-01-10",
-                "page": 1,
-                "text": "Planning Board Minutes Page 1",
-                "page_image": "/_minutes/PlanningBoard/2024-01-10/1.png",
-            },
-        ]
+        return {
+            "ok": True,
+            "rows": [
+                {
+                    "id": "minutes1page1",
+                    "meeting": "PlanningBoard",
+                    "date": "2024-01-10",
+                    "page": 1,
+                    "text": "Planning Board Minutes Page 1",
+                    "page_image": "/_minutes/PlanningBoard/2024-01-10/1.png",
+                },
+            ],
+            "truncated": False,
+        }
 
     @patch("meetings.services.httpx.Client")
     def test_backfill_success(
@@ -320,21 +328,25 @@ class TestBackfillService:
         mock_client_class.return_value.__enter__.return_value = mock_client
 
         agenda_response = Mock()
-        agenda_response.json.return_value = [
-            {
-                "id": "existing_page",
-                "meeting": "CityCouncil",
-                "date": "2024-01-15",
-                "page": 1,
-                "text": "Updated text",
-                "page_image": "/_agendas/CityCouncil/2024-01-15/1.png",
-            },
-        ]
+        agenda_response.json.return_value = {
+            "ok": True,
+            "rows": [
+                {
+                    "id": "existing_page",
+                    "meeting": "CityCouncil",
+                    "date": "2024-01-15",
+                    "page": 1,
+                    "text": "Updated text",
+                    "page_image": "/_agendas/CityCouncil/2024-01-15/1.png",
+                },
+            ],
+            "truncated": False,
+        }
         agenda_response.raise_for_status = Mock()
 
         # Empty minutes response
         minutes_response = Mock()
-        minutes_response.json.return_value = []
+        minutes_response.json.return_value = {"ok": True, "rows": [], "truncated": False}
         minutes_response.raise_for_status = Mock()
 
         def get_side_effect(url):
@@ -380,14 +392,18 @@ class TestBackfillService:
         mock_client_class.return_value.__enter__.return_value = mock_client
 
         mock_response = Mock()
-        mock_response.json.return_value = [
-            {
-                "id": "bad_page",
-                # Missing 'meeting' and 'date'
-                "page": 1,
-                "text": "Some text",
-            },
-        ]
+        mock_response.json.return_value = {
+            "ok": True,
+            "rows": [
+                {
+                    "id": "bad_page",
+                    # Missing 'meeting' and 'date'
+                    "page": 1,
+                    "text": "Some text",
+                },
+            ],
+            "truncated": False,
+        }
         mock_response.raise_for_status = Mock()
         mock_client.get.return_value = mock_response
 
@@ -405,15 +421,19 @@ class TestBackfillService:
         mock_client_class.return_value.__enter__.return_value = mock_client
 
         mock_response = Mock()
-        mock_response.json.return_value = [
-            {
-                "id": "bad_date",
-                "meeting": "CityCouncil",
-                "date": "not-a-date",
-                "page": 1,
-                "text": "Some text",
-            },
-        ]
+        mock_response.json.return_value = {
+            "ok": True,
+            "rows": [
+                {
+                    "id": "bad_date",
+                    "meeting": "CityCouncil",
+                    "date": "not-a-date",
+                    "page": 1,
+                    "text": "Some text",
+                },
+            ],
+            "truncated": False,
+        }
         mock_response.raise_for_status = Mock()
         mock_client.get.return_value = mock_response
 
