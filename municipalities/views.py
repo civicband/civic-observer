@@ -159,7 +159,9 @@ class MuniWebhookUpdateView(View):
             logger.info(f"Backfilled meetings for {subdomain}: {backfill_stats}")
         except Exception as e:
             # Log the error but don't fail the webhook
-            logger.error(f"Failed to backfill meetings for {subdomain}: {e}", exc_info=True)
+            logger.error(
+                f"Failed to backfill meetings for {subdomain}: {e}", exc_info=True
+            )
 
         # Prepare response data
         response_data = {

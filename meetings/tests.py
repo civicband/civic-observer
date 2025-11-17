@@ -157,9 +157,7 @@ class TestMeetingPageModel:
         assert page.page_image == "/_agendas/CityCouncil/2024-01-15/1.png"
 
     def test_str_representation(self, document):
-        page = MeetingPage(
-            id="test123", document=document, page_number=5, text="Test"
-        )
+        page = MeetingPage(id="test123", document=document, page_number=5, text="Test")
         assert "Page 5" in str(page)
 
     def test_unique_together_constraint(self, document):
@@ -190,9 +188,7 @@ class TestMeetingPageModel:
         assert MeetingPage.objects.count() == 0
 
     def test_empty_text_and_image(self, document):
-        page = MeetingPage.objects.create(
-            id="empty", document=document, page_number=1
-        )
+        page = MeetingPage.objects.create(id="empty", document=document, page_number=1)
         assert page.text == ""
         assert page.page_image == ""
 
@@ -490,16 +486,14 @@ class TestDatabaseIndexes:
 
         # Check for composite index
         composite_idx = next(
-            (
-                idx
-                for idx in indexes
-                if idx.name == "meetings_muni_name_date_idx"
-            ),
+            (idx for idx in indexes if idx.name == "meetings_muni_name_date_idx"),
             None,
         )
         assert composite_idx is not None
         # Index fields can be strings or field objects
-        field_names = [f.name if hasattr(f, 'name') else f for f in composite_idx.fields]
+        field_names = [
+            f.name if hasattr(f, "name") else f for f in composite_idx.fields
+        ]
         assert "municipality" in field_names
 
     def test_query_performance_with_indexes(self, muni):

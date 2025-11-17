@@ -78,7 +78,9 @@ class MeetingPage(TimeStampedModel):
         verbose_name_plural = "Meeting Pages"
         ordering = ["document", "page_number"]
         indexes = [
-            models.Index(fields=["document", "page_number"], name="meetings_doc_page_idx"),
+            models.Index(
+                fields=["document", "page_number"], name="meetings_doc_page_idx"
+            ),
         ]
         unique_together = [["document", "page_number"]]
 
