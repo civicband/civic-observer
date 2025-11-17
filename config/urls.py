@@ -29,6 +29,7 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("datasette-auth/", datasette_auth, name="datasette_auth"),
     path("health/", views.health_check, name="health_check"),
     path("login/", login_view, name="login"),
+    path("meetings/", include("meetings.urls")),
     path("munis/", include("municipalities.urls")),
     path("searches/", include("searches.urls")),
     path("users/", include("users.urls")),
