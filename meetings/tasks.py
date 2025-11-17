@@ -33,9 +33,7 @@ def backfill_municipality_meetings_task(muni_id: UUID | str) -> dict[str, int]:
     try:
         muni = Muni.objects.get(pk=muni_id)
         stats = backfill_municipality_meetings(muni)
-        logger.info(
-            f"Background backfill completed for {muni.subdomain}: {stats}"
-        )
+        logger.info(f"Background backfill completed for {muni.subdomain}: {stats}")
         return stats
     except Muni.DoesNotExist:
         logger.error(f"Municipality with ID {muni_id} does not exist")

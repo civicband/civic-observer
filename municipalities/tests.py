@@ -549,7 +549,9 @@ class TestMuniAdminActions:
         )
 
     @patch("django_rq.get_queue")
-    def test_backfill_meetings_action_with_errors(self, mock_get_queue, superuser, muni):
+    def test_backfill_meetings_action_with_errors(
+        self, mock_get_queue, superuser, muni
+    ):
         """Test backfill meetings admin action handles errors in enqueuing"""
         from django.contrib.admin.sites import AdminSite
 

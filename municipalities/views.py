@@ -159,9 +159,7 @@ class MuniWebhookUpdateView(View):
 
             queue = django_rq.get_queue("default")
             job = queue.enqueue(backfill_municipality_meetings_task, muni.id)
-            logger.info(
-                f"Enqueued backfill task for {subdomain} (job ID: {job.id})"
-            )
+            logger.info(f"Enqueued backfill task for {subdomain} (job ID: {job.id})")
         except Exception as e:
             # Log the error but don't fail the webhook
             logger.error(
