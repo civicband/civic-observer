@@ -346,7 +346,11 @@ class TestBackfillService:
 
         # Empty minutes response
         minutes_response = Mock()
-        minutes_response.json.return_value = {"ok": True, "rows": [], "truncated": False}
+        minutes_response.json.return_value = {
+            "ok": True,
+            "rows": [],
+            "truncated": False,
+        }
         minutes_response.raise_for_status = Mock()
 
         def get_side_effect(url):
