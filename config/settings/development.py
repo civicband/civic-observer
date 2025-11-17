@@ -26,3 +26,13 @@ EMAIL_BACKEND: str = "django.core.mail.backends.console.EmailBackend"  # type: i
 # Override cookie domains for local development
 SESSION_COOKIE_DOMAIN = None
 CSRF_COOKIE_DOMAIN = None
+
+# Django-RQ for development (use docker service name if in docker)
+REDIS_URL = env.str("REDIS_URL", "redis://redis:6379/0")  # type: ignore[no-redef]
+RQ_QUEUES: dict[str, dict[str, Any]] = {  # type: ignore[no-redef]
+    "default": {
+        "URL": REDIS_URL,
+        "DEFAULT_TIMEOUT": 360,
+        "ASYNC": True,  # Run tasks asynchronously in development
+    },
+}

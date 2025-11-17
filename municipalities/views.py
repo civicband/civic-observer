@@ -151,16 +151,20 @@ class MuniWebhookUpdateView(View):
         )
         muni.update_searches()
 
-        # Backfill meeting data from civic.band
+        # Backfill meeting data from civic.band asynchronously
         try:
-            from meetings.services import backfill_municipality_meetings
+            import django_rq
 
-            backfill_stats = backfill_municipality_meetings(muni)
-            logger.info(f"Backfilled meetings for {subdomain}: {backfill_stats}")
+            from meetings.tasks import backfill_municipality_meetings_task
+
+            queue = django_rq.get_queue("default")
+            job = queue.enqueue(backfill_municipality_meetings_task, muni.id)
+            logger.info(f"Enqueued backfill task for {subdomain} (job ID: {job.id})")
         except Exception as e:
             # Log the error but don't fail the webhook
             logger.error(
-                f"Failed to backfill meetings for {subdomain}: {e}", exc_info=True
+                f"Failed to enqueue backfill task for {subdomain}: {e}",
+                exc_info=True,
             )
 
         # Prepare response data

@@ -6,6 +6,8 @@ x-common-settings: &common-settings
   depends_on:
     db:
       condition: service_healthy
+    redis:
+      condition: service_healthy
   env_file: .env
   restart: on-failure
   volumes:
@@ -27,6 +29,24 @@ services:
       - .:/src:cache
       - postgres-data:/var/lib/postgresql/data/
 
+  redis:
+    image: "redis:7-alpine"
+    init: true
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1
+      --loglevel warning
+    volumes:
+      - redis-data:/data
+    restart: on-failure
+
   utility:
     <<: *common-settings
     tty: true
@@ -46,5 +66,13 @@ services:
       - "${DJANGO_PORT}:8000"
     tty: true
 
+  worker:
+    <<: *common-settings
+    command: python manage.py rqworker default
+    entrypoint: ["/src/compose-entrypoint.sh"]
+    init: true
+    tty: true
+
 volumes:
   postgres-data:
+  redis-data:

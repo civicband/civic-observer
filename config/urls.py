@@ -27,6 +27,7 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("admin/", admin.site.urls),
     path("auth/", include("stagedoor.urls", namespace="stagedoor")),
     path("datasette-auth/", datasette_auth, name="datasette_auth"),
+    path("django-rq/", include("django_rq.urls")),
     path("health/", views.health_check, name="health_check"),
     path("login/", login_view, name="login"),
     path("meetings/", include("meetings.urls")),
