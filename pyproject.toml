@@ -104,6 +104,10 @@ disable_error_code = ["attr-defined"]
 module = "searches.tests"
 disable_error_code = ["attr-defined"]
 
+[[tool.mypy.overrides]]
+module = "meetings.tests"
+disable_error_code = ["attr-defined"]
+
 [tool.django-stubs]
 django_settings_module = "config.settings.development"
 
@@ -118,6 +122,7 @@ addopts = [
     "--cov=users",
     "--cov=municipalities",
     "--cov=searches",
+    "--cov=meetings",
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-fail-under=90",
@@ -129,7 +134,7 @@ markers = [
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
 ]
-testpaths = ["tests", "users/tests.py", "municipalities/tests.py", "searches/"]
+testpaths = ["tests", "users/tests.py", "municipalities/tests.py", "searches/", "meetings/tests.py"]
 
 [tool.coverage.run]
 source = [".", "users"]

@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 
 from django.db.models import Count
@@ -7,6 +8,8 @@ from django.views import View
 from neapolitan.views import CRUDView
 
 from .models import Muni
+
+logger = logging.getLogger(__name__)
 
 
 class MuniCRUDView(CRUDView):
@@ -147,6 +150,16 @@ class MuniWebhookUpdateView(View):
             subdomain=subdomain, defaults=muni_data
         )
         muni.update_searches()
+
+        # Backfill meeting data from civic.band
+        try:
+            from meetings.services import backfill_municipality_meetings
+
+            backfill_stats = backfill_municipality_meetings(muni)
+            logger.info(f"Backfilled meetings for {subdomain}: {backfill_stats}")
+        except Exception as e:
+            # Log the error but don't fail the webhook
+            logger.error(f"Failed to backfill meetings for {subdomain}: {e}", exc_info=True)
 
         # Prepare response data
         response_data = {
