@@ -848,9 +848,9 @@ class TestMeetingSearchResults:
         # Should not show minutes
         # (We need to be careful here as both might mention similar topics)
         # Better to check the badge
-        assert (
-            'bg-blue-100 text-blue-800">Agenda' in content or "Agenda</span>" in content
-        )
+        assert "bg-blue-100 text-blue-800" in content
+        # Should not show minutes badge
+        assert "bg-green-100 text-green-800" not in content
 
     def test_pagination(self, authenticated_client, muni):
         """Test that results are paginated."""

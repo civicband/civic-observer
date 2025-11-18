@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.contrib.postgres.search import (
     SearchHeadline,
     SearchQuery,
@@ -6,7 +8,7 @@ from django.contrib.postgres.search import (
 )
 from django.core.paginator import Paginator
 from django.db.models import F
-from django.http import HttpResponse
+from django.http import HttpRequest, HttpResponse
 from django.template.loader import render_to_string
 from django.views.decorators.http import require_GET
 from django.views.generic import TemplateView
@@ -36,12 +38,12 @@ class MeetingSearchView(TemplateView):
 
 
 @require_GET
-def meeting_page_search_results(request):
+def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
     """HTMX endpoint for searching meeting pages with full-text search and filters."""
     form = MeetingSearchForm(request.GET)
 
     # Default empty context
-    context = {
+    context: dict[str, Any] = {
         "results": [],
         "page_obj": None,
         "has_query": False,
@@ -100,7 +102,7 @@ def meeting_page_search_results(request):
                     stop_sel="</mark>",
                     max_words=50,
                     min_words=15,
-                    short_word=3,
+                    short_word="3",
                     highlight_all=False,
                     max_fragments=3,
                     fragment_delimiter=" ... ",
