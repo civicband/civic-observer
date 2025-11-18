@@ -1,6 +1,7 @@
 import uuid
 
 from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVectorField
 from django.db import models
 from model_utils.models import TimeStampedModel
 
@@ -73,6 +74,9 @@ class MeetingPage(TimeStampedModel):
         blank=True,
         help_text="Path to the page image (e.g., '/_agendas/CityCouncil/2024-01-02/5.png')",
     )
+    # Pre-computed search vector for fast full-text search
+    # Auto-updated by database trigger (see migration 0003)
+    search_vector = SearchVectorField(null=True)
 
     class Meta:
         verbose_name = "Meeting Page"

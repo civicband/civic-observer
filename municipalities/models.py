@@ -31,5 +31,6 @@ class Muni(TimeStampedModel):
         return f"{self.name}, {self.state}"
 
     def update_searches(self) -> None:
-        for search in self.searches.all():  # type: ignore
+        # Prefetch saved_by and user to avoid N+1 queries in update_search()
+        for search in self.searches.prefetch_related("saved_by__user").all():  # type: ignore
             search.update_search()

@@ -4,7 +4,6 @@ from django.contrib.postgres.search import (
     SearchHeadline,
     SearchQuery,
     SearchRank,
-    SearchVector,
 )
 from django.core.paginator import Paginator
 from django.db.models import F
@@ -88,41 +87,70 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
     if query:
         context["has_query"] = True
 
-        # Create search query
-        search_query = SearchQuery(query, search_type="websearch")
+        # Create search query using 'simple' config for multilingual support
+        # 'simple' doesn't do language-specific stemming, works across all languages
+        search_query = SearchQuery(query, search_type="websearch", config="simple")
 
-        # Annotate with search rank and headline
+        # Annotate with search rank using pre-computed search_vector
+        # This is MUCH faster than creating SearchVector at query time
         queryset = (
             queryset.annotate(
-                rank=SearchRank(SearchVector("text"), search_query),
-                headline=SearchHeadline(
-                    "text",
-                    search_query,
-                    start_sel="<mark class='bg-yellow-200 font-semibold'>",
-                    stop_sel="</mark>",
-                    max_words=50,
-                    min_words=15,
-                    short_word="3",
-                    highlight_all=False,
-                    max_fragments=3,
-                    fragment_delimiter=" ... ",
-                ),
+                rank=SearchRank(F("search_vector"), search_query),
             )
             .filter(rank__gt=0)
             .order_by("-rank", "-document__meeting_date")
         )
     else:
         # No query, just show recent results ordered by date
-        queryset = queryset.annotate(
-            headline=F("text")  # Use full text as headline when no search
-        ).order_by("-document__meeting_date", "document__meeting_name", "page_number")
+        queryset = queryset.order_by(
+            "-document__meeting_date", "document__meeting_name", "page_number"
+        )
 
     # Paginate results (20 per page)
+    # IMPORTANT: Paginate BEFORE generating headlines for performance
     paginator = Paginator(queryset, 20)
     page_number = request.GET.get("page", 1)
     page_obj = paginator.get_page(page_number)
 
-    context["results"] = page_obj.object_list
+    # Generate headlines ONLY for the current page (not all results)
+    # This is a major performance optimization - headlines are expensive to compute
+    if query:
+        results_with_headlines = []
+        for result in page_obj.object_list:
+            # Annotate each result individually with headline and rank
+            annotated = (
+                MeetingPage.objects.filter(pk=result.pk)
+                .annotate(
+                    rank=SearchRank(F("search_vector"), search_query),
+                    headline=SearchHeadline(
+                        "text",
+                        search_query,
+                        start_sel="<mark class='bg-yellow-200 font-semibold'>",
+                        stop_sel="</mark>",
+                        max_words=50,
+                        min_words=15,
+                        short_word="3",
+                        highlight_all=False,
+                        max_fragments=3,
+                        fragment_delimiter=" ... ",
+                        config="simple",
+                    ),
+                )
+                .first()
+            )
+            if annotated:
+                results_with_headlines.append(annotated)
+        context["results"] = results_with_headlines
+    else:
+        # No query, use full text as preview for non-search results
+        results_with_text = []
+        for result in page_obj.object_list:
+            result.headline = (
+                result.text[:200] + "..." if len(result.text) > 200 else result.text
+            )
+            results_with_text.append(result)
+        context["results"] = results_with_text
+
     context["page_obj"] = page_obj
 
     return HttpResponse(
