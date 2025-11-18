@@ -1,5 +1,6 @@
 import uuid
 
+from django.contrib.postgres.indexes import GinIndex
 from django.db import models
 from model_utils.models import TimeStampedModel
 
@@ -80,6 +81,11 @@ class MeetingPage(TimeStampedModel):
         indexes = [
             models.Index(
                 fields=["document", "page_number"], name="meetings_doc_page_idx"
+            ),
+            GinIndex(
+                fields=["text"],
+                name="meetingpage_text_gin_idx",
+                opclasses=["gin_trgm_ops"],
             ),
         ]
         unique_together = [["document", "page_number"]]
