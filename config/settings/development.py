@@ -15,10 +15,9 @@ INSTALLED_APPS += [
 ]
 
 DATABASES: dict[str, dict[str, Any]] = {  # type: ignore[no-redef]
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
-    }
+    "default": env.dj_db_url(
+        "DATABASE_URL", default="postgres://postgres@db/postgres"
+    ),
 }
 
 EMAIL_BACKEND: str = "django.core.mail.backends.console.EmailBackend"  # type: ignore[no-redef]
