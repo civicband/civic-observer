@@ -1,6 +1,7 @@
 from django.contrib import admin
 
 from .models import MeetingDocument, MeetingPage
+from .utils import truncate_text
 
 
 class MeetingPageInline(admin.TabularInline):
@@ -127,5 +128,5 @@ class MeetingPageAdmin(admin.ModelAdmin):
     def text_preview(self, obj):
         """Display a preview of the page text."""
         if obj.text:
-            return obj.text[:100] + "..." if len(obj.text) > 100 else obj.text
+            return truncate_text(obj.text, max_length=100)
         return "(empty)"
