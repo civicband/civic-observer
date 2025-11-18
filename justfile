@@ -1,10 +1,14 @@
 # CivicObserver Development Commands
 
-# Start development server with Tailwind CSS auto-compilation
+# Start all services (web, worker, db, redis)
 dev:
-    uv run python manage.py tailwind runserver
+    docker-compose up web worker
 
-# Run the test suite
+# Start development server with Tailwind CSS auto-compilation
+dev-tailwind:
+    docker-compose run --rm --service-ports web python manage.py tailwind runserver 0.0.0.0:8000
+
+# Run the test suite (runs locally, connects to Docker PostgreSQL on port 5433)
 test *args:
     uv run --group test pytest {{args}}
 
@@ -22,34 +26,54 @@ mypy:
 ruff:
     uv run --group dev ruff check . --fix
 
-# Django management command passthrough
+# Django management command passthrough (runs in Docker)
 manage *args:
-    uv run python manage.py {{args}}
+    docker-compose run --rm utility python manage.py {{args}}
 
 # Build Tailwind CSS for production
 build-css:
-    uv run python manage.py tailwind build
+    docker-compose run --rm utility python manage.py tailwind build
 
 # Watch Tailwind CSS for changes
 watch-css:
-    uv run python manage.py tailwind watch
+    docker-compose run --rm utility python manage.py tailwind watch
 
 # Collect static files
 collectstatic:
-    uv run python manage.py collectstatic --noinput
+    docker-compose run --rm utility python manage.py collectstatic --noinput
 
 # Run database migrations
 migrate:
-    uv run python manage.py migrate
+    docker-compose run --rm utility python manage.py migrate
 
 # Create new migrations
 makemigrations:
-    uv run python manage.py makemigrations
+    docker-compose run --rm utility python manage.py makemigrations
 
 # Create superuser
 createsuperuser:
-    uv run python manage.py createsuperuser
+    docker-compose run --rm utility python manage.py createsuperuser
 
-# Install dependencies
+# Access PostgreSQL shell
+dbshell:
+    docker-compose exec db psql -U postgres
+
+# Stop all services
+stop:
+    docker-compose stop
+
+# Stop and remove all containers
+down:
+    docker-compose down
+
+# View logs for all services
+logs:
+    docker-compose logs -f
+
+# View logs for specific service
+logs-service service:
+    docker-compose logs -f {{service}}
+
+# Install dependencies (for local development tools)
 install:
     uv sync --group dev --group test
