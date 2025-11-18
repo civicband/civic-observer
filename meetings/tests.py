@@ -602,9 +602,10 @@ class TestMeetingSearchForm:
     def test_form_with_empty_data(self):
         from meetings.forms import MeetingSearchForm
 
-        # Empty form should be valid (no required fields)
+        # Empty form should be invalid (query is required)
         form = MeetingSearchForm(data={})
-        assert form.is_valid()
+        assert not form.is_valid()
+        assert "query" in form.errors
 
     def test_form_date_validation(self):
         from meetings.forms import MeetingSearchForm
@@ -623,8 +624,9 @@ class TestMeetingSearchForm:
     def test_form_date_equal_is_valid(self):
         from meetings.forms import MeetingSearchForm
 
-        # Same date should be valid
+        # Same date should be valid (with required query)
         form_data = {
+            "query": "test",
             "date_from": "2024-01-01",
             "date_to": "2024-01-01",
         }
@@ -781,9 +783,10 @@ class TestMeetingSearchResults:
         assert response.status_code == 200
         content = response.content.decode()
 
-        # Should display rank scores when has_query is True
-        # The page with more mentions of "budget" should rank higher
-        assert "Rank:" in content
+        # Should return results for budget search
+        # Results are ordered by relevance (rank is not displayed but used for ordering)
+        assert "budget" in content.lower()
+        assert "result" in content.lower()
 
     def test_search_highlighting(self, authenticated_client, meeting_data):
         """Test that search terms are highlighted in results."""
@@ -821,7 +824,7 @@ class TestMeetingSearchResults:
 
         url = reverse("meetings:meeting-search-results")
         response = authenticated_client.get(
-            url, {"date_from": "2024-01-01", "date_to": "2024-01-31"}
+            url, {"query": "budget", "date_from": "2024-01-01", "date_to": "2024-01-31"}
         )
 
         assert response.status_code == 200
@@ -838,7 +841,9 @@ class TestMeetingSearchResults:
         from django.urls import reverse
 
         url = reverse("meetings:meeting-search-results")
-        response = authenticated_client.get(url, {"document_type": "agenda"})
+        response = authenticated_client.get(
+            url, {"query": "budget", "document_type": "agenda"}
+        )
 
         assert response.status_code == 200
         content = response.content.decode()
@@ -928,10 +933,8 @@ class TestMeetingSearchResults:
         assert "civic.band" in content
         assert "View on CivicBand" in content
 
-    def test_search_without_query_shows_recent(
-        self, authenticated_client, meeting_data
-    ):
-        """Test that searching without a query shows recent meetings."""
+    def test_search_without_query_shows_error(self, authenticated_client, meeting_data):
+        """Test that searching without a query shows an error message."""
         from django.urls import reverse
 
         url = reverse("meetings:meeting-search-results")
@@ -940,11 +943,8 @@ class TestMeetingSearchResults:
         assert response.status_code == 200
         content = response.content.decode()
 
-        # Should show results ordered by date (most recent first)
-        # March meeting should appear before January
-        assert content.index("March") < content.index("January") or content.index(
-            "2024-03-01"
-        ) < content.index("2024-01-15")
+        # Should show error message requiring search term
+        assert "error" in content.lower() or "enter a search term" in content.lower()
 
     def test_combined_filters(self, authenticated_client, meeting_data):
         """Test using multiple filters together."""

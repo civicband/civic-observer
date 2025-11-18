@@ -8,12 +8,13 @@ class MeetingSearchForm(forms.Form):
 
     query = forms.CharField(
         max_length=500,
-        required=False,
-        help_text="Enter keywords to search for in meeting documents",
+        required=True,
+        help_text='Search keywords or phrases. Supports "exact phrases", AND, OR, NOT operators.',
         widget=forms.TextInput(
             attrs={
-                "placeholder": 'Search for keywords like "budget", "zoning", "housing"',
+                "placeholder": 'Search for "zoning variance" or housing AND development',
                 "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500",
+                "autofocus": True,
             }
         ),
     )
