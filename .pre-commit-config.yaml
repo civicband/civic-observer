@@ -20,6 +20,32 @@ repos:
         args:
         - --fix
     -   id: ruff-format
+-   repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.1
+    hooks:
+    -   id: mypy
+        additional_dependencies:
+        - django-stubs[compatible-mypy]>=5.2.0
+        - types-redis
+        - types-requests
+        - django>=5.2.1
+        - environs[django]>=14.2.0
+        - psycopg[binary]>=3.2.9
+        - django-countries>=7.6.1
+        - django-localflavor>=5.0
+        - django-rq>=3.0.0
+        - redis>=5.0.0
+        - httpx>=0.28.1
+        - whitenoise>=6.7.0
+        - django-model-utils>=5.0.0
+        - neapolitan
+        - django-tailwind-cli>=2.2.0
+        - django-anymail[postmark]>=10.2
+        - django-widget-tweaks>=1.5.0
+        - uvicorn>=0.34.3
+        - django-extensions>=4.1
+        - sentry-sdk[django]>=2.29.1
+        - django-stagedoor>0.1.0
 -   repo: https://github.com/asottile/pyupgrade
     rev: v3.19.1
     hooks:

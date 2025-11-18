@@ -27,6 +27,29 @@
 - `uv sync` - Install/sync dependencies
 - `uv add <package>` - Add new dependencies
 
+### Pre-commit Hooks:
+This project uses pre-commit hooks to automatically check code quality before commits.
+
+**Setup** (one-time):
+- `uv run --group dev pre-commit install` - Install git hooks
+
+**Usage**:
+- Hooks run automatically on `git commit`
+- `uv run --group dev pre-commit run --all-files` - Run all hooks manually
+- `uv run --group dev pre-commit run <hook-id>` - Run specific hook (e.g., `mypy`, `ruff`)
+
+**Configured hooks**:
+- File checks (large files, merge conflicts, trailing whitespace, etc.)
+- `ruff` - Linting and auto-formatting
+- `mypy` - Type checking with django-stubs
+- `pyupgrade` - Upgrade Python syntax to 3.12+
+- `django-upgrade` - Upgrade Django patterns to 5.0+
+- `djhtml` - Format Django templates
+- `djade` - Lint Django templates
+- `blacken-docs` - Format code in documentation
+
+**Note**: Pre-commit hooks run in isolated environments and may take a few minutes on first run while dependencies are installed.
+
 ## Project Structure
 
 This is a Django project for civic monitoring with the following key apps:
