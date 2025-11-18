@@ -17,11 +17,24 @@
             <!-- Filters Sidebar -->
             <div class="lg:col-span-1">
                 <div class="bg-white shadow-lg rounded-xl p-6 sticky top-20">
-                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Filters</h2>
+                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Search</h2>
                     <form id="search-form"
                           hx-get="{% url 'meetings:meeting-search-results' %}"
                           hx-target="#search-results"
                           hx-indicator=".htmx-indicator">
+
+                        <!-- Search Query -->
+                        <div class="mb-4">
+                            <label for="id_query" class="block text-sm font-medium text-gray-700 mb-2">
+                                Search Query
+                            </label>
+                            {{ form.query }}
+                            <p class="mt-1 text-xs text-gray-500">
+                                Use quotes for exact phrases
+                            </p>
+                        </div>
+
+                        <div class="border-t border-gray-200 my-4"></div>
 
                         <!-- Municipality Filter -->
                         <div class="mb-4">
@@ -75,29 +88,6 @@
 
             <!-- Search Results Area -->
             <div class="lg:col-span-3">
-                <!-- Search Bar -->
-                <div class="bg-white shadow-lg rounded-xl p-6 mb-6">
-                    <div class="flex gap-3 items-end">
-                        <div class="flex-1">
-                            <label for="id_query" class="block text-sm font-medium text-gray-700 mb-2">
-                                Search Query
-                            </label>
-                            {{ form.query }}
-                            <p class="mt-1 text-xs text-gray-500">
-                                Use quotes for exact phrases, e.g., "city budget" or "housing development"
-                            </p>
-                        </div>
-                        <div class="flex-shrink-0 pb-5">
-                            <button type="submit" form="search-form" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
-                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                                </svg>
-                                Search
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
                 <!-- Results Container -->
                 <div id="search-results" class="min-h-[200px]">
                     <!-- Initial empty state -->
