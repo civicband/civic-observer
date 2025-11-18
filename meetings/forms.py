@@ -14,8 +14,6 @@ class MeetingSearchForm(forms.Form):
             attrs={
                 "placeholder": 'Search for keywords like "budget", "zoning", "housing"',
                 "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500",
-                "x-model": "searchQuery",
-                "@input.debounce.500ms": "performSearch()",
             }
         ),
     )
@@ -28,7 +26,6 @@ class MeetingSearchForm(forms.Form):
         widget=forms.Select(
             attrs={
                 "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500",
-                "@change": "performSearch()",
             }
         ),
     )
@@ -40,7 +37,6 @@ class MeetingSearchForm(forms.Form):
             attrs={
                 "type": "date",
                 "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500",
-                "@change": "performSearch()",
             }
         ),
     )
@@ -52,7 +48,6 @@ class MeetingSearchForm(forms.Form):
             attrs={
                 "type": "date",
                 "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500",
-                "@change": "performSearch()",
             }
         ),
     )
@@ -68,13 +63,15 @@ class MeetingSearchForm(forms.Form):
         widget=forms.Select(
             attrs={
                 "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500",
-                "@change": "performSearch()",
             }
         ),
     )
 
     def clean(self):
         cleaned_data = super().clean()
+        if not cleaned_data:
+            return cleaned_data
+
         date_from = cleaned_data.get("date_from")
         date_to = cleaned_data.get("date_to")
 

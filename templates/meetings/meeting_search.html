@@ -3,7 +3,7 @@
 {% block title %}Search Meetings - CivicObserver{% endblock %}
 
 {% block content %}
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" x-data="meetingSearch()">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <!-- Page Header -->
         <div class="sm:flex sm:items-center sm:justify-between mb-8">
             <div>
@@ -18,7 +18,22 @@
             <div class="lg:col-span-1">
                 <div class="bg-white shadow-lg rounded-xl p-6 sticky top-20">
                     <h2 class="text-lg font-semibold text-gray-900 mb-4">Filters</h2>
-                    <form id="search-form" @submit.prevent="performSearch">
+                    <form id="search-form"
+                          hx-get="{% url 'meetings:meeting-search-results' %}"
+                          hx-target="#search-results"
+                          hx-indicator="#loading-spinner">
+
+                        <!-- Search Query Input -->
+                        <div class="mb-4">
+                            <label for="id_query" class="block text-sm font-medium text-gray-700 mb-2">
+                                Search Query
+                            </label>
+                            {{ form.query }}
+                            <p class="mt-1 text-xs text-gray-500">
+                                Use quotes for exact phrases
+                            </p>
+                        </div>
+
                         <!-- Municipality Filter -->
                         <div class="mb-4">
                             <label for="id_municipality" class="block text-sm font-medium text-gray-700 mb-2">
@@ -51,7 +66,7 @@
                         </div>
 
                         <!-- Search Button -->
-                        <button type="submit" class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                        <button type="submit" class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                             </svg>
@@ -59,7 +74,7 @@
                         </button>
 
                         <!-- Clear Filters -->
-                        <button type="button" @click="clearFilters" class="mt-2 w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                        <button type="button" onclick="clearFilters()" class="mt-2 w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                             </svg>
@@ -71,39 +86,29 @@
 
             <!-- Search Results Area -->
             <div class="lg:col-span-3">
-                <!-- Search Input -->
-                <div class="mb-6">
-                    <label for="id_query" class="block text-sm font-medium text-gray-700 mb-2">
-                        Search Query
-                    </label>
-                    {{ form.query }}
-                    <p class="mt-2 text-sm text-gray-500">
-                        Tip: Use quotes for exact phrases, e.g., "city budget" or "housing development"
-                    </p>
-                </div>
-
                 <!-- Results Container -->
-                <div id="search-results"
-                     hx-get="{% url 'meetings:meeting-search-results' %}"
-                     hx-trigger="search-meetings from:body"
-                     hx-include="#search-form, #id_query"
-                     hx-indicator="#loading-indicator"
-                     hx-swap="innerHTML">
+                <div id="search-results">
                     <!-- Initial empty state -->
                     <div class="text-center py-12 bg-white shadow-lg rounded-xl">
                         <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                         </svg>
                         <h3 class="mt-4 text-lg font-medium text-gray-900">Start Searching</h3>
-                        <p class="mt-2 text-gray-500">Enter keywords to search meeting documents, or use filters to browse by municipality and date.</p>
+                        <p class="mt-2 text-gray-500">Enter keywords and click Search to find meeting documents, or use filters to browse by municipality and date.</p>
                     </div>
                 </div>
 
-                <!-- Loading Indicator -->
-                <div id="loading-indicator" class="htmx-indicator">
-                    <div class="text-center py-12">
-                        <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600"></div>
-                        <p class="mt-4 text-gray-600">Searching...</p>
+                <!-- Loading Spinner (HTMX indicator) -->
+                <div id="loading-spinner" class="htmx-indicator">
+                    <div class="flex items-center justify-center py-12 bg-white shadow-lg rounded-xl">
+                        <div class="text-center">
+                            <svg class="inline-block animate-spin h-12 w-12 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <p class="mt-4 text-sm font-medium text-gray-700">Searching meeting documents...</p>
+                            <p class="mt-1 text-xs text-gray-500">This may take a few moments</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -111,45 +116,35 @@
     </div>
 
     <script>
-        function meetingSearch() {
-            return {
-                searchQuery: '',
+        function clearFilters() {
+            // Reset form
+            const form = document.getElementById('search-form');
+            form.reset();
 
-                init() {
-                    // Trigger search on page load if there are existing params
-                    const urlParams = new URLSearchParams(window.location.search);
-                    if (urlParams.has('query') || urlParams.has('municipality') || urlParams.has('date_from') || urlParams.has('date_to') || urlParams.has('document_type')) {
-                        this.performSearch();
-                    }
-                },
-
-                performSearch() {
-                    // Trigger HTMX request
-                    htmx.trigger(document.body, 'search-meetings');
-                },
-
-                clearFilters() {
-                    // Reset form
-                    document.getElementById('search-form').reset();
-                    document.getElementById('id_query').value = '';
-                    this.searchQuery = '';
-
-                    // Clear results
-                    document.getElementById('search-results').innerHTML = `
-                        <div class="text-center py-12 bg-white shadow-lg rounded-xl">
-                            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                            </svg>
-                            <h3 class="mt-4 text-lg font-medium text-gray-900">Start Searching</h3>
-                            <p class="mt-2 text-gray-500">Enter keywords to search meeting documents, or use filters to browse by municipality and date.</p>
-                        </div>
-                    `;
-                }
-            }
+            // Clear results
+            document.getElementById('search-results').innerHTML = `
+                <div class="text-center py-12 bg-white shadow-lg rounded-xl">
+                    <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                    </svg>
+                    <h3 class="mt-4 text-lg font-medium text-gray-900">Start Searching</h3>
+                    <p class="mt-2 text-gray-500">Enter keywords and click Search to find meeting documents, or use filters to browse by municipality and date.</p>
+                </div>
+            `;
         }
+
+        // Trigger search on page load if there are existing params
+        document.addEventListener('DOMContentLoaded', function() {
+            const urlParams = new URLSearchParams(window.location.search);
+            if (urlParams.has('query') || urlParams.has('municipality') || urlParams.has('date_from') || urlParams.has('date_to') || urlParams.has('document_type')) {
+                // Trigger the form submission
+                htmx.trigger('#search-form', 'submit');
+            }
+        });
     </script>
 
     <style>
+        /* HTMX indicator styling - follows HTMX best practices */
         .htmx-indicator {
             display: none;
         }
@@ -158,8 +153,8 @@
             display: block;
         }
 
-        .htmx-request #search-results {
-            opacity: 0.5;
+        .htmx-request.htmx-indicator {
+            display: inline-block;
         }
     </style>
 {% endblock content %}
