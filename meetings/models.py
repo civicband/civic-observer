@@ -47,6 +47,11 @@ class MeetingDocument(TimeStampedModel):
                 fields=["municipality", "document_type"],
                 name="meetings_muni_type_idx",
             ),
+            # Optimized composite index for common search filter patterns
+            models.Index(
+                fields=["municipality", "document_type", "meeting_date"],
+                name="meetings_muni_type_date_idx",
+            ),
         ]
         unique_together = [
             ["municipality", "meeting_name", "meeting_date", "document_type"]
