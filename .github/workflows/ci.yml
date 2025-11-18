@@ -7,7 +7,8 @@ on:
     branches: [main]
 
 env:
-  DJANGO_SETTINGS_MODULE: config.settings.development
+  DJANGO_SETTINGS_MODULE: config.settings.test
+  DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
 
 jobs:
   test:
@@ -15,6 +16,30 @@ jobs:
     strategy:
       matrix:
         python-version: ["3.12"]
+
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
 
     steps:
       - name: Checkout code

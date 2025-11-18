@@ -23,8 +23,10 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
-    image: "pgautoupgrade/pgautoupgrade:latest"
+    image: "postgres:17-alpine"
     init: true
+    ports:
+      - "5433:5432"
     volumes:
       - .:/src:cache
       - postgres-data:/var/lib/postgresql/data/
