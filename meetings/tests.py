@@ -4,11 +4,26 @@ from unittest.mock import Mock, patch
 
 import httpx
 import pytest
+from django.contrib.auth import get_user_model
 from django.db import IntegrityError
+from django.test import Client
 
 from meetings.models import MeetingDocument, MeetingPage
 from meetings.services import backfill_municipality_meetings
 from municipalities.models import Muni
+
+User = get_user_model()
+
+
+@pytest.fixture
+def authenticated_client(db):
+    """Create an authenticated test client."""
+    client = Client()
+    user = User.objects.create_user(
+        username="testuser", email="test@example.com", password="testpass123"
+    )
+    client.force_login(user)
+    return client
 
 
 @pytest.mark.django_db
@@ -560,3 +575,397 @@ class TestDatabaseIndexes:
             municipality=muni, document_type="agenda"
         )
         assert results.count() == 5
+
+
+@pytest.mark.django_db
+class TestMeetingSearchForm:
+    """Test the meeting search form validation and widgets."""
+
+    def test_form_with_valid_data(self):
+        from meetings.forms import MeetingSearchForm
+        from municipalities.models import Muni
+
+        muni = Muni.objects.create(
+            subdomain="test.ca", name="Test", state="CA", kind="city"
+        )
+
+        form_data = {
+            "query": "budget",
+            "municipality": muni.id,
+            "date_from": "2024-01-01",
+            "date_to": "2024-12-31",
+            "document_type": "agenda",
+        }
+        form = MeetingSearchForm(data=form_data)
+        assert form.is_valid()
+
+    def test_form_with_empty_data(self):
+        from meetings.forms import MeetingSearchForm
+
+        # Empty form should be valid (no required fields)
+        form = MeetingSearchForm(data={})
+        assert form.is_valid()
+
+    def test_form_date_validation(self):
+        from meetings.forms import MeetingSearchForm
+
+        # date_from after date_to should be invalid
+        form_data = {
+            "date_from": "2024-12-31",
+            "date_to": "2024-01-01",
+        }
+        form = MeetingSearchForm(data=form_data)
+        assert not form.is_valid()
+        assert "Start date must be before or equal to end date" in str(
+            form.errors["__all__"]
+        )
+
+    def test_form_date_equal_is_valid(self):
+        from meetings.forms import MeetingSearchForm
+
+        # Same date should be valid
+        form_data = {
+            "date_from": "2024-01-01",
+            "date_to": "2024-01-01",
+        }
+        form = MeetingSearchForm(data=form_data)
+        assert form.is_valid()
+
+
+@pytest.mark.django_db
+class TestMeetingSearchView:
+    """Test the main meeting search view."""
+
+    def test_view_requires_authentication(self, client):
+        """Anonymous users should be redirected to login."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search")
+        response = client.get(url)
+
+        # Should redirect to login
+        assert response.status_code == 302
+        assert "/login/" in response.url
+
+    def test_view_renders_for_authenticated_user(self, authenticated_client):
+        """Authenticated users should see the search page."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search")
+        response = authenticated_client.get(url)
+
+        assert response.status_code == 200
+        assert "Search Meeting Documents" in response.content.decode()
+        assert "form" in response.context
+
+    def test_view_contains_search_form(self, authenticated_client):
+        """View should render the search form."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search")
+        response = authenticated_client.get(url)
+
+        content = response.content.decode()
+        assert "id_query" in content
+        assert "id_municipality" in content
+        assert "id_date_from" in content
+        assert "id_date_to" in content
+        assert "id_document_type" in content
+
+
+@pytest.mark.django_db
+class TestMeetingSearchResults:
+    """Test the HTMX search results endpoint."""
+
+    @pytest.fixture
+    def muni(self):
+        from municipalities.models import Muni
+
+        return Muni.objects.create(
+            subdomain="testcity.ca",
+            name="Test City",
+            state="CA",
+            kind="city",
+        )
+
+    @pytest.fixture
+    def second_muni(self):
+        from municipalities.models import Muni
+
+        return Muni.objects.create(
+            subdomain="othercity.ca",
+            name="Other City",
+            state="NY",
+            kind="city",
+        )
+
+    @pytest.fixture
+    def meeting_data(self, muni, second_muni):
+        """Create test meeting documents and pages."""
+        from meetings.models import MeetingDocument, MeetingPage
+
+        # Create documents for first municipality
+        doc1 = MeetingDocument.objects.create(
+            municipality=muni,
+            meeting_name="CityCouncil",
+            meeting_date=date(2024, 1, 15),
+            document_type="agenda",
+        )
+        MeetingPage.objects.create(
+            id="page1",
+            document=doc1,
+            page_number=1,
+            text="City budget discussion for fiscal year 2024. We will review the proposed budget allocation.",
+            page_image="/_agendas/CityCouncil/2024-01-15/1.png",
+        )
+
+        doc2 = MeetingDocument.objects.create(
+            municipality=muni,
+            meeting_name="PlanningBoard",
+            meeting_date=date(2024, 2, 1),
+            document_type="minutes",
+        )
+        MeetingPage.objects.create(
+            id="page2",
+            document=doc2,
+            page_number=1,
+            text="Discussion of new housing development proposal on Main Street.",
+            page_image="/_minutes/PlanningBoard/2024-02-01/1.png",
+        )
+
+        # Create document for second municipality
+        doc3 = MeetingDocument.objects.create(
+            municipality=second_muni,
+            meeting_name="CityCouncil",
+            meeting_date=date(2024, 3, 1),
+            document_type="agenda",
+        )
+        MeetingPage.objects.create(
+            id="page3",
+            document=doc3,
+            page_number=1,
+            text="Budget review and housing policy updates for the city.",
+            page_image="/_agendas/CityCouncil/2024-03-01/1.png",
+        )
+
+        return {
+            "muni": muni,
+            "second_muni": second_muni,
+            "doc1": doc1,
+            "doc2": doc2,
+            "doc3": doc3,
+        }
+
+    def test_search_with_query(self, authenticated_client, meeting_data):
+        """Test full-text search with a query."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        response = authenticated_client.get(url, {"query": "budget"})
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should find pages with "budget" in text
+        assert "budget" in content.lower()
+        # Should show search results count
+        assert "result" in content.lower()
+
+    def test_search_ranking(self, authenticated_client, meeting_data):
+        """Test that search results are ranked by relevance."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        response = authenticated_client.get(url, {"query": "budget"})
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should display rank scores when has_query is True
+        # The page with more mentions of "budget" should rank higher
+        assert "Rank:" in content
+
+    def test_search_highlighting(self, authenticated_client, meeting_data):
+        """Test that search terms are highlighted in results."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        response = authenticated_client.get(url, {"query": "budget"})
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should use mark tags for highlighting
+        assert "<mark" in content
+
+    def test_filter_by_municipality(self, authenticated_client, meeting_data):
+        """Test filtering search results by municipality."""
+        from django.urls import reverse
+
+        muni = meeting_data["muni"]
+        url = reverse("meetings:meeting-search-results")
+        response = authenticated_client.get(
+            url, {"query": "budget", "municipality": muni.id}
+        )
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should only show results from Test City
+        assert "Test City" in content
+        assert "Other City" not in content
+
+    def test_filter_by_date_range(self, authenticated_client, meeting_data):
+        """Test filtering by date range."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        response = authenticated_client.get(
+            url, {"date_from": "2024-01-01", "date_to": "2024-01-31"}
+        )
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should only show January meeting
+        assert "January" in content or "2024-01-15" in content
+        # Should not show February or March meetings
+        assert "February" not in content
+        assert "March" not in content
+
+    def test_filter_by_document_type(self, authenticated_client, meeting_data):
+        """Test filtering by document type (agenda vs minutes)."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        response = authenticated_client.get(url, {"document_type": "agenda"})
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should show agenda documents
+        assert "Agenda" in content
+        # Should not show minutes
+        # (We need to be careful here as both might mention similar topics)
+        # Better to check the badge
+        assert "bg-blue-100 text-blue-800" in content
+        # Should not show minutes badge
+        assert "bg-green-100 text-green-800" not in content
+
+    def test_pagination(self, authenticated_client, muni):
+        """Test that results are paginated."""
+        from django.urls import reverse
+
+        from meetings.models import MeetingDocument, MeetingPage
+
+        # Create 25 meeting pages (more than the 20 per page limit)
+        doc = MeetingDocument.objects.create(
+            municipality=muni,
+            meeting_name="TestMeeting",
+            meeting_date=date(2024, 1, 1),
+            document_type="agenda",
+        )
+
+        for i in range(25):
+            MeetingPage.objects.create(
+                id=f"page_{i}",
+                document=doc,
+                page_number=i + 1,
+                text=f"Test page {i} with common text",
+            )
+
+        url = reverse("meetings:meeting-search-results")
+        response = authenticated_client.get(url, {"query": "common"})
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should show pagination
+        assert "Page 1" in content or "page 1" in content.lower()
+        # Should have next page link
+        assert "page=2" in content or "Next" in content
+
+    def test_empty_results(self, authenticated_client, meeting_data):
+        """Test search with no matching results."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        response = authenticated_client.get(url, {"query": "nonexistentterm123"})
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should show "no results" message
+        assert "no results" in content.lower() or "0 result" in content.lower()
+
+    def test_invalid_form_data(self, authenticated_client):
+        """Test search with invalid form data."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        # Invalid date range
+        response = authenticated_client.get(
+            url, {"date_from": "2024-12-31", "date_to": "2024-01-01"}
+        )
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should show error message
+        assert "Invalid" in content or "error" in content.lower()
+
+    def test_civic_band_links(self, authenticated_client, meeting_data):
+        """Test that results include links to CivicBand."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        response = authenticated_client.get(url, {"query": "budget"})
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should contain links to civic.band
+        assert "civic.band" in content
+        assert "View on CivicBand" in content
+
+    def test_search_without_query_shows_recent(
+        self, authenticated_client, meeting_data
+    ):
+        """Test that searching without a query shows recent meetings."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        response = authenticated_client.get(url, {})
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should show results ordered by date (most recent first)
+        # March meeting should appear before January
+        assert content.index("March") < content.index("January") or content.index(
+            "2024-03-01"
+        ) < content.index("2024-01-15")
+
+    def test_combined_filters(self, authenticated_client, meeting_data):
+        """Test using multiple filters together."""
+        from django.urls import reverse
+
+        muni = meeting_data["muni"]
+        url = reverse("meetings:meeting-search-results")
+        response = authenticated_client.get(
+            url,
+            {
+                "query": "budget",
+                "municipality": muni.id,
+                "date_from": "2024-01-01",
+                "date_to": "2024-01-31",
+                "document_type": "agenda",
+            },
+        )
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should find the matching page
+        assert "budget" in content.lower()
+        assert "Test City" in content

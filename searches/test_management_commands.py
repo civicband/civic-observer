@@ -20,11 +20,11 @@ class TestPopulateTestSearches:
         """Test the populate_test_searches management command"""
         out = StringIO()
 
-        # Run the command
-        call_command("populate_test_searches", "--count=3", stdout=out)
+        # Run the command with higher count to reduce flakiness from random duplicates
+        call_command("populate_test_searches", "--count=10", stdout=out)
 
         # Verify searches were created (may be less due to duplicates)
-        assert Search.objects.count() >= 2
+        assert Search.objects.count() >= 5
 
         # Verify output contains expected information
         output = out.getvalue()
