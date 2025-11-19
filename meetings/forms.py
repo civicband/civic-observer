@@ -34,16 +34,18 @@ class MeetingSearchForm(forms.Form):
         ),
     )
 
-    municipality = forms.ModelChoiceField(
+    municipalities = forms.ModelMultipleChoiceField(
         queryset=Muni.objects.all().order_by("name"),
         required=False,
-        empty_label="All municipalities",
-        help_text="Filter by municipality",
-        widget=forms.Select(
-            attrs={
-                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500",
-            }
-        ),
+        help_text="Filter by one or more municipalities",
+        widget=forms.MultipleHiddenInput(),
+    )
+
+    states = forms.MultipleChoiceField(
+        choices=Muni.STATE_FIELD_CHOICES,
+        required=False,
+        help_text="Filter by one or more states or provinces",
+        widget=forms.MultipleHiddenInput(),
     )
 
     date_from = forms.DateField(

@@ -669,7 +669,9 @@ class TestMeetingSearchView:
 
         content = response.content.decode()
         assert "id_query" in content
-        assert "id_municipality" in content
+        # Multi-select components for municipalities and states
+        assert "Municipalities" in content
+        assert "States/Regions" in content
         assert "id_date_from" in content
         assert "id_date_to" in content
         assert "id_document_type" in content
@@ -814,7 +816,7 @@ class TestMeetingSearchResults:
         muni = meeting_data["muni"]
         url = reverse("meetings:meeting-search-results")
         response = authenticated_client.get(
-            url, {"query": "budget", "municipality": muni.id}
+            url, {"query": "budget", "municipalities": muni.id}
         )
 
         assert response.status_code == 200
