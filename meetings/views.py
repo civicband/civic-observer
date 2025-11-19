@@ -144,11 +144,12 @@ def _apply_full_text_search(queryset, query_text):
     # Create search query using 'simple' config for multilingual support
     search_query = SearchQuery(query_text, search_type="websearch", config="simple")
 
-    # Annotate with search rank using pre-computed search_vector
-    # This is MUCH faster than creating SearchVector at query time
-    # Filter out very low rank results (weak/irrelevant matches)
+    # IMPORTANT: Filter using @@ operator FIRST to use the GIN index
+    # This dramatically reduces rows before computing expensive ts_rank
+    # Only then compute rank and filter by minimum threshold
     queryset = (
-        queryset.annotate(
+        queryset.filter(search_vector=search_query)  # Uses GIN index via @@ operator
+        .annotate(
             rank=SearchRank(F("search_vector"), search_query),
         )
         .filter(rank__gte=MINIMUM_RANK_THRESHOLD)
@@ -173,35 +174,35 @@ def _generate_headlines_for_page(page_results, search_query):
     Returns:
         List of MeetingPage objects with headline and rank annotations
     """
-    results_with_headlines = []
+    # Extract PKs from page results
+    page_pks = [result.pk for result in page_results]
 
-    for result in page_results:
-        # Annotate each result individually with headline and rank
-        annotated = (
-            MeetingPage.objects.filter(pk=result.pk)
-            .annotate(
-                rank=SearchRank(F("search_vector"), search_query),
-                headline=SearchHeadline(
-                    "text",
-                    search_query,
-                    start_sel=HEADLINE_START_TAG,
-                    stop_sel=HEADLINE_STOP_TAG,
-                    max_words=HEADLINE_MAX_WORDS,
-                    min_words=HEADLINE_MIN_WORDS,
-                    short_word=HEADLINE_SHORT_WORD_LENGTH,
-                    highlight_all=False,
-                    max_fragments=HEADLINE_MAX_FRAGMENTS,
-                    fragment_delimiter=HEADLINE_FRAGMENT_DELIMITER,
-                    config="simple",
-                ),
-            )
-            .first()
+    # Single query to fetch all headlines and ranks for the page
+    # This is MUCH faster than querying each result individually (N+1 problem)
+    results_with_headlines = (
+        MeetingPage.objects.filter(pk__in=page_pks)
+        .annotate(
+            rank=SearchRank(F("search_vector"), search_query),
+            headline=SearchHeadline(
+                "text",
+                search_query,
+                start_sel=HEADLINE_START_TAG,
+                stop_sel=HEADLINE_STOP_TAG,
+                max_words=HEADLINE_MAX_WORDS,
+                min_words=HEADLINE_MIN_WORDS,
+                short_word=HEADLINE_SHORT_WORD_LENGTH,
+                highlight_all=False,
+                max_fragments=HEADLINE_MAX_FRAGMENTS,
+                fragment_delimiter=HEADLINE_FRAGMENT_DELIMITER,
+                config="simple",
+            ),
         )
+        .select_related("document", "document__municipality")
+    )
 
-        if annotated:
-            results_with_headlines.append(annotated)
-
-    return results_with_headlines
+    # Preserve original ordering
+    results_dict = {result.pk: result for result in results_with_headlines}
+    return [results_dict[pk] for pk in page_pks if pk in results_dict]
 
 
 @require_GET
