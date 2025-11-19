@@ -15,7 +15,14 @@ INSTALLED_APPS += [
 ]
 
 DATABASES: dict[str, dict[str, Any]] = {  # type: ignore[no-redef]
-    "default": env.dj_db_url("DATABASE_URL", default="postgres://postgres@db/postgres"),
+    "default": {
+        **env.dj_db_url("DATABASE_URL", default="postgres://postgres@db/postgres"),
+        "CONN_MAX_AGE": 600,  # Keep connections alive for 10 minutes
+        "CONN_HEALTH_CHECKS": True,  # Validate connections before use
+        "OPTIONS": {
+            "connect_timeout": 10,
+        },
+    }
 }
 
 EMAIL_BACKEND: str = "django.core.mail.backends.console.EmailBackend"  # type: ignore[no-redef]

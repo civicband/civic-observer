@@ -30,6 +30,19 @@ services:
     volumes:
       - .:/src:cache
       - postgres-data:/var/lib/postgresql/data/
+      - ./docker/postgresql.conf:/etc/postgresql/postgresql.conf:ro
+    # Temporarily disabled custom config for testing
+    # command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    shm_size: 1gb
+    # Resource limits commented out for compatibility
+    # deploy:
+    #   resources:
+    #     limits:
+    #       cpus: '2.0'
+    #       memory: 8G
+    #     reservations:
+    #       cpus: '1.0'
+    #       memory: 4G
 
   redis:
     image: "redis:7-alpine"
