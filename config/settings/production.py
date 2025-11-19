@@ -22,7 +22,14 @@ ALLOWED_HOSTS: list[str] = [  # type: ignore[no-redef]
 ]
 
 DATABASES: dict[str, dict[str, Any]] = {  # type: ignore[no-redef]
-    "default": env.dj_db_url("DATABASE_URL"),
+    "default": {
+        **env.dj_db_url("DATABASE_URL"),
+        "CONN_MAX_AGE": 600,  # Keep connections alive for 10 minutes
+        "CONN_HEALTH_CHECKS": True,  # Validate connections before use
+        "OPTIONS": {
+            "connect_timeout": 10,
+        },
+    }
 }
 
 # Cookie settings for civic.observer domain
