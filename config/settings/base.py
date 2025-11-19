@@ -77,6 +77,11 @@ DATABASES: dict[str, dict[str, Any]] = {
     }
 }
 
+# PgBouncer compatibility: Disable server-side cursors for transaction pooling mode
+# When using pgBouncer in transaction mode, server-side cursors cannot persist
+# across transactions, so Django must use client-side cursors instead
+DISABLE_SERVER_SIDE_CURSORS: bool = True
+
 AUTHENTICATION_BACKENDS = (
     "stagedoor.backends.EmailTokenBackend",
     "django.contrib.auth.backends.ModelBackend",

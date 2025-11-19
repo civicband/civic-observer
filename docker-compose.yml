@@ -62,6 +62,30 @@ services:
       - redis-data:/data
     restart: on-failure
 
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    init: true
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgres://postgres@db:5432/postgres
+      - POOL_MODE=transaction
+      - MAX_CLIENT_CONN=200
+      - DEFAULT_POOL_SIZE=25
+      - RESERVE_POOL_SIZE=5
+    ports:
+      - "6432:6432"
+    volumes:
+      - ./docker/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
+      - ./docker/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+    healthcheck:
+      test: ["CMD", "psql", "-h", "localhost", "-p", "6432", "-U", "postgres", "-d", "postgres", "-c", "SELECT 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    restart: on-failure
+
   utility:
     <<: *common-settings
     tty: true
