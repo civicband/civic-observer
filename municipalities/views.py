@@ -146,25 +146,49 @@ class MuniWebhookUpdateView(View):
 
         if not muni_data.get("name"):
             return JsonResponse({"error": "name field is required"}, status=400)
+
+        # Get old page count before update to detect changes
+        try:
+            old_muni = Muni.objects.get(subdomain=subdomain)
+            old_pages = old_muni.pages
+        except Muni.DoesNotExist:
+            old_pages = None
+
         muni, created = Muni.objects.update_or_create(
             subdomain=subdomain, defaults=muni_data
         )
         muni.update_searches()
 
-        # Backfill meeting data from civic.band asynchronously
-        try:
-            import django_rq
+        # Only backfill if this is a new municipality OR if the page count changed
+        new_pages = muni.pages
+        should_backfill = created or (old_pages is not None and old_pages != new_pages)
 
-            from meetings.tasks import backfill_municipality_meetings_task
+        if should_backfill:
+            # Backfill meeting data from civic.band asynchronously
+            try:
+                import django_rq
 
-            queue = django_rq.get_queue("default")
-            job = queue.enqueue(backfill_municipality_meetings_task, muni.id)
-            logger.info(f"Enqueued backfill task for {subdomain} (job ID: {job.id})")
-        except Exception as e:
-            # Log the error but don't fail the webhook
-            logger.error(
-                f"Failed to enqueue backfill task for {subdomain}: {e}",
-                exc_info=True,
+                from meetings.tasks import backfill_municipality_meetings_task
+
+                queue = django_rq.get_queue("default")
+                job = queue.enqueue(backfill_municipality_meetings_task, muni.id)
+                reason = (
+                    "new municipality"
+                    if created
+                    else f"pages changed ({old_pages} → {new_pages})"
+                )
+                logger.info(
+                    f"Enqueued backfill task for {subdomain} ({reason}, job ID: {job.id})"
+                )
+            except Exception as e:
+                # Log the error but don't fail the webhook
+                logger.error(
+                    f"Failed to enqueue backfill task for {subdomain}: {e}",
+                    exc_info=True,
+                )
+        else:
+            logger.info(
+                f"Skipping backfill for {subdomain}: page count unchanged ({new_pages})"
             )
 
         # Prepare response data
