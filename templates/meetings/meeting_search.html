@@ -37,27 +37,126 @@
                             </p>
                         </div>
 
-                        <!-- Document Type (Compact, High Priority) -->
-                        <div class="mb-3">
-                            <label for="id_document_type" class="block text-sm font-medium text-gray-700 mb-2">
-                                Document Type
-                            </label>
-                            {{ form.document_type }}
-                        </div>
-
-                        <!-- Date Range Filters (Inline, High Priority) -->
+                        <!-- Municipalities Multi-Select Filter -->
                         <div class="mb-3">
                             <label class="block text-sm font-medium text-gray-700 mb-2">
-                                Date Range
+                                Municipalities
                             </label>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div>
-                                    <label for="id_date_from" class="block text-xs text-gray-500 mb-1">From</label>
-                                    {{ form.date_from }}
+                            <div x-data="multiSelect({
+                                         name: 'municipalities',
+                                         items: [{% for muni in form.municipalities.field.queryset %}{'id': '{{ muni.id }}', 'label': '{{ muni.name }}, {{ muni.state }}'}{% if not forloop.last %},{% endif %}{% endfor %}],
+                                         placeholder: 'Search municipalities...'
+                                         })" class="relative">
+                        <!-- Hidden inputs for form submission -->
+                                <template x-for="selectedId in selected" :key="selectedId">
+                                    <input type="hidden" name="municipalities" :value="selectedId">
+                                </template>
+
+                        <!-- Selected tags display -->
+                                <div class="flex flex-wrap gap-2 mb-2" x-show="selected.length > 0">
+                                    <template x-for="selectedId in selected" :key="selectedId">
+                                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800">
+                                            <span x-text="items.find(i => i.id === selectedId)?.label"></span>
+                                            <button type="button" @click="removeItem(selectedId)" class="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-indigo-600 hover:text-indigo-800 focus:outline-none">
+                                                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                                                </svg>
+                                            </button>
+                                        </span>
+                                    </template>
                                 </div>
-                                <div>
-                                    <label for="id_date_to" class="block text-xs text-gray-500 mb-1">To</label>
-                                    {{ form.date_to }}
+
+                        <!-- Dropdown toggle button -->
+                                <button type="button" @click="open = !open" class="w-full px-4 py-2 text-left border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white flex items-center justify-between" :aria-expanded="open">
+                                    <span x-text="selected.length > 0 ? selected.length + ' selected' : 'All municipalities'" class="text-gray-700"></span>
+                                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                </button>
+
+                        <!-- Dropdown menu -->
+                                <div x-show="open" @click.away="open = false" x-transition class="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
+                            <!-- Search input -->
+                                    <div class="p-2 border-b border-gray-200">
+                                        <input type="text" x-model="search" @keydown.escape="open = false" placeholder="Search..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                    </div>
+
+                            <!-- Options list -->
+                                    <div class="overflow-y-auto max-h-48">
+                                        <template x-for="item in filteredItems" :key="item.id">
+                                            <button type="button" @click="toggleItem(item.id)" class="w-full px-4 py-2 text-left hover:bg-indigo-50 flex items-center justify-between" :class="{'bg-indigo-50': selected.includes(item.id)}">
+                                                <span x-text="item.label"></span>
+                                                <svg x-show="selected.includes(item.id)" class="w-5 h-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                                </svg>
+                                            </button>
+                                        </template>
+                                        <div x-show="filteredItems.length === 0" class="px-4 py-8 text-center text-gray-500">
+                                            No municipalities found
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- States Multi-Select Filter -->
+                        <div class="mb-3">
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                States/Regions
+                            </label>
+                            <div x-data="multiSelect({
+                                         name: 'states',
+                                         items: [{% for code, name in form.states.field.choices %}{'id': '{{ code }}', 'label': '{{ code }} - {{ name }}'}{% if not forloop.last %},{% endif %}{% endfor %}],
+                                         placeholder: 'Search states...'
+                                         })" class="relative">
+                        <!-- Hidden inputs for form submission -->
+                                <template x-for="selectedId in selected" :key="selectedId">
+                                    <input type="hidden" name="states" :value="selectedId">
+                                </template>
+
+                        <!-- Selected tags display -->
+                                <div class="flex flex-wrap gap-2 mb-2" x-show="selected.length > 0">
+                                    <template x-for="selectedId in selected" :key="selectedId">
+                                        <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800">
+                                            <span x-text="items.find(i => i.id === selectedId)?.label"></span>
+                                            <button type="button" @click="removeItem(selectedId)" class="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-indigo-600 hover:text-indigo-800 focus:outline-none">
+                                                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+                                                </svg>
+                                            </button>
+                                        </span>
+                                    </template>
+                                </div>
+
+                        <!-- Dropdown toggle button -->
+                                <button type="button" @click="open = !open" class="w-full px-4 py-2 text-left border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white flex items-center justify-between" :aria-expanded="open">
+                                    <span x-text="selected.length > 0 ? selected.length + ' selected' : 'All states/regions'" class="text-gray-700"></span>
+                                    <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                </button>
+
+                        <!-- Dropdown menu -->
+                                <div x-show="open" @click.away="open = false" x-transition class="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
+                            <!-- Search input -->
+                                    <div class="p-2 border-b border-gray-200">
+                                        <input type="text" x-model="search" @keydown.escape="open = false" placeholder="Search..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
+                                    </div>
+
+                            <!-- Options list -->
+                                    <div class="overflow-y-auto max-h-48">
+                                        <template x-for="item in filteredItems" :key="item.id">
+                                            <button type="button" @click="toggleItem(item.id)" class="w-full px-4 py-2 text-left hover:bg-indigo-50 flex items-center justify-between" :class="{'bg-indigo-50': selected.includes(item.id)}">
+                                                <span x-text="item.label"></span>
+                                                <svg x-show="selected.includes(item.id)" class="w-5 h-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                                                    <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                                </svg>
+                                            </button>
+                                        </template>
+                                        <div x-show="filteredItems.length === 0" class="px-4 py-8 text-center text-gray-500">
+                                            No states/regions found
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -88,6 +187,31 @@
 
                             <!-- Advanced Filters Content -->
                             <div x-show="showAdvanced" x-collapse class="mt-3 space-y-3">
+                                <!-- Date Range Filters (Inline) -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Date Range
+                                    </label>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label for="id_date_from" class="block text-xs text-gray-500 mb-1">From</label>
+                                            {{ form.date_from }}
+                                        </div>
+                                        <div>
+                                            <label for="id_date_to" class="block text-xs text-gray-500 mb-1">To</label>
+                                            {{ form.date_to }}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Document Type -->
+                                <div>
+                                    <label for="id_document_type" class="block text-sm font-medium text-gray-700 mb-2">
+                                        Document Type
+                                    </label>
+                                    {{ form.document_type }}
+                                </div>
+
                                 <!-- Meeting Name Filter -->
                                 <div>
                                     <label for="id_meeting_name_query" class="block text-sm font-medium text-gray-700 mb-2">
@@ -97,130 +221,6 @@
                                     <p id="meeting-name-help-text" class="mt-1 text-xs text-gray-500">
                                         Filter by meeting name (e.g., planning OR zoning)
                                     </p>
-                                </div>
-
-                                <!-- Municipalities Multi-Select Filter -->
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                                        Municipalities
-                                    </label>
-                                    <div x-data="multiSelect({
-                                                 name: 'municipalities',
-                                                 items: [{% for muni in form.municipalities.field.queryset %}{'id': '{{ muni.id }}', 'label': '{{ muni.name }}, {{ muni.state }}'}{% if not forloop.last %},{% endif %}{% endfor %}],
-                                                 placeholder: 'Search municipalities...'
-                                                 })" class="relative">
-                                <!-- Hidden inputs for form submission -->
-                                        <template x-for="selectedId in selected" :key="selectedId">
-                                            <input type="hidden" name="municipalities" :value="selectedId">
-                                        </template>
-
-                                <!-- Selected tags display -->
-                                        <div class="flex flex-wrap gap-2 mb-2" x-show="selected.length > 0">
-                                            <template x-for="selectedId in selected" :key="selectedId">
-                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800">
-                                                    <span x-text="items.find(i => i.id === selectedId)?.label"></span>
-                                                    <button type="button" @click="removeItem(selectedId)" class="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-indigo-600 hover:text-indigo-800 focus:outline-none">
-                                                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
-                                                        </svg>
-                                                    </button>
-                                                </span>
-                                            </template>
-                                        </div>
-
-                                <!-- Dropdown toggle button -->
-                                        <button type="button" @click="open = !open" class="w-full px-4 py-2 text-left border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white flex items-center justify-between" :aria-expanded="open">
-                                            <span x-text="selected.length > 0 ? selected.length + ' selected' : 'All municipalities'" class="text-gray-700"></span>
-                                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                                            </svg>
-                                        </button>
-
-                                <!-- Dropdown menu -->
-                                        <div x-show="open" @click.away="open = false" x-transition class="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
-                                    <!-- Search input -->
-                                            <div class="p-2 border-b border-gray-200">
-                                                <input type="text" x-model="search" @keydown.escape="open = false" placeholder="Search..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                                            </div>
-
-                                    <!-- Options list -->
-                                            <div class="overflow-y-auto max-h-48">
-                                                <template x-for="item in filteredItems" :key="item.id">
-                                                    <button type="button" @click="toggleItem(item.id)" class="w-full px-4 py-2 text-left hover:bg-indigo-50 flex items-center justify-between" :class="{'bg-indigo-50': selected.includes(item.id)}">
-                                                        <span x-text="item.label"></span>
-                                                        <svg x-show="selected.includes(item.id)" class="w-5 h-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
-                                                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
-                                                        </svg>
-                                                    </button>
-                                                </template>
-                                                <div x-show="filteredItems.length === 0" class="px-4 py-8 text-center text-gray-500">
-                                                    No municipalities found
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <!-- States Multi-Select Filter -->
-                                <div>
-                                    <label class="block text-sm font-medium text-gray-700 mb-2">
-                                        States/Regions
-                                    </label>
-                                    <div x-data="multiSelect({
-                                                 name: 'states',
-                                                 items: [{% for code, name in form.states.field.choices %}{'id': '{{ code }}', 'label': '{{ code }} - {{ name }}'}{% if not forloop.last %},{% endif %}{% endfor %}],
-                                                 placeholder: 'Search states...'
-                                                 })" class="relative">
-                                <!-- Hidden inputs for form submission -->
-                                        <template x-for="selectedId in selected" :key="selectedId">
-                                            <input type="hidden" name="states" :value="selectedId">
-                                        </template>
-
-                                <!-- Selected tags display -->
-                                        <div class="flex flex-wrap gap-2 mb-2" x-show="selected.length > 0">
-                                            <template x-for="selectedId in selected" :key="selectedId">
-                                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800">
-                                                    <span x-text="items.find(i => i.id === selectedId)?.label"></span>
-                                                    <button type="button" @click="removeItem(selectedId)" class="ml-1.5 inline-flex items-center justify-center w-4 h-4 text-indigo-600 hover:text-indigo-800 focus:outline-none">
-                                                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
-                                                            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
-                                                        </svg>
-                                                    </button>
-                                                </span>
-                                            </template>
-                                        </div>
-
-                                <!-- Dropdown toggle button -->
-                                        <button type="button" @click="open = !open" class="w-full px-4 py-2 text-left border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 bg-white flex items-center justify-between" :aria-expanded="open">
-                                            <span x-text="selected.length > 0 ? selected.length + ' selected' : 'All states/regions'" class="text-gray-700"></span>
-                                            <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
-                                            </svg>
-                                        </button>
-
-                                <!-- Dropdown menu -->
-                                        <div x-show="open" @click.away="open = false" x-transition class="absolute z-10 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-hidden">
-                                    <!-- Search input -->
-                                            <div class="p-2 border-b border-gray-200">
-                                                <input type="text" x-model="search" @keydown.escape="open = false" placeholder="Search..." class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500">
-                                            </div>
-
-                                    <!-- Options list -->
-                                            <div class="overflow-y-auto max-h-48">
-                                                <template x-for="item in filteredItems" :key="item.id">
-                                                    <button type="button" @click="toggleItem(item.id)" class="w-full px-4 py-2 text-left hover:bg-indigo-50 flex items-center justify-between" :class="{'bg-indigo-50': selected.includes(item.id)}">
-                                                        <span x-text="item.label"></span>
-                                                        <svg x-show="selected.includes(item.id)" class="w-5 h-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
-                                                            <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
-                                                        </svg>
-                                                    </button>
-                                                </template>
-                                                <div x-show="filteredItems.length === 0" class="px-4 py-8 text-center text-gray-500">
-                                                    No states/regions found
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -351,7 +351,8 @@
             const hasParams = urlParams.has('query') || urlParams.has('meeting_name_query') || urlParams.has('municipalities') || urlParams.has('states') || urlParams.has('date_from') || urlParams.has('date_to') || urlParams.has('document_type');
 
             // Auto-expand advanced filters if any advanced filter params are present
-            const hasAdvancedParams = urlParams.has('meeting_name_query') || urlParams.has('municipalities') || urlParams.has('states');
+            // Note: municipalities and states are now outside the drawer, so only check for date range, document type, and meeting name
+            const hasAdvancedParams = urlParams.has('date_from') || urlParams.has('date_to') || urlParams.has('document_type') || urlParams.has('meeting_name_query');
             if (hasAdvancedParams) {
                 // Wait for Alpine.js to initialize, then expand advanced section
                 setTimeout(() => {
