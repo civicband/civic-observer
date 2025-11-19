@@ -1,0 +1,5 @@
+;; PgBouncer userlist.txt for Civic Observer
+;; Format: "username" "password"
+;; For trust authentication, password can be empty string
+
+"postgres" ""
