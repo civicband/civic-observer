@@ -28,11 +28,11 @@ class Migration(migrations.Migration):
                             regexp_replace(
                                 coalesce(meeting_name, ''),
                                 '([a-z])([A-Z])',
-                                '\\1 \\2',
+                                E'\\\\1 \\\\2',
                                 'g'
                             ),
                             '([A-Z]+)([A-Z][a-z])',
-                            '\\1 \\2',
+                            E'\\\\1 \\\\2',
                             'g'
                         )
                     )
@@ -58,11 +58,11 @@ class Migration(migrations.Migration):
                         regexp_replace(
                           coalesce(NEW.meeting_name, ''),
                           '([a-z])([A-Z])',
-                          '\\1 \\2',
+                          E'\\\\1 \\\\2',
                           'g'
                         ),
                         '([A-Z]+)([A-Z][a-z])',
-                        '\\1 \\2',
+                        E'\\\\1 \\\\2',
                         'g'
                       )
                     )

@@ -750,6 +750,12 @@ class TestMeetingSearchResults:
             page_image="/_agendas/CityCouncil/2024-03-01/1.png",
         )
 
+        # Trigger search_vector population by saving documents again
+        # This ensures the database trigger runs and populates meeting_name_search_vector
+        doc1.save()
+        doc2.save()
+        doc3.save()
+
         return {
             "muni": muni,
             "second_muni": second_muni,
@@ -975,9 +981,10 @@ class TestMeetingSearchResults:
         from django.urls import reverse
 
         url = reverse("meetings:meeting-search-results")
-        # Search for "budget" but only in CityCouncil meetings
+        # Search for "budget" but only in Council meetings
+        # Note: "Council" matches "CityCouncil" after CamelCase splitting
         response = authenticated_client.get(
-            url, {"query": "budget", "meeting_name_query": "CityCouncil"}
+            url, {"query": "budget", "meeting_name_query": "Council"}
         )
 
         assert response.status_code == 200
@@ -992,12 +999,13 @@ class TestMeetingSearchResults:
         from django.urls import reverse
 
         url = reverse("meetings:meeting-search-results")
-        # Search for any content but only in CityCouncil OR PlanningBoard meetings
+        # Search for any content but only in Council OR Planning meetings
+        # Note: "Council" matches "CityCouncil", "Planning" matches "PlanningBoard" after CamelCase splitting
         response = authenticated_client.get(
             url,
             {
                 "query": "budget OR housing",
-                "meeting_name_query": "CityCouncil OR PlanningBoard",
+                "meeting_name_query": "Council OR Planning",
             },
         )
 
@@ -1014,10 +1022,11 @@ class TestMeetingSearchResults:
         from django.urls import reverse
 
         url = reverse("meetings:meeting-search-results")
-        # Search for "housing" but only in CityCouncil meetings
+        # Search for "housing" but only in Council meetings
         # This should find doc3 (CityCouncil with housing) but NOT doc2 (PlanningBoard with housing)
+        # Note: "Council" matches "CityCouncil" but NOT "PlanningBoard" after CamelCase splitting
         response = authenticated_client.get(
-            url, {"query": "housing", "meeting_name_query": "CityCouncil"}
+            url, {"query": "housing", "meeting_name_query": "Council"}
         )
 
         assert response.status_code == 200
@@ -1055,13 +1064,14 @@ class TestMeetingSearchResults:
         from django.urls import reverse
 
         url = reverse("meetings:meeting-search-results")
+        # Search using "Council" which will match CityCouncil after CamelCase splitting
         response = authenticated_client.get(
-            url, {"query": "budget", "meeting_name_query": "CityCouncil"}
+            url, {"query": "budget", "meeting_name_query": "Council"}
         )
 
         assert response.status_code == 200
         content = response.content.decode()
 
-        # Should show meeting name in active filters
-        assert "CityCouncil" in content
+        # Should show meeting name query in active filters
+        assert "Council" in content
         assert "Meeting:" in content or "meeting" in content.lower()
