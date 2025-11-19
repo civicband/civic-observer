@@ -15,6 +15,8 @@ class MeetingSearchForm(forms.Form):
                 "placeholder": 'Search for "zoning variance" or housing AND development',
                 "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500",
                 "autofocus": True,
+                "aria-required": "true",
+                "aria-describedby": "query-help-text",
             }
         ),
     )
@@ -27,6 +29,7 @@ class MeetingSearchForm(forms.Form):
             attrs={
                 "placeholder": "Filter by meeting name (e.g., planning OR zoning)",
                 "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500",
+                "aria-describedby": "meeting-name-help-text",
             }
         ),
     )

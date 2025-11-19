@@ -16,9 +16,10 @@
         </div>
     </div>
 {% elif results %}
-    <!-- Results Header -->
+    <!-- Results Header with screen reader announcement -->
     <div class="mb-4">
-        <p class="text-sm text-gray-600">
+        <p class="text-sm text-gray-600"
+           aria-label="Found {{ page_obj.paginator.count }} result{{ page_obj.paginator.count|pluralize }}{% if page_obj.paginator.num_pages > 1 %}, page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }}{% endif %}">
             Found <span class="font-semibold text-gray-900">{{ page_obj.paginator.count }}</span> result{{ page_obj.paginator.count|pluralize }}
             {% if page_obj.paginator.num_pages > 1 %}
                 (Page {{ page_obj.number }} of {{ page_obj.paginator.num_pages }})
@@ -65,9 +66,11 @@
     </div>
 
     <!-- Results List -->
-    <div class="space-y-4">
+    <div class="space-y-4" role="list" aria-label="Search results">
         {% for result in results %}
-            <div class="bg-white shadow-lg rounded-xl p-6 hover:shadow-xl transition-shadow duration-200">
+            <div class="bg-white shadow-lg rounded-xl p-6 hover:shadow-xl transition-shadow duration-200"
+                 role="listitem"
+                 aria-label="Result {{ forloop.counter }} of {{ results|length }}">
                 <!-- Meeting Header -->
                 <div class="flex items-start justify-between mb-3">
                     <div class="flex-1">
@@ -125,8 +128,9 @@
                         <a href="https://{{ result.document.municipality.subdomain }}.civic.band/meetings/{{ result.document.document_type }}/{{ result.id }}"
                            target="_blank"
                            rel="noopener noreferrer"
+                           aria-label="View {{ result.document.meeting_name }} {{ result.document.document_type }} from {{ result.document.meeting_date|date:'F d, Y' }} on CivicBand (opens in new window)"
                            class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
-                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
                             </svg>
                             View on CivicBand
@@ -229,8 +233,10 @@
     {% endif %}
 {% else %}
     <!-- No Results State -->
-    <div class="text-center py-12 bg-white shadow-lg rounded-xl">
-        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div class="text-center py-12 bg-white shadow-lg rounded-xl"
+         role="status"
+         aria-label="No search results found">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
         </svg>
         <h3 class="mt-4 text-lg font-medium text-gray-900">No results found</h3>
