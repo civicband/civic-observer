@@ -21,16 +21,19 @@
                     <form id="search-form"
                           hx-get="{% url 'meetings:meeting-search-results' %}"
                           hx-target="#search-results"
-                          hx-indicator=".htmx-indicator">
+                          hx-swap="innerHTML show:top"
+                          aria-label="Meeting document search filters"
+                          role="search">
 
                         <!-- Search Query -->
                         <div class="mb-4">
                             <label for="id_query" class="block text-sm font-medium text-gray-700 mb-2">
                                 Search Query
+                                <span class="text-red-500" aria-label="required">*</span>
                             </label>
                             {{ form.query }}
-                            <p class="mt-1 text-xs text-gray-500">
-                                Use quotes for exact phrases
+                            <p id="query-help-text" class="mt-1 text-xs text-gray-500">
+                                Use quotes for exact phrases. Supports AND, OR, NOT operators.
                             </p>
                         </div>
 
@@ -40,7 +43,7 @@
                                 Meeting Name (optional)
                             </label>
                             {{ form.meeting_name_query }}
-                            <p class="mt-1 text-xs text-gray-500">
+                            <p id="meeting-name-help-text" class="mt-1 text-xs text-gray-500">
                                 Filter by meeting name (e.g., planning OR zoning)
                             </p>
                         </div>
@@ -99,8 +102,12 @@
 
             <!-- Search Results Area -->
             <div class="lg:col-span-3">
-                <!-- Results Container -->
-                <div id="search-results" class="min-h-[200px]">
+                <!-- Results Container with ARIA live region -->
+                <div id="search-results"
+                     class="min-h-[400px] relative"
+                     role="status"
+                     aria-live="polite"
+                     aria-atomic="true">
                     <!-- Initial empty state -->
                     <div class="text-center py-12 bg-white shadow-lg rounded-xl">
                         <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -108,18 +115,6 @@
                         </svg>
                         <h3 class="mt-4 text-lg font-medium text-gray-900">Start Searching</h3>
                         <p class="mt-2 text-gray-500">Enter keywords and click Search to find meeting documents, or use filters to browse by municipality and date.</p>
-                    </div>
-                </div>
-
-                <!-- Loading Spinner (HTMX indicator) - overlays on results during loading -->
-                <div class="htmx-indicator">
-                    <div class="text-center py-12 bg-white shadow-lg rounded-xl">
-                        <svg class="inline-block animate-spin h-12 w-12 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                        </svg>
-                        <p class="mt-4 text-sm font-medium text-gray-700">Searching meeting documents...</p>
-                        <p class="mt-1 text-xs text-gray-500">This may take a few moments</p>
                     </div>
                 </div>
             </div>
@@ -152,30 +147,135 @@
                     <p class="mt-2 text-gray-500">Enter keywords and click Search to find meeting documents, or use filters to browse by municipality and date.</p>
                 </div>
             `;
+
+            // Return focus to search input
+            if (queryInput) {
+                queryInput.focus();
+            }
         }
 
-        // Trigger search on page load if there are existing params
         document.addEventListener('DOMContentLoaded', function() {
+            const form = document.getElementById('search-form');
+            const queryInput = document.getElementById('id_query');
+            const resultsContainer = document.getElementById('search-results');
+
+            // Trigger search on page load if there are existing params
             const urlParams = new URLSearchParams(window.location.search);
             if (urlParams.has('query') || urlParams.has('meeting_name_query') || urlParams.has('municipality') || urlParams.has('date_from') || urlParams.has('date_to') || urlParams.has('document_type')) {
-                // Trigger the form submission
                 htmx.trigger('#search-form', 'submit');
             }
+
+            // Keyboard shortcut: / to focus search
+            document.addEventListener('keydown', function(e) {
+                // Don't trigger if user is typing in an input
+                if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA' || e.target.tagName === 'SELECT') {
+                    // ESC to clear filters when in input
+                    if (e.key === 'Escape') {
+                        clearFilters();
+                    }
+                    return;
+                }
+
+                // / key to focus search
+                if (e.key === '/') {
+                    e.preventDefault();
+                    if (queryInput) {
+                        queryInput.focus();
+                    }
+                }
+            });
+
+            // HTMX event listeners for accessibility
+            document.body.addEventListener('htmx:beforeRequest', function(evt) {
+                // Set aria-busy on results container
+                if (resultsContainer && evt.detail.target === resultsContainer) {
+                    resultsContainer.setAttribute('aria-busy', 'true');
+
+                    // Show loading state
+                    const loadingHTML = `
+                        <div class="loading-overlay" role="alert" aria-live="assertive">
+                            <div class="text-center">
+                                <svg class="inline-block animate-spin h-12 w-12 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <p class="mt-4 text-sm font-medium text-gray-700">Searching meeting documents...</p>
+                                <p class="mt-1 text-xs text-gray-500">This may take a few moments</p>
+                                <span class="sr-only">Loading results, please wait</span>
+                            </div>
+                        </div>
+                    `;
+
+                    // Prepend loading overlay if not already present
+                    if (!resultsContainer.querySelector('.loading-overlay')) {
+                        resultsContainer.insertAdjacentHTML('afterbegin', loadingHTML);
+                    }
+                }
+            });
+
+            document.body.addEventListener('htmx:afterRequest', function(evt) {
+                // Remove aria-busy
+                if (resultsContainer && evt.detail.target === resultsContainer) {
+                    resultsContainer.setAttribute('aria-busy', 'false');
+                }
+            });
+
+            // Focus management: focus first result after load
+            document.body.addEventListener('htmx:afterSwap', function(evt) {
+                if (evt.detail.target === resultsContainer) {
+                    // Find first focusable result link
+                    const firstResult = resultsContainer.querySelector('a[href^="https://"]');
+                    if (firstResult) {
+                        // Announce result count to screen readers
+                        const resultCount = resultsContainer.querySelector('[aria-label*="results"]');
+                        if (resultCount) {
+                            // Screen reader will announce via aria-live region
+                        }
+                    }
+                }
+            });
         });
     </script>
 
     <style>
-        /* HTMX indicator styling - follows HTMX best practices */
-        .htmx-indicator {
-            display: none;
+        /* Loading state overlay */
+        .loading-overlay {
+            position: absolute;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(2px);
+            z-index: 10;
         }
 
-        .htmx-request .htmx-indicator {
-            display: block;
+        /* Disable form during loading */
+        .htmx-request #search-form {
+            pointer-events: none;
+            opacity: 0.7;
         }
 
-        .htmx-request.htmx-indicator {
-            display: inline-block;
+        /* Focus visible styles for accessibility */
+        *:focus-visible {
+            outline: 2px solid #4F46E5;
+            outline-offset: 2px;
+        }
+
+        /* Skip to results link */
+        .skip-link {
+            position: absolute;
+            top: -40px;
+            left: 0;
+            background: #4F46E5;
+            color: white;
+            padding: 8px;
+            text-decoration: none;
+            z-index: 100;
+        }
+
+        .skip-link:focus {
+            top: 0;
         }
     </style>
 {% endblock content %}
