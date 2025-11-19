@@ -31,6 +31,8 @@ class MeetingDocument(TimeStampedModel):
     )
     # Pre-computed search vector for meeting name full-text search
     # Auto-updated by database trigger (see migration 0004)
+    # Includes CamelCase preprocessing: "CityCouncil" → "City Council"
+    # This allows searching for "Council", "City", or "City Council"
     meeting_name_search_vector = SearchVectorField(null=True)
     meeting_date = models.DateField(db_index=True)
     document_type = models.CharField(

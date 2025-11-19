@@ -17,10 +17,26 @@ class Migration(migrations.Migration):
             field=django.contrib.postgres.search.SearchVectorField(null=True),
         ),
         # Populate meeting_name_search_vector with initial data
+        # Includes CamelCase preprocessing (e.g., "CityCouncil" → "City Council")
         migrations.RunSQL(
             sql="""
                 UPDATE meetings_meetingdocument
-                SET meeting_name_search_vector = to_tsvector('simple', unaccent(coalesce(meeting_name, '')));
+                SET meeting_name_search_vector = to_tsvector(
+                    'simple',
+                    unaccent(
+                        regexp_replace(
+                            regexp_replace(
+                                coalesce(meeting_name, ''),
+                                '([a-z])([A-Z])',
+                                '\\1 \\2',
+                                'g'
+                            ),
+                            '([A-Z]+)([A-Z][a-z])',
+                            '\\1 \\2',
+                            'g'
+                        )
+                    )
+                );
             """,
             reverse_sql="""
                 UPDATE meetings_meetingdocument SET meeting_name_search_vector = NULL;
@@ -31,7 +47,26 @@ class Migration(migrations.Migration):
             sql="""
                 CREATE OR REPLACE FUNCTION meetings_meetingdocument_search_vector_trigger() RETURNS trigger AS $$
                 BEGIN
-                  NEW.meeting_name_search_vector := to_tsvector('simple', unaccent(coalesce(NEW.meeting_name, '')));
+                  -- Convert CamelCase to spaces for better searchability
+                  -- "CityCouncil" → "City Council"
+                  -- "PlanningBoard" → "Planning Board"
+                  -- "ZBAMeeting" → "ZBA Meeting"
+                  NEW.meeting_name_search_vector := to_tsvector(
+                    'simple',
+                    unaccent(
+                      regexp_replace(
+                        regexp_replace(
+                          coalesce(NEW.meeting_name, ''),
+                          '([a-z])([A-Z])',
+                          '\\1 \\2',
+                          'g'
+                        ),
+                        '([A-Z]+)([A-Z][a-z])',
+                        '\\1 \\2',
+                        'g'
+                      )
+                    )
+                  );
                   RETURN NEW;
                 END
                 $$ LANGUAGE plpgsql;
