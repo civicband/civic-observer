@@ -142,7 +142,7 @@ REDIS_URL = env.str("REDIS_URL", "redis://localhost:6379/0")
 RQ_QUEUES: dict[str, dict[str, Any]] = {
     "default": {
         "URL": REDIS_URL,
-        "DEFAULT_TIMEOUT": 360,  # 6 minutes for backfill tasks
+        "DEFAULT_TIMEOUT": 600,  # 6 minutes for backfill tasks
     },
 }
 RQ_SHOW_ADMIN_LINK = True
