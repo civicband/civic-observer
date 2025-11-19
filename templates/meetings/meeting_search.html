@@ -3,9 +3,9 @@
 {% block title %}Search Meetings - CivicObserver{% endblock %}
 
 {% block content %}
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <!-- Page Header -->
-        <div class="sm:flex sm:items-center sm:justify-between mb-8">
+        <div class="sm:flex sm:items-center sm:justify-between mb-6">
             <div>
                 <h1 class="text-3xl font-bold tracking-tight text-gray-900">Search Meeting Documents</h1>
                 <p class="mt-2 text-sm text-gray-600">Search across all meeting agendas and minutes using full-text search</p>
@@ -16,8 +16,8 @@
         <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
             <!-- Filters Sidebar -->
             <div class="lg:col-span-1">
-                <div class="bg-white shadow-lg rounded-xl p-6 sticky top-20">
-                    <h2 class="text-lg font-semibold text-gray-900 mb-4">Search</h2>
+                <div class="bg-white shadow-lg rounded-xl p-4 sticky top-20">
+                    <h2 class="text-lg font-semibold text-gray-900 mb-3">Search</h2>
                     <form id="search-form"
                           hx-get="{% url 'meetings:meeting-search-results' %}"
                           hx-target="#search-results"
@@ -25,8 +25,8 @@
                           aria-label="Meeting document search filters"
                           role="search">
 
-                        <!-- Search Query -->
-                        <div class="mb-4">
+                        <!-- Search Query (Essential) -->
+                        <div class="mb-3">
                             <label for="id_query" class="block text-sm font-medium text-gray-700 mb-2">
                                 Search Query
                                 <span class="text-red-500" aria-label="required">*</span>
@@ -37,29 +37,78 @@
                             </p>
                         </div>
 
-                        <!-- Meeting Name Filter -->
-                        <div class="mb-4">
-                            <label for="id_meeting_name_query" class="block text-sm font-medium text-gray-700 mb-2">
-                                Meeting Name (optional)
+                        <!-- Document Type (Compact, High Priority) -->
+                        <div class="mb-3">
+                            <label for="id_document_type" class="block text-sm font-medium text-gray-700 mb-2">
+                                Document Type
                             </label>
-                            {{ form.meeting_name_query }}
-                            <p id="meeting-name-help-text" class="mt-1 text-xs text-gray-500">
-                                Filter by meeting name (e.g., planning OR zoning)
-                            </p>
+                            {{ form.document_type }}
                         </div>
 
-                        <div class="border-t border-gray-200 my-4"></div>
-
-                        <!-- Municipalities Multi-Select Filter -->
-                        <div class="mb-4">
+                        <!-- Date Range Filters (Inline, High Priority) -->
+                        <div class="mb-3">
                             <label class="block text-sm font-medium text-gray-700 mb-2">
-                                Municipalities
+                                Date Range
                             </label>
-                            <div x-data="multiSelect({
-                                         name: 'municipalities',
-                                         items: [{% for muni in form.municipalities.field.queryset %}{'id': '{{ muni.id }}', 'label': '{{ muni.name }}, {{ muni.state }}'}{% if not forloop.last %},{% endif %}{% endfor %}],
-                                         placeholder: 'Search municipalities...'
-                                         })" class="relative">
+                            <div class="grid grid-cols-2 gap-2">
+                                <div>
+                                    <label for="id_date_from" class="block text-xs text-gray-500 mb-1">From</label>
+                                    {{ form.date_from }}
+                                </div>
+                                <div>
+                                    <label for="id_date_to" class="block text-xs text-gray-500 mb-1">To</label>
+                                    {{ form.date_to }}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Search Button (Always Visible) -->
+                        <button type="submit" class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                            </svg>
+                            Search
+                        </button>
+
+                        <div class="border-t border-gray-200 my-3"></div>
+
+                        <!-- Advanced Filters (Collapsible) -->
+                        <div x-data="{ showAdvanced: false }" class="mb-3">
+                            <button type="button" @click="showAdvanced = !showAdvanced" class="w-full flex items-center justify-between text-sm font-medium text-gray-700 hover:text-gray-900 focus:outline-none">
+                                <span class="flex items-center">
+                                    <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path>
+                                    </svg>
+                                    Advanced Filters
+                                </span>
+                                <svg :class="{'rotate-180': showAdvanced}" class="w-4 h-4 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+
+                            <!-- Advanced Filters Content -->
+                            <div x-show="showAdvanced" x-collapse class="mt-3 space-y-3">
+                                <!-- Meeting Name Filter -->
+                                <div>
+                                    <label for="id_meeting_name_query" class="block text-sm font-medium text-gray-700 mb-2">
+                                        Meeting Name
+                                    </label>
+                                    {{ form.meeting_name_query }}
+                                    <p id="meeting-name-help-text" class="mt-1 text-xs text-gray-500">
+                                        Filter by meeting name (e.g., planning OR zoning)
+                                    </p>
+                                </div>
+
+                                <!-- Municipalities Multi-Select Filter -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        Municipalities
+                                    </label>
+                                    <div x-data="multiSelect({
+                                                 name: 'municipalities',
+                                                 items: [{% for muni in form.municipalities.field.queryset %}{'id': '{{ muni.id }}', 'label': '{{ muni.name }}, {{ muni.state }}'}{% if not forloop.last %},{% endif %}{% endfor %}],
+                                                 placeholder: 'Search municipalities...'
+                                                 })" class="relative">
                                 <!-- Hidden inputs for form submission -->
                                 <template x-for="selectedId in selected" :key="selectedId">
                                     <input type="hidden" name="municipalities" :value="selectedId">
@@ -109,19 +158,19 @@
                                         </div>
                                     </div>
                                 </div>
-                            </div>
-                        </div>
+                                    </div>
+                                </div>
 
-                        <!-- States Multi-Select Filter -->
-                        <div class="mb-4">
-                            <label class="block text-sm font-medium text-gray-700 mb-2">
-                                States/Regions
-                            </label>
-                            <div x-data="multiSelect({
-                                         name: 'states',
-                                         items: [{% for code, name in form.states.field.choices %}{'id': '{{ code }}', 'label': '{{ code }} - {{ name }}'}{% if not forloop.last %},{% endif %}{% endfor %}],
-                                         placeholder: 'Search states...'
-                                         })" class="relative">
+                                <!-- States Multi-Select Filter -->
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-700 mb-2">
+                                        States/Regions
+                                    </label>
+                                    <div x-data="multiSelect({
+                                                 name: 'states',
+                                                 items: [{% for code, name in form.states.field.choices %}{'id': '{{ code }}', 'label': '{{ code }} - {{ name }}'}{% if not forloop.last %},{% endif %}{% endfor %}],
+                                                 placeholder: 'Search states...'
+                                                 })" class="relative">
                                 <!-- Hidden inputs for form submission -->
                                 <template x-for="selectedId in selected" :key="selectedId">
                                     <input type="hidden" name="states" :value="selectedId">
@@ -170,40 +219,10 @@
                                             No states/regions found
                                         </div>
                                     </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
-
-                        <!-- Date Range Filters -->
-                        <div class="mb-4">
-                            <label for="id_date_from" class="block text-sm font-medium text-gray-700 mb-2">
-                                Date From
-                            </label>
-                            {{ form.date_from }}
-                        </div>
-
-                        <div class="mb-4">
-                            <label for="id_date_to" class="block text-sm font-medium text-gray-700 mb-2">
-                                Date To
-                            </label>
-                            {{ form.date_to }}
-                        </div>
-
-                        <!-- Document Type Filter -->
-                        <div class="mb-4">
-                            <label for="id_document_type" class="block text-sm font-medium text-gray-700 mb-2">
-                                Document Type
-                            </label>
-                            {{ form.document_type }}
-                        </div>
-
-                        <!-- Search Button -->
-                        <button type="submit" class="w-full inline-flex justify-center items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
-                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
-                            </svg>
-                            Search
-                        </button>
 
                         <!-- Clear Filters -->
                         <button type="button" onclick="clearFilters()" class="mt-2 w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
@@ -328,7 +347,21 @@
 
             // Trigger search on page load if there are existing params
             const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.has('query') || urlParams.has('meeting_name_query') || urlParams.has('municipalities') || urlParams.has('states') || urlParams.has('date_from') || urlParams.has('date_to') || urlParams.has('document_type')) {
+            const hasParams = urlParams.has('query') || urlParams.has('meeting_name_query') || urlParams.has('municipalities') || urlParams.has('states') || urlParams.has('date_from') || urlParams.has('date_to') || urlParams.has('document_type');
+
+            // Auto-expand advanced filters if any advanced filter params are present
+            const hasAdvancedParams = urlParams.has('meeting_name_query') || urlParams.has('municipalities') || urlParams.has('states');
+            if (hasAdvancedParams) {
+                // Wait for Alpine.js to initialize, then expand advanced section
+                setTimeout(() => {
+                    const advancedSection = document.querySelector('[x-data*="showAdvanced"]');
+                    if (advancedSection && advancedSection.__x) {
+                        advancedSection.__x.$data.showAdvanced = true;
+                    }
+                }, 100);
+            }
+
+            if (hasParams) {
                 htmx.trigger('#search-form', 'submit');
             }
 
