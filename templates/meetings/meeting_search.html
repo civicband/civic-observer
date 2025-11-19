@@ -44,7 +44,7 @@
                             </label>
                             <div x-data="multiSelect({
                                          name: 'municipalities',
-                                         items: [{% for muni in form.municipalities.field.queryset %}{'id': '{{ muni.id }}', 'label': '{{ muni.name }}, {{ muni.state }}'}{% if not forloop.last %},{% endif %}{% endfor %}],
+                                         items: [{% for muni in form.municipalities.field.queryset %}{'id': '{{ muni.id }}', 'label': '{{ muni.name|escapejs }}, {{ muni.state|escapejs }}'}{% if not forloop.last %},{% endif %}{% endfor %}],
                                          placeholder: 'Search municipalities...'
                                          })" class="relative">
                         <!-- Hidden inputs for form submission -->
@@ -106,7 +106,7 @@
                             </label>
                             <div x-data="multiSelect({
                                          name: 'states',
-                                         items: [{% for code, name in form.states.field.choices %}{'id': '{{ code }}', 'label': '{{ code }} - {{ name }}'}{% if not forloop.last %},{% endif %}{% endfor %}],
+                                         items: [{% for code, name in form.states.field.choices %}{'id': '{{ code|escapejs }}', 'label': '{{ code|escapejs }} - {{ name|escapejs }}'}{% if not forloop.last %},{% endif %}{% endfor %}],
                                          placeholder: 'Search states...'
                                          })" class="relative">
                         <!-- Hidden inputs for form submission -->
