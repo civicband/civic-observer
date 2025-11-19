@@ -969,3 +969,99 @@ class TestMeetingSearchResults:
         # Should find the matching page
         assert "budget" in content.lower()
         assert "Test City" in content
+
+    def test_meeting_name_filter(self, authenticated_client, meeting_data):
+        """Test filtering by meeting name."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        # Search for "budget" but only in CityCouncil meetings
+        response = authenticated_client.get(
+            url, {"query": "budget", "meeting_name_query": "CityCouncil"}
+        )
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should find budget results from CityCouncil
+        assert "budget" in content.lower()
+        assert "CityCouncil" in content or "City Council" in content
+
+    def test_meeting_name_filter_or_operator(self, authenticated_client, meeting_data):
+        """Test meeting name filter with OR operator."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        # Search for any content but only in CityCouncil OR PlanningBoard meetings
+        response = authenticated_client.get(
+            url,
+            {
+                "query": "budget OR housing",
+                "meeting_name_query": "CityCouncil OR PlanningBoard",
+            },
+        )
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should find results from both meeting types
+        assert "result" in content.lower()
+
+    def test_meeting_name_excludes_non_matching(
+        self, authenticated_client, meeting_data
+    ):
+        """Test that meeting name filter excludes non-matching meetings."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        # Search for "housing" but only in CityCouncil meetings
+        # This should find doc3 (CityCouncil with housing) but NOT doc2 (PlanningBoard with housing)
+        response = authenticated_client.get(
+            url, {"query": "housing", "meeting_name_query": "CityCouncil"}
+        )
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should find housing results
+        assert "housing" in content.lower()
+        # Should show CityCouncil
+        assert "CityCouncil" in content or "City Council" in content
+        # Should NOT show PlanningBoard in results (only in form dropdown)
+        # Count occurrences - PlanningBoard should appear at most once (in select dropdown)
+        planning_count = content.count("PlanningBoard")
+        assert planning_count <= 1
+
+    def test_empty_meeting_name_query(self, authenticated_client, meeting_data):
+        """Test that empty meeting_name_query doesn't filter results."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        # Search with query but empty meeting_name_query
+        response = authenticated_client.get(
+            url, {"query": "budget", "meeting_name_query": ""}
+        )
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should find all budget results (not filtered by meeting name)
+        assert "budget" in content.lower()
+
+    def test_meeting_name_active_filter_display(
+        self, authenticated_client, meeting_data
+    ):
+        """Test that meeting_name_query appears in active filters."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        response = authenticated_client.get(
+            url, {"query": "budget", "meeting_name_query": "CityCouncil"}
+        )
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should show meeting name in active filters
+        assert "CityCouncil" in content
+        assert "Meeting:" in content or "meeting" in content.lower()

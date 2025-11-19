@@ -19,6 +19,18 @@ class MeetingSearchForm(forms.Form):
         ),
     )
 
+    meeting_name_query = forms.CharField(
+        max_length=500,
+        required=False,
+        help_text='Optional: Filter by meeting name. Supports "exact phrases", AND, OR, NOT operators.',
+        widget=forms.TextInput(
+            attrs={
+                "placeholder": "Filter by meeting name (e.g., planning OR zoning)",
+                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500",
+            }
+        ),
+    )
+
     municipality = forms.ModelChoiceField(
         queryset=Muni.objects.all().order_by("name"),
         required=False,

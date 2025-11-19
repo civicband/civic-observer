@@ -29,6 +29,9 @@ class MeetingDocument(TimeStampedModel):
         db_index=True,
         help_text="Name of the meeting body (e.g., 'CityCouncil', 'PlanningBoard')",
     )
+    # Pre-computed search vector for meeting name full-text search
+    # Auto-updated by database trigger (see migration 0004)
+    meeting_name_search_vector = SearchVectorField(null=True)
     meeting_date = models.DateField(db_index=True)
     document_type = models.CharField(
         max_length=10, choices=DOCUMENT_TYPE_CHOICES, db_index=True

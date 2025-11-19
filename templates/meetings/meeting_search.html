@@ -34,6 +34,17 @@
                             </p>
                         </div>
 
+                        <!-- Meeting Name Filter -->
+                        <div class="mb-4">
+                            <label for="id_meeting_name_query" class="block text-sm font-medium text-gray-700 mb-2">
+                                Meeting Name (optional)
+                            </label>
+                            {{ form.meeting_name_query }}
+                            <p class="mt-1 text-xs text-gray-500">
+                                Filter by meeting name (e.g., planning OR zoning)
+                            </p>
+                        </div>
+
                         <div class="border-t border-gray-200 my-4"></div>
 
                         <!-- Municipality Filter -->
@@ -121,10 +132,14 @@
             const form = document.getElementById('search-form');
             form.reset();
 
-            // Clear search query input
+            // Clear search query inputs
             const queryInput = document.getElementById('id_query');
             if (queryInput) {
                 queryInput.value = '';
+            }
+            const meetingNameInput = document.getElementById('id_meeting_name_query');
+            if (meetingNameInput) {
+                meetingNameInput.value = '';
             }
 
             // Clear results - show empty state
@@ -142,7 +157,7 @@
         // Trigger search on page load if there are existing params
         document.addEventListener('DOMContentLoaded', function() {
             const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.has('query') || urlParams.has('municipality') || urlParams.has('date_from') || urlParams.has('date_to') || urlParams.has('document_type')) {
+            if (urlParams.has('query') || urlParams.has('meeting_name_query') || urlParams.has('municipality') || urlParams.has('date_from') || urlParams.has('date_to') || urlParams.has('document_type')) {
                 // Trigger the form submission
                 htmx.trigger('#search-form', 'submit');
             }
