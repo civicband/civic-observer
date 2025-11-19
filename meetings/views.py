@@ -56,14 +56,20 @@ class MeetingSearchView(TemplateView):
 
 
 def _apply_search_filters(
-    queryset, municipality=None, date_from=None, date_to=None, document_type=None
+    queryset,
+    municipalities=None,
+    states=None,
+    date_from=None,
+    date_to=None,
+    document_type=None,
 ):
     """
     Apply filter parameters to the meeting pages queryset.
 
     Args:
         queryset: Base MeetingPage queryset
-        municipality: Optional municipality to filter by
+        municipalities: Optional list of municipalities to filter by
+        states: Optional list of states/provinces to filter by
         date_from: Optional start date for meeting date range
         date_to: Optional end date for meeting date range
         document_type: Optional document type ('agenda' or 'minutes')
@@ -71,8 +77,11 @@ def _apply_search_filters(
     Returns:
         Filtered queryset
     """
-    if municipality:
-        queryset = queryset.filter(document__municipality=municipality)
+    if municipalities:
+        queryset = queryset.filter(document__municipality__in=municipalities)
+
+    if states:
+        queryset = queryset.filter(document__municipality__state__in=states)
 
     if date_from:
         queryset = queryset.filter(document__meeting_date__gte=date_from)
@@ -230,7 +239,8 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
 
     query = form.cleaned_data.get("query", "").strip()
     meeting_name_query = form.cleaned_data.get("meeting_name_query", "").strip()
-    municipality = form.cleaned_data.get("municipality")
+    municipalities = form.cleaned_data.get("municipalities")
+    states = form.cleaned_data.get("states")
     date_from = form.cleaned_data.get("date_from")
     date_to = form.cleaned_data.get("date_to")
     document_type = form.cleaned_data.get("document_type")
@@ -257,7 +267,8 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
     # Apply filter parameters
     queryset = _apply_search_filters(
         queryset,
-        municipality=municipality,
+        municipalities=municipalities,
+        states=states,
         date_from=date_from,
         date_to=date_to,
         document_type=document_type,
@@ -286,7 +297,8 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
     context["active_filters"] = {
         "query": query,
         "meeting_name_query": meeting_name_query,
-        "municipality": municipality,
+        "municipalities": municipalities,
+        "states": states,
         "date_from": date_from,
         "date_to": date_to,
         "document_type": document_type,
