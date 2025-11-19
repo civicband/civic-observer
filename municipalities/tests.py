@@ -493,6 +493,137 @@ class TestMuniWebhookUpdateView:
         data = response.json()
         assert data["action"] == "updated"
 
+    @override_settings()
+    @patch("django_rq.get_queue")
+    def test_webhook_backfill_on_new_municipality(
+        self, mock_get_queue, client, webhook_data
+    ):
+        """Test backfill is triggered when creating a new municipality"""
+        os.environ["WEBHOOK_SECRET"] = "test-secret-123"
+
+        # Mock the queue and job
+        mock_queue = Mock()
+        mock_job = Mock()
+        mock_job.id = "test-job-123"
+        mock_queue.enqueue.return_value = mock_job
+        mock_get_queue.return_value = mock_queue
+
+        url = reverse("munis:muni-webhook-update", kwargs={"subdomain": "newcity"})
+        headers = {"Authorization": "Bearer test-secret-123"}
+        response = client.post(
+            url,
+            json.dumps(webhook_data),
+            content_type="application/json",
+            **{f"HTTP_{k.upper().replace('-', '_')}": v for k, v in headers.items()},
+        )
+
+        assert response.status_code == 201
+
+        # Verify backfill task was enqueued
+        from meetings.tasks import backfill_municipality_meetings_task
+
+        assert mock_queue.enqueue.call_count == 1
+        call_args = mock_queue.enqueue.call_args[0]
+        assert call_args[0] == backfill_municipality_meetings_task
+
+        # Clean up
+        if "WEBHOOK_SECRET" in os.environ:
+            del os.environ["WEBHOOK_SECRET"]
+
+    @override_settings()
+    @patch("django_rq.get_queue")
+    def test_webhook_no_backfill_when_pages_unchanged(
+        self, mock_get_queue, client, webhook_data
+    ):
+        """Test backfill is NOT triggered when page count unchanged"""
+        os.environ["WEBHOOK_SECRET"] = "test-secret-123"
+
+        # Create existing municipality
+        Muni.objects.create(
+            subdomain="existingcity",
+            name="Existing City",
+            state="CA",
+            kind="city",
+            pages=50,  # Same as webhook_data
+        )
+
+        # Mock the queue
+        mock_queue = Mock()
+        mock_get_queue.return_value = mock_queue
+
+        url = reverse("munis:muni-webhook-update", kwargs={"subdomain": "existingcity"})
+        headers = {"Authorization": "Bearer test-secret-123"}
+        webhook_data["name"] = "Updated City Name"  # Change name but not pages
+        response = client.post(
+            url,
+            json.dumps(webhook_data),
+            content_type="application/json",
+            **{f"HTTP_{k.upper().replace('-', '_')}": v for k, v in headers.items()},
+        )
+
+        assert response.status_code == 200
+
+        # Verify backfill task was NOT enqueued (page count unchanged)
+        assert mock_queue.enqueue.call_count == 0
+
+        # Verify the name was still updated
+        muni = Muni.objects.get(subdomain="existingcity")
+        assert muni.name == "Updated City Name"
+
+        # Clean up
+        if "WEBHOOK_SECRET" in os.environ:
+            del os.environ["WEBHOOK_SECRET"]
+
+    @override_settings()
+    @patch("django_rq.get_queue")
+    def test_webhook_backfill_when_pages_changed(
+        self, mock_get_queue, client, webhook_data
+    ):
+        """Test backfill IS triggered when page count changes"""
+        os.environ["WEBHOOK_SECRET"] = "test-secret-123"
+
+        # Create existing municipality with different page count
+        Muni.objects.create(
+            subdomain="changecity",
+            name="Change City",
+            state="CA",
+            kind="city",
+            pages=25,  # Different from webhook_data (50)
+        )
+
+        # Mock the queue and job
+        mock_queue = Mock()
+        mock_job = Mock()
+        mock_job.id = "test-job-456"
+        mock_queue.enqueue.return_value = mock_job
+        mock_get_queue.return_value = mock_queue
+
+        url = reverse("munis:muni-webhook-update", kwargs={"subdomain": "changecity"})
+        headers = {"Authorization": "Bearer test-secret-123"}
+        response = client.post(
+            url,
+            json.dumps(webhook_data),
+            content_type="application/json",
+            **{f"HTTP_{k.upper().replace('-', '_')}": v for k, v in headers.items()},
+        )
+
+        assert response.status_code == 200
+
+        # Verify backfill task WAS enqueued (page count changed)
+        from meetings.tasks import backfill_municipality_meetings_task
+
+        assert mock_queue.enqueue.call_count == 1
+        call_args = mock_queue.enqueue.call_args[0]
+        assert call_args[0] == backfill_municipality_meetings_task
+
+        # Verify the page count was updated
+        muni = Muni.objects.get(subdomain="changecity")
+        assert muni.pages == 50
+
+        # Clean up
+        if "WEBHOOK_SECRET" in os.environ:
+            del os.environ["WEBHOOK_SECRET"]
+
 
 @pytest.mark.django_db
 class TestMuniAdminActions:
