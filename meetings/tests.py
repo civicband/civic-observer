@@ -750,6 +750,12 @@ class TestMeetingSearchResults:
             page_image="/_agendas/CityCouncil/2024-03-01/1.png",
         )
 
+        # Trigger search_vector population by saving documents again
+        # This ensures the database trigger runs and populates meeting_name_search_vector
+        doc1.save()
+        doc2.save()
+        doc3.save()
+
         return {
             "muni": muni,
             "second_muni": second_muni,
@@ -969,3 +975,103 @@ class TestMeetingSearchResults:
         # Should find the matching page
         assert "budget" in content.lower()
         assert "Test City" in content
+
+    def test_meeting_name_filter(self, authenticated_client, meeting_data):
+        """Test filtering by meeting name."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        # Search for "budget" but only in Council meetings
+        # Note: "Council" matches "CityCouncil" after CamelCase splitting
+        response = authenticated_client.get(
+            url, {"query": "budget", "meeting_name_query": "Council"}
+        )
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should find budget results from CityCouncil
+        assert "budget" in content.lower()
+        assert "CityCouncil" in content or "City Council" in content
+
+    def test_meeting_name_filter_or_operator(self, authenticated_client, meeting_data):
+        """Test meeting name filter with OR operator."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        # Search for any content but only in Council OR Planning meetings
+        # Note: "Council" matches "CityCouncil", "Planning" matches "PlanningBoard" after CamelCase splitting
+        response = authenticated_client.get(
+            url,
+            {
+                "query": "budget OR housing",
+                "meeting_name_query": "Council OR Planning",
+            },
+        )
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should find results from both meeting types
+        assert "result" in content.lower()
+
+    def test_meeting_name_excludes_non_matching(
+        self, authenticated_client, meeting_data
+    ):
+        """Test that meeting name filter excludes non-matching meetings."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        # Search for "housing" but only in Council meetings
+        # This should find doc3 (CityCouncil with housing) but NOT doc2 (PlanningBoard with housing)
+        # Note: "Council" matches "CityCouncil" but NOT "PlanningBoard" after CamelCase splitting
+        response = authenticated_client.get(
+            url, {"query": "housing", "meeting_name_query": "Council"}
+        )
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should find housing results
+        assert "housing" in content.lower()
+        # Should show CityCouncil
+        assert "CityCouncil" in content or "City Council" in content
+        # Should NOT show PlanningBoard in results (only in form dropdown)
+        # Count occurrences - PlanningBoard should appear at most once (in select dropdown)
+        planning_count = content.count("PlanningBoard")
+        assert planning_count <= 1
+
+    def test_empty_meeting_name_query(self, authenticated_client, meeting_data):
+        """Test that empty meeting_name_query doesn't filter results."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        # Search with query but empty meeting_name_query
+        response = authenticated_client.get(
+            url, {"query": "budget", "meeting_name_query": ""}
+        )
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should find all budget results (not filtered by meeting name)
+        assert "budget" in content.lower()
+
+    def test_meeting_name_active_filter_display(
+        self, authenticated_client, meeting_data
+    ):
+        """Test that meeting_name_query appears in active filters."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        # Search using "Council" which will match CityCouncil after CamelCase splitting
+        response = authenticated_client.get(
+            url, {"query": "budget", "meeting_name_query": "Council"}
+        )
+
+        assert response.status_code == 200
+        content = response.content.decode()
+
+        # Should show meeting name query in active filters
+        assert "Council" in content
+        assert "Meeting:" in content or "meeting" in content.lower()

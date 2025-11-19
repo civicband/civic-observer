@@ -24,9 +24,9 @@ def rank_label(rank):
     except (ValueError, TypeError):
         return ""
 
-    if rank_float >= 0.5:
+    if rank_float >= 0.05:
         return "High match"
-    elif rank_float >= 0.1:
+    elif rank_float >= 0.01:
         return "Medium match"
     else:
         return "Low match"

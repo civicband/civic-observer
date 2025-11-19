@@ -86,6 +86,45 @@ def _apply_search_filters(
     return queryset
 
 
+def _apply_meeting_name_filter(queryset, meeting_name_query):
+    """
+    Filter pages by meeting name using full-text search.
+
+    Uses 'simple' search configuration for multilingual support (works across
+    Spanish, English, and other languages without language-specific stemming).
+
+    Args:
+        queryset: MeetingPage queryset to filter
+        meeting_name_query: Search query for meeting names (supports websearch syntax: phrases, AND, OR, NOT)
+
+    Returns:
+        Filtered queryset (only pages from documents with matching meeting names)
+    """
+    if not meeting_name_query:
+        return queryset
+
+    # Create search query for meeting names
+    meeting_name_search_query = SearchQuery(
+        meeting_name_query, search_type="websearch", config="simple"
+    )
+
+    # Filter to pages from documents where meeting_name matches
+    # Use subquery to filter by document IDs that match the meeting name search
+    from .models import MeetingDocument
+
+    matching_doc_ids = (
+        MeetingDocument.objects.annotate(
+            meeting_name_rank=SearchRank(
+                F("meeting_name_search_vector"), meeting_name_search_query
+            )
+        )
+        .filter(meeting_name_rank__gte=MINIMUM_RANK_THRESHOLD)
+        .values_list("id", flat=True)
+    )
+
+    return queryset.filter(document_id__in=matching_doc_ids)
+
+
 def _apply_full_text_search(queryset, query_text):
     """
     Apply full-text search to the queryset using PostgreSQL search.
@@ -189,6 +228,7 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
         )
 
     query = form.cleaned_data.get("query", "").strip()
+    meeting_name_query = form.cleaned_data.get("meeting_name_query", "").strip()
     municipality = form.cleaned_data.get("municipality")
     date_from = form.cleaned_data.get("date_from")
     date_to = form.cleaned_data.get("date_to")
@@ -222,6 +262,9 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
         document_type=document_type,
     )
 
+    # Apply meeting name filter (if provided)
+    queryset = _apply_meeting_name_filter(queryset, meeting_name_query)
+
     # Apply full-text search
     queryset, search_query = _apply_full_text_search(queryset, query)
 
@@ -241,6 +284,7 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
     # Add active filters to context for display
     context["active_filters"] = {
         "query": query,
+        "meeting_name_query": meeting_name_query,
         "municipality": municipality,
         "date_from": date_from,
         "date_to": date_to,
