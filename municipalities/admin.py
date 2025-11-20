@@ -18,11 +18,19 @@ class MuniAdmin(admin.ModelAdmin):
         "pages",
         "saved_search_count",
         "last_updated",
+        "last_indexed",
         "created",
     ]
-    list_filter = ["state", "country", "kind", "created", "last_updated"]
+    list_filter = [
+        "state",
+        "country",
+        "kind",
+        "created",
+        "last_updated",
+        "last_indexed",
+    ]
     search_fields = ["name", "subdomain", "state"]
-    readonly_fields = ["id", "created", "modified"]
+    readonly_fields = ["id", "created", "modified", "last_indexed"]
     ordering = ["name"]
     actions = ["backfill_meetings"]
 
@@ -35,6 +43,7 @@ class MuniAdmin(admin.ModelAdmin):
         "pages",
         "saved_search_count",
         "last_updated",
+        "last_indexed",
     ]
 
     def get_queryset(self, request):
@@ -57,7 +66,7 @@ class MuniAdmin(admin.ModelAdmin):
             "Basic Information",
             {"fields": ["subdomain", "name", "state", "country", "kind"]},
         ),
-        ("Data", {"fields": ["pages", "last_updated"]}),
+        ("Data", {"fields": ["pages", "last_updated", "last_indexed"]}),
         ("Location", {"fields": ["latitude", "longitude"], "classes": ["collapse"]}),
         ("Additional Data", {"fields": ["popup_data"], "classes": ["collapse"]}),
         (
