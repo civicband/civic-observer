@@ -8,6 +8,7 @@ from typing import Any
 
 import httpx
 from django.db import transaction
+from django.utils import timezone
 
 from meetings.models import MeetingDocument, MeetingPage
 from municipalities.models import Muni
@@ -66,6 +67,10 @@ def backfill_municipality_meetings(muni: Muni, timeout: int = 60) -> dict[str, i
         )
         for key in stats:
             stats[key] += minutes_stats[key]
+
+        # Update last_indexed timestamp on successful completion
+        muni.last_indexed = timezone.now()
+        muni.save(update_fields=["last_indexed"])
 
         logger.info(f"Backfill completed for {muni.subdomain}: {stats}")
         return stats

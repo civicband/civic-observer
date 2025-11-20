@@ -463,6 +463,83 @@ class TestBackfillService:
         assert stats["errors"] >= 1
         assert MeetingDocument.objects.count() == 0
 
+    @patch("meetings.services.httpx.Client")
+    def test_backfill_updates_last_indexed(
+        self, mock_client_class, muni, mock_agendas_response, mock_minutes_response
+    ):
+        """Test that last_indexed is set on the municipality after successful backfill."""
+        from django.utils import timezone
+
+        # Verify last_indexed is initially None
+        assert muni.last_indexed is None
+
+        # Setup mock client
+        mock_client = Mock()
+        mock_client_class.return_value.__enter__.return_value = mock_client
+
+        # Mock responses
+        mock_agendas_resp = Mock()
+        mock_agendas_resp.json.return_value = mock_agendas_response
+        mock_agendas_resp.raise_for_status = Mock()
+
+        mock_minutes_resp = Mock()
+        mock_minutes_resp.json.return_value = mock_minutes_response
+        mock_minutes_resp.raise_for_status = Mock()
+
+        # Return different responses based on URL
+        def get_side_effect(url):
+            if "agendas" in url:
+                return mock_agendas_resp
+            elif "minutes" in url:
+                return mock_minutes_resp
+            return Mock()
+
+        mock_client.get.side_effect = get_side_effect
+
+        # Capture time before backfill
+        time_before = timezone.now()
+
+        # Run backfill
+        stats = backfill_municipality_meetings(muni)
+
+        # Capture time after backfill
+        time_after = timezone.now()
+
+        # Refresh from database
+        muni.refresh_from_db()
+
+        # Verify last_indexed was set
+        assert muni.last_indexed is not None
+        assert time_before <= muni.last_indexed <= time_after
+
+        # Verify backfill was successful
+        assert stats["errors"] == 0
+
+    @patch("meetings.services.httpx.Client")
+    def test_backfill_does_not_update_last_indexed_on_failure(
+        self, mock_client_class, muni
+    ):
+        """Test that last_indexed is NOT set when backfill fails."""
+        # Verify last_indexed is initially None
+        assert muni.last_indexed is None
+
+        # Setup mock to raise an error
+        mock_client = Mock()
+        mock_client_class.return_value.__enter__.return_value = mock_client
+        mock_client.get.side_effect = Exception("API Error")
+
+        # Run backfill - should raise BackfillError
+        from meetings.services import BackfillError
+
+        with pytest.raises(BackfillError):
+            backfill_municipality_meetings(muni)
+
+        # Refresh from database
+        muni.refresh_from_db()
+
+        # Verify last_indexed was NOT set (still None)
+        assert muni.last_indexed is None
+
 
 @pytest.mark.django_db
 class TestWebhookIntegration:
