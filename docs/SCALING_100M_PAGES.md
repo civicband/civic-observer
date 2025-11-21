@@ -165,55 +165,62 @@ pgbouncer:
 **Timeline**: Week 2
 **Risk if skipped**: Queries will timeout, pagination will fail
 
-### 2.1 Table Partitioning (CRITICAL)
+### 2.1 Table Partitioning Strategy
 
-**Objective**: Partition MeetingPage table by date to limit query scope
+**Objective**: Partition MeetingPage table to enable scaling to 100M+ rows
 
-**Rationale**:
-- 100M rows in single table = full table scans even with indexes
-- Partitioning by meeting_date reduces query scope from 100M → ~3-4M rows
-- Older partitions can be archived or compressed
-- Partition pruning dramatically improves query performance
+**Status**: ⚠️ **Requires Django-specific considerations** - see detailed analysis below
 
-**Implementation**:
-- **File**: New migration `meetings/migrations/0005_partition_meetingpage.py`
+**Critical Findings**:
+- Django has **no native support** for PostgreSQL partitioning
+- Cannot partition by `document__meeting_date` directly (not a column on MeetingPage)
+- Requires composite primary key: `PRIMARY KEY (id, partition_key)`
+- Must use raw SQL migrations or third-party package
+- Queries work **transparently** once implemented - no ORM changes needed
 
-**Strategy**:
-- Range partitioning by `document__meeting_date`
-- Monthly partitions (e.g., `meetingpage_2024_01`, `meetingpage_2024_02`)
-- Create future partitions automatically
+**Three Partitioning Options Analyzed**:
 
-**Migration Approach**:
-```sql
--- Step 1: Create partitioned table structure
-CREATE TABLE meetings_meetingpage_new (LIKE meetings_meetingpage INCLUDING ALL)
-PARTITION BY RANGE (meeting_date);
+1. **Option A: Denormalize `meeting_date` to MeetingPage** ⭐ **RECOMMENDED**
+   - Add `meeting_date` field directly to MeetingPage (copy from document)
+   - Partition by RANGE on `meeting_date`
+   - Best performance for date-filtered queries
+   - Enables archival by meeting date
+   - 400MB storage overhead for 100M rows (negligible)
 
--- Step 2: Create initial partitions (last 2 years + next 1 year)
-CREATE TABLE meetings_meetingpage_2023_01 PARTITION OF meetings_meetingpage_new
-  FOR VALUES FROM ('2023-01-01') TO ('2023-02-01');
--- ... (create partitions for each month)
+2. **Option B: Partition by `created` timestamp**
+   - Use existing `created` field from TimeStampedModel
+   - No schema changes needed
+   - Poor partition pruning (queries filter by meeting_date, not created)
+   - Only useful if backfill is not a concern
 
--- Step 3: Copy data (can be done in batches)
-INSERT INTO meetings_meetingpage_new SELECT * FROM meetings_meetingpage;
+3. **Option C: No partitioning, focus on indexes**
+   - Simplest approach
+   - Slower maintenance (VACUUM on 100M rows)
+   - No archival strategy
+   - May not scale beyond 100M rows
 
--- Step 4: Swap tables (requires downtime or zero-downtime strategy)
-ALTER TABLE meetings_meetingpage RENAME TO meetings_meetingpage_old;
-ALTER TABLE meetings_meetingpage_new RENAME TO meetings_meetingpage;
+**Detailed Implementation Guide**:
 
--- Step 5: Drop old table after verification
-DROP TABLE meetings_meetingpage_old;
-```
+See **[PAGE_PARTITIONING.md](PAGE_PARTITIONING.md)** for:
+- Comprehensive Django ORM compatibility analysis
+- Complete migration code examples
+- Partition management commands
+- Query patterns and performance expectations
+- Testing strategy and monitoring
+- Rollback procedures
 
-**Management Command**:
-- Create `meetings/management/commands/create_meetingpage_partitions.py`
-- Run monthly via cron to create future partitions
+**Recommended Implementation** (Option A):
+1. Add `meeting_date` field to MeetingPage (denormalized from document)
+2. Create partitioned table with raw SQL migration
+3. Use composite primary key: `PRIMARY KEY (id, meeting_date)`
+4. Set `managed=False` on Django model
+5. Create monthly partitions via management command
 
 **Expected Impact**:
-- Query time: 10-20x faster (only scan relevant partitions)
-- Index size: Smaller per-partition indexes = faster lookups
-- Maintenance: VACUUM/ANALYZE on individual partitions (much faster)
-- Archival: Easy to detach and archive old partitions
+- Query time with date filter: **10-20x faster** (partition pruning)
+- Query time without date filter: **2-3x faster** (parallel scanning, smaller indexes)
+- Maintenance: VACUUM/ANALYZE **50-100x faster** (per partition vs. full table)
+- Archival: Easy to detach partitions older than 2 years
 
 ---
 
@@ -867,10 +874,13 @@ REFRESH MATERIALIZED VIEW CONCURRENTLY popular_searches;
 - [ ] Update `config/settings/base.py` with connection settings
 
 ### Phase 2: Database Schema
-- [ ] Create migration for table partitioning
+- [ ] Review [PAGE_PARTITIONING.md](PAGE_PARTITIONING.md) for detailed partitioning implementation
+- [ ] Add `meeting_date` field to MeetingPage model (denormalized from document)
+- [ ] Create raw SQL migration for table partitioning (see PAGE_PARTITIONING.md)
 - [ ] Test partition creation on dev database
-- [ ] Create management command for partition management
+- [ ] Create `create_meetingpage_partitions` management command
 - [ ] Schedule monthly partition creation (cron)
+- [ ] Set `managed=False` on MeetingPage model
 - [ ] Create migration for index optimization
 - [ ] Implement cursor-based pagination in views
 - [ ] Update templates for cursor pagination UI
