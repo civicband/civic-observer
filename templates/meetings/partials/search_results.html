@@ -125,7 +125,7 @@
                 <!-- Actions -->
                 <div class="mt-4 flex items-center justify-between pt-4 border-t border-gray-200">
                     <div class="flex space-x-2">
-                        <a href="https://{{ result.document.municipality.subdomain }}.civic.band/meetings/{{ result.document.document_type }}/{{ result.id }}"
+                        <a href="https://{{ result.document.municipality.subdomain }}.civic.band/meetings/{{ result.document.civic_band_table_name }}/{{ result.id }}"
                            target="_blank"
                            rel="noopener noreferrer"
                            aria-label="View {{ result.document.meeting_name }} {{ result.document.document_type }} from {{ result.document.meeting_date|date:'F d, Y' }} on CivicBand (opens in new window)"

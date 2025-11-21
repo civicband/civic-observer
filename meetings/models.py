@@ -65,6 +65,11 @@ class MeetingDocument(TimeStampedModel):
     def __str__(self) -> str:
         return f"{self.municipality.subdomain} - {self.meeting_name} {self.document_type} ({self.meeting_date})"
 
+    def civic_band_table_name(self) -> str:
+        if self.document_type == "agenda":
+            return "agendas"
+        return "minutes"
+
 
 class MeetingPage(TimeStampedModel):
     """
