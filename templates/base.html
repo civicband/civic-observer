@@ -11,15 +11,35 @@
         <script src="https://unpkg.com/htmx.org@1.9.10" defer></script>
         <!-- Alpine.js -->
         <script src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
+
+        <!-- Global Accessibility Styles -->
+        <style>
+            /* Focus visible styles for keyboard navigation */
+            *:focus-visible {
+                outline: 2px solid #4F46E5;
+                outline-offset: 2px;
+            }
+
+            /* Alpine.js x-cloak: hide elements until Alpine is loaded */
+            [x-cloak] {
+                display: none !important;
+            }
+        </style>
     </head>
     <body class="min-h-full bg-white">
-        <div class="min-h-full">
+        <!-- Skip to main content link for keyboard navigation -->
+        <a href="#main-content" class="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-50 focus:px-4 focus:py-2 focus:bg-indigo-600 focus:text-white focus:rounded-md focus:shadow-lg">
+            Skip to main content
+        </a>
+
+        <div class="min-h-full" x-data="{ mobileMenuOpen: false }">
             <!-- Navigation -->
             <nav class="bg-white border-b border-gray-200 sticky top-0 z-50 backdrop-blur-sm">
                 <div class="max-w-7xl mx-auto px-6 lg:px-8">
                     <div class="flex items-center justify-between h-16">
                         <div class="flex items-center space-x-8">
                             <a href="{% url 'homepage' %}" class="text-gray-900 font-bold text-xl">CivicObserver</a>
+                            <!-- Desktop Navigation -->
                             <div class="hidden md:flex space-x-6">
                                 <a href="{% url 'homepage' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Home</a>
                                 <a href="{% url 'munis:muni-list' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Municipalities</a>
@@ -28,12 +48,54 @@
                                 {% if user.is_staff %} <a href="{% url 'admin:index' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Admin</a> {% endif %}
                             </div>
                         </div>
+
+                        <!-- Mobile menu button -->
+                        <div class="md:hidden">
+                            <button @click="mobileMenuOpen = !mobileMenuOpen"
+                                    type="button"
+                                    class="inline-flex items-center justify-center p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 transition-colors"
+                                    aria-controls="mobile-menu"
+                                    :aria-expanded="mobileMenuOpen.toString()">
+                                <span class="sr-only">Open main menu</span>
+                                <!-- Hamburger icon -->
+                                <svg x-show="!mobileMenuOpen" class="block h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                                </svg>
+                                <!-- Close icon -->
+                                <svg x-show="mobileMenuOpen" class="block h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true" x-cloak>
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Mobile menu panel -->
+                    <div x-show="mobileMenuOpen"
+                         x-transition:enter="transition ease-out duration-150"
+                         x-transition:enter-start="opacity-0 -translate-y-1"
+                         x-transition:enter-end="opacity-100 translate-y-0"
+                         x-transition:leave="transition ease-in duration-100"
+                         x-transition:leave-start="opacity-100 translate-y-0"
+                         x-transition:leave-end="opacity-0 -translate-y-1"
+                         @click.away="mobileMenuOpen = false"
+                         class="md:hidden"
+                         id="mobile-menu"
+                         x-cloak>
+                        <div class="px-2 pt-2 pb-3 space-y-1 bg-white border-t border-gray-200">
+                            <a href="{% url 'homepage' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors">Home</a>
+                            <a href="{% url 'munis:muni-list' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors">Municipalities</a>
+                            <a href="{% url 'meetings:meeting-search' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors">Search Meetings</a>
+                            <a href="{% url 'searches:savedsearch-list' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors">Saved Searches</a>
+                            {% if user.is_staff %}
+                                <a href="{% url 'admin:index' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors">Admin</a>
+                            {% endif %}
+                        </div>
                     </div>
                 </div>
             </nav>
 
             <!-- Main Content -->
-            <main>
+            <main id="main-content">
                 {% block content %}
                 {% endblock content %}
             </main>
