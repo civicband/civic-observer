@@ -1,0 +1,95 @@
+{# Notification Settings Display Component #}
+{# Usage: {% include "searches/partials/notification_settings.html" with saved_search=object %} #}
+
+<dl class="space-y-3">
+    {# Notification Frequency #}
+    <div>
+        <dt class="text-sm font-medium text-gray-600">Notification Frequency</dt>
+        <dd class="mt-1">
+            {% if saved_search.notification_frequency == "immediate" %}
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-red-100 text-red-800">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z"></path>
+                    </svg>
+                    Immediate
+                </span>
+                <p class="mt-1 text-xs text-gray-500">You'll receive an email as soon as new results appear</p>
+            {% elif saved_search.notification_frequency == "daily" %}
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    Daily Digest
+                </span>
+                <p class="mt-1 text-xs text-gray-500">You'll receive a daily summary of new results</p>
+            {% elif saved_search.notification_frequency == "weekly" %}
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
+                    <svg class="w-4 h-4 mr-1.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                    </svg>
+                    Weekly Digest
+                </span>
+                <p class="mt-1 text-xs text-gray-500">You'll receive a weekly summary of new results</p>
+            {% endif %}
+        </dd>
+    </div>
+
+    {# Last Notification Sent #}
+    {% if saved_search.last_notification_sent %}
+        <div>
+            <dt class="text-sm font-medium text-gray-600">Last Notification</dt>
+            <dd class="mt-1 text-sm text-gray-900">
+                <div class="flex items-center">
+                    <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                    </svg>
+                    {{ saved_search.last_notification_sent|date:"M d, Y g:i A" }}
+                </div>
+            </dd>
+        </div>
+    {% else %}
+        <div>
+            <dt class="text-sm font-medium text-gray-600">Notification Status</dt>
+            <dd class="mt-1 text-sm text-gray-500 italic">
+                No notifications sent yet
+            </dd>
+        </div>
+    {% endif %}
+
+    {# Pending Results Flag #}
+    {% if saved_search.has_pending_results %}
+        <div>
+            <dt class="text-sm font-medium text-gray-600">Pending Notifications</dt>
+            <dd class="mt-1">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                    <svg class="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                        <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path>
+                    </svg>
+                    New results waiting
+                </span>
+                <p class="mt-1 text-xs text-gray-500">
+                    {% if saved_search.notification_frequency == "daily" %}
+                        Will be included in next daily digest
+                    {% elif saved_search.notification_frequency == "weekly" %}
+                        Will be included in next weekly digest
+                    {% endif %}
+                </p>
+            </dd>
+        </div>
+    {% endif %}
+
+    {# Last Checked #}
+    {% if saved_search.last_checked %}
+        <div>
+            <dt class="text-sm font-medium text-gray-600">Last Checked</dt>
+            <dd class="mt-1 text-sm text-gray-900">
+                <div class="flex items-center">
+                    <svg class="w-4 h-4 mr-2 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                    </svg>
+                    {{ saved_search.last_checked|date:"M d, Y g:i A" }}
+                </div>
+            </dd>
+        </div>
+    {% endif %}
+</dl>

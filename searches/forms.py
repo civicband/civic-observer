@@ -69,9 +69,14 @@ class SavedSearchCreateForm(forms.ModelForm):
         search_term = self.cleaned_data.get("search_term", "").strip()
         all_results = self.cleaned_data.get("all_results", False)
 
-        # Get or create the Search object
-        search, created = Search.objects.get_or_create_for_params(  # type: ignore
-            muni=municipality, search_term=search_term, all_results=all_results
+        # If all_results is True, use empty search_term (all updates mode)
+        if all_results:
+            search_term = ""
+
+        # Get or create the Search object using new signature
+        search = Search.objects.get_or_create_for_params(
+            search_term=search_term,
+            municipalities=[municipality],  # Now expects a list
         )
 
         # Create the SavedSearch
@@ -123,9 +128,14 @@ class SavedSearchEditForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         if self.instance and self.instance.search:
             # Pre-populate form with current search parameters
-            self.fields["municipality"].initial = self.instance.search.muni
-            self.fields["search_term"].initial = self.instance.search.search_term
-            self.fields["all_results"].initial = self.instance.search.all_results
+            # Get first municipality (simplified for legacy form)
+            first_muni = self.instance.search.municipalities.first()
+            self.fields["municipality"].initial = first_muni
+            self.fields["search_term"].initial = self.instance.search.search_term or ""
+            # all_results = True if search_term is empty
+            self.fields["all_results"].initial = not bool(
+                self.instance.search.search_term
+            )
 
     def clean(self):
         cleaned_data = super().clean()
@@ -157,9 +167,14 @@ class SavedSearchEditForm(forms.ModelForm):
         search_term = self.cleaned_data.get("search_term", "").strip()
         all_results = self.cleaned_data.get("all_results", False)
 
-        # Get or create the Search object
-        search, created = Search.objects.get_or_create_for_params(  # type: ignore
-            muni=municipality, search_term=search_term, all_results=all_results
+        # If all_results is True, use empty search_term (all updates mode)
+        if all_results:
+            search_term = ""
+
+        # Get or create the Search object using new signature
+        search = Search.objects.get_or_create_for_params(
+            search_term=search_term,
+            municipalities=[municipality],  # Now expects a list
         )
 
         # Update the SavedSearch

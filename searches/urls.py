@@ -6,6 +6,7 @@ from .views import (
     SavedSearchCRUDView,
     SavedSearchEditView,
     municipality_search,
+    save_search_from_params,
     saved_search_email_preview,
 )
 
@@ -38,6 +39,11 @@ urlpatterns = [
         "municipality-search/",
         municipality_search,
         name="municipality-search",
+    ),
+    path(
+        "save-from-params/",
+        save_search_from_params,
+        name="save-search-from-params",
     ),
     # Email preview URLs (staff only)
     path(

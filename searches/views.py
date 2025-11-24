@@ -1,17 +1,18 @@
 from django.contrib.admin.views.decorators import staff_member_required
+from django.contrib.auth.decorators import login_required
 from django.db.models import Q, QuerySet
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
 from django.urls import reverse_lazy
-from django.views.decorators.http import require_GET
+from django.views.decorators.http import require_GET, require_POST
 from django.views.generic import CreateView, UpdateView, View
 from neapolitan.views import CRUDView
 
 from municipalities.models import Muni
 
 from .forms import SavedSearchCreateForm, SavedSearchEditForm
-from .models import SavedSearch
+from .models import SavedSearch, Search
 
 
 class SavedSearchCRUDView(CRUDView):
@@ -19,7 +20,7 @@ class SavedSearchCRUDView(CRUDView):
     url_base = "searches:savedsearch"  # type: ignore
     fields = ["name", "search"]
     list_display = ["name", "search", "created"]
-    search_fields = ["name", "search__search_term", "search__muni__name"]
+    search_fields = ["name", "search__search_term"]
 
     def dispatch(self, request, *args, **kwargs):
         if not request.user.is_authenticated:
@@ -29,8 +30,10 @@ class SavedSearchCRUDView(CRUDView):
         return super().dispatch(request, *args, **kwargs)
 
     def get_queryset(self) -> QuerySet[SavedSearch]:
-        return SavedSearch.objects.filter(user=self.request.user).select_related(
-            "search", "search__muni"
+        return (
+            SavedSearch.objects.filter(user=self.request.user)
+            .select_related("search")
+            .prefetch_related("search__municipalities")
         )
 
     def form_valid(self, form):
@@ -54,27 +57,9 @@ class SavedSearchCreateView(CreateView):
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
-        # Check if user already has this search saved
-        municipality = form.cleaned_data["municipality"]
-        search_term = form.cleaned_data.get("search_term", "").strip()
-        all_results = form.cleaned_data.get("all_results", False)
-
-        # Check for existing saved search with same parameters
+        # TODO: Update duplicate check for new model structure in Phase 7
+        # For now, skip duplicate checking since model has changed
         if not self.request.user.is_authenticated:
-            return self.form_invalid(form)
-
-        existing_saved_search = SavedSearch.objects.filter(
-            user=self.request.user,
-            search__muni=municipality,
-            search__search_term=search_term,
-            search__all_results=all_results,
-        ).first()
-
-        if existing_saved_search:
-            form.add_error(
-                None,
-                f"You already have a saved search for this: {existing_saved_search.name}",
-            )
             return self.form_invalid(form)
 
         # Save the form with the current user
@@ -103,7 +88,7 @@ class SavedSearchEditView(UpdateView):
             return SavedSearch.objects.none()
 
         return SavedSearch.objects.filter(user=self.request.user).select_related(
-            "search", "search__muni"
+            "search"
         )
 
     def form_valid(self, form):
@@ -189,3 +174,123 @@ def municipality_search(request):
     )
 
     return HttpResponse(html)
+
+
+@login_required
+@require_POST
+def save_search_from_params(request):
+    """
+    Save a search from page search parameters.
+
+    Accepts POST data with:
+    - name: Name for the saved search
+    - notification_frequency: immediate, daily, or weekly
+    - query: Search term (optional, empty = all updates mode)
+    - municipalities: List of municipality IDs
+    - states: List of state codes
+    - date_from: Start date (optional)
+    - date_to: End date (optional)
+    - document_type: Document type filter
+    - meeting_name_query: Meeting name filter (optional)
+    """
+    import json
+    from datetime import datetime
+
+    try:
+        # Parse POST data (may be JSON or form data)
+        if request.content_type == "application/json":
+            data = json.loads(request.body)
+        else:
+            data = request.POST
+
+        # Get saved search metadata
+        name = data.get("name", "").strip()
+        notification_frequency = data.get("notification_frequency", "immediate")
+
+        # Validate required fields
+        if not name:
+            return JsonResponse({"error": "Name is required"}, status=400)
+
+        if notification_frequency not in ["immediate", "daily", "weekly"]:
+            return JsonResponse({"error": "Invalid notification frequency"}, status=400)
+
+        # Get search parameters
+        search_term = data.get("query", "").strip()
+        municipality_ids = (
+            data.getlist("municipalities")
+            if hasattr(data, "getlist")
+            else data.get("municipalities", [])
+        )
+        states = (
+            data.getlist("states")
+            if hasattr(data, "getlist")
+            else data.get("states", [])
+        )
+        date_from_str = data.get("date_from", "").strip()
+        date_to_str = data.get("date_to", "").strip()
+        document_type = data.get("document_type", "all")
+        meeting_name_query = data.get("meeting_name_query", "").strip()
+
+        # Parse dates
+        date_from = None
+        date_to = None
+        if date_from_str:
+            try:
+                date_from = datetime.strptime(date_from_str, "%Y-%m-%d").date()
+            except ValueError:
+                return JsonResponse({"error": "Invalid date_from format"}, status=400)
+
+        if date_to_str:
+            try:
+                date_to = datetime.strptime(date_to_str, "%Y-%m-%d").date()
+            except ValueError:
+                return JsonResponse({"error": "Invalid date_to format"}, status=400)
+
+        # Get municipalities
+        municipalities = []
+        if municipality_ids:
+            if not isinstance(municipality_ids, list):
+                municipality_ids = [municipality_ids]
+            municipalities = list(Muni.objects.filter(id__in=municipality_ids))
+
+        # Get or create Search object
+        search = Search.objects.get_or_create_for_params(
+            search_term=search_term,
+            municipalities=municipalities,
+            states=states,
+            date_from=date_from,
+            date_to=date_to,
+            document_type=document_type,
+            meeting_name_query=meeting_name_query,
+        )
+
+        # Check if user already has this search saved
+        existing = SavedSearch.objects.filter(user=request.user, search=search).first()
+
+        if existing:
+            return JsonResponse(
+                {
+                    "error": f'You already have this search saved as "{existing.name}"',
+                    "existing_id": str(existing.id),
+                },
+                status=400,
+            )
+
+        # Create SavedSearch
+        saved_search = SavedSearch.objects.create(
+            user=request.user,
+            search=search,
+            name=name,
+            notification_frequency=notification_frequency,
+        )
+
+        return JsonResponse(
+            {
+                "success": True,
+                "saved_search_id": str(saved_search.id),
+                "message": f'Search "{name}" saved successfully!',
+            }
+        )
+
+    except Exception as e:
+        return JsonResponse({"error": str(e)}, status=500)

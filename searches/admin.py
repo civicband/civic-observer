@@ -11,54 +11,55 @@ User = get_user_model()
 
 @admin.register(Search)
 class SearchAdmin(admin.ModelAdmin):
-    list_display = ["muni", "search_term", "all_results", "created"]
-    list_filter = ["all_results", "created", "muni__state", "muni__kind"]
-    search_fields = ["search_term", "muni__name", "muni__subdomain"]
-    readonly_fields = ["id", "created", "modified"]
+    list_display = [
+        "get_municipalities_display",
+        "search_term",
+        "document_type",
+        "last_result_count",
+        "created",
+    ]
+    list_filter = ["document_type", "created"]
+    search_fields = ["search_term"]
+    readonly_fields = ["id", "created", "modified", "last_result_count"]
     ordering = ["-created"]
-    actions = ["populate_test_results", "clear_search_results"]
+    filter_horizontal = ["municipalities"]
 
     fieldsets = [
-        ("Search Information", {"fields": ["muni", "search_term", "all_results"]}),
+        (
+            "Search Filters",
+            {
+                "fields": [
+                    "municipalities",
+                    "search_term",
+                    "states",
+                    "date_from",
+                    "date_to",
+                    "document_type",
+                    "meeting_name_query",
+                ]
+            },
+        ),
+        (
+            "Results Tracking",
+            {
+                "fields": ["last_result_count", "last_result_page_ids", "last_fetched"],
+                "classes": ["collapse"],
+            },
+        ),
         (
             "Timestamps",
             {"fields": ["id", "created", "modified"], "classes": ["collapse"]},
         ),
-        (
-            "Results",
-            {
-                "fields": ["agenda_match_json", "minutes_match_json"],
-                "classes": ["collapse"],
-            },
-        ),
     ]
 
-    @admin.action(description="Populate selected searches with test results")
-    def populate_test_results(self, request, queryset):
-        """Admin action to populate selected searches with test result data."""
-        updated_count = 0
-
-        for search in queryset:
-            TestDataGenerator.populate_search_with_test_data(search)
-            updated_count += 1
-
-        self.message_user(
-            request,
-            f"Successfully populated {updated_count} searches with test results.",
-        )
-
-    @admin.action(description="Clear search results from selected searches")
-    def clear_search_results(self, request, queryset):
-        """Admin action to clear results from selected searches."""
-        updated_count = 0
-
-        for search in queryset:
-            TestDataGenerator.clear_search_results(search)
-            updated_count += 1
-
-        self.message_user(
-            request, f"Successfully cleared results from {updated_count} searches."
-        )
+    @admin.display(description="Municipalities")
+    def get_municipalities_display(self, obj):
+        """Display municipalities for M2M relationship."""
+        munis = obj.municipalities.all()[:3]
+        muni_names = ", ".join(m.name for m in munis)
+        if obj.municipalities.count() > 3:
+            muni_names += f", +{obj.municipalities.count() - 3} more"
+        return muni_names or "(none)"
 
 
 @admin.register(SavedSearch)
@@ -67,27 +68,44 @@ class SavedSearchAdmin(admin.ModelAdmin):
         "name",
         "user",
         "search",
+        "notification_frequency",
+        "has_pending_results",
         "created",
         "last_notification_sent",
         "preview_email",
     ]
-    list_filter = ["created", "last_notification_sent"]
+    list_filter = [
+        "notification_frequency",
+        "has_pending_results",
+        "created",
+        "last_notification_sent",
+    ]
     search_fields = ["name", "user__email", "search__search_term"]
     ordering = ["-created"]
     readonly_fields = [
         "id",
         "created",
         "modified",
+        "last_checked",
         "last_notification_sent",
         "preview_email_links",
     ]
-    actions = ["create_test_saved_searches", "populate_search_results_for_selected"]
+    # Temporarily removed test data actions until they're updated for new model structure
+    # actions = ["create_test_saved_searches", "populate_search_results_for_selected"]
 
     fieldsets = [
         ("Saved Search", {"fields": ["name", "user", "search"]}),
         (
-            "Email Notifications",
-            {"fields": ["last_notification_sent", "preview_email_links"]},
+            "Notification Settings",
+            {
+                "fields": [
+                    "notification_frequency",
+                    "has_pending_results",
+                    "last_notification_sent",
+                    "last_checked",
+                    "preview_email_links",
+                ]
+            },
         ),
         (
             "Timestamps",

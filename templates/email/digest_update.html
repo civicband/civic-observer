@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Your {{ frequency|title }} Civic Observer Digest</title>
+    </head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h1 style="color: #4F46E5;">Your {{ frequency|title }} Civic Observer Digest</h1>
+
+            <p>Hello {{ user.email }},</p>
+
+            <p>You have new results for your saved searches:</p>
+
+            {% for saved_search in saved_searches %}
+                <div style="background-color: #F3F4F6; padding: 15px; margin: 15px 0; border-radius: 5px; border-left: 4px solid #4F46E5;">
+                    <h3 style="margin-top: 0; color: #1F2937;">{{ saved_search.name }}</h3>
+
+            {# Search Type #}
+                    {% if saved_search.search.search_term %}
+                        <p style="margin: 5px 0;">
+                            <strong>Search:</strong>
+                            <span style="background-color: #E0E7FF; color: #4338CA; padding: 2px 8px; border-radius: 3px; font-size: 13px;">
+                                "{{ saved_search.search.search_term }}"
+                            </span>
+                        </p>
+                    {% else %}
+                        <p style="margin: 5px 0;">
+                            <strong>Mode:</strong>
+                            <span style="background-color: #E5E7EB; color: #374151; padding: 2px 8px; border-radius: 3px; font-size: 13px;">
+                                All updates
+                            </span>
+                        </p>
+                    {% endif %}
+
+            {# Municipalities #}
+                    {% with municipalities=saved_search.search.municipalities.all %}
+                        {% if municipalities %}
+                            <p style="margin: 5px 0;">
+                                <strong>Municipalities ({{ municipalities|length }}):</strong>
+                                {% for muni in municipalities|slice:":5" %}{{ muni.name }}, {{ muni.state }}{% if not forloop.last %}; {% endif %}{% endfor %}
+                                {% if municipalities|length > 5 %}<em>and {{ municipalities|length|add:"-5" }} more</em>{% endif %}
+                            </p>
+                        {% endif %}
+                    {% endwith %}
+
+            {# States #}
+                    {% if saved_search.search.states %}
+                        <p style="margin: 5px 0;">
+                            <strong>States ({{ saved_search.search.states|length }}):</strong>
+                            {% for state in saved_search.search.states|slice:":10" %}{{ state }}{% if not forloop.last %}, {% endif %}{% endfor %}
+                            {% if saved_search.search.states|length > 10 %}<em>and {{ saved_search.search.states|length|add:"-10" }} more</em>{% endif %}
+                        </p>
+                    {% endif %}
+
+            {# Date Range #}
+                    {% if saved_search.search.date_from or saved_search.search.date_to %}
+                        <p style="margin: 5px 0;">
+                            <strong>Date Range:</strong>
+                            {% if saved_search.search.date_from %}{{ saved_search.search.date_from|date:"M d, Y" }}{% else %}Start{% endif %}
+                            →
+                            {% if saved_search.search.date_to %}{{ saved_search.search.date_to|date:"M d, Y" }}{% else %}Present{% endif %}
+                        </p>
+                    {% endif %}
+
+            {# Document Type #}
+                    {% if saved_search.search.document_type and saved_search.search.document_type != "all" %}
+                        <p style="margin: 5px 0;">
+                            <strong>Document Type:</strong> {{ saved_search.search.get_document_type_display }}
+                        </p>
+                    {% endif %}
+
+            {# Meeting Name #}
+                    {% if saved_search.search.meeting_name_query %}
+                        <p style="margin: 5px 0;">
+                            <strong>Meeting Name:</strong> {{ saved_search.search.meeting_name_query }}
+                        </p>
+                    {% endif %}
+
+            {# Link to view results #}
+                    <p style="margin: 10px 0 0 0;">
+                        <a href="https://civic.observer/searches/{{ saved_search.id }}/"
+                           style="display: inline-block; background-color: #4F46E5; color: white; padding: 8px 16px; text-decoration: none; border-radius: 5px; font-size: 14px;">
+                            View Details
+                        </a>
+                    </p>
+                </div>
+            {% endfor %}
+
+            <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 20px 0;">
+
+            <p style="color: #6B7280; font-size: 14px;">
+                This is your {{ frequency }} digest from Civic Observer.<br>
+                <a href="https://civic.observer/searches/" style="color: #4F46E5;">Manage your saved searches</a>
+            </p>
+
+            <p style="color: #6B7280; font-size: 12px; margin-top: 20px;">
+                Civic Observer - Monitoring local government meetings
+            </p>
+        </div>
+    </body>
+</html>
