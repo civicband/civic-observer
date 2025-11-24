@@ -299,34 +299,43 @@ class TestGetNewPages:
     """Test the get_new_pages() function that returns only new results."""
 
     def test_get_new_pages_returns_only_new(self):
-        """Test that get_new_pages returns only pages not in last_result_page_ids."""
+        """Test that get_new_pages returns only pages created after last check timestamp."""
+        import time
+
+        from django.utils import timezone
+
         from searches.services import get_new_pages
 
         muni = MuniFactory()
         doc = MeetingDocumentFactory(municipality=muni)
 
-        # Create pages
+        # Create old pages
         old_page1 = MeetingPageFactory(document=doc, text="housing")
         old_page2 = MeetingPageFactory(document=doc, text="housing policy")
-        new_page = MeetingPageFactory(document=doc, text="housing budget")
 
-        # Create search that already has old_page1 and old_page2 in results
+        # Create search and mark timestamp after old pages were created
         search = SearchFactory(search_term="housing")
         search.municipalities.add(muni)
-        search.last_result_page_ids = [old_page1.id, old_page2.id]
+        search.last_checked_for_new_pages = timezone.now()
         search.save()
+
+        # Small delay to ensure new page has later timestamp
+        time.sleep(0.01)
+
+        # Create new page after the check timestamp
+        new_page = MeetingPageFactory(document=doc, text="housing budget")
 
         # Get new pages
         new_pages = get_new_pages(search)
 
-        # Should only return new_page
+        # Should only return new_page (created after last_checked_for_new_pages)
         assert new_pages.count() == 1
         assert new_page in new_pages
         assert old_page1 not in new_pages
         assert old_page2 not in new_pages
 
     def test_get_new_pages_with_empty_last_results(self):
-        """Test get_new_pages when last_result_page_ids is empty (first run)."""
+        """Test get_new_pages when last_checked_for_new_pages is None (first run)."""
         from searches.services import get_new_pages
 
         muni = MuniFactory()
@@ -335,10 +344,10 @@ class TestGetNewPages:
         page1 = MeetingPageFactory(document=doc, text="housing")
         page2 = MeetingPageFactory(document=doc, text="housing policy")
 
-        # Create search with no previous results
+        # Create search with no previous check timestamp
         search = SearchFactory(search_term="housing")
         search.municipalities.add(muni)
-        search.last_result_page_ids = []
+        search.last_checked_for_new_pages = None
         search.save()
 
         # Get new pages
@@ -350,19 +359,23 @@ class TestGetNewPages:
         assert page2 in new_pages
 
     def test_get_new_pages_with_no_new_results(self):
-        """Test get_new_pages when all current results are already tracked."""
+        """Test get_new_pages when all current results were created before last check."""
+        from django.utils import timezone
+
         from searches.services import get_new_pages
 
         muni = MuniFactory()
         doc = MeetingDocumentFactory(municipality=muni)
 
-        page1 = MeetingPageFactory(document=doc, text="housing")
-        page2 = MeetingPageFactory(document=doc, text="housing")
+        _page1 = MeetingPageFactory(document=doc, text="housing")
+        _page2 = MeetingPageFactory(document=doc, text="housing")
 
-        # Create search that already has both pages
+        # Create search with timestamp set to now (after pages were created)
         search = SearchFactory(search_term="housing")
         search.municipalities.add(muni)
-        search.last_result_page_ids = [page1.id, page2.id]
+        search.last_checked_for_new_pages = (
+            timezone.now()
+        )  # Check happened after all pages
         search.save()
 
         # Get new pages
@@ -378,7 +391,7 @@ class TestGetNewPages:
         from searches.services import get_new_pages
 
         search = SearchFactory(search_term="test")
-        search.last_result_page_ids = []
+        search.last_checked_for_new_pages = None
         search.save()
 
         new_pages = get_new_pages(search)
@@ -403,9 +416,13 @@ class TestSearchServiceIntegration:
         _page2 = MeetingPageFactory(document=doc, text="housing budget")
 
         # Create search
+        import time
+
+        from django.utils import timezone
+
         search = SearchFactory(search_term="housing")
         search.municipalities.add(muni)
-        search.last_result_page_ids = []
+        search.last_checked_for_new_pages = None
         search.save()
 
         # First execution - should find both pages
@@ -416,9 +433,12 @@ class TestSearchServiceIntegration:
         new_pages_first = get_new_pages(search)
         assert new_pages_first.count() == 2
 
-        # Update last_result_page_ids to track these pages
-        search.last_result_page_ids = list(initial_results.values_list("id", flat=True))
+        # Update timestamp to mark these pages as seen
+        search.last_checked_for_new_pages = timezone.now()
         search.save()
+
+        # Small delay to ensure new page has later timestamp
+        time.sleep(0.01)
 
         # Second execution - no new pages yet
         new_pages_second = get_new_pages(search)

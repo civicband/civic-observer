@@ -124,15 +124,17 @@ class TestSearchModel:
         assert search1.search_term in ["", None]
         assert search2.search_term in ["", None]
 
-    def test_search_stores_last_result_page_ids(self):
-        """Test that Search stores list of matching page IDs for change detection."""
+    def test_search_stores_last_checked_timestamp(self):
+        """Test that Search stores timestamp of last check for change detection."""
+        from django.utils import timezone
+
         search = SearchFactory()
-        search.last_result_page_ids = ["page-1", "page-2", "page-3"]
+        check_time = timezone.now()
+        search.last_checked_for_new_pages = check_time
         search.save()
 
         search.refresh_from_db()
-        assert search.last_result_page_ids == ["page-1", "page-2", "page-3"]
-        assert isinstance(search.last_result_page_ids, list)
+        assert search.last_checked_for_new_pages == check_time
 
     def test_search_tracks_result_count(self):
         """Test that Search tracks the number of matching pages."""
@@ -165,7 +167,7 @@ class TestSearchModel:
         # Create a search for "housing"
         search = SearchFactory(search_term="housing")
         search.municipalities.add(muni)
-        search.last_result_page_ids = []  # No previous results
+        search.last_checked_for_new_pages = None  # No previous check
         search.save()
 
         # Call update_search() - should find the new pages
@@ -177,21 +179,23 @@ class TestSearchModel:
         assert page1 in new_pages
         assert page2 in new_pages
 
-        # Should update last_result_page_ids
+        # Should update last_checked_for_new_pages timestamp
         search.refresh_from_db()
-        assert set(search.last_result_page_ids) == {page1.id, page2.id}
+        assert search.last_checked_for_new_pages is not None
         assert search.last_result_count == 2
 
     def test_search_update_with_no_changes_returns_empty(self):
         """Test that update_search() returns empty QuerySet when no new pages."""
         muni = MuniFactory(name="Oakland")
         doc = MeetingDocumentFactory(municipality=muni)
-        page = MeetingPageFactory(document=doc, text="Budget discussion")
+        _page = MeetingPageFactory(document=doc, text="Budget discussion")
 
-        # Create search that already has this page in results
+        # Create search and run initial check
+        from django.utils import timezone
+
         search = SearchFactory(search_term="budget")
         search.municipalities.add(muni)
-        search.last_result_page_ids = [page.id]
+        search.last_checked_for_new_pages = timezone.now()  # Already checked
         search.last_result_count = 1
         search.save()
 
@@ -214,7 +218,7 @@ class TestSearchModel:
         # Create "all updates" search (empty search_term)
         search = SearchFactory(search_term="")
         search.municipalities.add(muni)
-        search.last_result_page_ids = []
+        search.last_checked_for_new_pages = None  # No previous check
         search.save()
 
         # Should match ALL pages regardless of content

@@ -42,10 +42,12 @@ class TestDailyDigestTask:
         # Create some matching pages
         doc = MeetingDocumentFactory()
         search.municipalities.add(doc.municipality)
-        page = MeetingPageFactory(document=doc, text="Budget discussion for 2025")
+        _page = MeetingPageFactory(document=doc, text="Budget discussion for 2025")
 
-        # Mark search as having these results
-        search.last_result_page_ids = [page.id]
+        # Mark search as already checked (page created before this timestamp)
+        from django.utils import timezone
+
+        search.last_checked_for_new_pages = timezone.now()
         search.save()
 
         # Run daily digest task
@@ -174,10 +176,12 @@ class TestWeeklyDigestTask:
         # Create some matching pages
         doc = MeetingDocumentFactory()
         search.municipalities.add(doc.municipality)
-        page = MeetingPageFactory(document=doc, text="Housing development proposal")
+        _page = MeetingPageFactory(document=doc, text="Housing development proposal")
 
-        # Mark search as having these results
-        search.last_result_page_ids = [page.id]
+        # Mark search as already checked (page created before this timestamp)
+        from django.utils import timezone
+
+        search.last_checked_for_new_pages = timezone.now()
         search.save()
 
         # Run weekly digest task

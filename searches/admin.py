@@ -41,7 +41,11 @@ class SearchAdmin(admin.ModelAdmin):
         (
             "Results Tracking",
             {
-                "fields": ["last_result_count", "last_result_page_ids", "last_fetched"],
+                "fields": [
+                    "last_result_count",
+                    "last_checked_for_new_pages",
+                    "last_fetched",
+                ],
                 "classes": ["collapse"],
             },
         ),

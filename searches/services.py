@@ -59,20 +59,20 @@ def execute_search(search):
 
 def get_new_pages(search):
     """
-    Get pages that are new since last check (not in last_result_page_ids).
+    Get pages that are new since last check (created after last_checked_for_new_pages).
 
     Args:
         search: Search model instance
 
     Returns:
-        QuerySet of MeetingPage objects that are new (not in last_result_page_ids).
+        QuerySet of MeetingPage objects created since last check timestamp.
     """
     # Execute the search to get current results
     all_results = execute_search(search)
 
-    # Filter out pages that were in last results
-    if search.last_result_page_ids:
-        all_results = all_results.exclude(id__in=search.last_result_page_ids)
+    # Filter by creation timestamp to get only new pages
+    if search.last_checked_for_new_pages:
+        all_results = all_results.filter(created__gte=search.last_checked_for_new_pages)
 
     return all_results
 

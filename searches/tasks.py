@@ -22,7 +22,7 @@ def check_saved_search_for_updates(saved_search_id):
         saved_search_id: ID of the SavedSearch to check
 
     This function:
-    1. Gets new pages matching the search (not in last_result_page_ids)
+    1. Gets new pages matching the search (created since last_checked_for_new_pages)
     2. If notification_frequency is "immediate" and there are new results, sends email
     3. If notification_frequency is "daily" or "weekly", flags has_pending_results
     4. Updates the Search object's tracking fields

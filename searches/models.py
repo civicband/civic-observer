@@ -86,10 +86,10 @@ class Search(TimeStampedModel):
     )
 
     # Result tracking
-    last_result_page_ids = models.JSONField(
-        default=list,
+    last_checked_for_new_pages = models.DateTimeField(
+        null=True,
         blank=True,
-        help_text="List of page IDs from last search execution (for change detection)",
+        help_text="Timestamp of last check for new pages (for change detection)",
     )
     last_result_count = models.IntegerField(
         default=0, help_text="Number of pages matched in last search"
@@ -115,22 +115,20 @@ class Search(TimeStampedModel):
     def update_search(self):
         """
         Execute search against local MeetingPage database and return new pages.
-        Updates last_result_page_ids and last_result_count with current results.
+        Updates last_checked_for_new_pages timestamp and last_result_count.
 
         Returns:
             QuerySet of MeetingPage objects that are new since last check.
         """
         from .services import execute_search, get_new_pages
 
-        # Get only new pages (not in last_result_page_ids)
+        # Get only new pages (created since last check)
         new_pages = get_new_pages(self)
 
-        # Update tracking fields with ALL current results
+        # Update tracking fields with current timestamp and count
         all_current_results = execute_search(self)
-        self.last_result_page_ids = list(
-            all_current_results.values_list("id", flat=True)
-        )
         self.last_result_count = all_current_results.count()
+        self.last_checked_for_new_pages = timezone.now()
         self.last_fetched = timezone.now()
         self.save()
 

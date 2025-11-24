@@ -76,13 +76,15 @@ class TestCheckSavedSearchesAfterIngest:
         # Create a page and mark it as already seen
         doc = MeetingDocumentFactory()
         search.municipalities.add(doc.municipality)
-        page = MeetingPageFactory(
+        _page = MeetingPageFactory(
             document=doc,
             text="This page discusses the 2025 budget proposal.",
         )
 
-        # Mark the search as having already seen this page
-        search.last_result_page_ids = [page.id]
+        # Mark the search as having already checked (page created before this timestamp)
+        from django.utils import timezone
+
+        search.last_checked_for_new_pages = timezone.now()
         search.save()
 
         # Check the saved search
@@ -214,12 +216,12 @@ class TestCheckSavedSearchesAfterIngest:
         # Create multiple matching pages
         doc = MeetingDocumentFactory()
         search.municipalities.add(doc.municipality)
-        page1 = MeetingPageFactory(
+        _page1 = MeetingPageFactory(
             document=doc,
             page_number=1,
             text="Discussion about affordable housing programs.",
         )
-        page2 = MeetingPageFactory(
+        _page2 = MeetingPageFactory(
             document=doc,
             page_number=2,
             text="Housing development in the downtown area.",
@@ -233,10 +235,9 @@ class TestCheckSavedSearchesAfterIngest:
         # Verify only one email was sent
         assert len(mail.outbox) == 1
 
-        # Verify both pages are tracked
+        # Verify timestamp was updated
         search.refresh_from_db()
-        assert page1.id in search.last_result_page_ids
-        assert page2.id in search.last_result_page_ids
+        assert search.last_checked_for_new_pages is not None
 
 
 @pytest.mark.django_db
