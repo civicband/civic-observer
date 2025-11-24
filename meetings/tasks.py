@@ -34,6 +34,17 @@ def backfill_municipality_meetings_task(muni_id: UUID | str) -> dict[str, int]:
         muni = Muni.objects.get(pk=muni_id)
         stats = backfill_municipality_meetings(muni)
         logger.info(f"Background backfill completed for {muni.subdomain}: {stats}")
+
+        # Check all immediate searches for new results after ingest
+        try:
+            from searches.tasks import check_all_immediate_searches
+
+            check_all_immediate_searches()
+            logger.info("Checked all immediate searches for new results")
+        except Exception as e:
+            # Don't fail the backfill if search checking fails
+            logger.error(f"Failed to check immediate searches: {e}", exc_info=True)
+
         return stats
     except Muni.DoesNotExist:
         logger.error(f"Municipality with ID {muni_id} does not exist")
