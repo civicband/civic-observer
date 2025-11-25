@@ -17,7 +17,7 @@ The saved search system allows users to save search configurations and receive n
 1. **Webhook Processing** → **Backfill Task** → **Immediate Notifications**
    - When civic.band sends a webhook about new/updated municipalities
    - The backfill task ingests new meeting pages
-   - At the end of backfill, `check_all_immediate_searches()` is called
+   - At the end of backfill, `check_all_immediate_searches()` is enqueued as a background task
    - All saved searches with `notification_frequency="immediate"` are checked
    - Emails are sent immediately for any new matches
 
@@ -181,9 +181,10 @@ result = send_daily_digests()
 ### Immediate notifications not working
 
 1. Verify webhook processing is working
-2. Check that `check_all_immediate_searches()` is being called in backfill task
+2. Check that `check_all_immediate_searches()` is being enqueued in backfill task
 3. Check RQ worker is running: `docker-compose ps worker`
 4. Check worker logs: `docker-compose logs worker`
+5. Check RQ dashboard at `/django-rq/` (when logged in as admin)
 
 ### Digest emails sent at wrong time
 
