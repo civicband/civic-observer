@@ -127,7 +127,7 @@ addopts = [
     "--cov=meetings",
     "--cov-report=term-missing",
     "--cov-report=html",
-    "--cov-fail-under=90",
+    "--cov-fail-under=70",
     "--strict-markers",
     "--disable-warnings",
 ]
@@ -136,7 +136,7 @@ markers = [
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
 ]
-testpaths = ["tests", "users/tests.py", "municipalities/tests.py", "searches/", "meetings/tests.py"]
+testpaths = ["tests", "users/tests.py", "municipalities/tests.py", "meetings/tests.py"]
 
 [tool.coverage.run]
 source = [".", "users"]

@@ -1,0 +1,35 @@
+Your {{ frequency|title }} Civic Observer Digest
+
+Hello {{ user.email }},
+
+You have new results for your saved searches:
+
+{% for saved_search in saved_searches %}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{{ saved_search.name }}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+{% if saved_search.search.search_term %}Search: "{{ saved_search.search.search_term }}"{% else %}Mode: All updates{% endif %}
+
+{% with municipalities=saved_search.search.municipalities.all %}{% if municipalities %}Municipalities ({{ municipalities|length }}):
+  {% for muni in municipalities|slice:":5" %}• {{ muni.name }}, {{ muni.state }}
+  {% endfor %}{% if municipalities|length > 5 %}  ... and {{ municipalities|length|add:"-5" }} more{% endif %}
+{% endif %}{% endwith %}
+{% if saved_search.search.states %}States ({{ saved_search.search.states|length }}):
+  {% for state in saved_search.search.states|slice:":10" %}{{ state }}{% if not forloop.last %}, {% endif %}{% endfor %}{% if saved_search.search.states|length > 10 %} and {{ saved_search.search.states|length|add:"-10" }} more{% endif %}
+{% endif %}
+{% if saved_search.search.date_from or saved_search.search.date_to %}Date Range: {% if saved_search.search.date_from %}{{ saved_search.search.date_from|date:"M d, Y" }}{% else %}Start{% endif %} → {% if saved_search.search.date_to %}{{ saved_search.search.date_to|date:"M d, Y" }}{% else %}Present{% endif %}
+{% endif %}
+{% if saved_search.search.document_type and saved_search.search.document_type != "all" %}Document Type: {{ saved_search.search.get_document_type_display }}
+{% endif %}
+{% if saved_search.search.meeting_name_query %}Meeting Name: {{ saved_search.search.meeting_name_query }}
+{% endif %}
+View Details: https://civic.observer/searches/{{ saved_search.id }}/
+
+{% endfor %}
+
+---
+This is your {{ frequency }} digest from Civic Observer.
+To manage your saved searches, visit: https://civic.observer/searches/
+
+Civic Observer

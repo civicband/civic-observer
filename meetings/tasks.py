@@ -34,6 +34,24 @@ def backfill_municipality_meetings_task(muni_id: UUID | str) -> dict[str, int]:
         muni = Muni.objects.get(pk=muni_id)
         stats = backfill_municipality_meetings(muni)
         logger.info(f"Background backfill completed for {muni.subdomain}: {stats}")
+
+        # Enqueue check for immediate searches as a background task
+        try:
+            import django_rq
+
+            from searches.tasks import check_all_immediate_searches
+
+            queue = django_rq.get_queue("default")
+            job = queue.enqueue(check_all_immediate_searches)
+            logger.info(
+                f"Enqueued check for immediate searches (job ID: {job.id}) after backfill"
+            )
+        except Exception as e:
+            # Don't fail the backfill if search checking enqueue fails
+            logger.error(
+                f"Failed to enqueue immediate search check: {e}", exc_info=True
+            )
+
         return stats
     except Muni.DoesNotExist:
         logger.error(f"Municipality with ID {muni_id} does not exist")

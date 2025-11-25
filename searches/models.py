@@ -1,6 +1,5 @@
 import uuid
 
-import httpx
 from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.db import models
@@ -12,28 +11,126 @@ from municipalities.models import Muni
 
 
 class SearchManager(models.Manager):
-    def get_or_create_for_params(self, muni, search_term="", all_results=False):
-        """Get or create a Search object for the given parameters."""
-        # Normalize search_term
-        search_term = search_term.strip() if search_term else ""
+    def get_or_create_for_params(
+        self,
+        search_term="",
+        municipalities=None,
+        states=None,
+        date_from=None,
+        date_to=None,
+        document_type="all",
+        meeting_name_query=None,
+    ):
+        """
+        Get or create a Search object for the given parameters.
 
-        return self.get_or_create(
-            muni=muni,
+        Searches for existing Search with matching parameters including M2M municipalities.
+        Creates new Search only if no exact match is found.
+
+        Returns:
+            Search object (either existing or newly created)
+        """
+        # Normalize inputs
+        search_term = search_term.strip() if search_term else ""
+        meeting_name_query = meeting_name_query.strip() if meeting_name_query else ""
+        states = states or []
+        municipalities = municipalities or []
+
+        # Convert municipalities to list of IDs for comparison
+        if municipalities:
+            if hasattr(municipalities[0], "pk"):
+                # List of model instances
+                muni_ids = sorted([m.pk for m in municipalities])
+            else:
+                # Already a list of IDs
+                muni_ids = sorted(municipalities)
+        else:
+            muni_ids = []
+
+        # Find candidates with matching scalar fields
+        candidates = self.filter(
             search_term=search_term,
-            all_results=all_results,
+            states=states,
+            date_from=date_from,
+            date_to=date_to,
+            document_type=document_type,
+            meeting_name_query=meeting_name_query,
+        ).prefetch_related("municipalities")
+
+        # Check each candidate for matching municipalities
+        for candidate in candidates:
+            candidate_muni_ids = sorted(
+                candidate.municipalities.values_list("pk", flat=True)  # type: ignore[attr-defined]
+            )
+            if candidate_muni_ids == muni_ids:
+                # Found exact match
+                return candidate
+
+        # No match found - create new Search
+        search = self.create(  # type: ignore[assignment]
+            search_term=search_term,
+            states=states,
+            date_from=date_from,
+            date_to=date_to,
+            document_type=document_type,
+            meeting_name_query=meeting_name_query,
         )
+
+        # Set municipalities if provided
+        if municipalities:
+            search.municipalities.set(municipalities)  # type: ignore[attr-defined]
+
+        return search
 
 
 class Search(TimeStampedModel):
+    """
+    Represents a search configuration that queries local MeetingPage database.
+    Supports full filter capabilities including multiple municipalities, states,
+    date ranges, document types, and meeting name queries.
+    """
+
+    DOCUMENT_TYPE_CHOICES = [
+        ("all", "All"),
+        ("agenda", "Agenda"),
+        ("minutes", "Minutes"),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    muni = models.ForeignKey(Muni, on_delete=models.CASCADE, related_name="searches")
-    search_term = models.CharField(max_length=500, blank=True)
-    all_results = models.BooleanField(default=False)
+
+    # Filter fields
+    municipalities = models.ManyToManyField(Muni, related_name="searches", blank=True)
+    search_term = models.CharField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="Search query. Empty string for 'all updates' mode.",
+    )
+    states = models.JSONField(
+        default=list, blank=True, help_text="List of state codes to filter by"
+    )
+    date_from = models.DateField(null=True, blank=True)
+    date_to = models.DateField(null=True, blank=True)
+    document_type = models.CharField(
+        max_length=10, choices=DOCUMENT_TYPE_CHOICES, default="all"
+    )
+    meeting_name_query = models.CharField(
+        max_length=500,
+        blank=True,
+        default="",
+        help_text="Full-text search on meeting names",
+    )
+
+    # Result tracking
+    last_checked_for_new_pages = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text="Timestamp of last check for new pages (for change detection)",
+    )
+    last_result_count = models.IntegerField(
+        default=0, help_text="Number of pages matched in last search"
+    )
     last_fetched = models.DateTimeField(null=True, blank=True)
-    last_agenda_matched = models.DateTimeField(null=True, blank=True)
-    last_minutes_matched = models.DateTimeField(null=True, blank=True)
-    agenda_match_json = models.JSONField(null=True, blank=True)
-    minutes_match_json = models.JSONField(null=True, blank=True)
 
     objects = SearchManager()
 
@@ -41,57 +138,51 @@ class Search(TimeStampedModel):
         verbose_name = "Search"
         verbose_name_plural = "Searches"
         ordering = ["-created"]
-        unique_together = ["muni", "search_term", "all_results"]
 
     def __str__(self) -> str:
         if self.search_term:
-            return f"Search for '{self.search_term}' in {self.muni.name}"
-        return f"Search in {self.muni.name} (all results: {self.all_results})"
+            munis = self.municipalities.all()[:2]
+            muni_names = ", ".join(m.name for m in munis)
+            if self.municipalities.count() > 2:
+                muni_names += f", +{self.municipalities.count() - 2} more"
+            return f"Search for '{self.search_term}' in {muni_names or 'all municipalities'}"
+        return f"All updates search ({self.municipalities.count()} municipalities)"
 
-    def update_search(self) -> None:
-        # Implement logic to update search results based on the search_term and muni
-        subdomain = self.muni.subdomain
-        agenda_updated = False
-        minutes_updated = False
+    def update_search(self):
+        """
+        Execute search against local MeetingPage database and return new pages.
+        Updates last_checked_for_new_pages timestamp and last_result_count.
 
-        if self.all_results:
-            agendas_query = "/meetings/-/query.json?sql=select+distinct+meeting%2C+date%2C+count(page)+from+agendas+where+date+>%3D+current_date+group+by+meeting%2C+date+order+by+date+asc"
-            minutes_query = "/meetings/-/query.json?sql=select+distinct+meeting%2C+date%2C+count(page)+from+minutes+where+date+<%3D+current_date+group+by+meeting%2C+date+order+by+date+desc"
-        if self.search_term:
-            agendas_query = f"/meetings/-/query.json?sql=select+id%2C+meeting%2C+date%2C+page%2C+text%2C+page_image+from+agendas+where+rowid+in+(select+rowid+from+agendas_fts+where+agendas_fts+match+escape_fts(%3Asearch))+and+date+>%3D+current_date+order+by+date+asc&search={self.search_term.replace(' ', '+')}"
-            minutes_query = f"/meetings/-/query.json?sql=select+id%2C+meeting%2C+date%2C+page%2C+text%2C+page_image+from+minutes+where+rowid+in+(select+rowid+from+minutes_fts+where+minutes_fts+match+escape_fts(%3Asearch))+and+date+<%3D+current_date+order+by+date+desc&search={self.search_term.replace(' ', '+')}"
-        agendas_query_url = f"https://{subdomain}.civic.band{agendas_query}"
-        minutes_query_url = f"https://{subdomain}.civic.band{minutes_query}"
-        agendas_resp = httpx.get(agendas_query_url)
-        minutes_resp = httpx.get(minutes_query_url)
-        if (
-            agendas_resp.status_code == 200
-            and len(agendas_resp.json().get("rows", [])) > 0
-        ):
-            if agendas_resp.json()["rows"] != self.agenda_match_json:
-                self.agenda_match_json = agendas_resp.json()["rows"]
-                self.last_agenda_matched = timezone.now()
-                agenda_updated = True
-        if (
-            minutes_resp.status_code == 200
-            and len(minutes_resp.json().get("rows", [])) > 0
-        ):
-            if minutes_resp.json()["rows"] != self.minutes_match_json:
-                self.minutes_match_json = minutes_resp.json()["rows"]
-                self.last_minutes_matched = timezone.now()
-                minutes_updated = True
+        Returns:
+            QuerySet of MeetingPage objects that are new since last check.
+        """
+        from .services import execute_search, get_new_pages
 
-        # Save changes before sending notifications
+        # Get only new pages (created since last check)
+        new_pages = get_new_pages(self)
+
+        # Update tracking fields with current timestamp and count
+        all_current_results = execute_search(self)
+        self.last_result_count = all_current_results.count()
+        self.last_checked_for_new_pages = timezone.now()
+        self.last_fetched = timezone.now()
         self.save()
 
-        # Send notifications if there were updates
-        if agenda_updated or minutes_updated:
-            # Use select_related to avoid N+1 queries when accessing user.email
-            for saved_search in self.saved_by.select_related("user").all():  # type: ignore
-                saved_search.send_search_notification()
+        return new_pages
 
 
 class SavedSearch(TimeStampedModel):
+    """
+    Links a user to a Search configuration with notification preferences.
+    Supports configurable notification frequencies: immediate, daily, or weekly.
+    """
+
+    NOTIFICATION_FREQUENCY_CHOICES = [
+        ("immediate", "Immediate"),
+        ("daily", "Daily Digest"),
+        ("weekly", "Weekly Digest"),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -102,8 +193,23 @@ class SavedSearch(TimeStampedModel):
         Search, on_delete=models.CASCADE, related_name="saved_by"
     )
     name = models.CharField(max_length=200, help_text="A name for this saved search")
+
+    # Notification settings
+    notification_frequency = models.CharField(
+        max_length=10,
+        choices=NOTIFICATION_FREQUENCY_CHOICES,
+        default="immediate",
+        help_text="How often to send notifications for new results",
+    )
     last_notification_sent = models.DateTimeField(
         null=True, blank=True, help_text="When the last notification email was sent"
+    )
+    last_checked = models.DateTimeField(
+        default=timezone.now, help_text="When this saved search was last checked"
+    )
+    has_pending_results = models.BooleanField(
+        default=False,
+        help_text="True if there are new results waiting to be sent in digest",
     )
 
     class Meta:
@@ -115,12 +221,19 @@ class SavedSearch(TimeStampedModel):
     def __str__(self) -> str:
         return f"{self.name} - {self.user.email}"
 
-    def send_search_notification(self) -> None:
-        context = {"subscription": self}
+    def send_search_notification(self, new_pages=None) -> None:
+        """
+        Send notification email with new search results.
+
+        Args:
+            new_pages: QuerySet of MeetingPage objects (new matches).
+                      If None, uses legacy template format.
+        """
+        context = {"subscription": self, "new_pages": new_pages}
         txt_content = render_to_string("email/search_update.txt", context=context)
         html_content = get_template("email/search_update.html").render(context=context)
         msg = EmailMultiAlternatives(
-            subject=f"New Results for {self.search}",
+            subject=f"New Results for {self.name}",
             to=[self.user.email],
             from_email="Civic Observer <noreply@civic.observer>",
             body=txt_content,
@@ -130,6 +243,7 @@ class SavedSearch(TimeStampedModel):
 
         msg.send()
 
-        # Update the last notification sent timestamp
+        # Update the last notification sent timestamp and clear pending flag
         self.last_notification_sent = timezone.now()
-        self.save(update_fields=["last_notification_sent"])
+        self.has_pending_results = False
+        self.save(update_fields=["last_notification_sent", "has_pending_results"])
