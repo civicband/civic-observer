@@ -80,6 +80,7 @@ class SearchFactory(DjangoModelFactory):
         model = Search
 
     search_term = factory.Faker("word")  # type: ignore
+    meeting_name_query = ""  # CharField with blank=True, default=""
     states: list[str] = []
     document_type = "all"
 
