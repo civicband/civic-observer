@@ -274,25 +274,6 @@ class TestExecuteSearch:
         # Should still return the page (no meeting name filtering)
         assert page in results
 
-    def test_execute_search_with_none_meeting_name_query(self):
-        """
-        When meeting_name_query is None, search should not filter by meeting name.
-        """
-        from searches.services import execute_search
-
-        muni = MuniFactory(name="Berkeley")
-        doc = MeetingDocumentFactory(municipality=muni, meeting_name="City Council")
-        page = MeetingPageFactory(document=doc, text="General discussion")
-
-        # Create search with None meeting_name_query
-        search = SearchFactory(search_term="discussion", meeting_name_query=None)
-        search.municipalities.add(muni)
-
-        results = execute_search(search)
-
-        # Should still return the page (no meeting name filtering)
-        assert page in results
-
 
 @pytest.mark.django_db
 class TestGetNewPages:

@@ -10,7 +10,7 @@ from datetime import date
 import pytest
 
 from meetings.models import MeetingPage
-from searches.models import SavedSearch
+from searches.models import SavedSearch, Search
 from tests.factories import (
     MeetingDocumentFactory,
     MeetingPageFactory,
@@ -110,19 +110,22 @@ class TestSearchModel:
         assert search.meeting_name_query == "planning commission"
 
     def test_search_with_empty_term_for_all_updates(self):
-        """Test that empty/null search_term means 'all updates' mode."""
+        """Test that empty search_term means 'all updates' mode."""
         muni = MuniFactory(name="San Francisco")
 
-        # Empty string search_term
+        # Empty string search_term means "all updates" mode
         search1 = SearchFactory(search_term="")
         search1.municipalities.add(muni)
 
-        # Null search_term
-        search2 = SearchFactory(search_term=None)
-        search2.municipalities.add(muni)
+        # Verify empty string is stored (NULL not allowed after removing null=True)
+        assert search1.search_term == ""
 
-        assert search1.search_term in ["", None]
-        assert search2.search_term in ["", None]
+        # Verify that get_or_create_for_params also normalizes to empty string
+        search2 = Search.objects.get_or_create_for_params(
+            search_term="",
+            municipalities=[muni],
+        )
+        assert search2.search_term == ""
 
     def test_search_stores_last_checked_timestamp(self):
         """Test that Search stores timestamp of last check for change detection."""
@@ -356,15 +359,15 @@ class TestSearchModelIntegration:
         assert search.meeting_name_query == "planning"
 
     def test_search_filters_are_optional(self):
-        """Test that all filter fields are optional except search_term."""
-        # Create search with minimal data (just search_term can be empty for "all updates")
+        """Test that all filter fields are optional."""
+        # Create search with minimal data (empty strings for "all updates")
         search = SearchFactory(
             search_term="",  # Empty for "all updates"
             states=[],  # Empty list
             date_from=None,
             date_to=None,
             document_type="all",  # Default
-            meeting_name_query=None,
+            meeting_name_query="",  # Empty string (NULL not allowed)
         )
 
         assert search.search_term == ""
@@ -372,4 +375,4 @@ class TestSearchModelIntegration:
         assert search.date_from is None
         assert search.date_to is None
         assert search.document_type == "all"
-        assert search.meeting_name_query is None
+        assert search.meeting_name_query == ""  # CharField with blank=True, default=""

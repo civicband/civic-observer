@@ -259,8 +259,10 @@ class TestNotificationEdgeCases:
         # This should not raise an exception
         result = check_saved_search_for_updates(non_existent_uuid)
 
-        # Should return None without crashing
-        assert result is None
+        # Should return error status dict (improved error handling in Phase 2.2)
+        assert result is not None
+        assert result["status"] == "not_found"
+        assert result["saved_search_id"] == non_existent_uuid
 
     def test_no_email_sent_for_invalid_search(self):
         """
