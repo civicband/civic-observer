@@ -32,6 +32,7 @@ class SearchManager(models.Manager):
         """
         # Normalize inputs
         search_term = search_term.strip() if search_term else ""
+        meeting_name_query = meeting_name_query.strip() if meeting_name_query else ""
         states = states or []
         municipalities = municipalities or []
 
