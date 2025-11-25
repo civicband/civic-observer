@@ -57,13 +57,33 @@ class SavedSearchCreateView(CreateView):
         return super().dispatch(request, *args, **kwargs)
 
     def form_valid(self, form):
-        # TODO: Update duplicate check for new model structure in Phase 7
-        # For now, skip duplicate checking since model has changed
+        # Authentication check
         if not self.request.user.is_authenticated:
             return self.form_invalid(form)
 
-        # Save the form with the current user
+        # Save the form to create/get Search object and create SavedSearch
         self.object = form.save(user=self.request.user)
+
+        # Check if user already has another SavedSearch pointing to the same Search
+        # This happens if they try to save the same search parameters twice
+        existing_saved_search = (
+            SavedSearch.objects.filter(
+                user=self.request.user,
+                search=self.object.search,
+            )
+            .exclude(pk=self.object.pk)
+            .first()
+        )
+
+        if existing_saved_search:
+            # Delete the one we just created and show error
+            self.object.delete()
+            form.add_error(
+                None,
+                f"You already have a saved search for this: {existing_saved_search.name}",
+            )
+            return self.form_invalid(form)
+
         return redirect(self.success_url)  # type: ignore
 
 
@@ -92,35 +112,36 @@ class SavedSearchEditView(UpdateView):
         )
 
     def form_valid(self, form):
-        # Check if user already has this search saved (excluding current object)
-        municipality = form.cleaned_data["municipality"]
-        search_term = form.cleaned_data.get("search_term", "").strip()
-        all_results = form.cleaned_data.get("all_results", False)
-
-        # Check for existing saved search with same parameters
+        # Authentication check
         if not self.request.user.is_authenticated:
             return self.form_invalid(form)
 
+        # Check for duplicate saved search with same underlying Search object
+        # Since SearchManager.get_or_create_for_params now returns existing searches,
+        # we just need to check if user already saved that exact Search
+        # The form's save() method will get_or_create the Search object
+        # We need to check after that if user already has a SavedSearch for it
+        self.object = form.save(user=self.request.user)
+
+        # Check if user already has another SavedSearch pointing to the same Search
         existing_saved_search = (
             SavedSearch.objects.filter(
                 user=self.request.user,
-                search__muni=municipality,
-                search__search_term=search_term,
-                search__all_results=all_results,
+                search=self.object.search,
             )
             .exclude(pk=self.object.pk)
             .first()
         )
 
         if existing_saved_search:
+            # Delete the one we just created and show error
+            self.object.delete()
             form.add_error(
                 None,
                 f"You already have a saved search for this: {existing_saved_search.name}",
             )
             return self.form_invalid(form)
 
-        # Save the form with the current user
-        self.object = form.save(user=self.request.user)
         return redirect(self.success_url)  # type: ignore
 
 

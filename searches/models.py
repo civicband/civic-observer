@@ -23,14 +23,49 @@ class SearchManager(models.Manager):
     ):
         """
         Get or create a Search object for the given parameters.
-        Note: This is a simplified version. For exact matching with M2M fields,
-        you may need custom logic to find existing searches.
+
+        Searches for existing Search with matching parameters including M2M municipalities.
+        Creates new Search only if no exact match is found.
+
+        Returns:
+            Search object (either existing or newly created)
         """
-        # Normalize search_term
+        # Normalize inputs
         search_term = search_term.strip() if search_term else ""
         states = states or []
+        municipalities = municipalities or []
 
-        # Create the search (M2M relationships set after creation)
+        # Convert municipalities to list of IDs for comparison
+        if municipalities:
+            if hasattr(municipalities[0], "pk"):
+                # List of model instances
+                muni_ids = sorted([m.pk for m in municipalities])
+            else:
+                # Already a list of IDs
+                muni_ids = sorted(municipalities)
+        else:
+            muni_ids = []
+
+        # Find candidates with matching scalar fields
+        candidates = self.filter(
+            search_term=search_term,
+            states=states,
+            date_from=date_from,
+            date_to=date_to,
+            document_type=document_type,
+            meeting_name_query=meeting_name_query,
+        ).prefetch_related("municipalities")
+
+        # Check each candidate for matching municipalities
+        for candidate in candidates:
+            candidate_muni_ids = sorted(
+                candidate.municipalities.values_list("pk", flat=True)  # type: ignore[attr-defined]
+            )
+            if candidate_muni_ids == muni_ids:
+                # Found exact match
+                return candidate
+
+        # No match found - create new Search
         search = self.create(  # type: ignore[assignment]
             search_term=search_term,
             states=states,
@@ -67,8 +102,8 @@ class Search(TimeStampedModel):
     search_term = models.CharField(
         max_length=500,
         blank=True,
-        null=True,
-        help_text="Search query. Empty/null for 'all updates' mode.",
+        default="",
+        help_text="Search query. Empty string for 'all updates' mode.",
     )
     states = models.JSONField(
         default=list, blank=True, help_text="List of state codes to filter by"
@@ -81,7 +116,7 @@ class Search(TimeStampedModel):
     meeting_name_query = models.CharField(
         max_length=500,
         blank=True,
-        null=True,
+        default="",
         help_text="Full-text search on meeting names",
     )
 
