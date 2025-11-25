@@ -198,52 +198,85 @@ result = send_daily_digests()
 - Email sending is handled by Postmark (reliable delivery)
 - Database queries use `select_related()` and `prefetch_related()` for efficiency
 
-## Testing
+## Manual Testing
 
-### Test Immediate Notifications
+The notification system includes **Django admin actions** for easy testing directly from the admin interface.
 
-```python
-# In Django shell
-from searches.tasks import check_all_immediate_searches
+### Django Admin Actions
 
-check_all_immediate_searches()
-```
+In the Django admin at `/admin/searches/savedsearch/`, select one or more saved searches and use these actions from the dropdown:
 
-### Test Daily Digests
+#### 1. Check for new results and send notifications
+- Checks selected searches for new results
+- For immediate frequency: Sends notification if new results found
+- For daily/weekly: Marks as having pending results
+- Shows summary of actions taken
+
+**Use case:** Test the standard notification workflow as it would happen after a webhook/backfill.
+
+#### 2. Send test notification (immediate only)
+- Sends a test email with current results (up to 10 pages)
+- Useful for testing email templates and delivery
+- Works regardless of whether there are "new" results
+
+**Use case:** Verify email formatting and delivery without needing new data.
+
+#### 3. Mark as having pending results (for testing digests)
+- Manually flags selected searches as having pending results
+- Perfect for testing daily/weekly digest emails
+- After marking, run `send_daily_digests` or `send_weekly_digests` command
+
+**Use case:** Set up digest testing without waiting for actual new results.
+
+#### 4. Clear pending results flag
+- Removes pending results flag from selected searches
+- Useful for cleanup after testing
+
+**Use case:** Reset state after testing.
+
+### Quick Testing Workflow
+
+#### Test Immediate Notifications
+1. Go to `/admin/searches/savedsearch/`
+2. Select one or more saved searches with **immediate** frequency
+3. Choose **"Send test notification (immediate only)"** from the Actions dropdown
+4. Click "Go"
+5. Check your email for the notification
+
+#### Test Daily/Weekly Digests
+1. Go to `/admin/searches/savedsearch/`
+2. Select saved searches with **daily** or **weekly** frequency
+3. Choose **"Mark as having pending results (for testing digests)"** from Actions
+4. Click "Go"
+5. Run the digest command to send emails:
+   ```bash
+   # For daily digests
+   uv run python manage.py send_daily_digests
+
+   # For weekly digests
+   uv run python manage.py send_weekly_digests
+   ```
+6. Check your email for the digest
+
+#### Test the Full Workflow
+1. Create or update meeting pages (via webhook or admin backfill action)
+2. Go to `/admin/searches/savedsearch/`
+3. Select saved searches
+4. Choose **"Check for new results and send notifications"** from Actions
+5. Click "Go"
+6. For immediate: Check email immediately
+7. For daily/weekly: Run the appropriate digest command later
+
+### Testing with Docker
+
+When using Docker, run digest commands with:
 
 ```bash
-# Run the management command
-uv run python manage.py send_daily_digests
-```
+# Using just
+just manage send_daily_digests
+just manage send_weekly_digests
 
-### Test Weekly Digests
-
-```bash
-# Run the management command
-uv run python manage.py send_weekly_digests
-```
-
-### Test Email Templates
-
-```python
-from searches.models import SavedSearch
-from django.core.mail import send_mail
-from django.template.loader import render_to_string
-
-saved_searches = SavedSearch.objects.filter(
-    user__email="your-email@example.com", has_pending_results=True
-)[:3]
-
-html_content = render_to_string(
-    "email/digest_update.html", {"saved_searches": saved_searches, "frequency": "daily"}
-)
-
-# Send test email
-send_mail(
-    subject="Test Digest",
-    message="Test",
-    html_message=html_content,
-    from_email="noreply@civic.observer",
-    recipient_list=["your-email@example.com"],
-)
+# Using docker-compose directly
+docker-compose run --rm utility python manage.py send_daily_digests
+docker-compose run --rm utility python manage.py send_weekly_digests
 ```

@@ -1,9 +1,11 @@
 from django.contrib import admin
 from django.contrib.auth import get_user_model
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.html import format_html
 
 from .models import SavedSearch, Search
+from .tasks import check_saved_search_for_updates
 
 User = get_user_model()
 
@@ -93,6 +95,12 @@ class SavedSearchAdmin(admin.ModelAdmin):
         "last_notification_sent",
         "preview_email_links",
     ]
+    actions = [
+        "check_for_new_results",
+        "send_test_notification",
+        "mark_as_pending",
+        "clear_pending",
+    ]
 
     fieldsets = [
         ("Saved Search", {"fields": ["name", "user", "search"]}),
@@ -147,4 +155,97 @@ class SavedSearchAdmin(admin.ModelAdmin):
             "</ul>",
             html_url,
             txt_url,
+        )
+
+    # Admin Actions for Testing
+
+    @admin.action(description="Check for new results and send notifications")
+    def check_for_new_results(self, request, queryset):
+        """
+        Check selected saved searches for new results.
+        - For immediate: Sends notification if new results found
+        - For daily/weekly: Marks as having pending results
+        """
+        count = 0
+        immediate_sent = 0
+        pending_marked = 0
+
+        for saved_search in queryset.select_related("search", "user"):
+            check_saved_search_for_updates(saved_search.id)
+            count += 1
+
+            # Check if notification was sent or pending was marked
+            saved_search.refresh_from_db()
+            if saved_search.notification_frequency == "immediate":
+                # Check if last_notification_sent was just updated (within last minute)
+                if (
+                    saved_search.last_notification_sent
+                    and (
+                        timezone.now() - saved_search.last_notification_sent
+                    ).total_seconds()
+                    < 60
+                ):
+                    immediate_sent += 1
+            elif saved_search.has_pending_results:
+                pending_marked += 1
+
+        message_parts = [f"Checked {count} saved search(es)."]
+        if immediate_sent:
+            message_parts.append(f"Sent {immediate_sent} immediate notification(s).")
+        if pending_marked:
+            message_parts.append(
+                f"Marked {pending_marked} search(es) as having pending results."
+            )
+
+        self.message_user(request, " ".join(message_parts))
+
+    @admin.action(description="Send test notification (immediate only)")
+    def send_test_notification(self, request, queryset):
+        """
+        Send a test notification for selected searches.
+        Gets current results (not just new) and sends notification email.
+        Useful for testing email templates and delivery.
+        """
+        count = 0
+        for saved_search in queryset.select_related("search", "user"):
+            # Get current results (all matching pages)
+            from .services import execute_search
+
+            current_results = execute_search(saved_search.search)
+
+            if current_results.exists():
+                # Send notification with current results
+                saved_search.send_search_notification(new_pages=current_results[:10])
+                count += 1
+            else:
+                self.message_user(
+                    request,
+                    f"No results found for '{saved_search.name}' - no email sent.",
+                    level="warning",
+                )
+
+        if count:
+            self.message_user(
+                request, f"Sent {count} test notification(s) with current results."
+            )
+
+    @admin.action(description="Mark as having pending results (for testing digests)")
+    def mark_as_pending(self, request, queryset):
+        """
+        Mark selected searches as having pending results.
+        Useful for testing daily/weekly digest emails.
+        """
+        count = queryset.update(has_pending_results=True, last_checked=timezone.now())
+        self.message_user(
+            request,
+            f"Marked {count} saved search(es) as having pending results. "
+            "Use 'send_daily_digests' or 'send_weekly_digests' management commands to test.",
+        )
+
+    @admin.action(description="Clear pending results flag")
+    def clear_pending(self, request, queryset):
+        """Clear the pending results flag for selected searches."""
+        count = queryset.update(has_pending_results=False)
+        self.message_user(
+            request, f"Cleared pending results for {count} saved search(es)."
         )
