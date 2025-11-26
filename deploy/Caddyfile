@@ -1,0 +1,59 @@
+# Caddyfile for Civic Observer Blue-Green Deployment
+# The ACTIVE_PORT will be 8888 (blue) or 8889 (green)
+# Update this file and reload Caddy during deployment
+
+civic.observer {
+    # Reverse proxy to active deployment
+    # Default to blue (port 8888)
+    reverse_proxy localhost:8888 {
+        # Health check - automatically removes unhealthy backends
+        health_uri /health/
+        health_interval 10s
+        health_timeout 5s
+        health_status 200
+
+        # Graceful shutdown
+        fail_duration 30s
+        max_fails 3
+        unhealthy_status 503 504
+
+        # Forward headers
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up Host {host}
+    }
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    # Logging
+    log {
+        output file /var/log/caddy/civic-observer-access.log {
+            roll_size 100mb
+            roll_keep 10
+        }
+        format json
+    }
+
+    # Enable gzip compression
+    encode gzip
+
+    # Handle static files directly if Django isn't serving them
+    # (Currently Django serves them, so this is just for future)
+    # handle /static/* {
+    #     root * /opt/civic-observer/staticfiles
+    #     file_server
+    # }
+}
+
+# Internal health check endpoint
+:8080 {
+    respond /health "Caddy OK" 200
+}

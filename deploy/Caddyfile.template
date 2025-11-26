@@ -1,0 +1,53 @@
+# Caddyfile for Civic Observer Blue-Green Deployment
+# Replace {{ACTIVE_COLOR}} with 'blue' or 'green' during deployment
+
+# Main site
+civic.observer {
+    # Reverse proxy to active color
+    reverse_proxy {{ACTIVE_BACKEND}} {
+        # Health check - automatically removes unhealthy backends
+        health_uri /health/
+        health_interval 10s
+        health_timeout 5s
+        health_status 200
+
+        # Graceful shutdown handling
+        fail_duration 30s
+        max_fails 3
+        unhealthy_status 502 503 504
+
+        # Headers
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+    }
+
+    # Logging
+    log {
+        output file /var/log/caddy/civic-observer.log
+        format json
+    }
+
+    # Security headers
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "SAMEORIGIN"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        -Server
+    }
+
+    # Rate limiting (adjust as needed)
+    rate_limit {
+        zone dynamic {
+            key {remote_host}
+            events 100
+            window 1m
+        }
+    }
+}
+
+# Health check endpoint (for external monitoring)
+:8080 {
+    respond /health "OK" 200
+}

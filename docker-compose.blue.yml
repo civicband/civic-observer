@@ -1,0 +1,49 @@
+# Blue deployment stack
+# Runs on ports 8001 (web), extends production-base.yml
+
+x-blue-settings: &blue-settings
+  image: civic-observer:${VERSION:-latest}
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  env_file: .env.production
+  environment:
+    - DEPLOYMENT_COLOR=blue
+  restart: always
+  networks:
+    - civic-network
+
+services:
+  web-blue:
+    <<: *blue-settings
+    container_name: civic-web-blue
+    command: uvicorn config.asgi:application --host 0.0.0.0 --port 8000
+    entrypoint: ["/src/compose-entrypoint.sh"]
+    init: true
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8000/health/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    ports:
+      - "8888:8000"
+    labels:
+      - "civic.deployment.color=blue"
+      - "civic.deployment.service=web"
+
+  worker-blue:
+    <<: *blue-settings
+    container_name: civic-worker-blue
+    command: python manage.py rqworker default
+    entrypoint: ["/src/compose-entrypoint.sh"]
+    init: true
+    labels:
+      - "civic.deployment.color=blue"
+      - "civic.deployment.service=worker"
+
+networks:
+  civic-network:
+    external: true
