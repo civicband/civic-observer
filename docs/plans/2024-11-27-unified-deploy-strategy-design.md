@@ -160,21 +160,32 @@ rollback() {
 
 No Caddyfile changes needed. Caddy routes to whichever backend is healthy.
 
-#### 2c. Optional: Warm standby period
+#### 2c. Warm standby period (canary-style)
 
-For faster rollbacks, keep old color running for 10 minutes after deploy:
+Keep old color running for 10 minutes after deploy. With both containers healthy, Caddy routes traffic to both — effectively a canary deployment:
+
+- `lb_policy cookie` keeps existing users sticky to their backend
+- New users get load balanced between old and new (~50/50)
+- If new version has bugs, only ~50% of traffic is affected
+- Rollback is instant — just stop the new container
 
 ```bash
 # After successful health check of new color:
+echo "Canary period: both $OLD_COLOR and $TARGET_COLOR serving traffic..."
 echo "Keeping $OLD_COLOR running for 10 minutes..."
+
+# Monitor for issues during canary period
 sleep 600
 
 # Check if we should rollback (manual intervention or automated check)
 if [ -f "$DEPLOY_DIR/.rollback-requested" ]; then
-    rollback
-    rm "$DEPLOY_DIR/.rollback-requested"
+    # Instant rollback - just stop the new deployment
+    docker-compose -f docker-compose.$TARGET_COLOR.yml down
+    notify "rollback" "Rolled back: stopped $TARGET_COLOR, $OLD_COLOR still serving"
 else
+    # Canary successful - shut down old version
     docker-compose -f docker-compose.$OLD_COLOR.yml down
+    notify "success" "Canary complete: $TARGET_COLOR now sole backend"
 fi
 ```
 
@@ -391,14 +402,11 @@ Provides simple audit trail:
 8. **Add CI automation to civic-observer** (GitHub Actions calling shared script)
 9. **Migrate corkboard to shared deploy script**
 10. **Add deploy locking** (prevent collisions)
-11. **Optional: warm standby period** (faster rollbacks)
+11. **Add warm standby period** (10 min canary with instant rollback)
 12. **Optional: Caddy metrics + Grafana** (deeper observability)
 
 ## Decisions Made
 
 - **Shared deploy script location:** Separate `civic-infra` repo, synced to VPS via CI. Service repos SSH in and call scripts already on the server.
-
-## Open Questions
-
-- What notification channel? (Slack, Discord, email?)
-- How long should warm standby period be? (Suggest: 10 minutes)
+- **Notification channel:** Slack webhook
+- **Warm standby period:** 10 minutes, canary-style (both old and new serve traffic). Rollback is instant — just stop the new container.
