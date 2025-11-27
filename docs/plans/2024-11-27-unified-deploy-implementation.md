@@ -399,6 +399,8 @@ log_success "========================================="
 
 **Step 6: Create GitHub Actions workflow**
 
+Uses Tailscale SSH instead of SSH keys for better security (no long-lived keys, ACL-controlled access, audit logs).
+
 ```yaml
 # .github/workflows/sync-to-server.yml
 name: Sync scripts to server
@@ -408,32 +410,29 @@ on:
     branches: [main]
   workflow_dispatch:
 
+env:
+  VPS_HOSTNAME: your-vps-tailscale-hostname  # e.g., vps.tail1234.ts.net
+
 jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Sync scripts to VPS
-        uses: appleboy/scp-action@v0.1.7
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v2
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: deploy
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: "scripts/"
-          target: "/home/deploy/"
-          strip_components: 0
-          overwrite: true
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Sync scripts to VPS
+        run: |
+          rsync -avz --delete scripts/ deploy@${{ env.VPS_HOSTNAME }}:/home/deploy/scripts/
 
       - name: Make scripts executable
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.VPS_HOST }}
-          username: deploy
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            chmod +x /home/deploy/scripts/*.sh
-            chmod +x /home/deploy/scripts/lib/*.sh
+        run: |
+          ssh deploy@${{ env.VPS_HOSTNAME }} "chmod +x /home/deploy/scripts/*.sh /home/deploy/scripts/lib/*.sh"
 ```
 
 **Step 7: Create README.md**
@@ -484,8 +483,14 @@ touch /home/deploy/corkboard/.rollback-requested
 
 ## Required Secrets (GitHub)
 
-- `VPS_HOST` - Server hostname
-- `DEPLOY_SSH_KEY` - SSH private key for deploy user
+- `TS_OAUTH_CLIENT_ID` - Tailscale OAuth client ID
+- `TS_OAUTH_SECRET` - Tailscale OAuth client secret
+
+## Tailscale Setup
+
+1. Create OAuth client in Tailscale admin (Settings → OAuth clients)
+2. Create ACL tag `tag:ci` with SSH access to your VPS
+3. Add secrets to GitHub repo settings
 ```
 
 **Step 8: Initial commit**
@@ -514,6 +519,8 @@ cat /Users/phildini/code/civicband/civic-observer/.github/workflows/deploy-produ
 
 **Step 2: Update workflow to call shared script**
 
+Uses Tailscale SSH for secure, keyless deployment.
+
 ```yaml
 name: Deploy to Production
 
@@ -521,6 +528,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+
+env:
+  VPS_HOSTNAME: your-vps-tailscale-hostname  # e.g., vps.tail1234.ts.net
 
 jobs:
   build:
@@ -544,14 +554,16 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v2
         with:
-          host: ${{ secrets.VPS_HOST }}
-          username: deploy
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
-          script: |
-            /home/deploy/scripts/deploy.sh civic-observer ${{ needs.build.outputs.version }}
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Deploy via SSH
+        run: |
+          ssh deploy@${{ env.VPS_HOSTNAME }} "/home/deploy/scripts/deploy.sh civic-observer ${{ needs.build.outputs.version }}"
 ```
 
 **Step 3: Commit**
@@ -593,8 +605,12 @@ Update `(django-app)` and `civic.band` blocks similarly.
 ### 4.2: Create GitHub repo for public-works
 
 1. Create new repo at github.com/[org]/public-works
-2. Add secrets: `VPS_HOST`, `DEPLOY_SSH_KEY`
-3. Push local repo
+2. Push local repo
+3. Set up Tailscale OAuth:
+   - Create OAuth client in Tailscale admin console (Settings → OAuth clients)
+   - Create ACL tag `tag:ci` with SSH access to VPS
+   - Add `TS_OAUTH_CLIENT_ID` and `TS_OAUTH_SECRET` to GitHub repo secrets
+4. Update `VPS_HOSTNAME` in workflow file to match your Tailscale hostname
 
 ### 4.3: Set up UptimeRobot
 
