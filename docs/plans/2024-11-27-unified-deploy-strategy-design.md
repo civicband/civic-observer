@@ -188,9 +188,26 @@ All services deploy the same way:
 CI builds image → CI pushes to registry → CI SSHs to VPS → Deploy script runs
 ```
 
-#### 3b. Shared deploy script
+#### 3b. Shared deploy script (civic-infra repo)
 
-Create a parameterized script that works for all services:
+Deploy scripts live in a separate `civic-infra` repository and are deployed to the VPS. Service repos (civic-observer, corkboard) just SSH in and call the scripts that are already on the server.
+
+**civic-infra repo structure:**
+
+```
+civic-infra/
+├── scripts/
+│   ├── deploy.sh           # Main deploy script
+│   ├── rollback.sh         # Rollback helper
+│   └── lib/
+│       ├── colors.sh       # Blue/green logic
+│       ├── health.sh       # Health check functions
+│       └── notify.sh       # Notification functions
+└── .github/workflows/
+    └── sync-to-server.yml  # Deploys scripts to VPS
+```
+
+**The main deploy script:**
 
 ```bash
 #!/bin/bash
@@ -220,7 +237,38 @@ esac
 # ... rest of deploy logic using these variables
 ```
 
-**Where this lives:** Recommend a separate `civic-infra` repo that both CIs reference, keeping deploy logic unified and version-controlled.
+**civic-infra CI syncs scripts to server:**
+
+```yaml
+# civic-infra/.github/workflows/sync-to-server.yml
+name: Sync scripts to server
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Sync scripts to VPS
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: deploy
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: "scripts/*"
+          target: "/home/deploy/"
+          strip_components: 0
+```
+
+**Benefits:**
+- Service CIs stay simple — just SSH and call `/home/deploy/scripts/deploy.sh`
+- Update deploy logic once in civic-infra, all services pick it up automatically
+- No cross-repo access tokens needed
+- Scripts are version-controlled and deployed like any other code
 
 #### 3c. GitHub Actions for civic-observer
 
@@ -335,17 +383,22 @@ Provides simple audit trail:
 
 1. **Add health endpoint to corkboard** (unblocks everything else)
 2. **Update Caddyfile template in civic-band** (add health-proxy snippet, dual ports)
-3. **Simplify civic-observer deploy script** (remove Caddyfile editing)
-4. **Set up UptimeRobot** (quick win for visibility)
-5. **Add deploy notifications** (Slack/Discord webhook)
-6. **Create shared deploy script** (unify patterns)
-7. **Add CI automation to civic-observer** (GitHub Actions)
-8. **Add deploy locking** (prevent collisions)
-9. **Optional: warm standby period** (faster rollbacks)
-10. **Optional: Caddy metrics + Grafana** (deeper observability)
+3. **Create civic-infra repo** with shared deploy script
+4. **Set up civic-infra CI** to sync scripts to VPS
+5. **Simplify civic-observer deploy script** (remove Caddyfile editing, use shared script)
+6. **Set up UptimeRobot** (quick win for visibility)
+7. **Add deploy notifications** (Slack/Discord webhook in shared script)
+8. **Add CI automation to civic-observer** (GitHub Actions calling shared script)
+9. **Migrate corkboard to shared deploy script**
+10. **Add deploy locking** (prevent collisions)
+11. **Optional: warm standby period** (faster rollbacks)
+12. **Optional: Caddy metrics + Grafana** (deeper observability)
+
+## Decisions Made
+
+- **Shared deploy script location:** Separate `civic-infra` repo, synced to VPS via CI. Service repos SSH in and call scripts already on the server.
 
 ## Open Questions
 
-- Where should the shared deploy script live? (Recommend: separate `civic-infra` repo)
 - What notification channel? (Slack, Discord, email?)
 - How long should warm standby period be? (Suggest: 10 minutes)
