@@ -199,14 +199,14 @@ All services deploy the same way:
 CI builds image → CI pushes to registry → CI SSHs to VPS → Deploy script runs
 ```
 
-#### 3b. Shared deploy script (civic-infra repo)
+#### 3b. Shared deploy script (public-works repo)
 
-Deploy scripts live in a separate `civic-infra` repository and are deployed to the VPS. Service repos (civic-observer, corkboard) just SSH in and call the scripts that are already on the server.
+Deploy scripts live in a separate `public-works` repository and are deployed to the VPS. Service repos (civic-observer, corkboard) just SSH in and call the scripts that are already on the server.
 
-**civic-infra repo structure:**
+**public-works repo structure:**
 
 ```
-civic-infra/
+public-works/
 ├── scripts/
 │   ├── deploy.sh           # Main deploy script
 │   ├── rollback.sh         # Rollback helper
@@ -248,10 +248,10 @@ esac
 # ... rest of deploy logic using these variables
 ```
 
-**civic-infra CI syncs scripts to server:**
+**public-works CI syncs scripts to server:**
 
 ```yaml
-# civic-infra/.github/workflows/sync-to-server.yml
+# public-works/.github/workflows/sync-to-server.yml
 name: Sync scripts to server
 
 on:
@@ -277,7 +277,7 @@ jobs:
 
 **Benefits:**
 - Service CIs stay simple — just SSH and call `/home/deploy/scripts/deploy.sh`
-- Update deploy logic once in civic-infra, all services pick it up automatically
+- Update deploy logic once in public-works, all services pick it up automatically
 - No cross-repo access tokens needed
 - Scripts are version-controlled and deployed like any other code
 
@@ -394,8 +394,8 @@ Provides simple audit trail:
 
 1. **Add health endpoint to corkboard** (unblocks everything else)
 2. **Update Caddyfile template in civic-band** (add health-proxy snippet, dual ports)
-3. **Create civic-infra repo** with shared deploy script
-4. **Set up civic-infra CI** to sync scripts to VPS
+3. **Create public-works repo** with shared deploy script
+4. **Set up public-works CI** to sync scripts to VPS
 5. **Simplify civic-observer deploy script** (remove Caddyfile editing, use shared script)
 6. **Set up UptimeRobot** (quick win for visibility)
 7. **Add deploy notifications** (Slack/Discord webhook in shared script)
@@ -407,6 +407,6 @@ Provides simple audit trail:
 
 ## Decisions Made
 
-- **Shared deploy script location:** Separate `civic-infra` repo, synced to VPS via CI. Service repos SSH in and call scripts already on the server.
+- **Shared deploy script location:** Separate `public-works` repo, synced to VPS via CI. Service repos SSH in and call scripts already on the server.
 - **Notification channel:** Slack webhook
 - **Warm standby period:** 10 minutes, canary-style (both old and new serve traffic). Rollback is instant — just stop the new container.
