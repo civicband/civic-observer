@@ -70,5 +70,4 @@ volumes:
 
 networks:
   civic-network:
-    name: civic-network
-    driver: bridge
+    external: true
