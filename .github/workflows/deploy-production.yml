@@ -28,7 +28,8 @@ jobs:
 
       - name: Build and deploy on VPS
         run: |
-          ssh deploy@${{ env.VPS_HOSTNAME }} "
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            deploy@${{ env.VPS_HOSTNAME }} "
             cd /home/deploy/civic-observer &&
             git fetch origin main &&
             git checkout main &&
@@ -40,4 +41,5 @@ jobs:
       - name: Verify deployment
         run: |
           sleep 30  # Wait for deployment to complete
-          ssh deploy@${{ env.VPS_HOSTNAME }} "curl -f -s http://localhost:8888/health/ || curl -f -s http://localhost:8889/health/"
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+            deploy@${{ env.VPS_HOSTNAME }} "curl -f -s http://localhost:8888/health/ || curl -f -s http://localhost:8889/health/"
