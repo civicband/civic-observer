@@ -4,7 +4,8 @@
 set -euo pipefail
 
 DEPLOY_DIR="/home/deploy/civic-observer"
-STATE_FILE="$DEPLOY_DIR/.deployment-state"
+STATE_FILE="$DEPLOY_DIR/.deployment-state-civic-observer"
+DEPLOY_HISTORY="/home/deploy/deploy-history.log"
 
 # Colors
 GREEN='\033[0;32m'
@@ -74,18 +75,16 @@ echo
 echo -e "${BLUE}Caddy Status:${NC}"
 if systemctl is-active --quiet caddy; then
     echo -e "  ${GREEN}✓ Running${NC}"
-    # Show current backend from Caddyfile
-    BACKEND=$(grep -oP 'reverse_proxy localhost:\K[0-9]+' /etc/caddy/Caddyfile 2>/dev/null || echo "unknown")
-    echo -e "  Backend: port $BACKEND"
+    echo -e "  Backends: 8888 (blue), 8889 (green) - Caddy routes to healthy"
 else
     echo -e "  ${RED}✗ Not running${NC}"
 fi
 echo
 
 # Recent deployments (if log exists)
-if [ -f "/var/log/civic-observer/deployments.log" ]; then
+if [ -f "$DEPLOY_HISTORY" ]; then
     echo -e "${BLUE}Recent Deployments:${NC}"
-    tail -n 5 /var/log/civic-observer/deployments.log
+    grep "civic-observer" "$DEPLOY_HISTORY" | tail -n 5 || echo "  No recent deployments"
     echo
 fi
 
