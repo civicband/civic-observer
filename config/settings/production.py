@@ -19,6 +19,8 @@ DEBUG: bool = False  # type: ignore[no-redef]
 ALLOWED_HOSTS: list[str] = [  # type: ignore[no-redef]
     "civic.observer",
     "*.civic.observer",
+    "localhost",  # For health checks
+    "127.0.0.1",
 ]
 
 DATABASES: dict[str, dict[str, Any]] = {  # type: ignore[no-redef]
