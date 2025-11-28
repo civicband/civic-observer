@@ -4,7 +4,7 @@
 x-blue-settings: &blue-settings
   image: civic-observer:${VERSION:-latest}
   depends_on:
-    db:
+    pgbouncer:
       condition: service_healthy
     redis:
       condition: service_healthy
