@@ -1,0 +1,43 @@
+name: Deploy to Production
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
+env:
+  VPS_HOSTNAME: ${{ secrets.VPS_HOSTNAME }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    steps:
+      - name: Setup Tailscale
+        uses: tailscale/github-action@v2
+        with:
+          oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+          oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
+          tags: tag:ci
+
+      - name: Build and deploy on VPS
+        run: |
+          ssh deploy@${{ env.VPS_HOSTNAME }} "
+            cd /home/deploy/civic-observer &&
+            git fetch origin main &&
+            git checkout main &&
+            git pull origin main &&
+            docker build -t civic-observer:${{ github.sha }} . &&
+            /home/deploy/scripts/deploy.sh civic-observer ${{ github.sha }}
+          "
+
+      - name: Verify deployment
+        run: |
+          sleep 30  # Wait for deployment to complete
+          ssh deploy@${{ env.VPS_HOSTNAME }} "curl -f -s http://localhost:8888/health/ || curl -f -s http://localhost:8889/health/"

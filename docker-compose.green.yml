@@ -1,0 +1,49 @@
+# Green deployment stack
+# Runs on ports 9001 (web), extends production-base.yml
+
+x-green-settings: &green-settings
+  image: civic-observer:${VERSION:-latest}
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+  env_file: .env.production
+  environment:
+    - DEPLOYMENT_COLOR=green
+  restart: always
+  networks:
+    - civic-network
+
+services:
+  web-green:
+    <<: *green-settings
+    container_name: civic-web-green
+    command: uvicorn config.asgi:application --host 0.0.0.0 --port 8000
+    entrypoint: ["/src/compose-entrypoint.sh"]
+    init: true
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8000/health/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+    ports:
+      - "8889:8000"
+    labels:
+      - "civic.deployment.color=green"
+      - "civic.deployment.service=web"
+
+  worker-green:
+    <<: *green-settings
+    container_name: civic-worker-green
+    command: python manage.py rqworker default
+    entrypoint: ["/src/compose-entrypoint.sh"]
+    init: true
+    labels:
+      - "civic.deployment.color=green"
+      - "civic.deployment.service=worker"
+
+networks:
+  civic-network:
+    external: true
