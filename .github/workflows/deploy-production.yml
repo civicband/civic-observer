@@ -1,16 +1,23 @@
 name: Deploy to Production
 
 on:
-  push:
+  workflow_run:
+    workflows: ["CI"]
     branches: [main]
+    types: [completed]
   workflow_dispatch:
 
+concurrency:
+  group: production-deployment
+  cancel-in-progress: false
+
 env:
-  VPS_HOSTNAME: your-vps-tailscale-hostname  # TODO: Update this
+  VPS_HOSTNAME: ${{ secrets.VPS_HOSTNAME }}
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     outputs:
       version: ${{ steps.meta.outputs.version }}
     steps:
@@ -40,3 +47,8 @@ jobs:
       - name: Deploy via SSH
         run: |
           ssh deploy@${{ env.VPS_HOSTNAME }} "/home/deploy/scripts/deploy.sh civic-observer ${{ needs.build.outputs.version }}"
+
+      - name: Verify deployment
+        run: |
+          sleep 30  # Wait for deployment to complete
+          ssh deploy@${{ env.VPS_HOSTNAME }} "curl -f -s http://localhost:8888/health/ || curl -f -s http://localhost:8889/health/"
