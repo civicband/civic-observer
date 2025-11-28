@@ -15,27 +15,9 @@ env:
   VPS_HOSTNAME: ${{ secrets.VPS_HOSTNAME }}
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
-    outputs:
-      version: ${{ steps.meta.outputs.version }}
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Set version
-        id: meta
-        run: echo "version=${{ github.sha }}" >> $GITHUB_OUTPUT
-
-      - name: Build and push Docker image
-        run: |
-          # Build and push to your registry
-          docker build -t civic-observer:${{ steps.meta.outputs.version }} .
-          # docker push ...
-
-  deploy:
-    needs: build
-    runs-on: ubuntu-latest
     steps:
       - name: Setup Tailscale
         uses: tailscale/github-action@v2
@@ -44,9 +26,16 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
-      - name: Deploy via SSH
+      - name: Build and deploy on VPS
         run: |
-          ssh deploy@${{ env.VPS_HOSTNAME }} "/home/deploy/scripts/deploy.sh civic-observer ${{ needs.build.outputs.version }}"
+          ssh deploy@${{ env.VPS_HOSTNAME }} "
+            cd /home/deploy/civic-observer &&
+            git fetch origin main &&
+            git checkout main &&
+            git pull origin main &&
+            docker build -t civic-observer:${{ github.sha }} . &&
+            /home/deploy/scripts/deploy.sh civic-observer ${{ github.sha }}
+          "
 
       - name: Verify deployment
         run: |
