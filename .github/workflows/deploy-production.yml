@@ -1,51 +1,35 @@
 name: Deploy to Production
 
 on:
-  workflow_run:
-    workflows: ["CI"]
-    types: [completed]
+  push:
     branches: [main]
+  workflow_dispatch:
 
-# Prevent concurrent deployments
-concurrency:
-  group: production-deployment
-  cancel-in-progress: false
+env:
+  VPS_HOSTNAME: your-vps-tailscale-hostname  # TODO: Update this
 
 jobs:
-  deploy:
-    name: Blue-Green Deploy to Production
+  build:
     runs-on: ubuntu-latest
-
-    # Only run if CI passed
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
-
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.workflow_run.head_sha }}
+      - uses: actions/checkout@v4
 
-      - name: Set version tag
-        id: version
+      - name: Set version
+        id: meta
+        run: echo "version=${{ github.sha }}" >> $GITHUB_OUTPUT
+
+      - name: Build and push Docker image
         run: |
-          # Use commit SHA as version
-          echo "VERSION=main-${GITHUB_SHA::8}" >> $GITHUB_OUTPUT
-          echo "FULL_SHA=${GITHUB_SHA}" >> $GITHUB_OUTPUT
+          # Build and push to your registry
+          docker build -t civic-observer:${{ steps.meta.outputs.version }} .
+          # docker push ...
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ./Dockerfile
-          target: release
-          tags: civic-observer:${{ steps.version.outputs.VERSION }}
-          outputs: type=docker,dest=/tmp/civic-observer-${{ steps.version.outputs.VERSION }}.tar
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
       - name: Setup Tailscale
         uses: tailscale/github-action@v2
         with:
@@ -53,58 +37,6 @@ jobs:
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
-      - name: Transfer Docker image to VPS
+      - name: Deploy via SSH
         run: |
-          # Compress and transfer image
-          gzip /tmp/civic-observer-${{ steps.version.outputs.VERSION }}.tar
-
-          # Use Tailscale SSH (no SSH keys needed!)
-          scp /tmp/civic-observer-${{ steps.version.outputs.VERSION }}.tar.gz \
-              ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }}:/tmp/
-
-      - name: Deploy via Tailscale SSH
-        id: deploy
-        run: |
-          # Use Tailscale SSH (no SSH keys needed!)
-          ssh ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} << 'ENDSSH'
-          set -euo pipefail
-
-          # Load the new image
-          cd /tmp
-          gunzip -f civic-observer-${{ steps.version.outputs.VERSION }}.tar.gz
-          docker load < civic-observer-${{ steps.version.outputs.VERSION }}.tar
-          rm civic-observer-${{ steps.version.outputs.VERSION }}.tar
-
-          # Run blue-green deployment
-          cd /home/deploy/civic-observer
-          ./deploy/blue-green-deploy.sh ${{ steps.version.outputs.VERSION }}
-          ENDSSH
-
-      - name: Verify deployment
-        run: |
-          # Give it a moment to settle
-          sleep 10
-
-          # Check that the site is responding via Tailscale SSH
-          ssh ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} \
-              'curl -f -s -o /dev/null https://civic.observer/health/ || exit 1'
-
-      - name: Cleanup
-        if: always()
-        run: |
-          rm -f /tmp/civic-observer-*.tar*
-
-      - name: Notify on success
-        if: success()
-        run: |
-          echo "✅ Deployment successful!"
-          echo "Version: ${{ steps.version.outputs.VERSION }}"
-          echo "Commit: ${{ steps.version.outputs.FULL_SHA }}"
-
-      - name: Notify on failure
-        if: failure()
-        run: |
-          echo "❌ Deployment failed!"
-          echo "Version: ${{ steps.version.outputs.VERSION }}"
-          echo "Commit: ${{ steps.version.outputs.FULL_SHA }}"
-          echo "Check the logs above for details"
+          ssh deploy@${{ env.VPS_HOSTNAME }} "/home/deploy/scripts/deploy.sh civic-observer ${{ needs.build.outputs.version }}"
