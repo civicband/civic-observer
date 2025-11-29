@@ -7,7 +7,7 @@ from factory.django import DjangoModelFactory
 
 from meetings.models import MeetingDocument, MeetingPage
 from municipalities.models import Muni
-from notebooks.models import Notebook
+from notebooks.models import Notebook, Tag
 from searches.models import SavedSearch, Search
 
 User = get_user_model()
@@ -114,3 +114,11 @@ class NotebookFactory(DjangoModelFactory):
     user = factory.SubFactory(UserFactory)  # type: ignore
     name = factory.Faker("sentence", nb_words=3)  # type: ignore
     is_archived = False
+
+
+class TagFactory(DjangoModelFactory):
+    class Meta:
+        model = Tag
+
+    user = factory.SubFactory(UserFactory)  # type: ignore
+    name = factory.Faker("word")  # type: ignore

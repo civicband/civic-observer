@@ -1,6 +1,6 @@
 import pytest
 
-from tests.factories import NotebookFactory, UserFactory
+from tests.factories import NotebookFactory, TagFactory, UserFactory
 
 
 @pytest.mark.django_db
@@ -42,3 +42,43 @@ class TestNotebookModel:
         notebooks = list(Notebook.objects.filter(user=user))
         assert notebooks[0].name == "First Updated"
         assert notebooks[1].name == "Second"
+
+
+@pytest.mark.django_db
+class TestTagModel:
+    def test_create_tag(self):
+        """Test basic tag creation."""
+        user = UserFactory()
+        tag = TagFactory(user=user, name="budget")
+
+        assert tag.name == "budget"
+        assert tag.user == user
+        assert str(tag.id)
+
+    def test_tag_str_representation(self):
+        """Test string representation."""
+        tag = TagFactory(name="transportation")
+        assert str(tag) == "transportation"
+
+    def test_tag_unique_per_user(self):
+        """Test that tag names are unique per user."""
+        from django.db import IntegrityError
+
+        from notebooks.models import Tag
+
+        user = UserFactory()
+        TagFactory(user=user, name="budget")
+
+        with pytest.raises(IntegrityError):
+            Tag.objects.create(user=user, name="budget")
+
+    def test_different_users_can_have_same_tag_name(self):
+        """Test that different users can have tags with same name."""
+        user1 = UserFactory()
+        user2 = UserFactory()
+
+        tag1 = TagFactory(user=user1, name="budget")
+        tag2 = TagFactory(user=user2, name="budget")
+
+        assert tag1.name == tag2.name
+        assert tag1.user != tag2.user
