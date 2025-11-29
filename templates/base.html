@@ -45,6 +45,9 @@
                                 <a href="{% url 'munis:muni-list' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Municipalities</a>
                                 <a href="{% url 'meetings:meeting-search' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Search Meetings</a>
                                 <a href="{% url 'searches:savedsearch-list' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Saved Searches</a>
+                                {% if user.is_authenticated %}
+                                    <a href="{% url 'notebooks:notebook-list' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Notebooks</a>
+                                {% endif %}
                                 {% if user.is_staff %} <a href="{% url 'admin:index' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Admin</a> {% endif %}
                             </div>
                         </div>
@@ -86,6 +89,9 @@
                             <a href="{% url 'munis:muni-list' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors">Municipalities</a>
                             <a href="{% url 'meetings:meeting-search' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors">Search Meetings</a>
                             <a href="{% url 'searches:savedsearch-list' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors">Saved Searches</a>
+                            {% if user.is_authenticated %}
+                                <a href="{% url 'notebooks:notebook-list' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors">Notebooks</a>
+                            {% endif %}
                             {% if user.is_staff %}
                                 <a href="{% url 'admin:index' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors">Admin</a>
                             {% endif %}
