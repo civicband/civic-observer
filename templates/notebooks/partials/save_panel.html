@@ -1,0 +1,118 @@
+<!-- templates/notebooks/partials/save_panel.html -->
+<div id="save-panel-{{ page_id }}"
+     class="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4"
+     x-data="{ showNewTag: false }">
+    {% if saved_entry %}
+        <!-- Already saved state -->
+        <div class="flex items-center gap-2 text-sm text-gray-600">
+            <svg class="w-5 h-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z"></path>
+            </svg>
+            <span>Already saved to <strong>{{ saved_entry.notebook.name }}</strong></span>
+            <a href="{% url 'notebooks:entry-edit' saved_entry.notebook.pk saved_entry.pk %}"
+               class="text-indigo-600 hover:text-indigo-800 underline">
+                Edit entry
+            </a>
+        </div>
+        <button type="button"
+                hx-get="{% url 'notebooks:save-panel' %}?page_id={{ page_id }}&close=1"
+                hx-target="#save-panel-{{ page_id }}"
+                hx-swap="outerHTML"
+                class="mt-2 text-sm text-gray-500 hover:text-gray-700">
+            Close
+        </button>
+    {% else %}
+        <form hx-post="{% url 'notebooks:save-page' %}"
+              hx-target="#save-panel-{{ page_id }}"
+              hx-swap="outerHTML">
+            {% csrf_token %}
+            <input type="hidden" name="page_id" value="{{ page_id }}">
+
+            <div class="space-y-4">
+                <!-- Notebook Selection -->
+                <div>
+                    <label for="notebook-{{ page_id }}" class="block text-sm font-medium text-gray-700 mb-1">
+                        Save to notebook
+                    </label>
+                    <select name="notebook_id"
+                            id="notebook-{{ page_id }}"
+                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                        {% for notebook in notebooks %}
+                            <option value="{{ notebook.id }}"{% if forloop.first %} selected{% endif %}>
+                                {{ notebook.name }}
+                            </option>
+                        {% empty %}
+                            <option value="">Create new notebook</option>
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <!-- Note -->
+                <div>
+                    <label for="note-{{ page_id }}" class="block text-sm font-medium text-gray-700 mb-1">
+                        Note <span class="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <textarea name="note"
+                              id="note-{{ page_id }}"
+                              rows="2"
+                              placeholder="Add a note about why you're saving this..."
+                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"></textarea>
+                </div>
+
+                <!-- Tags -->
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">
+                        Tags <span class="text-gray-400 font-normal">(optional)</span>
+                    </label>
+
+                    {% if tags %}
+                        <div class="flex flex-wrap gap-2 mb-2">
+                            {% for tag in tags %}
+                                <label class="inline-flex items-center">
+                                    <input type="checkbox"
+                                           name="tags"
+                                           value="{{ tag.id }}"
+                                           class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                                    <span class="ml-1.5 text-sm text-gray-700">{{ tag.name }}</span>
+                                </label>
+                            {% endfor %}
+                        </div>
+                    {% endif %}
+
+                    <!-- New tag input -->
+                    <div x-show="showNewTag" x-transition class="mt-2">
+                        <div class="flex gap-2">
+                            <input type="text"
+                                   name="new_tag"
+                                   placeholder="Enter new tag name"
+                                   class="block flex-1 rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                        </div>
+                        <p class="mt-1 text-xs text-gray-500">Tag will be created when you save.</p>
+                    </div>
+
+                    <button type="button"
+                            @click="showNewTag = !showNewTag"
+                            class="mt-2 text-sm text-indigo-600 hover:text-indigo-800">
+                        <span x-show="!showNewTag">+ Add new tag</span>
+                        <span x-show="showNewTag">Cancel new tag</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="mt-4 flex items-center justify-end gap-2">
+                <button type="button"
+                        hx-get="{% url 'notebooks:save-panel' %}?page_id={{ page_id }}&close=1"
+                        hx-target="#save-panel-{{ page_id }}"
+                        hx-swap="outerHTML"
+                        class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700">
+                    Save to Notebook
+                </button>
+            </div>
+        </form>
+    {% endif %}
+</div>

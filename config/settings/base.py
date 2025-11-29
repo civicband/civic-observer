@@ -35,6 +35,7 @@ LOCAL_APPS: list[str] = [
     "municipalities",
     "searches",
     "meetings",
+    "notebooks",
 ]
 
 INSTALLED_APPS: list[str] = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS

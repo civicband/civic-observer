@@ -304,6 +304,20 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
         "document_type": document_type,
     }
 
+    # Add saved page IDs for authenticated users (for save button state)
+    if request.user.is_authenticated:
+        from notebooks.models import NotebookEntry
+
+        # Get page IDs that are saved to any of user's notebooks
+        saved_page_ids = set(
+            NotebookEntry.objects.filter(notebook__user=request.user).values_list(
+                "meeting_page_id", flat=True
+            )
+        )
+        context["saved_page_ids"] = saved_page_ids
+    else:
+        context["saved_page_ids"] = set()
+
     return HttpResponse(
         render_to_string(
             "meetings/partials/search_results.html",

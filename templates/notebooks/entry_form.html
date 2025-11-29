@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% load widget_tweaks %}
+
+{% block title %}Edit Entry - {{ notebook.name }} - CivicObserver{% endblock %}
+
+{% block content %}
+    <div class="max-w-2xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="bg-white shadow rounded-lg">
+            <div class="px-4 py-5 sm:p-6">
+                <nav class="text-sm text-gray-500 mb-4">
+                    <a href="{% url 'notebooks:notebook-list' %}" class="hover:text-indigo-600">Notebooks</a>
+                    <span class="mx-2">/</span>
+                    <a href="{% url 'notebooks:notebook-detail' notebook.pk %}" class="hover:text-indigo-600">{{ notebook.name }}</a>
+                    <span class="mx-2">/</span>
+                    <span class="text-gray-900">Edit Entry</span>
+                </nav>
+
+                <h1 class="text-2xl font-bold text-gray-900 mb-2">Edit Entry</h1>
+
+            <!-- Entry preview -->
+                <div class="mb-6 p-4 bg-gray-50 rounded-md">
+                    <h3 class="font-medium text-gray-900">
+                        {{ object.meeting_page.document.meeting_name }}
+                    </h3>
+                    <p class="text-sm text-gray-500 mt-1">
+                        {{ object.meeting_page.document.municipality.name }}
+                        · {{ object.meeting_page.document.meeting_date|date:"F d, Y" }}
+                        · Page {{ object.meeting_page.page_number }}
+                    </p>
+                </div>
+
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="space-y-6">
+                        <div>
+                            <label for="id_note" class="block text-sm font-medium text-gray-700">
+                                Note
+                            </label>
+                            <div class="mt-1">
+                                {% render_field form.note class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm" %}
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Tags
+                            </label>
+
+                            {% if form.tags.field.queryset.exists %}
+                                <div class="space-y-2 mb-4">
+                                    {% for tag in form.tags %}
+                                        <div class="flex items-center">
+                                            {{ tag.tag }}
+                                            <label for="{{ tag.id_for_label }}" class="ml-2 text-sm text-gray-700">
+                                                {{ tag.choice_label }}
+                                            </label>
+                                        </div>
+                                    {% endfor %}
+                                </div>
+                            {% else %}
+                                <p class="text-sm text-gray-500 mb-4">No tags yet. Create one below.</p>
+                            {% endif %}
+
+                            <!-- Create new tag -->
+                            <div class="border-t border-gray-200 pt-4">
+                                <label for="new_tag" class="block text-sm font-medium text-gray-700 mb-1">
+                                    Create new tag
+                                </label>
+                                <div class="flex gap-2">
+                                    <input type="text"
+                                           name="new_tag"
+                                           id="new_tag"
+                                           placeholder="Enter tag name"
+                                           class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                </div>
+                                <p class="mt-1 text-xs text-gray-500">New tag will be created and applied when you save.</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mt-6 flex items-center justify-end gap-3">
+                        <a href="{% url 'notebooks:notebook-detail' notebook.pk %}"
+                           class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                            Cancel
+                        </a>
+                        <button type="submit"
+                                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
+                            Save Changes
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+{% endblock content %}

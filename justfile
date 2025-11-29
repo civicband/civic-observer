@@ -2,7 +2,7 @@
 
 # Start all services (web, worker, db, redis)
 dev:
-    docker-compose up web worker
+    docker-compose up
 
 # Start development server with Tailwind CSS auto-compilation
 dev-tailwind:

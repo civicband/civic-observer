@@ -125,6 +125,7 @@ addopts = [
     "--cov=municipalities",
     "--cov=searches",
     "--cov=meetings",
+    "--cov=notebooks",
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-fail-under=70",

@@ -32,6 +32,7 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("login/", login_view, name="login"),
     path("meetings/", include("meetings.urls")),
     path("munis/", include("municipalities.urls")),
+    path("notebooks/", include("notebooks.urls")),
     path("searches/", include("searches.urls")),
     path("users/", include("users.urls")),
 ]

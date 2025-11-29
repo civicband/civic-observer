@@ -1,4 +1,4 @@
-{% load meeting_filters %}
+{% load meeting_filters notebook_filters %}
 
 {% if error %}
     <!-- Error State -->
@@ -124,7 +124,7 @@
 
                 <!-- Actions -->
                 <div class="mt-4 flex items-center justify-between pt-4 border-t border-gray-200">
-                    <div class="flex space-x-2">
+                    <div class="flex items-center space-x-2">
                         <a href="https://{{ result.document.municipality.subdomain }}.civic.band/meetings/{{ result.document.civic_band_table_name }}/{{ result.id }}"
                            target="_blank"
                            rel="noopener noreferrer"
@@ -135,11 +135,19 @@
                             </svg>
                             View on CivicBand
                         </a>
+                        {% if user.is_authenticated %}
+                            {% include "notebooks/partials/save_button.html" with page_id=result.id is_saved=result.id|in_set:saved_page_ids %}
+                        {% endif %}
                     </div>
                     <div class="text-xs text-gray-500">
                         ID: {{ result.id }}
                     </div>
                 </div>
+
+                <!-- Save Panel Placeholder (populated via HTMX) -->
+                {% if user.is_authenticated %}
+                    <div id="save-panel-{{ result.id }}"></div>
+                {% endif %}
             </div>
         {% endfor %}
     </div>
