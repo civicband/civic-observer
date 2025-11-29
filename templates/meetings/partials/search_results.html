@@ -143,6 +143,11 @@
                         ID: {{ result.id }}
                     </div>
                 </div>
+
+                <!-- Save Panel Placeholder (populated via HTMX) -->
+                {% if user.is_authenticated %}
+                    <div id="save-panel-{{ result.id }}"></div>
+                {% endif %}
             </div>
         {% endfor %}
     </div>

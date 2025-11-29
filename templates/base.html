@@ -12,6 +12,22 @@
         <!-- Alpine.js -->
         <script src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
 
+        <!-- CSRF token for HTMX -->
+        <meta name="csrf-token" content="{{ csrf_token }}">
+
+        <!-- HTMX CSRF Configuration -->
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                document.body.addEventListener('htmx:configRequest', function(evt) {
+                    // Get CSRF token from meta tag (most reliable)
+                    const csrfToken = document.querySelector('meta[name="csrf-token"]')?.content;
+                    if (csrfToken) {
+                        evt.detail.headers['X-CSRFToken'] = csrfToken;
+                    }
+                });
+            });
+        </script>
+
         <!-- Global Accessibility Styles -->
         <style>
             /* Focus visible styles for keyboard navigation */

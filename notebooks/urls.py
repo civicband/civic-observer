@@ -8,6 +8,7 @@ urlpatterns = [
     path("", views.NotebookListView.as_view(), name="notebook-list"),
     path("create/", views.NotebookCreateView.as_view(), name="notebook-create"),
     path("save-page/", views.SavePageView.as_view(), name="save-page"),
+    path("save-panel/", views.SavePanelView.as_view(), name="save-panel"),
     path("<uuid:pk>/", views.NotebookDetailView.as_view(), name="notebook-detail"),
     path("<uuid:pk>/edit/", views.NotebookEditView.as_view(), name="notebook-edit"),
     path(

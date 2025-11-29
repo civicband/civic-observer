@@ -42,12 +42,13 @@
                             </div>
                         </div>
 
-                        {% if form.tags.field.queryset.exists %}
-                            <div>
-                                <label class="block text-sm font-medium text-gray-700 mb-2">
-                                    Tags
-                                </label>
-                                <div class="space-y-2">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">
+                                Tags
+                            </label>
+
+                            {% if form.tags.field.queryset.exists %}
+                                <div class="space-y-2 mb-4">
                                     {% for tag in form.tags %}
                                         <div class="flex items-center">
                                             {{ tag.tag }}
@@ -57,8 +58,25 @@
                                         </div>
                                     {% endfor %}
                                 </div>
+                            {% else %}
+                                <p class="text-sm text-gray-500 mb-4">No tags yet. Create one below.</p>
+                            {% endif %}
+
+                            <!-- Create new tag -->
+                            <div class="border-t border-gray-200 pt-4">
+                                <label for="new_tag" class="block text-sm font-medium text-gray-700 mb-1">
+                                    Create new tag
+                                </label>
+                                <div class="flex gap-2">
+                                    <input type="text"
+                                           name="new_tag"
+                                           id="new_tag"
+                                           placeholder="Enter tag name"
+                                           class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                </div>
+                                <p class="mt-1 text-xs text-gray-500">New tag will be created and applied when you save.</p>
                             </div>
-                        {% endif %}
+                        </div>
                     </div>
 
                     <div class="mt-6 flex items-center justify-end gap-3">

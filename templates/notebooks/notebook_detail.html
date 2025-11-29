@@ -62,8 +62,13 @@
                                     · Page {{ entry.meeting_page.page_number }}
                                 </div>
                             </div>
-                            <div class="ml-4 flex-shrink-0 flex gap-2">
-                            <!-- Edit and Remove buttons will be added in future tasks -->
+                            <div class="ml-4 flex-shrink-0 flex items-center gap-2">
+                                <a href="{% url 'notebooks:entry-edit' notebook.pk entry.pk %}"
+                                   class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Edit</a>
+                                <form method="post" action="{% url 'notebooks:entry-delete' notebook.pk entry.pk %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-sm font-medium rounded-md text-red-600 bg-white hover:bg-red-50">Remove</button>
+                                </form>
                             </div>
                         </div>
 

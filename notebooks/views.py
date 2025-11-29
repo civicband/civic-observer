@@ -97,6 +97,9 @@ class SavePageView(LoginRequiredMixin, View):
     def post(self, request):
         page_id = request.POST.get("page_id")
         notebook_id = request.POST.get("notebook_id")
+        note = request.POST.get("note", "").strip()
+        new_tag = request.POST.get("new_tag", "").strip().lower()
+        tag_ids = request.POST.getlist("tags")
 
         # Get the page
         page = get_object_or_404(MeetingPage, id=page_id)
@@ -138,26 +141,72 @@ class SavePageView(LoginRequiredMixin, View):
             )
             return HttpResponse(html)
 
-        # Create entry
-        NotebookEntry.objects.create(
+        # Create entry with note
+        entry = NotebookEntry.objects.create(
             notebook=notebook,
             meeting_page=page,
+            note=note,
         )
+
+        # Handle tags
+        if tag_ids:
+            tags = Tag.objects.filter(user=request.user, id__in=tag_ids)
+            entry.tags.add(*tags)
+
+        # Handle new tag creation
+        if new_tag:
+            tag, _created = Tag.objects.get_or_create(
+                user=request.user,
+                name=new_tag,
+            )
+            entry.tags.add(tag)
 
         # Update notebook's modified time
         notebook.save()
 
         html = render_to_string(
-            "notebooks/partials/toast.html",
+            "notebooks/partials/save_success.html",
             {
-                "message": f"Saved to {notebook.name}",
-                "type": "success",
                 "page_id": page_id,
-                "is_saved": True,
                 "notebook": notebook,
-                "notebooks": Notebook.objects.filter(
-                    user=request.user, is_archived=False
-                ).exclude(id=notebook.id),
+                "entry": entry,
+            },
+            request=request,
+        )
+        return HttpResponse(html)
+
+
+class SavePanelView(LoginRequiredMixin, View):
+    """HTMX endpoint to render the save panel for a meeting page."""
+
+    def get(self, request):
+        page_id = request.GET.get("page_id")
+
+        # Handle close action - return empty placeholder
+        if request.GET.get("close"):
+            return HttpResponse(f'<div id="save-panel-{page_id}"></div>')
+
+        page = get_object_or_404(MeetingPage, id=page_id)
+
+        notebooks = Notebook.objects.filter(
+            user=request.user, is_archived=False
+        ).order_by("-modified")
+        tags = Tag.objects.filter(user=request.user).order_by("name")
+
+        # Check if already saved to any notebook
+        saved_entry = NotebookEntry.objects.filter(
+            notebook__user=request.user,
+            meeting_page=page,
+        ).first()
+
+        html = render_to_string(
+            "notebooks/partials/save_panel.html",
+            {
+                "page": page,
+                "page_id": page_id,
+                "notebooks": notebooks,
+                "tags": tags,
+                "saved_entry": saved_entry,
             },
             request=request,
         )
@@ -192,6 +241,20 @@ class EntryEditView(LoginRequiredMixin, UpdateView):
             Notebook, pk=self.kwargs["pk"], user=self.request.user
         )
         return context
+
+    def form_valid(self, form):
+        response = super().form_valid(form)
+
+        # Handle new tag creation
+        new_tag_name = self.request.POST.get("new_tag", "").strip().lower()
+        if new_tag_name:
+            tag, _created = Tag.objects.get_or_create(
+                user=self.request.user,  # type: ignore[misc]
+                name=new_tag_name,
+            )
+            self.object.tags.add(tag)
+
+        return response
 
 
 class EntryDeleteView(LoginRequiredMixin, View):

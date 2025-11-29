@@ -25,8 +25,9 @@ class TestSearchResultsSaveButton:
         response = client.get(url, {"query": "housing"})
 
         assert response.status_code == 200
-        assert "hx-post" in response.content.decode()
-        assert "save-page" in response.content.decode()
+        # Button now uses hx-get to open the save panel
+        assert "hx-get" in response.content.decode()
+        assert "save-panel" in response.content.decode()
 
     def test_save_button_shows_saved_state_for_already_saved(self, client):
         """Test save button shows filled state when page already saved."""

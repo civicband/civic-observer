@@ -1,17 +1,19 @@
 <!-- templates/notebooks/partials/save_button.html -->
-<button hx-post="{% url 'notebooks:save-page' %}"
-        hx-vals='{"page_id": "{{ page_id }}"}'
-        hx-target="this"
+<button id="save-btn-{{ page_id }}"
+        hx-get="{% url 'notebooks:save-panel' %}?page_id={{ page_id }}"
+        hx-target="#save-panel-{{ page_id }}"
         hx-swap="outerHTML"
-        class="inline-flex items-center px-2 py-1 text-sm {% if is_saved %}text-indigo-600{% else %}text-gray-500 hover:text-indigo-600{% endif %} transition-colors"
+        class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md {% if is_saved %}text-indigo-600 bg-indigo-50 hover:bg-indigo-100{% else %}text-gray-600 bg-gray-100 hover:bg-gray-200{% endif %} transition-colors"
         title="{% if is_saved %}Saved to notebook{% else %}Save to notebook{% endif %}">
     {% if is_saved %}
-        <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+        <svg class="w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
             <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z"></path>
         </svg>
+        Saved
     {% else %}
-        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path>
         </svg>
+        Save
     {% endif %}
 </button>
