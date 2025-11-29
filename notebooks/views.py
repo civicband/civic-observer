@@ -1,7 +1,15 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count, QuerySet
+from django.shortcuts import get_object_or_404, redirect
 from django.urls import reverse_lazy
-from django.views.generic import CreateView, DetailView, ListView
+from django.views import View
+from django.views.generic import (
+    CreateView,
+    DeleteView,
+    DetailView,
+    ListView,
+    UpdateView,
+)
 
 from .forms import NotebookForm
 from .models import Notebook
@@ -50,3 +58,30 @@ class NotebookDetailView(LoginRequiredMixin, DetailView):
             "entries__meeting_page__document__municipality",
             "entries__tags",
         )
+
+
+class NotebookEditView(LoginRequiredMixin, UpdateView):
+    model = Notebook
+    form_class = NotebookForm
+    template_name = "notebooks/notebook_form.html"
+    success_url = reverse_lazy("notebooks:notebook-list")
+
+    def get_queryset(self) -> QuerySet[Notebook]:
+        return Notebook.objects.filter(user=self.request.user)  # type: ignore[misc]
+
+
+class NotebookArchiveView(LoginRequiredMixin, View):
+    def post(self, request, pk):
+        notebook = get_object_or_404(Notebook, pk=pk, user=request.user)
+        notebook.is_archived = not notebook.is_archived
+        notebook.save()
+        return redirect("notebooks:notebook-list")
+
+
+class NotebookDeleteView(LoginRequiredMixin, DeleteView):  # type: ignore[misc]
+    model = Notebook
+    template_name = "notebooks/notebook_confirm_delete.html"
+    success_url = reverse_lazy("notebooks:notebook-list")
+
+    def get_queryset(self) -> QuerySet[Notebook]:
+        return Notebook.objects.filter(user=self.request.user)  # type: ignore[misc]

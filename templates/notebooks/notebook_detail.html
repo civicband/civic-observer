@@ -19,7 +19,27 @@
                 </p>
             </div>
             <div class="mt-4 sm:mt-0 flex gap-3">
-            <!-- Edit and Archive buttons will be added in future tasks -->
+                <a href="{% url 'notebooks:notebook-edit' notebook.pk %}"
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                    Edit
+                </a>
+                {% if notebook.is_archived %}
+                    <form method="post" action="{% url 'notebooks:notebook-archive' notebook.pk %}">
+                        {% csrf_token %}
+                        <button type="submit"
+                                class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                            Unarchive
+                        </button>
+                    </form>
+                {% else %}
+                    <form method="post" action="{% url 'notebooks:notebook-archive' notebook.pk %}">
+                        {% csrf_token %}
+                        <button type="submit"
+                                class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                            Archive
+                        </button>
+                    </form>
+                {% endif %}
             </div>
         </div>
 

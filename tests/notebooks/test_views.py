@@ -170,3 +170,90 @@ class TestNotebookDetailView:
         response = client.get(url)
 
         assert "No saved pages" in response.content.decode()
+
+
+@pytest.mark.django_db
+class TestNotebookEditView:
+    def test_can_edit_own_notebook(self, client):
+        """Test user can edit their own notebook."""
+        user = UserFactory()
+        notebook = NotebookFactory(user=user, name="Old Name")
+
+        client.force_login(user)
+        url = reverse("notebooks:notebook-edit", args=[notebook.pk])
+        response = client.post(url, {"name": "New Name"})
+
+        notebook.refresh_from_db()
+        assert response.status_code == 302
+        assert notebook.name == "New Name"
+
+    def test_cannot_edit_other_users_notebook(self, client):
+        """Test user cannot edit another user's notebook."""
+        user = UserFactory()
+        other_user = UserFactory()
+        notebook = NotebookFactory(user=other_user)
+
+        client.force_login(user)
+        url = reverse("notebooks:notebook-edit", args=[notebook.pk])
+        response = client.get(url)
+
+        assert response.status_code == 404
+
+
+@pytest.mark.django_db
+class TestNotebookArchiveView:
+    def test_can_archive_notebook(self, client):
+        """Test user can archive their notebook."""
+        user = UserFactory()
+        notebook = NotebookFactory(user=user, is_archived=False)
+
+        client.force_login(user)
+        url = reverse("notebooks:notebook-archive", args=[notebook.pk])
+        response = client.post(url)
+
+        notebook.refresh_from_db()
+        assert response.status_code == 302
+        assert notebook.is_archived is True
+
+    def test_can_unarchive_notebook(self, client):
+        """Test user can unarchive their notebook."""
+        user = UserFactory()
+        notebook = NotebookFactory(user=user, is_archived=True)
+
+        client.force_login(user)
+        url = reverse("notebooks:notebook-archive", args=[notebook.pk])
+        response = client.post(url)
+
+        notebook.refresh_from_db()
+        assert response.status_code == 302
+        assert notebook.is_archived is False
+
+
+@pytest.mark.django_db
+class TestNotebookDeleteView:
+    def test_can_delete_own_notebook(self, client):
+        """Test user can delete their own notebook."""
+        from notebooks.models import Notebook
+
+        user = UserFactory()
+        notebook = NotebookFactory(user=user)
+        notebook_pk = notebook.pk
+
+        client.force_login(user)
+        url = reverse("notebooks:notebook-delete", args=[notebook.pk])
+        response = client.post(url)
+
+        assert response.status_code == 302
+        assert not Notebook.objects.filter(pk=notebook_pk).exists()
+
+    def test_get_shows_confirmation(self, client):
+        """Test GET shows delete confirmation."""
+        user = UserFactory()
+        notebook = NotebookFactory(user=user, name="To Delete")
+
+        client.force_login(user)
+        url = reverse("notebooks:notebook-delete", args=[notebook.pk])
+        response = client.get(url)
+
+        assert response.status_code == 200
+        assert "To Delete" in response.content.decode()
