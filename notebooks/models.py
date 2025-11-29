@@ -58,3 +58,37 @@ class Tag(TimeStampedModel):
 
     def __str__(self) -> str:
         return self.name
+
+
+class NotebookEntry(TimeStampedModel):
+    """
+    A saved meeting page in a notebook with optional note and tags.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    notebook = models.ForeignKey(
+        Notebook,
+        on_delete=models.CASCADE,
+        related_name="entries",
+    )
+    meeting_page = models.ForeignKey(
+        "meetings.MeetingPage",
+        on_delete=models.CASCADE,
+        related_name="notebook_entries",
+    )
+    note = models.TextField(blank=True, default="")
+    tags = models.ManyToManyField(Tag, blank=True, related_name="entries")
+
+    class Meta:
+        verbose_name = "Notebook Entry"
+        verbose_name_plural = "Notebook Entries"
+        ordering = ["-created"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["notebook", "meeting_page"],
+                name="unique_page_per_notebook",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        return f"{self.notebook.name}: {self.meeting_page}"
