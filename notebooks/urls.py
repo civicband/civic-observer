@@ -18,4 +18,14 @@ urlpatterns = [
     path(
         "<uuid:pk>/delete/", views.NotebookDeleteView.as_view(), name="notebook-delete"
     ),
+    path(
+        "<uuid:pk>/entries/<uuid:entry_pk>/",
+        views.EntryEditView.as_view(),
+        name="entry-edit",
+    ),
+    path(
+        "<uuid:pk>/entries/<uuid:entry_pk>/delete/",
+        views.EntryDeleteView.as_view(),
+        name="entry-delete",
+    ),
 ]

@@ -15,7 +15,7 @@ from django.views.generic import (
 
 from meetings.models import MeetingPage
 
-from .forms import NotebookForm
+from .forms import NotebookEntryForm, NotebookForm
 from .models import Notebook, NotebookEntry
 
 
@@ -162,3 +162,45 @@ class SavePageView(LoginRequiredMixin, View):
             request=request,
         )
         return HttpResponse(html)
+
+
+class EntryEditView(LoginRequiredMixin, UpdateView):
+    model = NotebookEntry
+    form_class = NotebookEntryForm
+    template_name = "notebooks/entry_form.html"
+    pk_url_kwarg = "entry_pk"
+
+    def get_queryset(self) -> QuerySet[NotebookEntry]:
+        return NotebookEntry.objects.filter(  # type: ignore[misc]
+            notebook__user=self.request.user,
+            notebook_id=self.kwargs["pk"],
+        )
+
+    def get_form_kwargs(self):
+        kwargs = super().get_form_kwargs()
+        kwargs["user"] = self.request.user
+        return kwargs
+
+    def get_success_url(self):
+        return reverse_lazy(
+            "notebooks:notebook-detail", kwargs={"pk": self.kwargs["pk"]}
+        )
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["notebook"] = get_object_or_404(
+            Notebook, pk=self.kwargs["pk"], user=self.request.user
+        )
+        return context
+
+
+class EntryDeleteView(LoginRequiredMixin, View):
+    def post(self, request, pk, entry_pk):
+        entry = get_object_or_404(
+            NotebookEntry,
+            pk=entry_pk,
+            notebook_id=pk,
+            notebook__user=request.user,
+        )
+        entry.delete()
+        return redirect("notebooks:notebook-detail", pk=pk)
