@@ -1,0 +1,47 @@
+<!-- templates/notebooks/partials/toast.html -->
+<div id="notebook-toast-{{ page_id }}"
+     class="fixed bottom-4 right-4 z-50"
+     x-data="{ show: true }"
+     x-init="setTimeout(() => show = false, 4000)"
+     x-show="show"
+     x-transition:enter="transform ease-out duration-300 transition"
+     x-transition:enter-start="translate-y-2 opacity-0"
+     x-transition:enter-end="translate-y-0 opacity-100"
+     x-transition:leave="transition ease-in duration-100"
+     x-transition:leave-start="opacity-100"
+     x-transition:leave-end="opacity-0">
+    <div class="{% if type == 'success' %}bg-green-50 border-green-200{% elif type == 'info' %}bg-blue-50 border-blue-200{% else %}bg-gray-50 border-gray-200{% endif %} border rounded-lg shadow-lg p-4 flex items-center gap-3">
+        {% if type == 'success' %}
+            <svg class="h-5 w-5 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+            </svg>
+        {% else %}
+            <svg class="h-5 w-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+        {% endif %}
+        <span class="text-sm font-medium {% if type == 'success' %}text-green-800{% else %}text-blue-800{% endif %}">
+            {{ message }}
+        </span>
+        {% if notebooks %}
+            <div class="relative" x-data="{ open: false }">
+                <button @click="open = !open" class="text-sm text-indigo-600 hover:text-indigo-800 underline">
+                    Change
+                </button>
+                <div x-show="open"
+                     @click.away="open = false"
+                     class="absolute right-0 bottom-full mb-2 w-48 bg-white rounded-md shadow-lg border border-gray-200 py-1">
+                    {% for nb in notebooks %}
+                        <button hx-post="{% url 'notebooks:save-page' %}"
+                                hx-vals='{"page_id": "{{ page_id }}", "notebook_id": "{{ nb.id }}"}'
+                                hx-target="#notebook-toast-{{ page_id }}"
+                                hx-swap="outerHTML"
+                                class="block w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                            {{ nb.name }}
+                        </button>
+                    {% endfor %}
+                </div>
+            </div>
+        {% endif %}
+    </div>
+</div>

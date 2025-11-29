@@ -1,6 +1,8 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count, QuerySet
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
+from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.views import View
 from django.views.generic import (
@@ -11,8 +13,10 @@ from django.views.generic import (
     UpdateView,
 )
 
+from meetings.models import MeetingPage
+
 from .forms import NotebookForm
-from .models import Notebook
+from .models import Notebook, NotebookEntry
 
 
 class NotebookListView(LoginRequiredMixin, ListView):
@@ -85,3 +89,76 @@ class NotebookDeleteView(LoginRequiredMixin, DeleteView):  # type: ignore[misc]
 
     def get_queryset(self) -> QuerySet[Notebook]:
         return Notebook.objects.filter(user=self.request.user)  # type: ignore[misc]
+
+
+class SavePageView(LoginRequiredMixin, View):
+    """HTMX endpoint to save a meeting page to a notebook."""
+
+    def post(self, request):
+        page_id = request.POST.get("page_id")
+        notebook_id = request.POST.get("notebook_id")
+
+        # Get the page
+        page = get_object_or_404(MeetingPage, id=page_id)
+
+        # Get or create target notebook
+        if notebook_id:
+            notebook = get_object_or_404(Notebook, id=notebook_id, user=request.user)
+        else:
+            # Use most recently modified notebook, or create one
+            notebook_or_none = (
+                Notebook.objects.filter(user=request.user, is_archived=False)
+                .order_by("-modified")
+                .first()
+            )
+            if not notebook_or_none:
+                notebook = Notebook.objects.create(
+                    user=request.user,
+                    name="My Notebook",
+                )
+            else:
+                notebook = notebook_or_none
+
+        # Check if already saved
+        existing = NotebookEntry.objects.filter(
+            notebook=notebook,
+            meeting_page=page,
+        ).first()
+
+        if existing:
+            html = render_to_string(
+                "notebooks/partials/toast.html",
+                {
+                    "message": f"Already in {notebook.name}",
+                    "type": "info",
+                    "page_id": page_id,
+                    "is_saved": True,
+                },
+                request=request,
+            )
+            return HttpResponse(html)
+
+        # Create entry
+        NotebookEntry.objects.create(
+            notebook=notebook,
+            meeting_page=page,
+        )
+
+        # Update notebook's modified time
+        notebook.save()
+
+        html = render_to_string(
+            "notebooks/partials/toast.html",
+            {
+                "message": f"Saved to {notebook.name}",
+                "type": "success",
+                "page_id": page_id,
+                "is_saved": True,
+                "notebook": notebook,
+                "notebooks": Notebook.objects.filter(
+                    user=request.user, is_archived=False
+                ).exclude(id=notebook.id),
+            },
+            request=request,
+        )
+        return HttpResponse(html)
