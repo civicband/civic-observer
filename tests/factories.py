@@ -7,6 +7,7 @@ from factory.django import DjangoModelFactory
 
 from meetings.models import MeetingDocument, MeetingPage
 from municipalities.models import Muni
+from notebooks.models import Notebook
 from searches.models import SavedSearch, Search
 
 User = get_user_model()
@@ -104,3 +105,12 @@ class SavedSearchFactory(DjangoModelFactory):
     user = factory.SubFactory(UserFactory)  # type: ignore
     search = factory.SubFactory(SearchFactory)  # type: ignore
     name = factory.Faker("sentence", nb_words=3)  # type: ignore
+
+
+class NotebookFactory(DjangoModelFactory):
+    class Meta:
+        model = Notebook
+
+    user = factory.SubFactory(UserFactory)  # type: ignore
+    name = factory.Faker("sentence", nb_words=3)  # type: ignore
+    is_archived = False
