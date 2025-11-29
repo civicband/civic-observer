@@ -1,7 +1,13 @@
 import pytest
 from django.urls import reverse
 
-from tests.factories import NotebookFactory, UserFactory
+from tests.factories import (
+    MeetingDocumentFactory,
+    MeetingPageFactory,
+    NotebookEntryFactory,
+    NotebookFactory,
+    UserFactory,
+)
 
 
 @pytest.mark.django_db
@@ -112,3 +118,55 @@ class TestNotebookCreateView:
 
         assert response.status_code == 302
         assert reverse("notebooks:notebook-list") in response.url
+
+
+@pytest.mark.django_db
+class TestNotebookDetailView:
+    def test_requires_login(self, client):
+        """Test unauthenticated users are redirected."""
+        notebook = NotebookFactory()
+        url = reverse("notebooks:notebook-detail", args=[notebook.pk])
+        response = client.get(url)
+
+        assert response.status_code == 302
+
+    def test_shows_notebook_entries(self, client):
+        """Test view shows notebook entries."""
+        user = UserFactory()
+        notebook = NotebookFactory(user=user, name="My Research")
+        doc = MeetingDocumentFactory(meeting_name="CityCouncil")
+        page = MeetingPageFactory(document=doc, text="Budget discussion")
+        NotebookEntryFactory(notebook=notebook, meeting_page=page, note="Important!")
+
+        client.force_login(user)
+        url = reverse("notebooks:notebook-detail", args=[notebook.pk])
+        response = client.get(url)
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "My Research" in content
+        assert "CityCouncil" in content
+        assert "Important!" in content
+
+    def test_cannot_view_other_users_notebook(self, client):
+        """Test users cannot view other users' notebooks."""
+        user = UserFactory()
+        other_user = UserFactory()
+        notebook = NotebookFactory(user=other_user)
+
+        client.force_login(user)
+        url = reverse("notebooks:notebook-detail", args=[notebook.pk])
+        response = client.get(url)
+
+        assert response.status_code == 404
+
+    def test_empty_notebook_message(self, client):
+        """Test empty notebook shows helpful message."""
+        user = UserFactory()
+        notebook = NotebookFactory(user=user)
+
+        client.force_login(user)
+        url = reverse("notebooks:notebook-detail", args=[notebook.pk])
+        response = client.get(url)
+
+        assert "No saved pages" in response.content.decode()

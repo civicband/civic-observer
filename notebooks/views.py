@@ -1,7 +1,7 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count, QuerySet
 from django.urls import reverse_lazy
-from django.views.generic import CreateView, ListView
+from django.views.generic import CreateView, DetailView, ListView
 
 from .forms import NotebookForm
 from .models import Notebook
@@ -38,3 +38,15 @@ class NotebookCreateView(LoginRequiredMixin, CreateView):
     def form_valid(self, form):
         form.instance.user = self.request.user
         return super().form_valid(form)
+
+
+class NotebookDetailView(LoginRequiredMixin, DetailView):
+    model = Notebook
+    template_name = "notebooks/notebook_detail.html"
+    context_object_name = "notebook"
+
+    def get_queryset(self) -> QuerySet[Notebook]:
+        return Notebook.objects.filter(user=self.request.user).prefetch_related(  # type: ignore[misc]
+            "entries__meeting_page__document__municipality",
+            "entries__tags",
+        )
