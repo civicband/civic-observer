@@ -1,7 +1,9 @@
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count, QuerySet
-from django.views.generic import ListView
+from django.urls import reverse_lazy
+from django.views.generic import CreateView, ListView
 
+from .forms import NotebookForm
 from .models import Notebook
 
 
@@ -25,3 +27,14 @@ class NotebookListView(LoginRequiredMixin, ListView):
         context = super().get_context_data(**kwargs)
         context["show_archived"] = bool(self.request.GET.get("show_archived"))
         return context
+
+
+class NotebookCreateView(LoginRequiredMixin, CreateView):
+    model = Notebook
+    form_class = NotebookForm
+    template_name = "notebooks/notebook_form.html"
+    success_url = reverse_lazy("notebooks:notebook-list")
+
+    def form_valid(self, form):
+        form.instance.user = self.request.user
+        return super().form_valid(form)

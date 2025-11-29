@@ -67,3 +67,48 @@ class TestNotebookListView:
         response = client.get(url)
 
         assert "No notebooks yet" in response.content.decode()
+
+
+@pytest.mark.django_db
+class TestNotebookCreateView:
+    def test_requires_login(self, client):
+        """Test that unauthenticated users are redirected."""
+        url = reverse("notebooks:notebook-create")
+        response = client.get(url)
+
+        assert response.status_code == 302
+
+    def test_get_shows_form(self, client):
+        """Test GET request shows the form."""
+        user = UserFactory()
+        client.force_login(user)
+
+        url = reverse("notebooks:notebook-create")
+        response = client.get(url)
+
+        assert response.status_code == 200
+        assert "form" in response.context
+
+    def test_post_creates_notebook(self, client):
+        """Test POST creates a notebook for the user."""
+        from notebooks.models import Notebook
+
+        user = UserFactory()
+        client.force_login(user)
+
+        url = reverse("notebooks:notebook-create")
+        response = client.post(url, {"name": "New Research"})
+
+        assert response.status_code == 302
+        assert Notebook.objects.filter(user=user, name="New Research").exists()
+
+    def test_redirects_to_list_after_create(self, client):
+        """Test successful creation redirects to list."""
+        user = UserFactory()
+        client.force_login(user)
+
+        url = reverse("notebooks:notebook-create")
+        response = client.post(url, {"name": "New Research"})
+
+        assert response.status_code == 302
+        assert reverse("notebooks:notebook-list") in response.url

@@ -10,6 +10,15 @@
                 <h1 class="text-3xl font-bold tracking-tight text-gray-900">Notebooks</h1>
                 <p class="mt-2 text-sm text-gray-600">Save and organize meeting pages for your research</p>
             </div>
+            <div class="mt-4 sm:mt-0 flex gap-3">
+                <a href="{% url 'notebooks:notebook-create' %}"
+                   class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                    </svg>
+                    New Notebook
+                </a>
+            </div>
         </div>
 
     <!-- Archive Toggle -->
@@ -61,7 +70,16 @@
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
                 </svg>
                 <h3 class="mt-4 text-lg font-medium text-gray-900">No notebooks yet</h3>
-                <p class="mt-2 text-gray-500">Start saving meeting pages from search results to create notebooks.</p>
+                <p class="mt-2 text-gray-500">Create your first notebook to start saving meeting pages.</p>
+                <div class="mt-6">
+                    <a href="{% url 'notebooks:notebook-create' %}"
+                       class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                        <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                        Create Your First Notebook
+                    </a>
+                </div>
             </div>
         {% endif %}
     </div>
