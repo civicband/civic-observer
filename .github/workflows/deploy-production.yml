@@ -6,6 +6,12 @@ on:
     branches: [main]
     types: [completed]
   workflow_dispatch:
+    inputs:
+      canary_period:
+        description: 'Canary period in seconds'
+        required: false
+        default: '600'
+        type: string
 
 concurrency:
   group: production-deployment
@@ -27,6 +33,8 @@ jobs:
           tags: tag:ci
 
       - name: Build and deploy on VPS
+        env:
+          CANARY_PERIOD: ${{ inputs.canary_period || '600' }}
         run: |
           ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
             deploy@${{ env.VPS_HOSTNAME }} "
@@ -35,7 +43,7 @@ jobs:
             git checkout main &&
             git pull origin main &&
             docker build -t civic-observer:${{ github.sha }} . &&
-            /home/deploy/scripts/deploy.sh civic-observer ${{ github.sha }}
+            CANARY_PERIOD=$CANARY_PERIOD /home/deploy/scripts/deploy.sh civic-observer ${{ github.sha }}
           "
 
       - name: Verify deployment
