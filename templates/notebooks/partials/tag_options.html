@@ -1,0 +1,12 @@
+{% if tags %}
+    {% for tag in tags %}
+        <div class="flex items-center px-3 py-2 hover:bg-gray-100 cursor-pointer"
+             @click="selectTag('{{ tag.id }}', '{{ tag.name }}')">
+            <span class="text-sm text-gray-700">{{ tag.name }}</span>
+        </div>
+    {% endfor %}
+{% else %}
+    <div class="px-3 py-2 text-sm text-gray-500">
+        No tags yet. Type to create one.
+    </div>
+{% endif %}

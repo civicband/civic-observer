@@ -28,4 +28,6 @@ urlpatterns = [
         views.EntryDeleteView.as_view(),
         name="entry-delete",
     ),
+    path("tags/", views.TagListView.as_view(), name="tag-list"),
+    path("tags/create/", views.TagCreateView.as_view(), name="tag-create"),
 ]

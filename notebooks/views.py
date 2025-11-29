@@ -16,7 +16,7 @@ from django.views.generic import (
 from meetings.models import MeetingPage
 
 from .forms import NotebookEntryForm, NotebookForm
-from .models import Notebook, NotebookEntry
+from .models import Notebook, NotebookEntry, Tag
 
 
 class NotebookListView(LoginRequiredMixin, ListView):
@@ -204,3 +204,37 @@ class EntryDeleteView(LoginRequiredMixin, View):
         )
         entry.delete()
         return redirect("notebooks:notebook-detail", pk=pk)
+
+
+class TagListView(LoginRequiredMixin, View):
+    """Returns user's tags for autocomplete."""
+
+    def get(self, request):
+        tags = Tag.objects.filter(user=request.user).order_by("name")
+        html = render_to_string(
+            "notebooks/partials/tag_options.html",
+            {"tags": tags},
+            request=request,
+        )
+        return HttpResponse(html)
+
+
+class TagCreateView(LoginRequiredMixin, View):
+    """Creates a new tag or returns existing one."""
+
+    def post(self, request):
+        name = request.POST.get("name", "").strip().lower()
+        if not name:
+            return HttpResponse("", status=400)
+
+        tag, created = Tag.objects.get_or_create(
+            user=request.user,
+            name=name,
+        )
+
+        html = render_to_string(
+            "notebooks/partials/tag_chip.html",
+            {"tag": tag, "created": created},
+            request=request,
+        )
+        return HttpResponse(html)
