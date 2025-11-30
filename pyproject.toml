@@ -26,6 +26,7 @@ dependencies = [
     "django-stagedoor>0.1.0",
     "django-rq>=3.0.0",
     "redis>=5.0.0",
+    "atproto>=0.0.63",
 ]
 
 
@@ -127,6 +128,7 @@ addopts = [
     "--cov=meetings",
     "--cov=notebooks",
     "--cov=apikeys",
+    "--cov=notifications",
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-fail-under=70",

@@ -37,6 +37,7 @@ LOCAL_APPS: list[str] = [
     "meetings",
     "notebooks",
     "apikeys",
+    "notifications",
 ]
 
 INSTALLED_APPS: list[str] = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -156,3 +157,10 @@ RQ_SHOW_ADMIN_LINK = True
 
 # API Key Validation
 CORKBOARD_SERVICE_SECRET = env.str("CORKBOARD_SERVICE_SECRET", "")
+
+# Notification Channel Settings
+DISCORD_BOT_TOKEN = env.str("DISCORD_BOT_TOKEN", "")
+BLUESKY_BOT_HANDLE = env.str("BLUESKY_BOT_HANDLE", "")
+BLUESKY_BOT_PASSWORD = env.str("BLUESKY_BOT_PASSWORD", "")
+MASTODON_ACCESS_TOKEN = env.str("MASTODON_ACCESS_TOKEN", "")
+MASTODON_INSTANCE_URL = env.str("MASTODON_INSTANCE_URL", "https://mastodon.social")

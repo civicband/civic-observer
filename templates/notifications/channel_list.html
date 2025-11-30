@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+
+{% block content %}
+    <div class="max-w-4xl mx-auto py-8 px-4">
+        <div class="flex justify-between items-center mb-6">
+            <h1 class="text-2xl font-bold text-gray-900">Notification Channels</h1>
+            <button hx-get="{% url 'notifications:channel-create' %}"
+                    hx-target="#channel-form-container"
+                    hx-swap="innerHTML"
+                    class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
+                Add Channel
+            </button>
+        </div>
+
+        <p class="text-gray-600 mb-6">
+            Configure additional notification channels beyond email. When a saved search finds new results,
+            notifications will be sent to all enabled channels.
+        </p>
+
+        <div id="channel-form-container" class="mb-6"></div>
+
+        <div id="channel-list" class="bg-white shadow overflow-hidden sm:rounded-md">
+            {% if channels %}
+                <ul class="divide-y divide-gray-200">
+                    {% for channel in channels %}
+                        {% include "notifications/partials/channel_row.html" %}
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <div class="p-6 text-center text-gray-500">
+                    <p>No notification channels configured yet.</p>
+                    <p class="text-sm mt-2">Add a channel to receive notifications on Discord, Slack, Bluesky, or Mastodon.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% endblock content %}

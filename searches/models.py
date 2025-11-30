@@ -201,6 +201,11 @@ class SavedSearch(TimeStampedModel):
         default="immediate",
         help_text="How often to send notifications for new results",
     )
+    notification_channels = models.JSONField(
+        default=dict,
+        blank=True,
+        help_text='Channel overrides: {"channels": ["discord", "email"]}',
+    )
     last_notification_sent = models.DateTimeField(
         null=True, blank=True, help_text="When the last notification email was sent"
     )
@@ -220,6 +225,29 @@ class SavedSearch(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.name} - {self.user.email}"
+
+    def get_effective_channels(self):
+        """
+        Get the notification channels to use for this saved search.
+
+        If notification_channels has a "channels" key, use only those platforms.
+        Otherwise, return all enabled channels for the user.
+
+        Returns:
+            List of NotificationChannel objects.
+        """
+        from notifications.models import NotificationChannel
+
+        user_channels = NotificationChannel.objects.filter(
+            user=self.user,
+            is_enabled=True,
+        )
+
+        override = self.notification_channels.get("channels")
+        if override:
+            return list(user_channels.filter(platform__in=override))
+
+        return list(user_channels)
 
     def send_search_notification(self, new_pages=None) -> None:
         """
