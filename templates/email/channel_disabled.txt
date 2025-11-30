@@ -1,0 +1,21 @@
+Hello,
+
+Your {{ channel.get_platform_display }} notification channel has been disabled due to repeated delivery failures.
+
+Channel: {{ channel.get_platform_display }}
+Handle: {{ channel.handle }}
+
+This usually happens when:
+- Your username/handle has changed
+- The webhook URL is no longer valid
+- Privacy settings prevent receiving DMs
+
+To continue receiving notifications on {{ channel.get_platform_display }}, please:
+1. Visit https://civic.observer/notifications/channels/
+2. Delete the disabled channel
+3. Add a new channel with correct information
+
+You will continue to receive email notifications for your saved searches.
+
+Best regards,
+The Civic Observer Team

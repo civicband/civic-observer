@@ -48,11 +48,38 @@ class NotificationChannel(TimeStampedModel):
         return f"{self.platform} channel for {self.user.email}"
 
     def record_failure(self) -> None:
-        """Record a delivery failure. Disables channel after MAX_FAILURES."""
+        """Record a delivery failure. Disables channel after MAX_FAILURES and notifies user."""
         self.failure_count += 1
+        was_enabled = self.is_enabled
+
         if self.failure_count >= self.MAX_FAILURES:
             self.is_enabled = False
+
         self.save(update_fields=["failure_count", "is_enabled"])
+
+        # Send email notification if channel was just disabled
+        if was_enabled and not self.is_enabled:
+            self._send_disabled_notification()
+
+    def _send_disabled_notification(self) -> None:
+        """Send email to user that their notification channel was disabled."""
+        from django.core.mail import EmailMultiAlternatives
+        from django.template.loader import get_template, render_to_string
+
+        context = {"channel": self}
+        txt_content = render_to_string("email/channel_disabled.txt", context=context)
+        html_content = get_template("email/channel_disabled.html").render(
+            context=context
+        )
+
+        msg = EmailMultiAlternatives(
+            subject=f"Your {self.get_platform_display()} notification channel was disabled",
+            to=[self.user.email],
+            from_email="Civic Observer <noreply@civic.observer>",
+            body=txt_content,
+        )
+        msg.attach_alternative(html_content, "text/html")
+        msg.send()
 
     def record_success(self) -> None:
         """Record successful delivery. Resets failure count."""
