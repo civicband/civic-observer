@@ -2,7 +2,7 @@ import logging
 import re
 from typing import TYPE_CHECKING
 
-import httpx
+from atproto import Client, IdResolver
 from django.conf import settings
 
 from .base import NotificationSender
@@ -18,8 +18,6 @@ class BlueskySender(NotificationSender):
 
     # Bluesky handle: domain format without @ prefix
     HANDLE_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$")
-
-    ATP_BASE = "https://bsky.social/xrpc"
 
     def validate_handle(self, handle: str) -> bool:
         """Validate Bluesky handle format (domain-style, no @ prefix)."""
@@ -45,70 +43,34 @@ class BlueskySender(NotificationSender):
             return False
 
         try:
-            with httpx.Client() as client:
-                # Authenticate
-                auth_response = client.post(
-                    f"{self.ATP_BASE}/com.atproto.server.createSession",
-                    json={"identifier": identifier, "password": password},
-                )
+            # Create client and login
+            client = Client()
+            client.login(identifier, password)
 
-                if auth_response.status_code != 200:
-                    logger.error(f"Bluesky auth failed: {auth_response.status_code}")
-                    return False
+            # Resolve recipient handle to DID
+            resolver = IdResolver()
+            recipient_did = resolver.handle.resolve(channel.handle)
 
-                auth_data = auth_response.json()
-                access_token = auth_data.get("accessJwt")
-                sender_did = auth_data.get("did")
+            if not recipient_did:
+                logger.warning(f"Failed to resolve Bluesky handle: {channel.handle}")
+                return False
 
-                headers = {"Authorization": f"Bearer {access_token}"}
+            # Get DM client with chat proxy
+            dm_client = client.with_bsky_chat_proxy()
 
-                # Resolve recipient handle to DID
-                resolve_response = client.get(
-                    f"{self.ATP_BASE}/com.atproto.identity.resolveHandle",
-                    params={"handle": channel.handle},
-                )
+            # Get or create conversation
+            convo = dm_client.chat.bsky.convo.get_convo_for_members(
+                members=[client.me.did, recipient_did]
+            )
 
-                if resolve_response.status_code != 200:
-                    logger.warning(
-                        f"Failed to resolve Bluesky handle {channel.handle}: {resolve_response.status_code}"
-                    )
-                    return False
+            # Send message
+            dm_client.chat.bsky.convo.send_message(
+                convo_id=convo.convo.id,
+                message={"text": message},
+            )
 
-                recipient_did = resolve_response.json().get("did")
-
-                # Get or create conversation
-                convo_response = client.post(
-                    f"{self.ATP_BASE}/chat.bsky.convo.getConvoForMembers",
-                    headers=headers,
-                    json={"members": [sender_did, recipient_did]},
-                )
-
-                if convo_response.status_code != 200:
-                    logger.warning(
-                        f"Failed to get Bluesky convo: {convo_response.status_code}"
-                    )
-                    return False
-
-                convo_id = convo_response.json().get("convo", {}).get("id")
-
-                # Send message
-                send_response = client.post(
-                    f"{self.ATP_BASE}/chat.bsky.convo.sendMessage",
-                    headers=headers,
-                    json={
-                        "convoId": convo_id,
-                        "message": {"text": message},
-                    },
-                )
-
-                if send_response.status_code == 200:
-                    logger.info(f"Sent Bluesky DM to {channel.handle}")
-                    return True
-                else:
-                    logger.warning(
-                        f"Failed to send Bluesky DM: {send_response.status_code}"
-                    )
-                    return False
+            logger.info(f"Sent Bluesky DM to {channel.handle}")
+            return True
 
         except Exception as e:
             logger.exception(f"Error sending Bluesky notification: {e}")
