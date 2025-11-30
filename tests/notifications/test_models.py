@@ -165,3 +165,24 @@ class TestNotificationChannelModel:
 
         assert channel.failure_count == 0
         assert channel.last_used_at is not None
+
+
+@pytest.mark.django_db
+class TestNotificationChannelFactory:
+    def test_factory_creates_valid_channel(self):
+        """Test factory creates valid NotificationChannel."""
+        from tests.factories import NotificationChannelFactory
+
+        channel = NotificationChannelFactory()
+
+        assert channel.id is not None
+        assert channel.user is not None
+        assert channel.platform in ["discord", "slack", "bluesky", "mastodon"]
+
+    def test_factory_with_specific_platform(self):
+        """Test factory with specific platform."""
+        from tests.factories import NotificationChannelFactory
+
+        channel = NotificationChannelFactory(platform="bluesky")
+
+        assert channel.platform == "bluesky"

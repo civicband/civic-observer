@@ -9,6 +9,7 @@ from apikeys.models import APIKey
 from meetings.models import MeetingDocument, MeetingPage
 from municipalities.models import Muni
 from notebooks.models import Notebook, NotebookEntry, Tag
+from notifications.models import NotificationChannel
 from searches.models import SavedSearch, Search
 
 User = get_user_model()
@@ -145,3 +146,22 @@ class APIKeyFactory(DjangoModelFactory):
         lambda obj: APIKey.hash_key(f"{obj.prefix}_unique_key_{obj.name}")
     )
     is_active = True
+
+
+class NotificationChannelFactory(DjangoModelFactory):
+    class Meta:
+        model = NotificationChannel
+
+    user = factory.SubFactory(UserFactory)  # type: ignore
+    platform = factory.Iterator(["discord", "slack", "bluesky", "mastodon"])  # type: ignore
+    handle = factory.LazyAttribute(  # type: ignore
+        lambda obj: {
+            "discord": f"user{obj.user.id}#1234",
+            "slack": f"https://hooks.slack.com/services/T00/B00/{obj.user.id}",
+            "bluesky": f"user{obj.user.id}.bsky.social",
+            "mastodon": f"@user{obj.user.id}@mastodon.social",
+        }.get(obj.platform, f"user{obj.user.id}")
+    )
+    is_validated = False
+    is_enabled = True
+    failure_count = 0
