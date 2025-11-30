@@ -39,7 +39,13 @@
                 </div>
 
             <!-- Municipality Field -->
-                {% include "searches/partials/municipality_searchable_field.html" with field_name="municipality" field_id=form.municipality.id_for_label field_label=form.municipality.label field_help_text=form.municipality.help_text field_errors=form.municipality.errors field_value=form.municipality.value field_display=form.instance.search.muni.name|add:", "|add:form.instance.search.muni.state %}
+                {% with muni=form.instance.search.muni %}
+                    {% if muni %}
+                        {% include "searches/partials/municipality_searchable_field.html" with field_name="municipality" field_id=form.municipality.id_for_label field_label=form.municipality.label field_help_text=form.municipality.help_text field_errors=form.municipality.errors field_value=form.municipality.value field_display=muni.name|add:", "|add:muni.state %}
+                    {% else %}
+                        {% include "searches/partials/municipality_searchable_field.html" with field_name="municipality" field_id=form.municipality.id_for_label field_label=form.municipality.label field_help_text=form.municipality.help_text field_errors=form.municipality.errors field_value=form.municipality.value field_display="" %}
+                    {% endif %}
+                {% endwith %}
 
             <!-- Search Options -->
                 <div class="bg-gray-50 rounded-lg p-4">
