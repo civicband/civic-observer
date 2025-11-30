@@ -18,6 +18,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import URLPattern, URLResolver, include, path
 
+from apikeys.urls import internal_urlpatterns as apikeys_internal
 from users.views import datasette_auth, login_view
 
 from . import views
@@ -25,6 +26,8 @@ from . import views
 urlpatterns: list[URLPattern | URLResolver] = [
     path("", views.homepage, name="homepage"),
     path("admin/", admin.site.urls),
+    path("api-keys/", include("apikeys.urls")),
+    path("api/v1/", include((apikeys_internal, "apikeys_internal"))),
     path("auth/", include("stagedoor.urls", namespace="stagedoor")),
     path("datasette-auth/", datasette_auth, name="datasette_auth"),
     path("django-rq/", include("django_rq.urls")),
