@@ -34,6 +34,8 @@ class APIKeyCreateView(LoginRequiredMixin, View):
                 user=request.user,
                 expires_at=form.cleaned_data.get("expires_at"),
             )
+            # Store key in session for one-time download
+            request.session["new_api_key"] = raw_key
             html = render_to_string(
                 "apikeys/partials/key_created_modal.html",
                 {"api_key": api_key, "raw_key": raw_key},

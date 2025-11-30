@@ -8,12 +8,21 @@
         <div>
             <label for="id_name" class="block text-sm font-medium text-gray-700">Name</label>
             <div class="mt-1">{{ form.name }}</div>
-            <p class="mt-1 text-xs text-gray-500">A label to help you identify this key</p>
+            {% if form.name.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.name.errors.0 }}</p>
+            {% else %}
+                <p class="mt-1 text-xs text-gray-500">A label to help you identify this key</p>
+            {% endif %}
         </div>
 
         <div>
             <label for="id_expires_at" class="block text-sm font-medium text-gray-700">Expires (optional)</label>
             <div class="mt-1">{{ form.expires_at }}</div>
+            {% if form.expires_at.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.expires_at.errors.0 }}</p>
+            {% else %}
+                <p class="mt-1 text-xs text-gray-500">Leave empty for no expiration</p>
+            {% endif %}
         </div>
     </div>
 
