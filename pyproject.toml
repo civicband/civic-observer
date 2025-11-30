@@ -127,6 +127,7 @@ addopts = [
     "--cov=meetings",
     "--cov=notebooks",
     "--cov=apikeys",
+    "--cov=notifications",
     "--cov-report=term-missing",
     "--cov-report=html",
     "--cov-fail-under=70",
