@@ -139,6 +139,11 @@ class Search(TimeStampedModel):
         verbose_name_plural = "Searches"
         ordering = ["-created"]
 
+    @property
+    def muni(self) -> Muni | None:
+        """Return the first municipality for backwards compatibility with templates."""
+        return self.municipalities.first()
+
     def __str__(self) -> str:
         if self.search_term:
             munis = self.municipalities.all()[:2]
