@@ -8,7 +8,9 @@ from django.contrib.postgres.search import (
 from django.core.paginator import Paginator
 from django.db.models import F
 from django.http import HttpRequest, HttpResponse
+from django.shortcuts import redirect
 from django.template.loader import render_to_string
+from django.urls import reverse
 from django.views.decorators.http import require_GET
 from django.views.generic import TemplateView
 
@@ -214,9 +216,29 @@ def _generate_headlines_for_page(page_results, search_query):
     return [results_dict[pk] for pk in page_pks if pk in results_dict]
 
 
+def _is_htmx_request(request: HttpRequest) -> bool:
+    """Check if this is an HTMX request."""
+    return request.headers.get("HX-Request") == "true"
+
+
 @require_GET
 def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
-    """HTMX endpoint for searching meeting pages with full-text search and filters."""
+    """
+    Search meeting pages with full-text search and filters.
+
+    Handles both HTMX requests (returns partial) and regular requests (redirects
+    to main search page with results).
+    """
+    # For non-HTMX requests (e.g., when JavaScript fails to load on mobile),
+    # redirect to the main search page with query params preserved.
+    # The main page will then trigger the HTMX search on load.
+    if not _is_htmx_request(request):
+        # Build URL with existing query parameters
+        query_string = request.GET.urlencode()
+        base_url = reverse("meetings:meeting-search")
+        redirect_url = f"{base_url}?{query_string}" if query_string else base_url
+        return redirect(redirect_url)
+
     form = MeetingSearchForm(request.GET)
 
     # Default empty context

@@ -848,7 +848,9 @@ class TestMeetingSearchResults:
         from django.urls import reverse
 
         url = reverse("meetings:meeting-search-results")
-        response = authenticated_client.get(url, {"query": "budget"})
+        response = authenticated_client.get(
+            url, {"query": "budget"}, HTTP_HX_REQUEST="true"
+        )
 
         assert response.status_code == 200
         content = response.content.decode()
@@ -863,7 +865,9 @@ class TestMeetingSearchResults:
         from django.urls import reverse
 
         url = reverse("meetings:meeting-search-results")
-        response = authenticated_client.get(url, {"query": "budget"})
+        response = authenticated_client.get(
+            url, {"query": "budget"}, HTTP_HX_REQUEST="true"
+        )
 
         assert response.status_code == 200
         content = response.content.decode()
@@ -878,7 +882,9 @@ class TestMeetingSearchResults:
         from django.urls import reverse
 
         url = reverse("meetings:meeting-search-results")
-        response = authenticated_client.get(url, {"query": "budget"})
+        response = authenticated_client.get(
+            url, {"query": "budget"}, HTTP_HX_REQUEST="true"
+        )
 
         assert response.status_code == 200
         content = response.content.decode()
@@ -893,7 +899,7 @@ class TestMeetingSearchResults:
         muni = meeting_data["muni"]
         url = reverse("meetings:meeting-search-results")
         response = authenticated_client.get(
-            url, {"query": "budget", "municipalities": muni.id}
+            url, {"query": "budget", "municipalities": muni.id}, HTTP_HX_REQUEST="true"
         )
 
         assert response.status_code == 200
@@ -909,7 +915,9 @@ class TestMeetingSearchResults:
 
         url = reverse("meetings:meeting-search-results")
         response = authenticated_client.get(
-            url, {"query": "budget", "date_from": "2024-01-01", "date_to": "2024-01-31"}
+            url,
+            {"query": "budget", "date_from": "2024-01-01", "date_to": "2024-01-31"},
+            HTTP_HX_REQUEST="true",
         )
 
         assert response.status_code == 200
@@ -927,7 +935,9 @@ class TestMeetingSearchResults:
 
         url = reverse("meetings:meeting-search-results")
         response = authenticated_client.get(
-            url, {"query": "budget", "document_type": "agenda"}
+            url,
+            {"query": "budget", "document_type": "agenda"},
+            HTTP_HX_REQUEST="true",
         )
 
         assert response.status_code == 200
@@ -965,7 +975,9 @@ class TestMeetingSearchResults:
             )
 
         url = reverse("meetings:meeting-search-results")
-        response = authenticated_client.get(url, {"query": "common"})
+        response = authenticated_client.get(
+            url, {"query": "common"}, HTTP_HX_REQUEST="true"
+        )
 
         assert response.status_code == 200
         content = response.content.decode()
@@ -980,7 +992,9 @@ class TestMeetingSearchResults:
         from django.urls import reverse
 
         url = reverse("meetings:meeting-search-results")
-        response = authenticated_client.get(url, {"query": "nonexistentterm123"})
+        response = authenticated_client.get(
+            url, {"query": "nonexistentterm123"}, HTTP_HX_REQUEST="true"
+        )
 
         assert response.status_code == 200
         content = response.content.decode()
@@ -995,7 +1009,9 @@ class TestMeetingSearchResults:
         url = reverse("meetings:meeting-search-results")
         # Invalid date range
         response = authenticated_client.get(
-            url, {"date_from": "2024-12-31", "date_to": "2024-01-01"}
+            url,
+            {"date_from": "2024-12-31", "date_to": "2024-01-01"},
+            HTTP_HX_REQUEST="true",
         )
 
         assert response.status_code == 200
@@ -1009,7 +1025,9 @@ class TestMeetingSearchResults:
         from django.urls import reverse
 
         url = reverse("meetings:meeting-search-results")
-        response = authenticated_client.get(url, {"query": "budget"})
+        response = authenticated_client.get(
+            url, {"query": "budget"}, HTTP_HX_REQUEST="true"
+        )
 
         assert response.status_code == 200
         content = response.content.decode()
@@ -1023,7 +1041,7 @@ class TestMeetingSearchResults:
         from django.urls import reverse
 
         url = reverse("meetings:meeting-search-results")
-        response = authenticated_client.get(url, {})
+        response = authenticated_client.get(url, {}, HTTP_HX_REQUEST="true")
 
         assert response.status_code == 200
         content = response.content.decode()
@@ -1046,6 +1064,7 @@ class TestMeetingSearchResults:
                 "date_to": "2024-01-31",
                 "document_type": "agenda",
             },
+            HTTP_HX_REQUEST="true",
         )
 
         assert response.status_code == 200
@@ -1063,7 +1082,9 @@ class TestMeetingSearchResults:
         # Search for "budget" but only in Council meetings
         # Note: "Council" matches "CityCouncil" after CamelCase splitting
         response = authenticated_client.get(
-            url, {"query": "budget", "meeting_name_query": "Council"}
+            url,
+            {"query": "budget", "meeting_name_query": "Council"},
+            HTTP_HX_REQUEST="true",
         )
 
         assert response.status_code == 200
@@ -1086,6 +1107,7 @@ class TestMeetingSearchResults:
                 "query": "budget OR housing",
                 "meeting_name_query": "Council OR Planning",
             },
+            HTTP_HX_REQUEST="true",
         )
 
         assert response.status_code == 200
@@ -1105,7 +1127,9 @@ class TestMeetingSearchResults:
         # This should find doc3 (CityCouncil with housing) but NOT doc2 (PlanningBoard with housing)
         # Note: "Council" matches "CityCouncil" but NOT "PlanningBoard" after CamelCase splitting
         response = authenticated_client.get(
-            url, {"query": "housing", "meeting_name_query": "Council"}
+            url,
+            {"query": "housing", "meeting_name_query": "Council"},
+            HTTP_HX_REQUEST="true",
         )
 
         assert response.status_code == 200
@@ -1127,7 +1151,7 @@ class TestMeetingSearchResults:
         url = reverse("meetings:meeting-search-results")
         # Search with query but empty meeting_name_query
         response = authenticated_client.get(
-            url, {"query": "budget", "meeting_name_query": ""}
+            url, {"query": "budget", "meeting_name_query": ""}, HTTP_HX_REQUEST="true"
         )
 
         assert response.status_code == 200
@@ -1145,7 +1169,9 @@ class TestMeetingSearchResults:
         url = reverse("meetings:meeting-search-results")
         # Search using "Council" which will match CityCouncil after CamelCase splitting
         response = authenticated_client.get(
-            url, {"query": "budget", "meeting_name_query": "Council"}
+            url,
+            {"query": "budget", "meeting_name_query": "Council"},
+            HTTP_HX_REQUEST="true",
         )
 
         assert response.status_code == 200
@@ -1154,3 +1180,17 @@ class TestMeetingSearchResults:
         # Should show meeting name query in active filters
         assert "Council" in content
         assert "Meeting:" in content or "meeting" in content.lower()
+
+    def test_non_htmx_request_redirects_to_search_page(
+        self, authenticated_client, meeting_data
+    ):
+        """Test that non-HTMX requests redirect to main search page."""
+        from django.urls import reverse
+
+        url = reverse("meetings:meeting-search-results")
+        # Request without HTMX header should redirect
+        response = authenticated_client.get(url, {"query": "budget"})
+
+        assert response.status_code == 302
+        assert "/meetings/search/" in response.url
+        assert "query=budget" in response.url
