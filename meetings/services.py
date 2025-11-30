@@ -7,6 +7,7 @@ from datetime import date
 from typing import Any
 
 import httpx
+from django.conf import settings
 from django.db import transaction
 from django.utils import timezone
 
@@ -106,7 +107,13 @@ def _backfill_document_type(
     base_url = f"https://{muni.subdomain}.civic.band/meetings/{table_name}.json"
 
     try:
-        with httpx.Client(timeout=timeout) as client:
+        # Build headers with service secret for authentication
+        headers = {}
+        service_secret = getattr(settings, "CORKBOARD_SERVICE_SECRET", "")
+        if service_secret:
+            headers["X-Service-Secret"] = service_secret
+
+        with httpx.Client(timeout=timeout, headers=headers) as client:
             # Start with the first page
             url = f"{base_url}?_size=1000"
 
