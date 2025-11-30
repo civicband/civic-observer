@@ -5,6 +5,7 @@ import factory
 from django.contrib.auth import get_user_model
 from factory.django import DjangoModelFactory
 
+from apikeys.models import APIKey
 from meetings.models import MeetingDocument, MeetingPage
 from municipalities.models import Muni
 from notebooks.models import Notebook, NotebookEntry, Tag
@@ -131,3 +132,16 @@ class NotebookEntryFactory(DjangoModelFactory):
     notebook = factory.SubFactory(NotebookFactory)  # type: ignore
     meeting_page = factory.SubFactory(MeetingPageFactory)  # type: ignore
     note = ""
+
+
+class APIKeyFactory(DjangoModelFactory):
+    class Meta:
+        model = APIKey
+
+    user = factory.SubFactory(UserFactory)  # type: ignore
+    name = factory.Faker("sentence", nb_words=3)  # type: ignore
+    prefix = factory.Sequence(lambda n: f"cb_live_{n:08x}")  # type: ignore
+    key_hash = factory.LazyAttribute(  # type: ignore
+        lambda obj: APIKey.hash_key(f"{obj.prefix}_unique_key_{obj.name}")
+    )
+    is_active = True

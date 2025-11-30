@@ -36,6 +36,7 @@ LOCAL_APPS: list[str] = [
     "searches",
     "meetings",
     "notebooks",
+    "apikeys",
 ]
 
 INSTALLED_APPS: list[str] = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -152,3 +153,6 @@ RQ_QUEUES: dict[str, dict[str, Any]] = {
     },
 }
 RQ_SHOW_ADMIN_LINK = True
+
+# API Key Validation
+CORKBOARD_SERVICE_SECRET = env.str("CORKBOARD_SERVICE_SECRET", "")

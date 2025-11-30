@@ -1,0 +1,33 @@
+<form hx-post="{% url 'apikeys:create' %}"
+      hx-target="#modal-content"
+      hx-swap="innerHTML">
+    {% csrf_token %}
+    <h3 class="text-lg font-semibold text-gray-900 mb-4">Create API Key</h3>
+
+    <div class="space-y-4">
+        <div>
+            <label for="id_name" class="block text-sm font-medium text-gray-700">Name</label>
+            <div class="mt-1">{{ form.name }}</div>
+            {% if form.name.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.name.errors.0 }}</p>
+            {% else %}
+                <p class="mt-1 text-xs text-gray-500">A label to help you identify this key</p>
+            {% endif %}
+        </div>
+
+        <div>
+            <label for="id_expires_at" class="block text-sm font-medium text-gray-700">Expires (optional)</label>
+            <div class="mt-1">{{ form.expires_at }}</div>
+            {% if form.expires_at.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.expires_at.errors.0 }}</p>
+            {% else %}
+                <p class="mt-1 text-xs text-gray-500">Leave empty for no expiration</p>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="mt-6 flex justify-end gap-3">
+        <button type="button" @click="open = false" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">Cancel</button>
+        <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700">Create Key</button>
+    </div>
+</form>

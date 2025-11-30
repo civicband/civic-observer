@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+
+{% block title %}API Keys - CivicObserver{% endblock %}
+
+{% block content %}
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="sm:flex sm:items-center sm:justify-between">
+            <div>
+                <h1 class="text-3xl font-bold tracking-tight text-gray-900">API Keys</h1>
+                <p class="mt-2 text-sm text-gray-600">Manage API keys for accessing CivicBand data</p>
+            </div>
+            <div class="mt-4 sm:mt-0">
+                <button type="button"
+                        @click="$dispatch('open-create-modal')"
+                        class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
+                    Create API Key
+                </button>
+            </div>
+        </div>
+
+        {% if api_keys %}
+            <div class="mt-8 overflow-hidden shadow ring-1 ring-black ring-opacity-5 rounded-lg">
+                <table class="min-w-full divide-y divide-gray-300">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">Name</th>
+                            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Key</th>
+                            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Created</th>
+                            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Last Used</th>
+                            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
+                            <th class="relative py-3.5 pl-3 pr-4"><span class="sr-only">Actions</span></th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-gray-200 bg-white">
+                        {% for key in api_keys %}
+                            <tr>
+                                <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">{{ key.name }}</td>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 font-mono">{{ key.prefix }}...</td>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ key.created|date:"M d, Y" }}</td>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
+                                    {% if key.last_used_at %}{{ key.last_used_at|timesince }} ago{% else %}Never{% endif %}
+                                </td>
+                                <td class="whitespace-nowrap px-3 py-4 text-sm">
+                                    {% if key.is_active %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Revoked</span>
+                                    {% endif %}
+                                </td>
+                                <td class="relative whitespace-nowrap py-4 pl-3 pr-4 text-right text-sm font-medium">
+                                    {% if key.is_active %}
+                                        <form method="post" action="{% url 'apikeys:revoke' key.pk %}" class="inline">
+                                            {% csrf_token %}
+                                            <button type="submit" class="text-yellow-600 hover:text-yellow-900">Revoke</button>
+                                        </form>
+                                    {% endif %}
+                                    <form method="post" action="{% url 'apikeys:delete' key.pk %}" class="inline ml-3">
+                                        {% csrf_token %}
+                                        <button type="submit" class="text-red-600 hover:text-red-900">Delete</button>
+                                    </form>
+                                </td>
+                            </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        {% else %}
+            <div class="mt-8 text-center py-12 bg-white rounded-lg border border-gray-200">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 7a2 2 0 012 2m4 0a6 6 0 01-7.743 5.743L11 17H9v2H7v2H4a1 1 0 01-1-1v-2.586a1 1 0 01.293-.707l5.964-5.964A6 6 0 1121 9z"></path>
+                </svg>
+                <h3 class="mt-4 text-lg font-medium text-gray-900">No API keys yet</h3>
+                <p class="mt-2 text-gray-500">Create an API key to access CivicBand data programmatically.</p>
+            </div>
+        {% endif %}
+    </div>
+
+<!-- Create Modal -->
+    <div x-data="{ open: false }"
+         @open-create-modal.window="open = true"
+         @keydown.escape.window="open = false"
+         x-show="open"
+         x-cloak
+         class="fixed inset-0 z-50 overflow-y-auto">
+        <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+            <div x-show="open" x-transition class="fixed inset-0 bg-gray-500 bg-opacity-75" @click="open = false"></div>
+            <div x-show="open" x-transition class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+                <div id="modal-content">
+                    {% include "apikeys/partials/create_form.html" %}
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock content %}
