@@ -2,46 +2,24 @@ Hello,
 
 We found new results for your saved search "{{ subscription.name }}".
 
-Search: {{ subscription.search }}
-Municipality: {{ subscription.search.muni.name }}
-{% if subscription.search.all_results %}
-Showing all updates from {{ subscription.search.muni.name }}
-{% else %}{% if subscription.search.search_term %}
-Search term: {{ subscription.search.search_term }}
-{% endif %}{% endif %}
+{% if subscription.search.search_term %}Search term: {{ subscription.search.search_term }}{% else %}Showing all new documents{% endif %}
+{% if subscription.search.muni %}Municipality: {{ subscription.search.muni.name }}, {{ subscription.search.muni.state }}{% endif %}
 
-{% if subscription.search.agenda_match_json %}
-RECENT AGENDA MATCHES:
-{% for agenda in subscription.search.agenda_match_json|slice:":10" %}
-- {{ agenda.meeting }} on {{ agenda.date }}
-  View: https://{{ subscription.search.muni.subdomain }}.civic.band/meetings/agendas?meeting={{ agenda.meeting|urlencode }}&date={{ agenda.date|urlencode }}
+{% if new_pages %}NEW RESULTS ({{ new_pages|length }}):
+{% for page in new_pages|slice:":10" %}
+- {{ page.document.meeting_name }} - {{ page.document.meeting_date|date:"M d, Y" }}
+  {% if page.document.document_type == "agenda" %}Agenda{% else %}Minutes{% endif %} - Page {{ page.page_number }}
+  View: https://{{ page.document.municipality.subdomain }}.civic.band/meetings/{% if page.document.document_type == "agenda" %}agendas{% else %}minutes{% endif %}?meeting={{ page.document.meeting_name|urlencode }}&date={{ page.document.meeting_date|date:"Y-m-d" }}
 {% endfor %}
-{% if subscription.search.agenda_match_json|length > 10 %}
-... and {{ subscription.search.agenda_match_json|length|add:"-10" }} more
+{% if new_pages|length > 10 %}
+... and {{ new_pages|length|add:"-10" }} more results
 {% endif %}
+{% else %}No new results were found. We'll notify you when new results are available.
 {% endif %}
-
-{% if subscription.search.minutes_match_json %}
-RECENT MINUTES MATCHES:
-{% for minutes in subscription.search.minutes_match_json|slice:":10" %}
-- {{ minutes.meeting }} on {{ minutes.date }}
-  View: https://{{ subscription.search.muni.subdomain }}.civic.band/meetings/minutes?meeting={{ minutes.meeting|urlencode }}&date={{ minutes.date|urlencode }}
-{% endfor %}
-{% if subscription.search.minutes_match_json|length > 10 %}
-... and {{ subscription.search.minutes_match_json|length|add:"-10" }} more
-{% endif %}
-{% endif %}
-
-{% if not subscription.search.agenda_match_json and not subscription.search.minutes_match_json %}
-No new matches found. We'll notify you when new results are available.
-{% endif %}
-
-To view all results on CivicBand:
-https://{{ subscription.search.muni.subdomain }}.civic.band/meetings/
 
 Best regards,
 The Civic Observer Team
 
 --
-You're receiving this because you signed up to receive updates from CivicBand sites via CivicObserver.
+You're receiving this because you signed up for notifications from Civic Observer.
 To manage your saved searches, visit: https://civic.observer/searches/

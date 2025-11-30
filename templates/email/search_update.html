@@ -7,7 +7,7 @@
         <meta http-equiv="x-ua-compatible" content="ie=edge">
         <meta name="viewport" content="width=device-width, initial-scale=1">
         <meta name="x-apple-disable-message-reformatting">
-        <title>Updates from {{ subscription.search }}</title>
+        <title>New Results for {{ subscription.name }}</title>
     <!--[if mso]>
     <xml>
       <o:OfficeDocumentSettings>
@@ -131,7 +131,7 @@
     </head>
     <body style="margin:0;padding:0;width:100%;word-break:break-word;-webkit-font-smoothing:antialiased;">
 
-        <div lang="en" style="display:none;"><!-- Add your preheader text here --></div>
+        <div lang="en" style="display:none;">New results found for your saved search "{{ subscription.name }}"</div>
 
         <table lang="en" bgcolor="#EEEEEE" cellpadding="16" cellspacing="0" role="presentation" width="100%">
             <tr>
@@ -147,65 +147,45 @@
                                             <table class="full-width-sm" align="center" cellpadding="0" cellspacing="0" role="presentation" width="60%" style="margin: 0 auto;">
                                                 <tr>
                                                     <td class="px-sm-16">
-                                                        <img src="https://i.imgur.com/XqzhK67.png" width="36" alt="Download" style="max-width: 36px; width: 100%;">
-                                                        <h2>Updates from {{ subscription.search }}</h2>
-                                                        {% if subscription.search.all_results %}
-                                                            <p>Showing all updates from {{ subscription.search.muni.name }}</p>
+                                                        <img src="https://i.imgur.com/XqzhK67.png" width="36" alt="Civic Observer" style="max-width: 36px; width: 100%;">
+                                                        <h2>New Results for "{{ subscription.name }}"</h2>
+
+                                                        {% if subscription.search.search_term %}
+                                                            <p>Search term: <strong>{{ subscription.search.search_term }}</strong></p>
                                                         {% else %}
-                                                            {% if subscription.search.search_term %}
-                                                                <p>Showing results for: <strong>{{ subscription.search.search_term }}</strong></p>
-                                                            {% endif %}
+                                                            <p>Showing all new documents</p>
                                                         {% endif %}
 
-                                                        {% if subscription.search.agenda_match_json %}
-                                                            <h3>Recent agenda matches</h3>
+                                                        {% if subscription.search.muni %}
+                                                            <p>Municipality: <strong>{{ subscription.search.muni.name }}, {{ subscription.search.muni.state }}</strong></p>
+                                                        {% endif %}
+
+                                                        {% if new_pages %}
+                                                            <h3>New Results ({{ new_pages|length }})</h3>
                                                             <div>
-                                                                <ul>
-                                                                    {% for agenda in subscription.search.agenda_match_json|slice:":5" %}
-                                                                        <li><a href="https://{{ subscription.search.muni.subdomain }}.civic.band/meetings/agendas?meeting={{ agenda.meeting|urlencode }}&date={{ agenda.date|urlencode }}">
-                                                                            {{ agenda.meeting }} on {{ agenda.date }}
-                                                                            {% if agenda.text %}
-                                                                                <br><small>{{ agenda.text|truncatewords:20 }}</small>
-                                                                            {% endif %}
-                                                                        </a></li>
+                                                                <ul style="padding-left: 20px;">
+                                                                    {% for page in new_pages|slice:":10" %}
+                                                                        <li style="margin-bottom: 12px;">
+                                                                            <a href="https://{{ page.document.municipality.subdomain }}.civic.band/meetings/{% if page.document.document_type == 'agenda' %}agendas{% else %}minutes{% endif %}?meeting={{ page.document.meeting_name|urlencode }}&date={{ page.document.meeting_date|date:'Y-m-d' }}">
+                                                                                <strong>{{ page.document.meeting_name }}</strong> - {{ page.document.meeting_date|date:"M d, Y" }}
+                                                                                <br>
+                                                                                <span style="color: #666; font-size: 14px;">
+                                                                                    {% if page.document.document_type == "agenda" %}📋 Agenda{% else %}📝 Minutes{% endif %}
+                                                                                    - Page {{ page.page_number }}
+                                                                                </span>
+                                                                                {% if page.text %}
+                                                                                    <br><small style="color: #888;">{{ page.text|truncatewords:25 }}</small>
+                                                                                {% endif %}
+                                                                            </a>
+                                                                        </li>
                                                                     {% endfor %}
                                                                 </ul>
-                                                                {% if subscription.search.agenda_match_json|length > 5 %}
-                                                                    <p><em>And {{ subscription.search.agenda_match_json|length|add:"-5" }} more...</em></p>
+                                                                {% if new_pages|length > 10 %}
+                                                                    <p><em>And {{ new_pages|length|add:"-10" }} more results...</em></p>
                                                                 {% endif %}
                                                             </div>
-                                                        {% endif %}
-
-                                                        {% if subscription.search.minutes_match_json %}
-                            <!-- Divider between sections -->
-                                                            <table cellpadding="0" cellspacing="0" role="presentation" width="100%">
-                                                                <tr>
-                                                                    <td class="divider" style="padding: 24px 16px;">
-                                                                        <div style="background: #EEEEEE; height: 1px; line-height: 1px;">‌</div>
-                                                                    </td>
-                                                                </tr>
-                                                            </table>
-
-                                                            <h3>Recent minutes matches</h3>
-                                                            <div>
-                                                                <ul>
-                                                                    {% for minutes in subscription.search.minutes_match_json|slice:":5" %}
-                                                                        <li><a href="https://{{ subscription.search.muni.subdomain }}.civic.band/meetings/minutes?meeting={{ minutes.meeting|urlencode }}&date={{ minutes.date|urlencode }}">
-                                                                            {{ minutes.meeting }} on {{ minutes.date }}
-                                                                            {% if minutes.text %}
-                                                                                <br><small>{{ minutes.text|truncatewords:20 }}</small>
-                                                                            {% endif %}
-                                                                        </a></li>
-                                                                    {% endfor %}
-                                                                </ul>
-                                                                {% if subscription.search.minutes_match_json|length > 5 %}
-                                                                    <p><em>And {{ subscription.search.minutes_match_json|length|add:"-5" }} more...</em></p>
-                                                                {% endif %}
-                                                            </div>
-                                                        {% endif %}
-
-                                                        {% if not subscription.search.agenda_match_json and not subscription.search.minutes_match_json %}
-                                                            <p><em>No new matches found. We'll notify you when new results are available.</em></p>
+                                                        {% else %}
+                                                            <p><em>No new results were found. We'll notify you when new results are available.</em></p>
                                                         {% endif %}
                                                     </td>
                                                 </tr>
@@ -216,7 +196,9 @@
                                 <table cellpadding="0" cellspacing="0" role="presentation" width="100%" style="border: 2px solid #0099E5;">
                                     <tr>
                                         <td style="color: #0099E5; padding: 16px 32px;">
-                                            You're receiving this because you signed up to receive updates from <a href="https://civic.band">CivicBand</a> sites via <a href="https://civic.observer">CivicObserver</a>.
+                                            You're receiving this because you signed up for notifications from <a href="https://civic.observer">Civic Observer</a>.
+                                            <br>
+                                            <a href="https://civic.observer/searches/">Manage your saved searches</a>
                                         </td>
                                     </tr>
                                 </table>

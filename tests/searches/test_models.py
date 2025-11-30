@@ -317,6 +317,74 @@ class TestSavedSearchModel:
         # For now, just test that the method exists and can be called
         assert hasattr(saved_search, "send_search_notification")
 
+    def test_email_template_renders_new_pages(self):
+        """Test that email template properly renders new_pages data."""
+        from django.template.loader import render_to_string
+
+        muni = MuniFactory(name="Test City", state="CA", subdomain="testcity.ca")
+        doc = MeetingDocumentFactory(
+            municipality=muni, meeting_name="CityCouncil", document_type="agenda"
+        )
+        page1 = MeetingPageFactory(
+            document=doc, page_number=1, text="Budget discussion for housing"
+        )
+        page2 = MeetingPageFactory(
+            document=doc, page_number=2, text="Infrastructure planning"
+        )
+
+        user = UserFactory()
+        search = SearchFactory(search_term="housing")
+        search.municipalities.add(muni)
+        saved_search = SavedSearchFactory(
+            user=user, search=search, name="Housing Alerts"
+        )
+
+        new_pages = MeetingPage.objects.filter(id__in=[page1.id, page2.id])
+
+        # Render the email template
+        context = {"subscription": saved_search, "new_pages": new_pages}
+        html_content = render_to_string("email/search_update.html", context=context)
+        txt_content = render_to_string("email/search_update.txt", context=context)
+
+        # Check HTML template renders new_pages
+        assert "Housing Alerts" in html_content
+        assert "CityCouncil" in html_content
+        assert "Page 1" in html_content or "page 1" in html_content.lower()
+        assert "Budget discussion" in html_content
+        assert "testcity.ca" in html_content  # civic.band link
+
+        # Check TXT template renders new_pages
+        assert "Housing Alerts" in txt_content
+        assert "CityCouncil" in txt_content
+        assert "Page 1" in txt_content or "page 1" in txt_content.lower()
+
+    def test_email_template_handles_empty_new_pages(self):
+        """Test that email template handles empty new_pages gracefully."""
+        from django.template.loader import render_to_string
+
+        muni = MuniFactory()
+        user = UserFactory()
+        search = SearchFactory(search_term="housing")
+        search.municipalities.add(muni)
+        saved_search = SavedSearchFactory(
+            user=user, search=search, name="Housing Alerts"
+        )
+
+        # Empty queryset
+        new_pages = MeetingPage.objects.none()
+
+        context = {"subscription": saved_search, "new_pages": new_pages}
+        html_content = render_to_string("email/search_update.html", context=context)
+        txt_content = render_to_string("email/search_update.txt", context=context)
+
+        # Should show "no results" message
+        assert (
+            "no new results" in html_content.lower() or "No new results" in html_content
+        )
+        assert (
+            "no new results" in txt_content.lower() or "No new results" in txt_content
+        )
+
     def test_saved_search_str_representation(self):
         """Test string representation includes user and name."""
         user = UserFactory(email="test@example.com")
