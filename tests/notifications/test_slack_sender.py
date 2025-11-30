@@ -12,7 +12,7 @@ class TestSlackSenderValidation:
 
         assert (
             sender.validate_handle(
-                "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+                "https://hooks.slack.com/services/TXXXXXXXXX/BXXXXXXXXX/testwebhookkey"
             )
             is True
         )
