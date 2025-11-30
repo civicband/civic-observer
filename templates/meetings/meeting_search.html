@@ -46,9 +46,12 @@
                      class="lg:!block bg-white shadow-lg rounded-xl p-4 lg:sticky lg:top-20">
                     <h2 class="text-lg font-semibold text-gray-900 mb-3">Search</h2>
                     <form id="search-form"
+                          method="get"
+                          action="{% url 'meetings:meeting-search-results' %}"
                           hx-get="{% url 'meetings:meeting-search-results' %}"
                           hx-target="#search-results"
                           hx-swap="innerHTML show:top"
+                          hx-indicator="#search-loading"
                           aria-label="Meeting document search filters"
                           role="search">
 
@@ -658,8 +661,27 @@
                 }, 100);
             }
 
+            // Function to trigger search with HTMX (with fallback)
+            function triggerSearch() {
+                // Check if HTMX is loaded and ready
+                if (typeof htmx !== 'undefined' && htmx.trigger) {
+                    htmx.trigger('#search-form', 'submit');
+                } else {
+                    // HTMX not loaded - wait a bit and retry, or fall back to form submit
+                    setTimeout(() => {
+                        if (typeof htmx !== 'undefined' && htmx.trigger) {
+                            htmx.trigger('#search-form', 'submit');
+                        } else {
+                            // Final fallback: submit the form normally
+                            // The view will redirect back with params and try again
+                            console.warn('HTMX not available, falling back to regular form submission');
+                        }
+                    }, 500);
+                }
+            }
+
             if (hasParams) {
-                htmx.trigger('#search-form', 'submit');
+                triggerSearch();
             }
 
             // Keyboard shortcut: / to focus search

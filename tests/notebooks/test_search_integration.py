@@ -22,7 +22,7 @@ class TestSearchResultsSaveButton:
 
         client.force_login(user)
         url = reverse("meetings:meeting-search-results")
-        response = client.get(url, {"query": "housing"})
+        response = client.get(url, {"query": "housing"}, HTTP_HX_REQUEST="true")
 
         assert response.status_code == 200
         # Button now uses hx-get to open the save panel
@@ -40,7 +40,7 @@ class TestSearchResultsSaveButton:
 
         client.force_login(user)
         url = reverse("meetings:meeting-search-results")
-        response = client.get(url, {"query": "housing"})
+        response = client.get(url, {"query": "housing"}, HTTP_HX_REQUEST="true")
 
         assert response.status_code == 200
         # Check for filled bookmark icon (saved state)
@@ -53,7 +53,7 @@ class TestSearchResultsSaveButton:
         MeetingPageFactory(document=doc, text="housing policy discussion")
 
         url = reverse("meetings:meeting-search-results")
-        response = client.get(url, {"query": "housing"})
+        response = client.get(url, {"query": "housing"}, HTTP_HX_REQUEST="true")
 
         assert response.status_code == 200
         assert "save-page" not in response.content.decode()
