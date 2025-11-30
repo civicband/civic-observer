@@ -69,7 +69,10 @@ def check_saved_search_for_updates(saved_search_id) -> dict[str, str | int]:
 
     # Handle based on notification frequency
     if saved_search.notification_frequency == "immediate":
-        # Send notification immediately
+        # Send to additional notification channels
+        _send_to_notification_channels(saved_search, new_pages)
+
+        # Send email notification (always - fallback)
         saved_search.send_search_notification(new_pages=new_pages)
         logger.info(
             f"Sent immediate notification for SavedSearch {saved_search.id} to {saved_search.user.email}"
@@ -279,4 +282,52 @@ def _send_digest_email(user, saved_searches, frequency="daily"):
         SavedSearch.objects.bulk_update(
             saved_searches,
             ["has_pending_results", "last_notification_sent"],
+        )
+
+
+def _send_to_notification_channels(saved_search, new_pages) -> None:
+    """
+    Send notification to user's configured notification channels.
+
+    Args:
+        saved_search: The SavedSearch that matched
+        new_pages: QuerySet of new MeetingPage objects
+    """
+    from notifications.services import dispatch_to_all_channels
+
+    # Format message for non-email channels
+    message = _format_channel_message(saved_search, new_pages)
+
+    # Dispatch to all configured channels
+    results = dispatch_to_all_channels(saved_search, message)
+
+    for result in results:
+        if result["success"]:
+            logger.info(
+                f"Sent {result['platform']} notification for SavedSearch {saved_search.id}"
+            )
+        else:
+            logger.warning(
+                f"Failed to send {result['platform']} notification for SavedSearch {saved_search.id}"
+            )
+
+
+def _format_channel_message(saved_search, new_pages) -> str:
+    """Format notification message for non-email channels."""
+    count = new_pages.count()
+    search_name = saved_search.name
+
+    if count == 1:
+        page = new_pages.first()
+        return (
+            f'🔔 New result for "{search_name}"\n\n'
+            f"Meeting: {page.document.meeting_name}\n"
+            f"Date: {page.document.meeting_date}\n"
+            f"Page {page.page_number}\n\n"
+            f"View on Civic Observer: https://civic.observer/searches/"
+        )
+    else:
+        return (
+            f'🔔 {count} new results for "{search_name}"\n\n'
+            f"View on Civic Observer: https://civic.observer/searches/"
         )
