@@ -95,6 +95,40 @@
                     </div>
                 </div>
 
+            <!-- Notification Frequency -->
+                <div class="bg-gray-50 rounded-lg p-4">
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Notification Frequency</h3>
+                    <p class="text-sm text-gray-600 mb-4">
+                        {{ form.notification_frequency.help_text }}
+                    </p>
+
+                    <div class="space-y-3">
+                        {% for radio in form.notification_frequency %}
+                            <div class="flex items-start">
+                                <div class="flex items-center h-5">
+                                    {{ radio.tag }}
+                                </div>
+                                <div class="ml-3">
+                                    <label for="{{ radio.id_for_label }}" class="block text-sm font-medium text-gray-700">
+                                        {{ radio.choice_label }}
+                                    </label>
+                                    {% if radio.choice_label == "Immediate" %}
+                                        <p class="text-sm text-gray-500">Get notified as soon as new results are found</p>
+                                    {% elif radio.choice_label == "Daily Digest" %}
+                                        <p class="text-sm text-gray-500">Receive a daily summary of new results</p>
+                                    {% elif radio.choice_label == "Weekly Digest" %}
+                                        <p class="text-sm text-gray-500">Receive a weekly summary of new results</p>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    {% if form.notification_frequency.errors %}
+                        <p class="mt-2 text-sm text-red-600">{{ form.notification_frequency.errors.0 }}</p>
+                    {% endif %}
+                </div>
+
             <!-- Submit Buttons -->
                 <div class="flex justify-end space-x-3 pt-4 border-t border-gray-200">
                     <a href="{% url 'searches:savedsearch-list' %}" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500">
