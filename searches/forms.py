@@ -31,12 +31,16 @@ class SavedSearchFormBase(forms.ModelForm):
 
     class Meta:
         model = SavedSearch
-        fields = ["name"]
-        help_texts = {"name": "Give this saved search a memorable name"}
+        fields = ["name", "notification_frequency"]
+        help_texts = {
+            "name": "Give this saved search a memorable name",
+            "notification_frequency": "How often would you like to receive notifications?",
+        }
         widgets = {
             "name": forms.TextInput(
                 attrs={"placeholder": 'e.g., "Oakland Budget Updates"'}
-            )
+            ),
+            "notification_frequency": forms.RadioSelect(),
         }
 
     def clean(self) -> dict | None:

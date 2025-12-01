@@ -121,6 +121,49 @@ class TestSavedSearchEditView:
 
         assert response.status_code == 404
 
+    def test_edit_view_shows_notification_frequency(self, client):
+        """Test that edit view displays notification frequency options."""
+        user = UserFactory()
+        muni = MuniFactory()
+        saved_search = SavedSearchFactory(user=user, notification_frequency="daily")
+        saved_search.search.municipalities.add(muni)
+
+        client.force_login(user)
+
+        response = client.get(
+            reverse("searches:savedsearch-update", kwargs={"pk": saved_search.pk})
+        )
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "Notification Frequency" in content
+        assert "Immediate" in content
+        assert "Daily Digest" in content
+        assert "Weekly Digest" in content
+
+    def test_edit_view_can_change_notification_frequency(self, client):
+        """Test that notification frequency can be updated via edit form."""
+        user = UserFactory()
+        muni = MuniFactory()
+        saved_search = SavedSearchFactory(user=user, notification_frequency="immediate")
+        saved_search.search.municipalities.add(muni)
+
+        client.force_login(user)
+
+        response = client.post(
+            reverse("searches:savedsearch-update", kwargs={"pk": saved_search.pk}),
+            data={
+                "name": saved_search.name,
+                "municipality": muni.pk,
+                "all_results": True,
+                "notification_frequency": "weekly",
+            },
+        )
+
+        assert response.status_code == 302  # Redirect on success
+        saved_search.refresh_from_db()
+        assert saved_search.notification_frequency == "weekly"
+
 
 @pytest.mark.django_db
 class TestSavedSearchDeleteView:
@@ -164,3 +207,39 @@ class TestSavedSearchCreateView:
         response = client.get(reverse("searches:savedsearch-create"))
 
         assert response.status_code == 200
+
+    def test_create_view_shows_notification_frequency(self, client):
+        """Test that create view displays notification frequency options."""
+        user = UserFactory()
+        client.force_login(user)
+
+        response = client.get(reverse("searches:savedsearch-create"))
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "Notification Frequency" in content
+        assert "Immediate" in content
+        assert "Daily Digest" in content
+        assert "Weekly Digest" in content
+
+    def test_create_view_can_set_notification_frequency(self, client):
+        """Test that notification frequency can be set when creating a saved search."""
+        user = UserFactory()
+        muni = MuniFactory()
+        client.force_login(user)
+
+        response = client.post(
+            reverse("searches:savedsearch-create"),
+            data={
+                "name": "Test Search",
+                "municipality": muni.pk,
+                "all_results": True,
+                "notification_frequency": "daily",
+            },
+        )
+
+        assert response.status_code == 302  # Redirect on success
+        from searches.models import SavedSearch
+
+        saved_search = SavedSearch.objects.get(user=user)
+        assert saved_search.notification_frequency == "daily"
