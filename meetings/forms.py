@@ -17,6 +17,7 @@ class MeetingSearchForm(forms.Form):
                 "autofocus": True,
                 "aria-required": "true",
                 "aria-describedby": "query-help-text",
+                "data-umami-htmx-event": "search_query",
             }
         ),
     )
