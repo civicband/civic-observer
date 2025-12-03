@@ -1,4 +1,5 @@
 <!-- templates/notebooks/partials/save_panel.html -->
+{% load analytics %}
 <div id="save-panel-{{ page_id }}"
      class="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4"
      x-data="{ showNewTag: false }">
@@ -109,7 +110,8 @@
                     Cancel
                 </button>
                 <button type="submit"
-                        class="px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700">
+                        class="px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700"
+                        data-umami-htmx-event="page_saved_to_notebook">
                     Save to Notebook
                 </button>
             </div>

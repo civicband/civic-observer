@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load widget_tweaks %}
+{% load analytics widget_tweaks %}
 
 {% block title %}{% if object %}Edit{% else %}New{% endif %} Notebook - CivicObserver{% endblock %}
 
@@ -34,7 +34,8 @@
                             Cancel
                         </a>
                         <button type="submit"
-                                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">
+                                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                                {% if not object %}{{ "notebook_created"|track_event }}{% endif %}>
                             {% if object %}Save Changes{% else %}Create Notebook{% endif %}
                         </button>
                     </div>
