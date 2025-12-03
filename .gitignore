@@ -90,4 +90,7 @@ tailwindcss/
 # Claude Code cache
 .ocode/
 
+# Git worktrees
+.worktrees/
+
 tailwind.css
