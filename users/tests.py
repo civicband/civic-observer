@@ -112,3 +112,81 @@ class TestDatasetteAuthView:
 
         response = client.delete(reverse("users:datasette_auth"))
         assert response.status_code == 405
+
+
+@pytest.mark.django_db
+class TestInviteUserAdminView:
+    def test_invite_view_requires_staff(self):
+        """Test that non-staff users cannot access the invite view."""
+        user = UserFactory(is_staff=False)
+        client = Client()
+        client.force_login(user)
+
+        response = client.get(reverse("admin:invite_user"))
+
+        # Should redirect to admin login
+        assert response.status_code == 302
+        assert "/admin/login/" in response["Location"]
+
+    def test_invite_view_accessible_by_staff(self):
+        """Test that staff users can access the invite view."""
+        from tests.factories import AdminUserFactory
+
+        admin = AdminUserFactory()
+        client = Client()
+        client.force_login(admin)
+
+        response = client.get(reverse("admin:invite_user"))
+
+        assert response.status_code == 200
+        assert b"Invite User" in response.content
+
+    def test_invite_view_renders_form(self):
+        """Test that the invite view renders the email form."""
+        from tests.factories import AdminUserFactory
+
+        admin = AdminUserFactory()
+        client = Client()
+        client.force_login(admin)
+
+        response = client.get(reverse("admin:invite_user"))
+
+        assert response.status_code == 200
+        assert b"email" in response.content.lower()
+        assert b"Send Invitation" in response.content
+
+    def test_invite_view_sends_email_on_post(self, mailoutbox):
+        """Test that posting a valid email sends an invitation."""
+        from tests.factories import AdminUserFactory
+
+        admin = AdminUserFactory()
+        client = Client()
+        client.force_login(admin)
+
+        response = client.post(
+            reverse("admin:invite_user"),
+            data={"email": "newuser@example.com"},
+        )
+
+        # Should redirect back to invite page
+        assert response.status_code == 302
+
+        # Should have sent an email
+        assert len(mailoutbox) == 1
+        assert mailoutbox[0].to == ["newuser@example.com"]
+
+    def test_invite_view_invalid_email(self):
+        """Test that an invalid email shows an error."""
+        from tests.factories import AdminUserFactory
+
+        admin = AdminUserFactory()
+        client = Client()
+        client.force_login(admin)
+
+        response = client.post(
+            reverse("admin:invite_user"),
+            data={"email": "not-an-email"},
+        )
+
+        assert response.status_code == 200
+        assert b"Enter a valid email" in response.content
