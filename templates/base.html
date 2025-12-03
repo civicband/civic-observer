@@ -12,6 +12,15 @@
         <!-- Alpine.js -->
         <script src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
 
+        <!-- Umami Analytics -->
+        {% if umami_enabled and not umami_opted_out %}
+            <script defer src="{{ umami_script_url }}"
+                    data-website-id="{{ umami_website_id }}"
+                    data-do-not-track="true"
+                    {% if user.is_authenticated %}data-tag="{{ user.id }}"{% endif %}></script>
+            <script src="{% static 'js/analytics.js' %}" defer></script>
+        {% endif %}
+
         <!-- CSRF token for HTMX -->
         <meta name="csrf-token" content="{{ csrf_token }}">
 
