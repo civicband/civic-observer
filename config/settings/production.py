@@ -84,3 +84,6 @@ RQ_QUEUES: dict[str, dict[str, Any]] = {  # type: ignore[no-redef]
         "ASYNC": True,
     },
 }
+
+# Umami Analytics - enabled in production
+UMAMI_ENABLED: bool = True  # type: ignore[no-redef]
