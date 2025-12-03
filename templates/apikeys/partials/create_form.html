@@ -1,3 +1,4 @@
+{% load analytics %}
 <form hx-post="{% url 'apikeys:create' %}"
       hx-target="#modal-content"
       hx-swap="innerHTML">
@@ -28,6 +29,6 @@
 
     <div class="mt-6 flex justify-end gap-3">
         <button type="button" @click="open = false" class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">Cancel</button>
-        <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700">Create Key</button>
+        <button type="submit" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700" data-umami-htmx-event="api_key_created">Create Key</button>
     </div>
 </form>

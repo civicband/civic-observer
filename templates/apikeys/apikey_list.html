@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load analytics %}
 
 {% block title %}API Keys - CivicObserver{% endblock %}
 
@@ -51,7 +52,7 @@
                                     {% if key.is_active %}
                                         <form method="post" action="{% url 'apikeys:revoke' key.pk %}" class="inline">
                                             {% csrf_token %}
-                                            <button type="submit" class="text-yellow-600 hover:text-yellow-900">Revoke</button>
+                                            <button type="submit" class="text-yellow-600 hover:text-yellow-900" {{ "api_key_revoked"|track_event }}>Revoke</button>
                                         </form>
                                     {% endif %}
                                     <form method="post" action="{% url 'apikeys:delete' key.pk %}" class="inline ml-3">
