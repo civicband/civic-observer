@@ -1,4 +1,4 @@
-{% load static tailwind_cli %}
+{% load analytics static tailwind_cli %}
 <!DOCTYPE html>
 <html lang="en" class="h-full">
     <head>
@@ -66,16 +66,16 @@
                             <a href="{% url 'homepage' %}" class="text-gray-900 font-bold text-xl">CivicObserver</a>
                             <!-- Desktop Navigation -->
                             <div class="hidden md:flex space-x-6">
-                                <a href="{% url 'homepage' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Home</a>
-                                <a href="{% url 'munis:muni-list' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Municipalities</a>
-                                <a href="{% url 'meetings:meeting-search' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Search Meetings</a>
-                                <a href="{% url 'searches:savedsearch-list' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Saved Searches</a>
+                                <a href="{% url 'homepage' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors" data-umami-event="nav_click" data-umami-event-destination="home">Home</a>
+                                <a href="{% url 'munis:muni-list' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors" data-umami-event="nav_click" data-umami-event-destination="municipalities">Municipalities</a>
+                                <a href="{% url 'meetings:meeting-search' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors" data-umami-event="nav_click" data-umami-event-destination="search">Search Meetings</a>
+                                <a href="{% url 'searches:savedsearch-list' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors" data-umami-event="nav_click" data-umami-event-destination="saved_searches">Saved Searches</a>
                                 {% if user.is_authenticated %}
-                                    <a href="{% url 'notebooks:notebook-list' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Notebooks</a>
-                                    <a href="{% url 'apikeys:list' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">API Keys</a>
-                                    <a href="{% url 'notifications:channel-list' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Notifications</a>
+                                    <a href="{% url 'notebooks:notebook-list' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors" data-umami-event="nav_click" data-umami-event-destination="notebooks">Notebooks</a>
+                                    <a href="{% url 'apikeys:list' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors" data-umami-event="nav_click" data-umami-event-destination="api_keys">API Keys</a>
+                                    <a href="{% url 'notifications:channel-list' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors" data-umami-event="nav_click" data-umami-event-destination="notifications">Notifications</a>
                                 {% endif %}
-                                {% if user.is_staff %} <a href="{% url 'admin:index' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors">Admin</a> {% endif %}
+                                {% if user.is_staff %} <a href="{% url 'admin:index' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors" data-umami-event="nav_click" data-umami-event-destination="admin">Admin</a> {% endif %}
                             </div>
                         </div>
 
@@ -85,7 +85,8 @@
                                     type="button"
                                     class="inline-flex items-center justify-center p-2 rounded-md text-gray-600 hover:text-gray-900 hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 transition-colors"
                                     aria-controls="mobile-menu"
-                                    :aria-expanded="mobileMenuOpen.toString()">
+                                    :aria-expanded="mobileMenuOpen.toString()"
+                                    data-umami-event="mobile_menu_open">
                                 <span class="sr-only">Open main menu</span>
                                 <!-- Hamburger icon -->
                                 <svg x-show="!mobileMenuOpen" class="block h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
@@ -112,17 +113,17 @@
                          id="mobile-menu"
                          x-cloak>
                         <div class="px-2 pt-2 pb-3 space-y-1 bg-white border-t border-gray-200">
-                            <a href="{% url 'homepage' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors">Home</a>
-                            <a href="{% url 'munis:muni-list' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors">Municipalities</a>
-                            <a href="{% url 'meetings:meeting-search' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors">Search Meetings</a>
-                            <a href="{% url 'searches:savedsearch-list' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors">Saved Searches</a>
+                            <a href="{% url 'homepage' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors" data-umami-event="nav_click" data-umami-event-destination="home">Home</a>
+                            <a href="{% url 'munis:muni-list' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors" data-umami-event="nav_click" data-umami-event-destination="municipalities">Municipalities</a>
+                            <a href="{% url 'meetings:meeting-search' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors" data-umami-event="nav_click" data-umami-event-destination="search">Search Meetings</a>
+                            <a href="{% url 'searches:savedsearch-list' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors" data-umami-event="nav_click" data-umami-event-destination="saved_searches">Saved Searches</a>
                             {% if user.is_authenticated %}
-                                <a href="{% url 'notebooks:notebook-list' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors">Notebooks</a>
-                                <a href="{% url 'apikeys:list' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors">API Keys</a>
-                                <a href="{% url 'notifications:channel-list' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors">Notifications</a>
+                                <a href="{% url 'notebooks:notebook-list' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors" data-umami-event="nav_click" data-umami-event-destination="notebooks">Notebooks</a>
+                                <a href="{% url 'apikeys:list' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors" data-umami-event="nav_click" data-umami-event-destination="api_keys">API Keys</a>
+                                <a href="{% url 'notifications:channel-list' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors" data-umami-event="nav_click" data-umami-event-destination="notifications">Notifications</a>
                             {% endif %}
                             {% if user.is_staff %}
-                                <a href="{% url 'admin:index' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors">Admin</a>
+                                <a href="{% url 'admin:index' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors" data-umami-event="nav_click" data-umami-event-destination="admin">Admin</a>
                             {% endif %}
                         </div>
                     </div>
