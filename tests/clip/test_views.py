@@ -124,3 +124,73 @@ class TestFetchPageViewRemote:
         assert MeetingPage.objects.filter(
             id="testcity_agendas_CityCouncil_2024-02-01_1"
         ).exists()
+
+
+@pytest.mark.django_db
+class TestSavePageView:
+    def test_save_page_requires_auth(self, client):
+        """Unauthenticated users should get 302 redirect."""
+        url = reverse("clip:save-page")
+        response = client.post(url, {"page_id": "test"})
+        assert response.status_code == 302
+
+    def test_save_page_creates_entry_and_redirects(
+        self, client, django_user_model, meeting_page
+    ):
+        """Should create notebook entry and redirect to notebook."""
+        from notebooks.models import Notebook, NotebookEntry
+
+        user = django_user_model.objects.create_user(
+            username="testuser", email="test@example.com", password="testpass"
+        )
+        notebook = Notebook.objects.create(user=user, name="Test Notebook")
+        client.force_login(user)
+
+        url = reverse("clip:save-page")
+        response = client.post(
+            url,
+            {
+                "page_id": meeting_page.id,
+                "notebook_id": str(notebook.id),
+                "note": "Important budget info",
+            },
+        )
+
+        # Should redirect to notebook detail
+        assert response.status_code == 302
+        assert str(notebook.id) in response.url
+
+        # Verify entry was created
+        entry = NotebookEntry.objects.get(notebook=notebook, meeting_page=meeting_page)
+        assert entry.note == "Important budget info"
+
+    def test_save_page_creates_new_notebook_if_specified(
+        self, client, django_user_model, meeting_page
+    ):
+        """Should create new notebook if new_notebook_name is provided."""
+        from notebooks.models import Notebook, NotebookEntry
+
+        user = django_user_model.objects.create_user(
+            username="testuser", email="test@example.com", password="testpass"
+        )
+        client.force_login(user)
+
+        url = reverse("clip:save-page")
+        response = client.post(
+            url,
+            {
+                "page_id": meeting_page.id,
+                "new_notebook_name": "My New Research",
+                "note": "Starting research on this topic",
+            },
+        )
+
+        assert response.status_code == 302
+
+        # Verify notebook was created
+        notebook = Notebook.objects.get(user=user, name="My New Research")
+        assert notebook is not None
+
+        # Verify entry was created
+        entry = NotebookEntry.objects.get(notebook=notebook, meeting_page=meeting_page)
+        assert entry.note == "Starting research on this topic"
