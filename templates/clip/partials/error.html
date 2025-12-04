@@ -1,0 +1,15 @@
+<div class="text-center py-8">
+    <svg class="mx-auto h-12 w-12 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+    <h3 class="mt-2 text-sm font-medium text-gray-900">Unable to load meeting</h3>
+    <p class="mt-1 text-sm text-gray-500">{{ message }}</p>
+    {% if subdomain %}
+        <div class="mt-6">
+            <a href="https://{{ subdomain }}.civic.band"
+               class="text-indigo-600 hover:text-indigo-800 font-medium">
+                Return to civic.band
+            </a>
+        </div>
+    {% endif %}
+</div>
