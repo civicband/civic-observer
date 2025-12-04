@@ -338,3 +338,57 @@ class TestSavePageView:
         # Verify entry was created in the default notebook
         entry = NotebookEntry.objects.get(notebook=notebook, meeting_page=meeting_page)
         assert entry.note == "Saved to auto-created notebook"
+
+
+@pytest.mark.django_db
+class TestClipIntegration:
+    def test_full_clip_flow_unauthenticated(self, client):
+        """Unauthenticated user should be redirected to login."""
+        url = reverse("clip:clip")
+        response = client.get(
+            url,
+            {"id": "test_page", "subdomain": "testcity", "table": "agendas"},
+        )
+
+        # Should redirect to login with next param preserved
+        assert response.status_code == 302
+        assert "/login/" in response.url
+        assert "next=" in response.url
+
+    def test_full_clip_flow_authenticated_with_existing_page(
+        self, client, django_user_model, meeting_page
+    ):
+        """Authenticated user with existing page should see preview."""
+        user = django_user_model.objects.create_user(
+            username="testuser", email="test@example.com", password="testpass"
+        )
+        client.force_login(user)
+
+        # First request - main clip page
+        url = reverse("clip:clip")
+        response = client.get(
+            url,
+            {
+                "id": meeting_page.id,
+                "subdomain": "testcity",
+                "table": "agendas",
+            },
+        )
+
+        assert response.status_code == 200
+        assert b"Save to Notebook" in response.content
+        # Should have HTMX trigger for fetch
+        assert b"hx-get" in response.content
+
+    def test_clip_page_without_params_shows_error(self, client, django_user_model):
+        """Clip page without params should show error message."""
+        user = django_user_model.objects.create_user(
+            username="testuser", email="test@example.com", password="testpass"
+        )
+        client.force_login(user)
+
+        url = reverse("clip:clip")
+        response = client.get(url)
+
+        assert response.status_code == 200
+        assert b"Missing parameters" in response.content
