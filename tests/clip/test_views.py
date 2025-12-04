@@ -194,3 +194,147 @@ class TestSavePageView:
         # Verify entry was created
         entry = NotebookEntry.objects.get(notebook=notebook, meeting_page=meeting_page)
         assert entry.note == "Starting research on this topic"
+
+    def test_save_page_with_existing_tags(
+        self, client, django_user_model, meeting_page
+    ):
+        """Should add existing tags to the entry."""
+        from notebooks.models import Notebook, NotebookEntry, Tag
+
+        user = django_user_model.objects.create_user(
+            username="testuser", email="test@example.com", password="testpass"
+        )
+        notebook = Notebook.objects.create(user=user, name="Test Notebook")
+        tag1 = Tag.objects.create(user=user, name="budget")
+        tag2 = Tag.objects.create(user=user, name="zoning")
+        client.force_login(user)
+
+        url = reverse("clip:save-page")
+        response = client.post(
+            url,
+            {
+                "page_id": meeting_page.id,
+                "notebook_id": str(notebook.id),
+                "tags": [str(tag1.id), str(tag2.id)],
+                "note": "Budget and zoning discussion",
+            },
+        )
+
+        assert response.status_code == 302
+
+        # Verify entry was created with tags
+        entry = NotebookEntry.objects.get(notebook=notebook, meeting_page=meeting_page)
+        assert entry.tags.count() == 2
+        assert tag1 in entry.tags.all()
+        assert tag2 in entry.tags.all()
+
+    def test_save_page_with_new_tag(self, client, django_user_model, meeting_page):
+        """Should create and add a new tag when new_tag parameter is provided."""
+        from notebooks.models import Notebook, NotebookEntry, Tag
+
+        user = django_user_model.objects.create_user(
+            username="testuser", email="test@example.com", password="testpass"
+        )
+        notebook = Notebook.objects.create(user=user, name="Test Notebook")
+        client.force_login(user)
+
+        url = reverse("clip:save-page")
+        response = client.post(
+            url,
+            {
+                "page_id": meeting_page.id,
+                "notebook_id": str(notebook.id),
+                "new_tag": "Infrastructure",
+                "note": "Infrastructure planning",
+            },
+        )
+
+        assert response.status_code == 302
+
+        # Verify tag was created (lowercased)
+        tag = Tag.objects.get(user=user, name="infrastructure")
+        assert tag is not None
+
+        # Verify entry was created with the new tag
+        entry = NotebookEntry.objects.get(notebook=notebook, meeting_page=meeting_page)
+        assert tag in entry.tags.all()
+
+    def test_save_page_already_saved_redirects(
+        self, client, django_user_model, meeting_page
+    ):
+        """Should redirect without creating duplicate when page already saved to notebook."""
+        from notebooks.models import Notebook, NotebookEntry
+
+        user = django_user_model.objects.create_user(
+            username="testuser", email="test@example.com", password="testpass"
+        )
+        notebook = Notebook.objects.create(user=user, name="Test Notebook")
+        client.force_login(user)
+
+        # Create existing entry
+        existing_entry = NotebookEntry.objects.create(
+            notebook=notebook,
+            meeting_page=meeting_page,
+            note="Original note",
+        )
+
+        # Try to save the same page again
+        url = reverse("clip:save-page")
+        response = client.post(
+            url,
+            {
+                "page_id": meeting_page.id,
+                "notebook_id": str(notebook.id),
+                "note": "This should not be saved",
+            },
+        )
+
+        # Should redirect to notebook
+        assert response.status_code == 302
+        assert str(notebook.id) in response.url
+
+        # Should still have only one entry
+        assert (
+            NotebookEntry.objects.filter(
+                notebook=notebook, meeting_page=meeting_page
+            ).count()
+            == 1
+        )
+
+        # Original entry should be unchanged
+        existing_entry.refresh_from_db()
+        assert existing_entry.note == "Original note"
+
+    def test_save_page_creates_default_notebook_if_none_exist(
+        self, client, django_user_model, meeting_page
+    ):
+        """Should create default 'My Notebook' when no notebook_id provided and none exist."""
+        from notebooks.models import Notebook, NotebookEntry
+
+        user = django_user_model.objects.create_user(
+            username="testuser", email="test@example.com", password="testpass"
+        )
+        client.force_login(user)
+
+        # Verify user has no notebooks
+        assert Notebook.objects.filter(user=user).count() == 0
+
+        url = reverse("clip:save-page")
+        response = client.post(
+            url,
+            {
+                "page_id": meeting_page.id,
+                "note": "Saved to auto-created notebook",
+            },
+        )
+
+        assert response.status_code == 302
+
+        # Verify default notebook was created
+        notebook = Notebook.objects.get(user=user, name="My Notebook")
+        assert notebook is not None
+        assert str(notebook.id) in response.url
+
+        # Verify entry was created in the default notebook
+        entry = NotebookEntry.objects.get(notebook=notebook, meeting_page=meeting_page)
+        assert entry.note == "Saved to auto-created notebook"
