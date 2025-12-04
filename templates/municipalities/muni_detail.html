@@ -1,9 +1,10 @@
 {% extends "base.html" %}
+{% load analytics %}
 
 {% block title %}{{ object.name }} - CivicObserver{% endblock %}
 
 {% block content %}
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8" {{ "muni_viewed"|track_event_data:object.subdomain }}>
     <!-- Header -->
         <div class="md:flex md:items-center md:justify-between">
             <div class="min-w-0 flex-1">

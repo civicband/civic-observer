@@ -38,6 +38,7 @@ LOCAL_APPS: list[str] = [
     "notebooks",
     "apikeys",
     "notifications",
+    "analytics",
 ]
 
 INSTALLED_APPS: list[str] = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -66,6 +67,7 @@ TEMPLATES: list[dict[str, Any]] = [
                 "django.template.context_processors.request",
                 "django.contrib.auth.context_processors.auth",
                 "django.contrib.messages.context_processors.messages",
+                "analytics.context_processors.umami_context",
             ],
         },
     },
@@ -164,3 +166,8 @@ BLUESKY_BOT_HANDLE = env.str("BLUESKY_BOT_HANDLE", "")
 BLUESKY_BOT_PASSWORD = env.str("BLUESKY_BOT_PASSWORD", "")
 MASTODON_ACCESS_TOKEN = env.str("MASTODON_ACCESS_TOKEN", "")
 MASTODON_INSTANCE_URL = env.str("MASTODON_INSTANCE_URL", "https://mastodon.social")
+
+# Umami Analytics
+UMAMI_ENABLED: bool = False
+UMAMI_WEBSITE_ID: str = "522b42fb-2e46-4ba3-9803-4e17c7824958"
+UMAMI_SCRIPT_URL: str = "https://analytics.civic.band/sunshine"

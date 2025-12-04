@@ -63,6 +63,18 @@ admin.site.get_urls = _get_urls_with_invite  # type: ignore[method-assign]
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
     list_display = ["email", "username", "first_name", "last_name", "is_staff"]
-    list_filter = ["is_staff", "is_superuser", "is_active", "date_joined"]
+    list_filter = [
+        "is_staff",
+        "is_superuser",
+        "is_active",
+        "date_joined",
+        "analytics_opt_out",
+    ]
     search_fields = ["email", "username", "first_name", "last_name"]
     ordering = ["email"]
+
+    # Add analytics_opt_out to the permissions fieldset
+    fieldsets = (
+        *(BaseUserAdmin.fieldsets or ()),
+        ("Analytics", {"fields": ("analytics_opt_out",)}),
+    )
