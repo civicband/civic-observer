@@ -1,3 +1,5 @@
+from unittest.mock import Mock, patch
+
 import pytest
 from django.urls import reverse
 
@@ -68,3 +70,57 @@ class TestFetchPageView:
         assert response.status_code == 200
         assert b"CityCouncil" in response.content
         assert b"2024-01-15" in response.content or b"Jan" in response.content
+
+
+@pytest.mark.django_db
+class TestFetchPageViewRemote:
+    def test_fetch_page_fetches_from_civic_band_when_not_local(
+        self, client, django_user_model, municipality
+    ):
+        """Should fetch from civic.band API when page not found locally."""
+        user = django_user_model.objects.create_user(
+            username="testuser", email="test@example.com", password="testpass"
+        )
+        client.force_login(user)
+
+        # Mock the civic.band API response
+        mock_response_data = {
+            "rows": [
+                {
+                    "id": "testcity_agendas_CityCouncil_2024-02-01_1",
+                    "meeting": "CityCouncil",
+                    "date": "2024-02-01",
+                    "page": 1,
+                    "text": "Budget discussion for Q1 2024.",
+                    "page_image": "/_agendas/CityCouncil/2024-02-01/1.png",
+                }
+            ]
+        }
+
+        with patch("clip.services.httpx.Client") as mock_client_class:
+            mock_client = Mock()
+            mock_client_class.return_value.__enter__ = Mock(return_value=mock_client)
+            mock_client_class.return_value.__exit__ = Mock(return_value=False)
+            mock_response = Mock()
+            mock_response.json.return_value = mock_response_data
+            mock_response.raise_for_status = Mock()
+            mock_client.get.return_value = mock_response
+
+            url = reverse("clip:fetch-page")
+            response = client.get(
+                url,
+                {
+                    "id": "testcity_agendas_CityCouncil_2024-02-01_1",
+                    "subdomain": "testcity",
+                    "table": "agendas",
+                },
+                HTTP_HX_REQUEST="true",
+            )
+
+        assert response.status_code == 200
+        assert b"CityCouncil" in response.content
+
+        # Verify page was created locally
+        assert MeetingPage.objects.filter(
+            id="testcity_agendas_CityCouncil_2024-02-01_1"
+        ).exists()

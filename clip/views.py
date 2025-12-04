@@ -9,6 +9,8 @@ from django.views.generic import TemplateView
 from meetings.models import MeetingPage
 from notebooks.models import Notebook, Tag
 
+from .services import FetchError, fetch_single_page
+
 logger = logging.getLogger(__name__)
 
 
@@ -63,7 +65,20 @@ class FetchPageView(LoginRequiredMixin, View):
             )
             return self._render_preview(request, page, subdomain, table)
         except MeetingPage.DoesNotExist:
-            # Page not found locally - will implement remote fetch in next task
+            pass  # Will try remote fetch
+
+        # Try to fetch from civic.band API
+        try:
+            fetched_page = fetch_single_page(page_id, subdomain, table)
+            if fetched_page:
+                return self._render_preview(request, fetched_page, subdomain, table)
+            else:
+                return self._render_error(
+                    "Couldn't find this meeting. Please check the link and try again.",
+                    subdomain=subdomain,
+                )
+        except FetchError as e:
+            logger.error(f"Failed to fetch page {page_id}: {e}")
             return self._render_error(
                 "Couldn't find this meeting. Please check the link and try again.",
                 subdomain=subdomain,
