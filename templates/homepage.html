@@ -252,6 +252,94 @@
         </div>
     </div>
 
+<!-- Feature 4: Notifications (Static) -->
+    <div class="py-24 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="lg:grid lg:grid-cols-2 lg:gap-16 items-center">
+            <!-- Static Preview (Left side) -->
+                <div class="order-2 lg:order-1 mt-12 lg:mt-0">
+                    <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
+                        <h3 class="font-semibold text-gray-900 mb-4">Notification Channels</h3>
+
+                        <div class="space-y-4">
+                        <!-- Email Channel -->
+                            <div class="flex items-center justify-between p-4 rounded-lg border border-gray-200">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center mr-4">
+                                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p class="font-medium text-gray-900">Email</p>
+                                        <p class="text-sm text-gray-500">researcher@example.com</p>
+                                    </div>
+                                </div>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+                            </div>
+
+                        <!-- Bluesky Channel -->
+                            <div class="flex items-center justify-between p-4 rounded-lg border border-gray-200">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center mr-4">
+                                        <svg class="w-5 h-5 text-sky-600" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12c0-5.523-4.477-10-10-10z"/>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p class="font-medium text-gray-900">Bluesky</p>
+                                        <p class="text-sm text-gray-500">@researcher.bsky.social</p>
+                                    </div>
+                                </div>
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+                            </div>
+
+                        <!-- Webhook Channel -->
+                            <div class="flex items-center justify-between p-4 rounded-lg border border-dashed border-gray-300 bg-gray-50">
+                                <div class="flex items-center">
+                                    <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center mr-4">
+                                        <svg class="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                                        </svg>
+                                    </div>
+                                    <div>
+                                        <p class="font-medium text-gray-500">Webhook</p>
+                                        <p class="text-sm text-gray-400">For developers & integrations</p>
+                                    </div>
+                                </div>
+                                <span class="text-sm text-gray-500">Coming soon</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            <!-- Text Content (Right side) -->
+                <div class="order-1 lg:order-2">
+                    <div class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800 mb-4">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                        </svg>
+                        Notifications
+                    </div>
+                    <h2 class="text-3xl font-bold text-gray-900 sm:text-4xl">
+                        Get alerted your way
+                    </h2>
+                    <p class="mt-4 text-lg text-gray-600">
+                        Choose how you want to receive updates. Get instant email notifications, post to Bluesky, or integrate with your own systems via webhooks.
+                    </p>
+                    <div class="mt-8">
+                        <a href="{% url 'notifications:channel-list' %}" class="inline-flex items-center text-indigo-600 font-medium hover:text-indigo-700">
+                            Configure your notifications
+                            <svg class="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
 <!-- CTA Section -->
     <div class="bg-indigo-50">
         <div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:py-16 lg:px-8 lg:flex lg:items-center lg:justify-between">
