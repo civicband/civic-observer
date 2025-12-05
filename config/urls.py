@@ -26,6 +26,7 @@ from . import views
 urlpatterns: list[URLPattern | URLResolver] = [
     path("", views.homepage, name="homepage"),
     path("admin/", admin.site.urls),
+    path("api/", views.api_page, name="api_page"),
     path("api-keys/", include("apikeys.urls")),
     path("api/v1/", include((apikeys_internal, "apikeys_internal"))),
     path("auth/", include("stagedoor.urls", namespace="stagedoor")),

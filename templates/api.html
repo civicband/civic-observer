@@ -1,0 +1,200 @@
+{% extends "base.html" %}
+
+{% block title %}API Access - CivicObserver{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+    <div class="bg-gradient-to-br from-gray-900 to-indigo-900 text-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24">
+            <div class="max-w-3xl">
+                <h1 class="text-4xl sm:text-5xl font-extrabold tracking-tight">
+                    Access civic data<br>programmatically
+                </h1>
+                <p class="mt-6 text-xl text-gray-300">
+                    CivicObserver provides API access to meeting documents, search results, and notification data for researchers, journalists, and civic tech developers.
+                </p>
+                <div class="mt-10 flex flex-col sm:flex-row gap-4">
+                    <a href="{% url 'apikeys:list' %}" class="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-indigo-900 bg-white hover:bg-gray-100 transition-colors">
+                        Get Your API Key
+                    </a>
+                    <a href="https://docs.civic.band" target="_blank" rel="noopener" class="inline-flex items-center justify-center px-6 py-3 border border-white text-base font-medium rounded-lg text-white hover:bg-white/10 transition-colors">
+                        View Documentation
+                        <svg class="ml-2 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                        </svg>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- Mission Section -->
+    <div class="py-24 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="max-w-3xl mx-auto text-center">
+                <h2 class="text-3xl font-bold text-gray-900">Built for transparency</h2>
+                <p class="mt-6 text-lg text-gray-600">
+                    Local government decisions affect everyone. CivicObserver makes it easier to access, search, and monitor public meeting documents. Our API extends this mission by enabling researchers, journalists, and developers to build tools that further civic engagement.
+                </p>
+            </div>
+        </div>
+    </div>
+
+<!-- Use Cases Section -->
+    <div class="py-24 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 class="text-3xl font-bold text-gray-900 text-center mb-16">Who uses the API?</h2>
+
+            <div class="grid md:grid-cols-2 gap-8">
+            <!-- Researchers & Journalists -->
+                <div class="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+                    <div class="w-12 h-12 rounded-lg bg-indigo-100 flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-3">Researchers & Journalists</h3>
+                    <p class="text-gray-600 mb-4">
+                        Analyze patterns in local government decision-making. Track how topics like housing, budget, or zoning evolve across municipalities over time.
+                    </p>
+                    <ul class="space-y-2 text-sm text-gray-600">
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            Bulk export search results for analysis
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            Set up programmatic alerts for breaking topics
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            Access historical meeting data
+                        </li>
+                    </ul>
+                </div>
+
+            <!-- Civic Tech Developers -->
+                <div class="bg-white rounded-xl p-8 shadow-sm border border-gray-200">
+                    <div class="w-12 h-12 rounded-lg bg-indigo-100 flex items-center justify-center mb-6">
+                        <svg class="w-6 h-6 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-xl font-semibold text-gray-900 mb-3">Civic Tech Developers</h3>
+                    <p class="text-gray-600 mb-4">
+                        Build applications that help communities engage with local government. Create dashboards, notification bots, or analysis tools.
+                    </p>
+                    <ul class="space-y-2 text-sm text-gray-600">
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            RESTful API with JSON responses
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            Webhook notifications for real-time updates
+                        </li>
+                        <li class="flex items-start">
+                            <svg class="w-5 h-5 text-green-500 mr-2 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                            </svg>
+                            Rate limits suitable for most applications
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- Getting Started Section -->
+    <div class="py-24 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <h2 class="text-3xl font-bold text-gray-900 text-center mb-16">Getting started</h2>
+
+            <div class="max-w-3xl mx-auto">
+                <div class="space-y-8">
+                <!-- Step 1 -->
+                    <div class="flex gap-6">
+                        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold">1</div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900">Create an account</h3>
+                            <p class="mt-2 text-gray-600">Sign up for free to get access to the API. No credit card required.</p>
+                            <a href="{% url 'stagedoor:login' %}" class="mt-3 inline-flex items-center text-indigo-600 font-medium hover:text-indigo-700">
+                                Sign up now
+                                <svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                                </svg>
+                            </a>
+                        </div>
+                    </div>
+
+                <!-- Step 2 -->
+                    <div class="flex gap-6">
+                        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold">2</div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900">Generate an API key</h3>
+                            <p class="mt-2 text-gray-600">Create an API key from your account dashboard. You can create multiple keys for different applications.</p>
+                            <a href="{% url 'apikeys:list' %}" class="mt-3 inline-flex items-center text-indigo-600 font-medium hover:text-indigo-700">
+                                Manage API keys
+                                <svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                                </svg>
+                            </a>
+                        </div>
+                    </div>
+
+                <!-- Step 3 -->
+                    <div class="flex gap-6">
+                        <div class="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-600 text-white flex items-center justify-center font-bold">3</div>
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-900">Start making requests</h3>
+                            <p class="mt-2 text-gray-600">Use your API key to authenticate requests. Check our documentation for endpoints and examples.</p>
+                            <a href="https://docs.civic.band" target="_blank" rel="noopener" class="mt-3 inline-flex items-center text-indigo-600 font-medium hover:text-indigo-700">
+                                Read the docs
+                                <svg class="ml-1 w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                                </svg>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+            <!-- Code Example -->
+                <div class="mt-16">
+                    <h3 class="text-lg font-semibold text-gray-900 mb-4">Example request</h3>
+                    <div class="bg-gray-900 rounded-lg p-6 overflow-x-auto">
+                    <pre class="text-sm text-gray-300"><code>curl -H "Authorization: Bearer YOUR_API_KEY" \
+     "https://civic.observer/api/v1/search/?query=housing&municipality=berkeley"</code></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+<!-- CTA Section -->
+    <div class="bg-indigo-600">
+        <div class="max-w-7xl mx-auto py-16 px-4 sm:px-6 lg:py-20 lg:px-8 text-center">
+            <h2 class="text-3xl font-extrabold text-white">Ready to get started?</h2>
+            <p class="mt-4 text-lg text-indigo-100 max-w-xl mx-auto">
+                Create a free account and start exploring the API today.
+            </p>
+            <div class="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+                <a href="{% url 'stagedoor:login' %}" class="inline-flex items-center justify-center px-6 py-3 border border-transparent text-base font-medium rounded-lg text-indigo-600 bg-white hover:bg-gray-100 transition-colors">
+                    Create Free Account
+                </a>
+                <a href="https://docs.civic.band" target="_blank" rel="noopener" class="inline-flex items-center justify-center px-6 py-3 border-2 border-white text-base font-medium rounded-lg text-white hover:bg-indigo-500 transition-colors">
+                    Browse Documentation
+                </a>
+            </div>
+        </div>
+    </div>
+{% endblock content %}

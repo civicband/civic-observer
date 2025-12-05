@@ -75,6 +75,7 @@
                                     <a href="{% url 'apikeys:list' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors" data-umami-event="nav_click" data-umami-event-destination="api_keys">API Keys</a>
                                     <a href="{% url 'notifications:channel-list' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors" data-umami-event="nav_click" data-umami-event-destination="notifications">Notifications</a>
                                 {% endif %}
+                                <a href="{% url 'api_page' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors" data-umami-event="nav_click" data-umami-event-destination="api">API</a>
                                 {% if user.is_staff %} <a href="{% url 'admin:index' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors" data-umami-event="nav_click" data-umami-event-destination="admin">Admin</a> {% endif %}
                             </div>
                         </div>
@@ -122,6 +123,7 @@
                                 <a href="{% url 'apikeys:list' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors" data-umami-event="nav_click" data-umami-event-destination="api_keys">API Keys</a>
                                 <a href="{% url 'notifications:channel-list' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors" data-umami-event="nav_click" data-umami-event-destination="notifications">Notifications</a>
                             {% endif %}
+                            <a href="{% url 'api_page' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors" data-umami-event="nav_click" data-umami-event-destination="api">API</a>
                             {% if user.is_staff %}
                                 <a href="{% url 'admin:index' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors" data-umami-event="nav_click" data-umami-event-destination="admin">Admin</a>
                             {% endif %}
@@ -159,6 +161,11 @@
                                         <li>
                                             <a href="{% url 'homepage' %}#features" class="text-base text-gray-400 hover:text-white transition-colors duration-200">
                                                 Features
+                                            </a>
+                                        </li>
+                                        <li>
+                                            <a href="{% url 'api_page' %}" class="text-base text-gray-400 hover:text-white transition-colors duration-200">
+                                                API Access
                                             </a>
                                         </li>
                                         <li>
