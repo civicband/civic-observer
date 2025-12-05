@@ -18,3 +18,8 @@ def health_check(request):
     status = db_ok
     status_code = 200 if status else 503
     return JsonResponse({"status": "ok" if status else "unhealthy"}, status=status_code)
+
+
+def api_page(request):
+    """API information page for researchers and developers."""
+    return render(request, "api.html")
