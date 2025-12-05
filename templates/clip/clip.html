@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% load analytics %}
+
+{% block title %}Save to Notebook - CivicObserver{% endblock %}
+
+{% block content %}
+    <div class="max-w-2xl mx-auto">
+        <div class="bg-white shadow-sm rounded-lg">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h1 class="text-2xl font-bold text-gray-900">Save to Notebook</h1>
+                <p class="mt-1 text-sm text-gray-500">Save this meeting page to your notebook for later reference.</p>
+            </div>
+
+            <div class="px-6 py-4">
+                {% if page_id and subdomain and table %}
+                <!-- HTMX container for async loading -->
+                    <div id="clip-content"
+                         hx-get="{% url 'clip:fetch-page' %}?id={{ page_id }}&subdomain={{ subdomain }}&table={{ table }}"
+                         hx-trigger="load"
+                         hx-swap="innerHTML">
+                        {% include "clip/partials/loading_skeleton.html" %}
+                    </div>
+                {% else %}
+                    <div class="text-center py-8">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <h3 class="mt-2 text-sm font-medium text-gray-900">Missing parameters</h3>
+                        <p class="mt-1 text-sm text-gray-500">
+                            This page requires id, subdomain, and table parameters.
+                        </p>
+                        <div class="mt-6">
+                            <a href="https://civic.band"
+                               class="text-indigo-600 hover:text-indigo-800 font-medium">
+                                Return to civic.band
+                            </a>
+                        </div>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+{% endblock content %}

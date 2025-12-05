@@ -29,6 +29,7 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("api-keys/", include("apikeys.urls")),
     path("api/v1/", include((apikeys_internal, "apikeys_internal"))),
     path("auth/", include("stagedoor.urls", namespace="stagedoor")),
+    path("clip/", include("clip.urls")),
     path("datasette-auth/", datasette_auth, name="datasette_auth"),
     path("django-rq/", include("django_rq.urls")),
     path("health/", views.health_check, name="health_check"),

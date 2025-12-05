@@ -1,0 +1,146 @@
+{% load analytics %}
+<div class="space-y-6">
+    <!-- Meeting Preview -->
+    <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+        <div class="flex items-start justify-between">
+            <div>
+                <h2 class="text-lg font-semibold text-gray-900">
+                    {{ page.document.meeting_name }}
+                </h2>
+                <p class="text-sm text-gray-600 mt-1">
+                    {{ page.document.municipality.name }}, {{ page.document.municipality.state }}
+                </p>
+            </div>
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium {% if page.document.document_type == 'agenda' %}bg-blue-100 text-blue-800{% else %}bg-green-100 text-green-800{% endif %}">
+                {{ page.document.get_document_type_display }}
+            </span>
+        </div>
+
+        <div class="mt-3 flex items-center text-sm text-gray-500 space-x-4">
+            <span>{{ page.document.meeting_date|date:"F j, Y" }}</span>
+            <span>Page {{ page.page_number }}</span>
+        </div>
+
+        {% if page.text %}
+            <div class="mt-4 text-sm text-gray-700 line-clamp-4">
+                {{ page.text|truncatewords:50 }}
+            </div>
+        {% endif %}
+
+        <a href="https://{{ subdomain }}.civic.band/{{ table }}/{{ page.document.meeting_name }}/{{ page.document.meeting_date|date:'Y-m-d' }}"
+           target="_blank"
+           rel="noopener noreferrer"
+           class="mt-3 inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800">
+            View on civic.band
+            <svg class="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+        </a>
+    </div>
+
+    <!-- Save Form -->
+    <form hx-post="{% url 'clip:save-page' %}"
+          hx-swap="outerHTML"
+          class="space-y-4"
+          x-data="{ showNewNotebook: false, showNewTag: false }">
+        {% csrf_token %}
+        <input type="hidden" name="page_id" value="{{ page.id }}">
+
+        <!-- Notebook Selection -->
+        <div>
+            <label for="notebook_id" class="block text-sm font-medium text-gray-700 mb-1">
+                Save to notebook
+            </label>
+            <div x-show="!showNewNotebook">
+                <select name="notebook_id"
+                        id="notebook_id"
+                        class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                    {% for notebook in notebooks %}
+                        <option value="{{ notebook.id }}"{% if forloop.first %} selected{% endif %}>
+                            {{ notebook.name }}
+                        </option>
+                    {% empty %}
+                        <option value="" disabled>No notebooks yet</option>
+                    {% endfor %}
+                </select>
+                <button type="button"
+                        @click="showNewNotebook = true"
+                        class="mt-2 text-sm text-indigo-600 hover:text-indigo-800">
+                    + Create new notebook
+                </button>
+            </div>
+            <div x-show="showNewNotebook" x-transition class="space-y-2">
+                <input type="text"
+                       name="new_notebook_name"
+                       placeholder="Enter notebook name"
+                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                <button type="button"
+                        @click="showNewNotebook = false"
+                        class="text-sm text-gray-500 hover:text-gray-700">
+                    Cancel - use existing notebook
+                </button>
+            </div>
+        </div>
+
+        <!-- Note -->
+        <div>
+            <label for="note" class="block text-sm font-medium text-gray-700 mb-1">
+                Note <span class="text-gray-400 font-normal">(optional)</span>
+            </label>
+            <textarea name="note"
+                      id="note"
+                      rows="3"
+                      placeholder="Add a note about why you're saving this..."
+                      class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"></textarea>
+        </div>
+
+        <!-- Tags -->
+        <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">
+                Tags <span class="text-gray-400 font-normal">(optional)</span>
+            </label>
+
+            {% if tags %}
+                <div class="flex flex-wrap gap-2 mb-2">
+                    {% for tag in tags %}
+                        <label class="inline-flex items-center">
+                            <input type="checkbox"
+                                   name="tags"
+                                   value="{{ tag.id }}"
+                                   class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                            <span class="ml-1.5 text-sm text-gray-700">{{ tag.name }}</span>
+                        </label>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            <div x-show="showNewTag" x-transition class="mt-2">
+                <input type="text"
+                       name="new_tag"
+                       placeholder="Enter new tag name"
+                       class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                <p class="mt-1 text-xs text-gray-500">Tag will be created when you save.</p>
+            </div>
+
+            <button type="button"
+                    @click="showNewTag = !showNewTag"
+                    class="mt-2 text-sm text-indigo-600 hover:text-indigo-800">
+                <span x-show="!showNewTag">+ Add new tag</span>
+                <span x-show="showNewTag">Cancel new tag</span>
+            </button>
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+            <a href="https://{{ subdomain }}.civic.band"
+               class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                Cancel
+            </a>
+            <button type="submit"
+                    class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700"
+                    {{ "clip_page_saved"|track_event_data:page.id }}>
+                Save to Notebook
+            </button>
+        </div>
+    </form>
+</div>
