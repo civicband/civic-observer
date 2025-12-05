@@ -103,6 +103,81 @@
         </div>
     </div>
 
+<!-- Feature 2: Notebooks -->
+    <div class="py-24 bg-gray-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="lg:grid lg:grid-cols-2 lg:gap-16 items-center">
+            <!-- Interactive Demo (Left side) -->
+                <div class="order-2 lg:order-1 mt-12 lg:mt-0" x-data="notebookDemo()">
+                    <div class="bg-white rounded-2xl p-6 shadow-lg border border-gray-200">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="font-semibold text-gray-900">My Research Notebook</h3>
+                            <span class="text-sm text-gray-500" x-text="savedPages.length + ' pages'"></span>
+                        </div>
+
+                        <div class="space-y-3 max-h-64 overflow-y-auto">
+                            <template x-for="page in savedPages" :key="page.id">
+                                <div class="p-4 rounded-lg border border-gray-200 hover:border-indigo-300 transition-colors">
+                                    <div class="flex items-start justify-between">
+                                        <div class="flex-1 min-w-0">
+                                            <p class="text-sm font-medium text-gray-900" x-text="page.title"></p>
+                                            <p class="text-xs text-gray-500 mt-1" x-text="page.source"></p>
+                                        </div>
+                                        <button @click="removePage(page.id)"
+                                                class="ml-2 text-gray-400 hover:text-red-500 transition-colors">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                            </svg>
+                                        </button>
+                                    </div>
+                                    <div class="mt-2 flex flex-wrap gap-1">
+                                        <template x-for="tag in page.tags" :key="tag">
+                                            <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700" x-text="tag"></span>
+                                        </template>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <div class="mt-4 pt-4 border-t border-gray-200">
+                            <button @click="addSamplePage()"
+                                    class="w-full inline-flex items-center justify-center px-4 py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-indigo-500 hover:text-indigo-600 transition-colors">
+                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                </svg>
+                                Save another page
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+            <!-- Text Content (Right side) -->
+                <div class="order-1 lg:order-2">
+                    <div class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800 mb-4">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"></path>
+                        </svg>
+                        Notebooks
+                    </div>
+                    <h2 class="text-3xl font-bold text-gray-900 sm:text-4xl">
+                        Save and organize your research
+                    </h2>
+                    <p class="mt-4 text-lg text-gray-600">
+                        Clip important pages from meeting documents directly to your notebooks. Tag them, organize them, and access them anytime. Perfect for journalists, researchers, and engaged citizens.
+                    </p>
+                    <div class="mt-8">
+                        <a href="{% url 'notebooks:notebook-list' %}" class="inline-flex items-center text-indigo-600 font-medium hover:text-indigo-700">
+                            Create your first notebook
+                            <svg class="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
 <!-- CTA Section -->
     <div class="bg-indigo-50">
         <div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:py-16 lg:px-8 lg:flex lg:items-center lg:justify-between">
@@ -183,6 +258,50 @@
                         r.snippet.toLowerCase().includes(q) ||
                         r.municipality.toLowerCase().includes(q)
                     );
+                }
+            };
+        }
+
+        function notebookDemo() {
+            return {
+                savedPages: [
+                    {
+                        id: 1,
+                        title: 'Budget Discussion - FY2025 Allocations',
+                        source: 'Berkeley City Council • Nov 15, 2024',
+                        tags: ['budget', 'housing']
+                    },
+                    {
+                        id: 2,
+                        title: 'Zoning Amendment Review',
+                        source: 'Oakland Planning Commission • Nov 12, 2024',
+                        tags: ['zoning', 'development']
+                    },
+                    {
+                        id: 3,
+                        title: 'Affordable Housing Initiatives',
+                        source: 'SF Housing Authority • Nov 10, 2024',
+                        tags: ['housing', 'affordable']
+                    }
+                ],
+                nextId: 4,
+                samplePages: [
+                    { title: 'Transit Funding Discussion', source: 'BART Board • Nov 1, 2024', tags: ['transit', 'budget'] },
+                    { title: 'Environmental Impact Review', source: 'County Planning • Oct 28, 2024', tags: ['environment'] },
+                    { title: 'Public Safety Committee Report', source: 'City Council • Oct 25, 2024', tags: ['safety'] }
+                ],
+
+                removePage(id) {
+                    this.savedPages = this.savedPages.filter(p => p.id !== id);
+                },
+
+                addSamplePage() {
+                    if (this.samplePages.length === 0) return;
+                    const page = this.samplePages.shift();
+                    this.savedPages.push({
+                        id: this.nextId++,
+                        ...page
+                    });
                 }
             };
         }
