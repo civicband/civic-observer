@@ -178,6 +178,80 @@
         </div>
     </div>
 
+<!-- Feature 3: Saved Searches -->
+    <div class="py-24 bg-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="lg:grid lg:grid-cols-2 lg:gap-16 items-center">
+            <!-- Text Content -->
+                <div>
+                    <div class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-indigo-100 text-indigo-800 mb-4">
+                        <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path>
+                        </svg>
+                        Saved Searches
+                    </div>
+                    <h2 class="text-3xl font-bold text-gray-900 sm:text-4xl">
+                        Never miss an important topic
+                    </h2>
+                    <p class="mt-4 text-lg text-gray-600">
+                        Save your search criteria and we'll monitor new meeting documents for you. Get notified the moment something relevant is published.
+                    </p>
+                    <div class="mt-8">
+                        <a href="{% url 'searches:savedsearch-list' %}" class="inline-flex items-center text-indigo-600 font-medium hover:text-indigo-700">
+                            Set up your first saved search
+                            <svg class="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
+                            </svg>
+                        </a>
+                    </div>
+                </div>
+
+            <!-- Interactive Demo -->
+                <div class="mt-12 lg:mt-0" x-data="savedSearchDemo()">
+                    <div class="bg-gray-50 rounded-2xl p-6 shadow-lg border border-gray-200">
+                        <h3 class="font-semibold text-gray-900 mb-4">Your Saved Searches</h3>
+
+                        <div class="space-y-3">
+                            <template x-for="search in searches" :key="search.id">
+                                <div class="bg-white p-4 rounded-lg border border-gray-200">
+                                    <div class="flex items-center justify-between">
+                                        <div>
+                                            <p class="font-medium text-gray-900" x-text="search.name"></p>
+                                            <p class="text-sm text-gray-500 mt-1">
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-indigo-100 text-indigo-800" x-text="'\"' + search.term + '\"'"></span>
+                                                <span class="ml-2" x-text="search.scope"></span>
+                                            </p>
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <span x-show="search.newResults > 0"
+                                                  class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                <span x-text="search.newResults"></span> new
+                                            </span>
+                                            <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium"
+                                                  :class="search.frequency === 'immediate' ? 'bg-red-100 text-red-800' : search.frequency === 'daily' ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'"
+                                                  x-text="search.frequency"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+
+                        <div class="mt-4 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+                            <div class="flex items-start">
+                                <svg class="w-5 h-5 text-indigo-600 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                </svg>
+                                <p class="text-sm text-indigo-800">
+                                    <strong>Tip:</strong> Use "immediate" for time-sensitive topics and "weekly" for general monitoring.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
 <!-- CTA Section -->
     <div class="bg-indigo-50">
         <div class="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:py-16 lg:px-8 lg:flex lg:items-center lg:justify-between">
@@ -303,6 +377,37 @@
                         ...page
                     });
                 }
+            };
+        }
+
+        function savedSearchDemo() {
+            return {
+                searches: [
+                    {
+                        id: 1,
+                        name: 'Housing Policy Updates',
+                        term: 'affordable housing',
+                        scope: '3 municipalities',
+                        frequency: 'immediate',
+                        newResults: 2
+                    },
+                    {
+                        id: 2,
+                        name: 'Budget Discussions',
+                        term: 'budget',
+                        scope: 'All Bay Area',
+                        frequency: 'daily',
+                        newResults: 5
+                    },
+                    {
+                        id: 3,
+                        name: 'Zoning Changes',
+                        term: 'zoning amendment',
+                        scope: 'Oakland, CA',
+                        frequency: 'weekly',
+                        newResults: 0
+                    }
+                ]
             };
         }
     </script>
