@@ -1,4 +1,4 @@
-{% load i18n %}
+{% load i18n utm %}
 
 <!DOCTYPE html>
 <html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office">
@@ -166,7 +166,7 @@
                                                                 <ul style="padding-left: 20px;">
                                                                     {% for page in new_pages|slice:":10" %}
                                                                         <li style="margin-bottom: 12px;">
-                                                                            <a href="https://{{ page.document.municipality.subdomain }}.civic.band/meetings/{% if page.document.document_type == 'agenda' %}agendas{% else %}minutes{% endif %}?meeting={{ page.document.meeting_name|urlencode }}&date={{ page.document.meeting_date|date:'Y-m-d' }}">
+                                                                            <a href="https://{{ page.document.municipality.subdomain }}.civic.band/meetings/{% if page.document.document_type == 'agenda' %}agendas{% else %}minutes{% endif %}?meeting={{ page.document.meeting_name|urlencode }}&date={{ page.document.meeting_date|date:'Y-m-d' }}&utm_source=civicobserver&utm_medium=email&utm_campaign=search_update&utm_content=result_link">
                                                                                 <strong>{{ page.document.meeting_name }}</strong> - {{ page.document.meeting_date|date:"M d, Y" }}
                                                                                 <br>
                                                                                 <span style="color: #666; font-size: 14px;">
