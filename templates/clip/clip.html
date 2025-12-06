@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load analytics %}
+{% load analytics utm %}
 
 {% block title %}Save to Notebook - CivicObserver{% endblock %}
 
@@ -30,7 +30,7 @@
                             This page requires id, subdomain, and table parameters.
                         </p>
                         <div class="mt-6">
-                            <a href="https://civic.band"
+                            <a href="{% civic_url 'https://civic.band' medium='clip' campaign='clip_missing_params' content='return_link' %}"
                                class="text-indigo-600 hover:text-indigo-800 font-medium">
                                 Return to civic.band
                             </a>
