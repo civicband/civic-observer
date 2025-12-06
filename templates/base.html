@@ -1,4 +1,4 @@
-{% load analytics static tailwind_cli %}
+{% load analytics static tailwind_cli utm %}
 <!DOCTYPE html>
 <html lang="en" class="h-full">
     <head>
@@ -169,7 +169,7 @@
                                             </a>
                                         </li>
                                         <li>
-                                            <a href="https://civic.band" class="text-base text-gray-400 hover:text-white transition-colors duration-200" target="_blank" rel="noopener">
+                                            <a href="{% civic_url 'https://civic.band' medium='nav' campaign='footer' content='civicband_link' %}" class="text-base text-gray-400 hover:text-white transition-colors duration-200" target="_blank" rel="noopener">
                                                 CivicBand
                                             </a>
                                         </li>
@@ -179,12 +179,12 @@
                                     <h3 class="text-sm font-semibold text-gray-300 tracking-wider uppercase">Legal</h3>
                                     <ul class="mt-4 space-y-4">
                                         <li>
-                                            <a href="https://civic.band/terms" class="text-base text-gray-400 hover:text-white transition-colors duration-200" target="_blank" rel="noopener">
+                                            <a href="{% civic_url 'https://civic.band/terms' medium='nav' campaign='footer' content='terms_link' %}" class="text-base text-gray-400 hover:text-white transition-colors duration-200" target="_blank" rel="noopener">
                                                 Terms of Service
                                             </a>
                                         </li>
                                         <li>
-                                            <a href="https://civic.band/privacy" class="text-base text-gray-400 hover:text-white transition-colors duration-200" target="_blank" rel="noopener">
+                                            <a href="{% civic_url 'https://civic.band/privacy' medium='nav' campaign='footer' content='privacy_link' %}" class="text-base text-gray-400 hover:text-white transition-colors duration-200" target="_blank" rel="noopener">
                                                 Privacy Policy
                                             </a>
                                         </li>
