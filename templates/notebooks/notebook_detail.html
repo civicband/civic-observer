@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load utm %}
 
 {% block title %}{{ notebook.name }} - CivicObserver{% endblock %}
 
@@ -99,7 +100,7 @@
 
                     <!-- View on CivicBand link -->
                         <div class="mt-4 pt-3 border-t border-gray-200">
-                            <a href="https://{{ entry.meeting_page.document.municipality.subdomain }}.civic.band/meetings/{{ entry.meeting_page.document.civic_band_table_name }}/{{ entry.meeting_page.id }}"
+                            <a href="{% civic_url 'https://'|add:entry.meeting_page.document.municipality.subdomain|add:'.civic.band/meetings/'|add:entry.meeting_page.document.civic_band_table_name|add:'/'|add:entry.meeting_page.id medium='notebook' campaign='notebook_detail' content='view_button' %}"
                                target="_blank"
                                rel="noopener noreferrer"
                                class="text-sm text-indigo-600 hover:text-indigo-800">
