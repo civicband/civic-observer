@@ -1,4 +1,4 @@
-{% load meeting_filters notebook_filters %}
+{% load meeting_filters notebook_filters utm %}
 
 {% if error %}
     <!-- Error State -->
@@ -125,7 +125,7 @@
                 <!-- Actions -->
                 <div class="mt-4 flex items-center justify-between pt-4 border-t border-gray-200">
                     <div class="flex items-center space-x-2">
-                        <a href="https://{{ result.document.municipality.subdomain }}.civic.band/meetings/{{ result.document.civic_band_table_name }}/{{ result.id }}"
+                        <a href="{% civic_url 'https://'|add:result.document.municipality.subdomain|add:'.civic.band/meetings/'|add:result.document.civic_band_table_name|add:'/'|add:result.id medium='search' campaign='search_results' content='view_button' %}"
                            target="_blank"
                            rel="noopener noreferrer"
                            aria-label="View {{ result.document.meeting_name }} {{ result.document.document_type }} from {{ result.document.meeting_date|date:'F d, Y' }} on CivicBand (opens in new window)"
