@@ -1,4 +1,4 @@
-{% load analytics %}
+{% load analytics utm %}
 <div class="space-y-6">
     <!-- Meeting Preview -->
     <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
@@ -27,7 +27,7 @@
             </div>
         {% endif %}
 
-        <a href="https://{{ subdomain }}.civic.band/{{ table }}/{{ page.document.meeting_name }}/{{ page.document.meeting_date|date:'Y-m-d' }}"
+        <a href="{% civic_url 'https://'|add:subdomain|add:'.civic.band/'|add:table|add:'/'|add:page.document.meeting_name|add:'/'|add:page.document.meeting_date|date:'Y-m-d' medium='clip' campaign='clip_preview' content='view_link' %}"
            target="_blank"
            rel="noopener noreferrer"
            class="mt-3 inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800">
@@ -132,7 +132,7 @@
 
         <!-- Actions -->
         <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
-            <a href="https://{{ subdomain }}.civic.band"
+            <a href="{% civic_url 'https://'|add:subdomain|add:'.civic.band' medium='clip' campaign='clip_preview' content='cancel_button' %}"
                class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
                 Cancel
             </a>
