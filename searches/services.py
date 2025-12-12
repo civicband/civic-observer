@@ -6,10 +6,14 @@ This module provides reusable search functions used by both:
 - Saved search system (searches/models.py)
 """
 
+import logging
+
 from django.contrib.postgres.search import SearchQuery, SearchRank
 from django.db.models import F
 
 from meetings.models import MeetingDocument, MeetingPage
+
+logger = logging.getLogger(__name__)
 
 # Minimum rank threshold for search results
 MINIMUM_RANK_THRESHOLD = 0.01
@@ -27,6 +31,18 @@ def execute_search(search):
         If search_term is empty/null, returns all pages matching other filters
         (all updates mode).
     """
+    # Warn if search has no municipalities configured - this can cause
+    # the search to return ALL pages instead of filtering by municipality.
+    # This typically indicates a data issue from migration 0006.
+    municipalities = search.municipalities.all()
+    if not municipalities.exists() and not search.states:
+        logger.warning(
+            "Search %s has no municipalities or states configured. "
+            "Results will include ALL municipalities. "
+            "Run 'python manage.py repair_searches' to fix.",
+            search.id,
+        )
+
     # Start with all meeting pages
     queryset = MeetingPage.objects.select_related(
         "document", "document__municipality"
@@ -35,7 +51,7 @@ def execute_search(search):
     # Apply filter parameters
     queryset = _apply_search_filters(
         queryset,
-        municipalities=search.municipalities.all(),
+        municipalities=municipalities,
         states=search.states,
         date_from=search.date_from,
         date_to=search.date_to,
