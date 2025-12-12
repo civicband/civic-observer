@@ -52,6 +52,8 @@ services:
       - MAX_CLIENT_CONN=200
       - DEFAULT_POOL_SIZE=25
       - RESERVE_POOL_SIZE=5
+    ports:
+      - "6432:6432"
     volumes:
       - ./docker/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
       - ./docker/userlist.txt:/etc/pgbouncer/userlist.txt:ro
