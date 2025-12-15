@@ -4,8 +4,6 @@
 x-green-settings: &green-settings
   image: civic-observer:${VERSION:-latest}
   depends_on:
-    pgbouncer:
-      condition: service_healthy
     redis:
       condition: service_healthy
   env_file: .env.production
