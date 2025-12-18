@@ -2,8 +2,69 @@ from typing import Any
 
 import sentry_sdk
 from environs import env
+from sentry_sdk.types import Event, Hint
 
 from .base import *
+
+
+def _get_exception_name(exc: BaseException | None) -> str:
+    """Get fully qualified exception name for fingerprinting."""
+    if exc is None:
+        return ""
+    exc_type = type(exc)
+    module = getattr(exc_type, "__module__", "")
+    name = getattr(exc_type, "__name__", "")
+    if module:
+        return f"{module}.{name}"
+    return name
+
+
+def sentry_before_send(event: Event, hint: Hint) -> Event | None:
+    """
+    Custom fingerprinting to group related errors together.
+
+    Groups infrastructure errors (database, redis, HTTP) by type rather than
+    by stack trace location, preventing alert fatigue from infrastructure issues.
+    """
+    if "exc_info" not in hint:
+        return event
+
+    exc_info = hint.get("exc_info")
+    if not exc_info or len(exc_info) < 2:
+        return event
+
+    exc = exc_info[1]
+    exc_name = _get_exception_name(exc)
+
+    # Database connection errors (Django/psycopg)
+    if "OperationalError" in exc_name and "django.db" in exc_name:
+        event["fingerprint"] = ["database-connection-error"]
+        return event
+
+    if "psycopg" in exc_name:
+        event["fingerprint"] = ["database-error"]
+        return event
+
+    # Redis connection errors
+    if "redis" in exc_name.lower():
+        event["fingerprint"] = ["redis-connection-error"]
+        return event
+
+    # HTTP client errors (httpx used for civic.band API)
+    if "httpx" in exc_name.lower():
+        # Group by exception type (ConnectError, TimeoutError, etc.)
+        simple_name = exc_name.split(".")[-1]
+        event["fingerprint"] = ["httpx-error", simple_name]
+        return event
+
+    # BackfillError - group by municipality if present in message
+    if "BackfillError" in exc_name:
+        # Include default grouping but add category
+        event["fingerprint"] = ["{{ default }}", "backfill-error"]
+        return event
+
+    return event
+
 
 sentry_sdk.init(
     dsn=env.str("SENTRY_DSN", default=""),
@@ -12,6 +73,16 @@ sentry_sdk.init(
     send_default_pii=True,
     max_request_body_size="always",
     traces_sample_rate=0,
+    # Custom error grouping via fingerprinting
+    before_send=sentry_before_send,
+    # Django-specific integrations (auto-enabled but explicit for clarity)
+    integrations=[],  # Let sentry auto-detect Django
+    # Attach stack locals for better debugging
+    include_local_variables=True,
+    # Environment tag for filtering
+    environment=env.str("SENTRY_ENVIRONMENT", default="production"),
+    # Release tracking (use VERSION env var if set)
+    release=env.str("VERSION", default=None),
 )
 
 DEBUG: bool = False  # type: ignore[no-redef]
