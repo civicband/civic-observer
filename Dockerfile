@@ -67,8 +67,8 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY --chown=app:app . /src/
 
 # Copy pre-built static files from asset-builder
-COPY --from=asset-builder --chown=app:app /src/staticfiles /src/staticfiles
-COPY --from=asset-builder --chown=app:app /src/theme/static /src/theme/static
+COPY --from=asset-builder --chown=app:app /src/static /src/static
+COPY --from=asset-builder --chown=app:app /src/frontend/css /src/frontend/css
 
 WORKDIR /src/
 
