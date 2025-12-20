@@ -83,3 +83,24 @@ class TestMuniFilter:
         f = MuniFilter({"activity": "90"}, queryset=qs)
         # All three municipalities
         assert f.qs.count() == 3
+
+    def test_search_by_name(self, municipalities):
+        """Search municipalities by name."""
+        qs = Muni.objects.all()
+        f = MuniFilter({"q": "oak"}, queryset=qs)
+        assert f.qs.count() == 1
+        assert f.qs.first().name == "Oakland"
+
+    def test_search_by_subdomain(self, municipalities):
+        """Search municipalities by subdomain."""
+        qs = Muni.objects.all()
+        f = MuniFilter({"q": "port"}, queryset=qs)
+        assert f.qs.count() == 1
+        assert f.qs.first().subdomain == "portland"
+
+    def test_search_case_insensitive(self, municipalities):
+        """Search is case insensitive."""
+        qs = Muni.objects.all()
+        f = MuniFilter({"q": "BERKELEY"}, queryset=qs)
+        assert f.qs.count() == 1
+        assert f.qs.first().name == "Berkeley"

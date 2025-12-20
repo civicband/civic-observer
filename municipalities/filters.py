@@ -1,6 +1,7 @@
 from datetime import timedelta
 
 import django_filters
+from django.db.models import Q
 from django.utils import timezone
 
 from .models import Muni
@@ -27,10 +28,17 @@ class ActivityFilter(django_filters.ChoiceFilter):
 
 
 class MuniFilter(django_filters.FilterSet):
+    q = django_filters.CharFilter(method="search_filter", label="Search")
     state = django_filters.CharFilter(field_name="state", lookup_expr="exact")
     kind = django_filters.CharFilter(field_name="kind", lookup_expr="exact")
     activity = ActivityFilter(field_name="last_updated")
 
     class Meta:
         model = Muni
-        fields = ["state", "kind", "activity"]
+        fields = ["q", "state", "kind", "activity"]
+
+    def search_filter(self, queryset, name, value):
+        """Search by name or subdomain (case insensitive)."""
+        if not value:
+            return queryset
+        return queryset.filter(Q(name__icontains=value) | Q(subdomain__icontains=value))
