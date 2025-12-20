@@ -55,3 +55,35 @@ class TestMuniListView:
         content = response.content.decode()
         assert "Oakland" in content
         assert "Portland" not in content
+
+    def test_pagination_default_25_per_page(self, client: Client, db):
+        """Pagination shows 25 municipalities per page."""
+        # Create 30 municipalities
+        for i in range(30):
+            Muni.objects.create(
+                subdomain=f"city-{i}",
+                name=f"City {i}",
+                state="CA",
+                kind="City",
+                pages=i,
+            )
+        response = client.get(reverse("munis:muni-list"))
+        assert response.status_code == 200
+        # Should have page_obj in context
+        assert "page_obj" in response.context
+        assert response.context["page_obj"].paginator.per_page == 25
+        assert response.context["page_obj"].paginator.num_pages == 2
+
+    def test_pagination_page_2(self, client: Client, db):
+        """Can navigate to page 2."""
+        for i in range(30):
+            Muni.objects.create(
+                subdomain=f"city-{i}",
+                name=f"City {i:02d}",  # Zero-pad for sorting
+                state="CA",
+                kind="City",
+                pages=i,
+            )
+        response = client.get(reverse("munis:muni-list"), {"page": "2"})
+        assert response.status_code == 200
+        assert response.context["page_obj"].number == 2
