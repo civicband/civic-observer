@@ -1,8 +1,13 @@
-{% load analytics %}
+{% load utm %}
 {% for muni in object_list %}
     <tr class="hover:bg-gray-50 transition-colors duration-150">
         <td class="px-6 py-4 whitespace-nowrap">
-            <a href="{% url 'munis:muni-detail' muni.pk %}" class="text-indigo-600 hover:text-indigo-700 font-medium transition-colors duration-200" {{ "muni_viewed"|track_event_data:muni.subdomain }}>{{ muni.name }}</a>
+            <a href="{% civic_url 'https://'|add:muni.subdomain|add:'.civic.band' medium='municipalities' campaign='municipality_list' content='name_link' %}"
+               class="text-indigo-600 hover:text-indigo-700 font-medium transition-colors duration-200"
+               target="_blank"
+               rel="noopener">
+                {{ muni.name }}
+            </a>
         </td>
         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ muni.state }}</td>
         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ muni.kind }}</td>
@@ -11,36 +16,57 @@
                 {{ muni.pages }} pages
             </span>
         </td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                {{ muni.saved_searches_count }} saved
-            </span>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+            {% if muni.last_updated %}
+                {{ muni.last_updated|timesince }} ago
+            {% else %}
+                —
+            {% endif %}
         </td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{{ muni.last_updated|default:"—" }}</td>
         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-            <div class="flex space-x-2">
-                <a href="{% url 'munis:muni-detail' muni.pk %}" class="inline-flex items-center px-4 py-2 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200" {{ "muni_viewed"|track_event_data:muni.subdomain }}>
-                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                    </svg>
-                    View
+            <div class="flex items-center space-x-2">
+                <!-- Primary: Visit Site -->
+                <a href="{% civic_url 'https://'|add:muni.subdomain|add:'.civic.band' medium='municipalities' campaign='municipality_list' content='visit_button' %}"
+                   class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
+                   target="_blank"
+                   rel="noopener">
+                    Visit Site
+                </a>
+                <!-- Secondary: Create Search -->
+                <a href="{% url 'searches:savedsearch-create' %}?municipality={{ muni.pk }}"
+                   class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                    Create Search
                 </a>
                 {% if user.is_staff %}
-                    <a href="{% url 'munis:muni-update' muni.pk %}" class="inline-flex items-center px-4 py-2 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
-                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
-                        </svg>
-                        Edit
-                    </a>
-                    <a href="{% url 'munis:muni-delete' muni.pk %}" class="inline-flex items-center px-4 py-2 border border-transparent text-xs font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500 transition-colors duration-200">
-                        <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
-                        </svg>
-                        Delete
-                    </a>
+                    <!-- Staff menu -->
+                    <div x-data="{ open: false }" class="relative">
+                        <button @click="open = !open"
+                                class="p-1.5 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100">
+                            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                                <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
+                            </svg>
+                        </button>
+                        <div x-show="open"
+                             @click.outside="open = false"
+                             class="absolute right-0 z-10 mt-1 w-32 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5">
+                            <a href="{% url 'munis:muni-update' muni.pk %}"
+                               class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                Edit
+                            </a>
+                            <a href="{% url 'munis:muni-delete' muni.pk %}"
+                               class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100">
+                                Delete
+                            </a>
+                        </div>
+                    </div>
                 {% endif %}
             </div>
+        </td>
+    </tr>
+{% empty %}
+    <tr>
+        <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+            No municipalities match your search. Try adjusting your filters.
         </td>
     </tr>
 {% endfor %}

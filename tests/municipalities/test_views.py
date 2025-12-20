@@ -87,3 +87,22 @@ class TestMuniListView:
         response = client.get(reverse("munis:muni-list"), {"page": "2"})
         assert response.status_code == 200
         assert response.context["page_obj"].number == 2
+
+
+class TestMuniListViewLinks:
+    def test_name_links_to_civic_band_with_utm(self, client: Client, db):
+        """Municipality name links to civic.band with UTM parameters."""
+        Muni.objects.create(
+            subdomain="oakland",
+            name="Oakland",
+            state="CA",
+            kind="City",
+            pages=100,
+            last_updated=timezone.now(),
+        )
+        response = client.get(reverse("munis:muni-list"))
+        content = response.content.decode()
+        assert "https://oakland.civic.band" in content
+        assert "utm_source=civicobserver" in content
+        assert "utm_medium=municipalities" in content
+        assert "utm_campaign=municipality_list" in content
