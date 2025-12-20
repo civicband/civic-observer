@@ -46,3 +46,40 @@ class TestMuniFilter:
         f = MuniFilter({"state": "CA"}, queryset=qs)
         assert f.qs.count() == 2
         assert all(m.state == "CA" for m in f.qs)
+
+    def test_filter_by_kind(self, municipalities):
+        """Filter municipalities by type/kind."""
+        # Add a county for testing
+        Muni.objects.create(
+            subdomain="alameda-county",
+            name="Alameda County",
+            state="CA",
+            kind="County",
+            pages=200,
+        )
+        qs = Muni.objects.all()
+        f = MuniFilter({"kind": "City"}, queryset=qs)
+        assert f.qs.count() == 3
+        assert all(m.kind == "City" for m in f.qs)
+
+    def test_filter_by_activity_7_days(self, municipalities):
+        """Filter municipalities updated in last 7 days."""
+        qs = Muni.objects.all()
+        f = MuniFilter({"activity": "7"}, queryset=qs)
+        # Only Oakland was updated today
+        assert f.qs.count() == 1
+        assert f.qs.first().name == "Oakland"
+
+    def test_filter_by_activity_30_days(self, municipalities):
+        """Filter municipalities updated in last 30 days."""
+        qs = Muni.objects.all()
+        f = MuniFilter({"activity": "30"}, queryset=qs)
+        # Oakland (today) and Berkeley (10 days ago)
+        assert f.qs.count() == 2
+
+    def test_filter_by_activity_90_days(self, municipalities):
+        """Filter municipalities updated in last 90 days."""
+        qs = Muni.objects.all()
+        f = MuniFilter({"activity": "90"}, queryset=qs)
+        # All three municipalities
+        assert f.qs.count() == 3
