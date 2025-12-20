@@ -2,8 +2,6 @@ import pytest
 from django.contrib.auth import get_user_model
 from django.test import Client
 
-User = get_user_model()
-
 
 @pytest.fixture
 def user_data():
@@ -18,11 +16,13 @@ def user_data():
 
 @pytest.fixture
 def user(db, user_data):
+    User = get_user_model()
     return User.objects.create_user(**user_data)  # type: ignore
 
 
 @pytest.fixture
 def superuser(db):
+    User = get_user_model()
     return User.objects.create_superuser(  # type: ignore
         username="admin",
         email="admin@example.com",
