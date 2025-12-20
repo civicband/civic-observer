@@ -77,6 +77,12 @@ class MuniCRUDView(CRUDView):
         context = super().get_context_data(**kwargs)
         context["filterset"] = getattr(self, "filterset", None)
         context["total_count"] = Muni.objects.count()
+
+        # Get distinct values for filter dropdowns
+        context["state_choices"] = Muni.STATE_FIELD_CHOICES
+        context["kind_choices"] = (
+            Muni.objects.values_list("kind", flat=True).distinct().order_by("kind")
+        )
         return context
 
     def list(self, request, *args, **kwargs):
