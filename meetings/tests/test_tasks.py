@@ -267,3 +267,131 @@ class TestBackfillBatchTask:
         progress.refresh_from_db()
         assert progress.status == "completed"
         assert progress.error_message is None
+
+
+@pytest.mark.django_db
+class TestBackfillMunicipalityMeetingsTask:
+    @patch("meetings.tasks.django_rq.get_queue")
+    def test_new_municipality_triggers_full_backfill(self, mock_get_queue):
+        """Test that new municipalities use full backfill mode."""
+        muni = Muni.objects.create(
+            subdomain="test-city",
+            name="Test City",
+            state="CA",
+        )
+        # No existing MeetingDocuments - this is a new municipality
+
+        mock_queue = Mock()
+        mock_get_queue.return_value = mock_queue
+
+        # Run orchestrator
+        from meetings.tasks import backfill_municipality_meetings_task
+
+        backfill_municipality_meetings_task(muni.id)
+
+        # Verify BackfillProgress was created for both agendas and minutes
+        agenda_progress = BackfillProgress.objects.get(
+            municipality=muni,
+            document_type="agenda",
+        )
+        assert agenda_progress.mode == "full"
+        assert agenda_progress.status == "in_progress"
+
+        minutes_progress = BackfillProgress.objects.get(
+            municipality=muni,
+            document_type="minutes",
+        )
+        assert minutes_progress.mode == "full"
+        assert minutes_progress.status == "in_progress"
+
+        # Verify batched tasks were enqueued (2 calls - agenda + minutes)
+        assert mock_queue.enqueue.call_count == 2
+
+        # First call should be backfill_batch_task for agendas
+        first_call = mock_queue.enqueue.call_args_list[0][0]
+        assert first_call[0].__name__ == "backfill_batch_task"
+        assert first_call[2] == "agenda"
+
+    @patch("meetings.tasks.django_rq.get_queue")
+    def test_existing_municipality_triggers_incremental(self, mock_get_queue):
+        """Test that existing municipalities use incremental mode."""
+        from meetings.models import MeetingDocument
+
+        muni = Muni.objects.create(
+            subdomain="test-city",
+            name="Test City",
+            state="CA",
+        )
+        # Create existing documents to simulate existing municipality
+        MeetingDocument.objects.create(
+            municipality=muni,
+            meeting_name="Council Meeting",
+            meeting_date=date(2024, 12, 1),
+            document_type="agenda",
+        )
+
+        mock_queue = Mock()
+        mock_get_queue.return_value = mock_queue
+
+        # Run orchestrator
+        from meetings.tasks import backfill_municipality_meetings_task
+
+        backfill_municipality_meetings_task(muni.id)
+
+        # Verify BackfillProgress uses incremental mode
+        agenda_progress = BackfillProgress.objects.get(
+            municipality=muni,
+            document_type="agenda",
+        )
+        assert agenda_progress.mode == "incremental"
+        assert agenda_progress.status == "in_progress"
+
+        # Verify incremental task was enqueued
+        first_call = mock_queue.enqueue.call_args_list[0][0]
+        assert first_call[0].__name__ == "backfill_incremental_task"
+
+    @patch("meetings.tasks.django_rq.get_queue")
+    def test_force_full_backfill_flag_triggers_full(self, mock_get_queue):
+        """Test that force_full_backfill flag overrides to full mode."""
+        from meetings.models import MeetingDocument
+
+        muni = Muni.objects.create(
+            subdomain="test-city",
+            name="Test City",
+            state="CA",
+        )
+        # Existing documents
+        MeetingDocument.objects.create(
+            municipality=muni,
+            meeting_name="Council Meeting",
+            meeting_date=date(2024, 12, 1),
+            document_type="agenda",
+        )
+
+        # Create progress with force flag set
+        BackfillProgress.objects.create(
+            municipality=muni,
+            document_type="agenda",
+            mode="incremental",
+            status="completed",
+            force_full_backfill=True,  # Force full backfill
+        )
+
+        mock_queue = Mock()
+        mock_get_queue.return_value = mock_queue
+
+        # Run orchestrator
+        from meetings.tasks import backfill_municipality_meetings_task
+
+        backfill_municipality_meetings_task(muni.id)
+
+        # Verify it switched to full mode
+        agenda_progress = BackfillProgress.objects.get(
+            municipality=muni,
+            document_type="agenda",
+        )
+        assert agenda_progress.mode == "full"
+
+        # Verify batch task was enqueued (not incremental)
+        first_call = mock_queue.enqueue.call_args_list[0][0]
+        assert first_call[0].__name__ == "backfill_batch_task"

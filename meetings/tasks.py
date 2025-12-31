@@ -9,58 +9,103 @@ import django_rq
 
 from municipalities.models import Muni
 
-from .services import backfill_municipality_meetings
-
 logger = logging.getLogger(__name__)
 
 
-def backfill_municipality_meetings_task(muni_id: UUID | str) -> dict[str, int]:
+def backfill_municipality_meetings_task(muni_id: UUID | str) -> dict[str, str]:
     """
-    Background task to backfill all meeting data for a municipality.
+    Main orchestrator task that routes to full or incremental backfill.
 
-    This task is designed to be run asynchronously via django-rq to avoid
-    blocking the web request when triggered from webhooks or admin actions.
+    Determines backfill mode based on:
+    - New municipality (no existing documents) → Full backfill
+    - force_full_backfill flag set → Full backfill
+    - Existing municipality → Incremental backfill (±6 months)
 
     Args:
         muni_id: Primary key of the Municipality to backfill
 
     Returns:
-        Dictionary with statistics from the backfill operation
+        Dictionary with status for agendas and minutes
 
     Raises:
         Muni.DoesNotExist: If the municipality doesn't exist
     """
-    logger.info(f"Starting background backfill task for municipality ID: {muni_id}")
+    from meetings.models import BackfillProgress, MeetingDocument
+
+    logger.info(f"Starting backfill orchestrator for municipality ID: {muni_id}")
 
     try:
         muni = Muni.objects.get(pk=muni_id)
-        stats = backfill_municipality_meetings(muni)
-        logger.info(f"Background backfill completed for {muni.subdomain}: {stats}")
+        queue = django_rq.get_queue("default")
+        result = {}
 
-        # Enqueue check for immediate searches as a background task
-        try:
-            import django_rq
-
-            from searches.tasks import check_all_immediate_searches
-
-            queue = django_rq.get_queue("default")
-            job = queue.enqueue(check_all_immediate_searches)
-            logger.info(
-                f"Enqueued check for immediate searches (job ID: {job.id}) after backfill"
-            )
-        except Exception as e:
-            # Don't fail the backfill if search checking enqueue fails
-            logger.error(
-                f"Failed to enqueue immediate search check: {e}", exc_info=True
+        # Process both agendas and minutes
+        for document_type in ["agenda", "minutes"]:
+            # Get or create progress tracker
+            progress, created = BackfillProgress.objects.get_or_create(
+                municipality=muni,
+                document_type=document_type,
             )
 
-        return stats
+            # Determine if full backfill is needed
+            is_new = not MeetingDocument.objects.filter(
+                municipality=muni,
+                document_type=document_type,
+            ).exists()
+            needs_full = is_new or progress.force_full_backfill
+
+            if needs_full:
+                # Start full backfill chain
+                progress.mode = "full"
+                progress.status = "in_progress"
+                progress.next_cursor = None  # Start from beginning
+                progress.error_message = None
+                progress.save()
+
+                job = queue.enqueue(
+                    backfill_batch_task,
+                    muni_id,
+                    document_type,
+                    progress.id,
+                )
+
+                reason = "new municipality" if is_new else "force_full_backfill flag"
+                logger.info(
+                    f"Enqueued full backfill for {muni.subdomain} {document_type} "
+                    f"({reason}, job ID: {job.id})"
+                )
+                result[document_type] = f"full_backfill_started:{job.id}"
+            else:
+                # Run incremental backfill
+                progress.mode = "incremental"
+                progress.status = "in_progress"
+                progress.error_message = None
+                progress.save()
+
+                job = queue.enqueue(
+                    backfill_incremental_task,
+                    muni_id,
+                    document_type,
+                    progress.id,
+                )
+
+                logger.info(
+                    f"Enqueued incremental backfill for {muni.subdomain} {document_type} "
+                    f"(job ID: {job.id})"
+                )
+                result[document_type] = f"incremental_backfill_started:{job.id}"
+
+        # NOTE: We no longer enqueue check_all_immediate_searches here
+        # That will be done in the completion handlers of batch/incremental tasks
+
+        return result
+
     except Muni.DoesNotExist:
         logger.error(f"Municipality with ID {muni_id} does not exist")
         raise
     except Exception as e:
         logger.error(
-            f"Background backfill failed for municipality ID {muni_id}: {e}",
+            f"Backfill orchestrator failed for municipality ID {muni_id}: {e}",
             exc_info=True,
         )
         raise
