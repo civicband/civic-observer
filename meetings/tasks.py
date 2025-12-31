@@ -62,3 +62,90 @@ def backfill_municipality_meetings_task(muni_id: UUID | str) -> dict[str, int]:
             exc_info=True,
         )
         raise
+
+
+def backfill_incremental_task(
+    muni_id: UUID | str, document_type: str, progress_id: int
+) -> dict[str, int]:
+    """
+    Background task for incremental backfill (±6 months).
+
+    Fetches only meetings within INCREMENTAL_BACKFILL_MONTHS of today
+    using date range filters. Designed for daily webhook updates.
+
+    Args:
+        muni_id: Municipality primary key
+        document_type: 'agenda' or 'minutes'
+        progress_id: BackfillProgress record ID
+
+    Returns:
+        Statistics dictionary from backfill operation
+
+    Raises:
+        Exception: If backfill fails (after updating progress status)
+    """
+    from datetime import date, timedelta
+
+    from django.conf import settings
+
+    from meetings.models import BackfillProgress
+    from meetings.services import _backfill_document_type
+
+    logger.info(
+        f"Starting incremental backfill task for municipality ID: {muni_id}, "
+        f"document_type: {document_type}"
+    )
+
+    try:
+        muni = Muni.objects.get(pk=muni_id)
+        progress = BackfillProgress.objects.get(pk=progress_id)
+
+        # Calculate date range (±6 months from today)
+        today = date.today()
+        months = getattr(settings, "INCREMENTAL_BACKFILL_MONTHS", 6)
+        start_date = today - timedelta(days=months * 30)
+        end_date = today + timedelta(days=months * 30)
+
+        logger.info(
+            f"Incremental backfill for {muni.subdomain} {document_type}: "
+            f"{start_date} to {end_date}"
+        )
+
+        # Fetch with date filters
+        table_name = "agendas" if document_type == "agenda" else "minutes"
+        stats, _ = _backfill_document_type(
+            muni=muni,
+            table_name=table_name,
+            document_type=document_type,
+            date_range=(start_date, end_date),
+        )
+
+        # Mark progress as completed
+        progress.status = "completed"
+        progress.error_message = None
+        progress.save()
+
+        logger.info(
+            f"Incremental backfill completed for {muni.subdomain} {document_type}: {stats}"
+        )
+
+        return stats
+
+    except Muni.DoesNotExist:
+        logger.error(f"Municipality with ID {muni_id} does not exist")
+        raise
+    except Exception as e:
+        # Save failure state
+        try:
+            progress = BackfillProgress.objects.get(pk=progress_id)
+            progress.status = "failed"
+            progress.error_message = str(e)
+            progress.save()
+        except Exception as save_error:
+            logger.error(f"Failed to update progress status: {save_error}")
+
+        logger.error(
+            f"Incremental backfill failed for municipality ID {muni_id}: {e}",
+            exc_info=True,
+        )
+        raise
