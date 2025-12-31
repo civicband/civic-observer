@@ -56,14 +56,14 @@ def backfill_municipality_meetings(muni: Muni, timeout: int = 60) -> dict[str, i
 
     try:
         # Backfill agendas
-        agenda_stats = _backfill_document_type(
+        agenda_stats, _ = _backfill_document_type(
             muni, "agendas", "agenda", timeout=timeout
         )
         for key in stats:
             stats[key] += agenda_stats[key]
 
         # Backfill minutes
-        minutes_stats = _backfill_document_type(
+        minutes_stats, _ = _backfill_document_type(
             muni, "minutes", "minutes", timeout=timeout
         )
         for key in stats:
@@ -82,8 +82,14 @@ def backfill_municipality_meetings(muni: Muni, timeout: int = 60) -> dict[str, i
 
 
 def _backfill_document_type(
-    muni: Muni, table_name: str, document_type: str, timeout: int = 60
-) -> dict[str, int]:
+    muni: Muni,
+    table_name: str,
+    document_type: str,
+    start_cursor: str | None = None,
+    max_pages: int | None = None,
+    date_range: tuple[date, date] | None = None,
+    timeout: int = 60,
+) -> tuple[dict[str, int], str | None]:
     """
     Backfill a specific document type (agendas or minutes) for a municipality.
 
@@ -91,10 +97,13 @@ def _backfill_document_type(
         muni: Municipality instance
         table_name: Name of the datasette table ('agendas' or 'minutes')
         document_type: Type of document ('agenda' or 'minutes')
+        start_cursor: Pagination cursor to resume from (optional)
+        max_pages: Maximum number of API pages to fetch (optional, for batching)
+        date_range: Tuple of (start_date, end_date) for incremental backfill (optional)
         timeout: HTTP request timeout in seconds
 
     Returns:
-        Dictionary with statistics for this document type
+        Tuple of (stats dict, next_cursor or None)
     """
     stats = {
         "documents_created": 0,
@@ -114,12 +123,25 @@ def _backfill_document_type(
             headers["X-Service-Secret"] = service_secret
 
         with httpx.Client(timeout=timeout, headers=headers) as client:
-            # Start with the first page
-            url = f"{base_url}?_size=1000"
+            # Build query parameters
+            params: dict[str, int | str] = {"_size": 1000}
 
-            while url:
-                logger.debug(f"Fetching {url}")
-                response = client.get(url)
+            # Add date filtering for incremental mode
+            if date_range:
+                start_date, end_date = date_range
+                params["date__gte"] = start_date.isoformat()
+                params["date__lte"] = end_date.isoformat()
+
+            # Resume from cursor if provided
+            if start_cursor:
+                params["_next"] = start_cursor
+
+            pages_fetched = 0
+            next_cursor = None
+
+            while True:
+                logger.debug(f"Fetching {base_url} with params {params}")
+                response = client.get(base_url, params=params)
                 response.raise_for_status()
 
                 data = response.json()
@@ -130,22 +152,31 @@ def _backfill_document_type(
                 # Process rows in batches
                 _process_rows_batch(muni, rows, document_type, stats)
 
+                pages_fetched += 1
+
                 # Check if there's a next page using the cursor
                 next_cursor = data.get("next")
-                if next_cursor:
-                    # Use the next cursor for pagination
-                    url = f"{base_url}?_size=1000&_next={next_cursor}"
-                else:
-                    # No more pages
+
+                # Stop if: no more pages OR reached batch limit
+                if not next_cursor or (max_pages and pages_fetched >= max_pages):
                     break
+
+                # Use the next cursor for pagination
+                params = {"_size": 1000, "_next": next_cursor}
+
+                # Preserve date filters if they were set
+                if date_range:
+                    params["date__gte"] = start_date.isoformat()
+                    params["date__lte"] = end_date.isoformat()
 
     except httpx.HTTPError as e:
         logger.error(
-            f"HTTP error fetching {table_name} for {muni.subdomain}: {e}", exc_info=True
+            f"HTTP error fetching {table_name} for {muni.subdomain}: {e}",
+            exc_info=True,
         )
         stats["errors"] += 1
 
-    return stats
+    return stats, next_cursor
 
 
 def _process_rows_batch(
