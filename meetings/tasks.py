@@ -5,6 +5,8 @@ Background tasks for meeting data backfill operations.
 import logging
 from uuid import UUID
 
+import django_rq
+
 from municipalities.models import Muni
 
 from .services import backfill_municipality_meetings
@@ -146,6 +148,115 @@ def backfill_incremental_task(
 
         logger.error(
             f"Incremental backfill failed for municipality ID {muni_id}: {e}",
+            exc_info=True,
+        )
+        raise
+
+
+def backfill_batch_task(
+    muni_id: UUID | str, document_type: str, progress_id: int
+) -> dict[str, int]:
+    """
+    Background task for batched full backfill.
+
+    Processes one batch (FULL_BACKFILL_BATCH_SIZE API pages), saves
+    checkpoint, and enqueues next batch if more work remains.
+
+    Args:
+        muni_id: Municipality primary key
+        document_type: 'agenda' or 'minutes'
+        progress_id: BackfillProgress record ID
+
+    Returns:
+        Statistics dictionary from this batch
+
+    Raises:
+        Exception: If batch fails (after updating progress status)
+    """
+    from django.conf import settings
+
+    from meetings.models import BackfillProgress
+    from meetings.services import _backfill_document_type
+
+    logger.info(
+        f"Starting batch backfill task for municipality ID: {muni_id}, "
+        f"document_type: {document_type}, progress_id: {progress_id}"
+    )
+
+    try:
+        muni = Muni.objects.get(pk=muni_id)
+        progress = BackfillProgress.objects.get(pk=progress_id)
+
+        # Ensure status is correct, especially for retries
+        if progress.status != "in_progress":
+            progress.status = "in_progress"
+            progress.save()
+
+        # Get batch size from settings
+        batch_size = getattr(settings, "FULL_BACKFILL_BATCH_SIZE", 10)
+
+        logger.info(
+            f"Processing batch for {muni.subdomain} {document_type}, "
+            f"starting from cursor: {progress.next_cursor}"
+        )
+
+        # Fetch and process one batch
+        table_name = "agendas" if document_type == "agenda" else "minutes"
+        stats, next_cursor = _backfill_document_type(
+            muni=muni,
+            table_name=table_name,
+            document_type=document_type,
+            start_cursor=progress.next_cursor,
+            max_pages=batch_size,
+        )
+
+        # Update checkpoint
+        progress.next_cursor = next_cursor
+        progress.error_message = None
+
+        if next_cursor:
+            # More work to do - save and enqueue next batch
+            progress.save()
+
+            queue = django_rq.get_queue("default")
+            job = queue.enqueue(
+                backfill_batch_task,
+                muni_id,
+                document_type,
+                progress_id,
+            )
+            logger.info(
+                f"Enqueued next batch for {muni.subdomain} {document_type} "
+                f"(job ID: {job.id})"
+            )
+        else:
+            # Done - mark complete and clear flag
+            progress.status = "completed"
+            if progress.force_full_backfill:
+                progress.force_full_backfill = False
+            progress.save()
+
+            logger.info(
+                f"Batch backfill completed for {muni.subdomain} {document_type}"
+            )
+
+        return stats
+
+    except Muni.DoesNotExist:
+        logger.error(f"Municipality with ID {muni_id} does not exist")
+        raise
+    except Exception as e:
+        # Save failure state
+        try:
+            progress = BackfillProgress.objects.get(pk=progress_id)
+            progress.status = "failed"
+            progress.error_message = str(e)
+            progress.save()
+        except Exception as save_error:
+            logger.error(f"Failed to update progress status: {save_error}")
+
+        logger.error(
+            f"Batch backfill failed for municipality ID {muni_id}: {e}",
             exc_info=True,
         )
         raise
