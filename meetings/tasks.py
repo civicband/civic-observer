@@ -1,5 +1,21 @@
 """
 Background tasks for meeting data backfill operations.
+
+This module implements a two-mode backfill system:
+
+1. Full Backfill Mode:
+   - Used for new municipalities or when force_full_backfill flag is set
+   - Processes all historical data in batches (10 API pages per job)
+   - Jobs chain together, saving progress checkpoints after each batch
+   - Resumable after failures
+
+2. Incremental Backfill Mode:
+   - Used for daily webhook updates on existing municipalities
+   - Fetches only ±6 months of meeting data using date filters
+   - Single job, completes quickly
+
+The orchestrator (backfill_municipality_meetings_task) determines which mode
+to use based on municipality state and configuration.
 """
 
 import logging

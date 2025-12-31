@@ -91,7 +91,14 @@ def _backfill_document_type(
     timeout: int = 60,
 ) -> tuple[dict[str, int], str | None]:
     """
-    Backfill a specific document type (agendas or minutes) for a municipality.
+    Backfill meeting documents with support for batching and date filtering.
+
+    This function can operate in three modes:
+    1. Full backfill: Fetch all historical data (no date_range, no start_cursor)
+    2. Batched backfill: Fetch N pages at a time (max_pages set, returns cursor)
+    3. Incremental backfill: Fetch specific date range (date_range set)
+
+    Supports resuming from a cursor (start_cursor) for fault tolerance.
 
     Args:
         muni: Municipality instance
