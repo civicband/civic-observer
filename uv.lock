@@ -257,7 +257,7 @@ test = [
 [package.metadata]
 requires-dist = [
     { name = "atproto", specifier = ">=0.0.63" },
-    { name = "django", specifier = ">=5.2.1" },
+    { name = "django", specifier = ">=5.2.1,<6.0" },
     { name = "django-anymail", extras = ["postmark"], specifier = ">=10.2" },
     { name = "django-countries", specifier = ">=7.6.1" },
     { name = "django-extensions", specifier = ">=4.1" },
