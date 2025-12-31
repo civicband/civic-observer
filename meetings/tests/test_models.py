@@ -57,3 +57,32 @@ class TestBackfillProgress:
                 mode="incremental",
                 status="pending",
             )
+
+    def test_different_document_types_allowed(self):
+        """Test that same municipality can have different document types."""
+        muni = Muni.objects.create(
+            subdomain="test-city",
+            name="Test City",
+            state="CA",
+        )
+
+        # Create progress for agendas
+        agenda_progress = BackfillProgress.objects.create(
+            municipality=muni,
+            document_type="agenda",
+            mode="full",
+            status="pending",
+        )
+
+        # Create progress for minutes - should succeed
+        minutes_progress = BackfillProgress.objects.create(
+            municipality=muni,
+            document_type="minutes",
+            mode="full",
+            status="pending",
+        )
+
+        # Verify both exist
+        assert BackfillProgress.objects.filter(municipality=muni).count() == 2
+        assert agenda_progress.document_type == "agenda"
+        assert minutes_progress.document_type == "minutes"

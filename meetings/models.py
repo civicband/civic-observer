@@ -182,5 +182,5 @@ class BackfillProgress(models.Model):
         verbose_name = "Backfill Progress"
         verbose_name_plural = "Backfill Progress"
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{self.municipality.subdomain} - {self.document_type} ({self.status})"
