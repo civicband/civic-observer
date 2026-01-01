@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 class MuniCRUDView(CRUDView):
     model = Muni
     url_base = "munis:muni"  # type: ignore
+    paginate_by = 25
     fields = [
         "subdomain",
         "name",
