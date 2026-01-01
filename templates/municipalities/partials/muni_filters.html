@@ -1,0 +1,81 @@
+<!-- templates/municipalities/partials/muni_filters.html -->
+<div class="mb-6 space-y-4">
+    <!-- Search Box -->
+    <div class="max-w-xl mx-auto">
+        <div class="relative">
+            <input type="text"
+                   name="q"
+                   value="{{ request.GET.q|default:'' }}"
+                   placeholder="Search by municipality name..."
+                   class="w-full px-4 py-3 pl-10 text-gray-900 placeholder-gray-500 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                   hx-get="{% url 'munis:muni-list' %}"
+                   hx-trigger="input changed delay:300ms"
+                   hx-target="#muni-results"
+                   hx-include="[name='state'], [name='kind'], [name='activity'], [name='sort'], [name='order']"
+                   hx-push-url="true">
+            <div class="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none">
+                <svg class="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                </svg>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filter Dropdowns -->
+    <div class="flex flex-wrap items-center justify-center gap-4">
+        <!-- State Filter -->
+        <select name="state"
+                class="px-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                hx-get="{% url 'munis:muni-list' %}"
+                hx-trigger="change"
+                hx-target="#muni-results"
+                hx-include="[name='q'], [name='kind'], [name='activity'], [name='sort'], [name='order']"
+                hx-push-url="true">
+            <option value="">All States</option>
+            {% for state in state_choices %}
+                <option value="{{ state.0 }}" {% if request.GET.state == state.0 %}selected{% endif %}>{{ state.1 }}</option>
+            {% endfor %}
+        </select>
+
+        <!-- Type Filter -->
+        <select name="kind"
+                class="px-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                hx-get="{% url 'munis:muni-list' %}"
+                hx-trigger="change"
+                hx-target="#muni-results"
+                hx-include="[name='q'], [name='state'], [name='activity'], [name='sort'], [name='order']"
+                hx-push-url="true">
+            <option value="">All Types</option>
+            {% for kind in kind_choices %}
+                <option value="{{ kind }}" {% if request.GET.kind == kind %}selected{% endif %}>{{ kind }}</option>
+            {% endfor %}
+        </select>
+
+        <!-- Activity Filter -->
+        <select name="activity"
+                class="px-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                hx-get="{% url 'munis:muni-list' %}"
+                hx-trigger="change"
+                hx-target="#muni-results"
+                hx-include="[name='q'], [name='state'], [name='kind'], [name='sort'], [name='order']"
+                hx-push-url="true">
+            <option value="">Any time</option>
+            <option value="7" {% if request.GET.activity == "7" %}selected{% endif %}>Last 7 days</option>
+            <option value="30" {% if request.GET.activity == "30" %}selected{% endif %}>Last 30 days</option>
+            <option value="90" {% if request.GET.activity == "90" %}selected{% endif %}>Last 90 days</option>
+        </select>
+
+        <!-- Clear Filters -->
+        {% if request.GET.q or request.GET.state or request.GET.kind or request.GET.activity %}
+            <a href="{% url 'munis:muni-list' %}"
+               class="text-sm text-indigo-600 hover:text-indigo-800 underline">
+                Clear filters
+            </a>
+        {% endif %}
+    </div>
+
+    <!-- Results Count -->
+    <div class="text-center text-sm text-gray-600">
+        Showing {{ page_obj.paginator.count }} of {{ total_count }} municipalities
+    </div>
+</div>

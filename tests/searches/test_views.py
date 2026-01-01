@@ -243,3 +243,24 @@ class TestSavedSearchCreateView:
 
         saved_search = SavedSearch.objects.get(user=user)
         assert saved_search.notification_frequency == "daily"
+
+
+@pytest.mark.django_db
+class TestSavedSearchCreatePreFill:
+    def test_municipality_prefilled_from_query_param(self, authenticated_client, db):
+        """Municipality field is pre-filled when query param provided."""
+        muni = MuniFactory(
+            subdomain="oakland",
+            name="Oakland",
+            state="CA",
+            kind="City",
+            pages=100,
+        )
+        response = authenticated_client.get(
+            reverse("searches:savedsearch-create"),
+            {"municipality": str(muni.pk)},
+        )
+        assert response.status_code == 200
+        # Check that the form has municipality pre-selected
+        form = response.context["form"]
+        assert form.initial.get("municipality") == muni
