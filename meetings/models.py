@@ -111,3 +111,76 @@ class MeetingPage(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.document} - Page {self.page_number}"
+
+
+class BackfillProgress(models.Model):
+    """
+    Tracks progress of backfill operations for municipalities.
+
+    Stores checkpoints for resumable backfills and configuration flags
+    for controlling backfill mode (full vs incremental).
+    """
+
+    DOCUMENT_TYPE_CHOICES = [
+        ("agenda", "Agenda"),
+        ("minutes", "Minutes"),
+    ]
+
+    MODE_CHOICES = [
+        ("full", "Full"),
+        ("incremental", "Incremental"),
+    ]
+
+    STATUS_CHOICES = [
+        ("pending", "Pending"),
+        ("in_progress", "In Progress"),
+        ("completed", "Completed"),
+        ("failed", "Failed"),
+    ]
+
+    municipality = models.ForeignKey(
+        "municipalities.Muni",
+        on_delete=models.CASCADE,
+        related_name="backfill_progress",
+    )
+    document_type = models.CharField(
+        max_length=20,
+        choices=DOCUMENT_TYPE_CHOICES,
+    )
+    mode = models.CharField(
+        max_length=20,
+        choices=MODE_CHOICES,
+    )
+    status = models.CharField(
+        max_length=20,
+        choices=STATUS_CHOICES,
+        default="pending",
+    )
+    next_cursor = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Pagination cursor for resuming backfill",
+    )
+    force_full_backfill = models.BooleanField(
+        default=False,
+        help_text="Set to True to force full backfill on next run",
+    )
+    started_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    error_message = models.TextField(
+        blank=True,
+        null=True,
+        help_text="Error message if backfill failed",
+    )
+
+    class Meta:
+        unique_together = [["municipality", "document_type"]]
+        indexes = [
+            models.Index(fields=["status"]),
+            models.Index(fields=["municipality", "status"]),
+        ]
+        verbose_name = "Backfill Progress"
+        verbose_name_plural = "Backfill Progress"
+
+    def __str__(self) -> str:
+        return f"{self.municipality.subdomain} - {self.document_type} ({self.status})"
