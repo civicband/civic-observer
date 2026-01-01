@@ -7,6 +7,7 @@ from django.http import JsonResponse
 from django.views import View
 from neapolitan.views import CRUDView
 
+from .filters import MuniFilter
 from .models import Muni
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,10 @@ class MuniCRUDView(CRUDView):
             .annotate(saved_searches_count=Count("searches__saved_by", distinct=True))
         )
 
+        # Apply filters
+        self.filterset = MuniFilter(self.request.GET, queryset=queryset)
+        queryset = self.filterset.qs
+
         # Handle sorting for HTMX requests
         sort_by = self.request.GET.get("sort", "name")
         sort_order = self.request.GET.get("order", "asc")
@@ -67,6 +72,18 @@ class MuniCRUDView(CRUDView):
             queryset = queryset.order_by(order_field)
 
         return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["filterset"] = getattr(self, "filterset", None)
+        context["total_count"] = Muni.objects.count()
+
+        # Get distinct values for filter dropdowns
+        context["state_choices"] = Muni.STATE_FIELD_CHOICES
+        context["kind_choices"] = (
+            Muni.objects.values_list("kind", flat=True).distinct().order_by("kind")
+        )
+        return context
 
     def list(self, request, *args, **kwargs):
         """Override to handle HTMX requests for sorting."""
