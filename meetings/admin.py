@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 
-from .models import BackfillProgress, MeetingDocument, MeetingPage
+from .models import BackfillJob, BackfillProgress, MeetingDocument, MeetingPage
 from .utils import truncate_text
 
 
@@ -131,6 +131,83 @@ class MeetingPageAdmin(admin.ModelAdmin):
         if obj.text:
             return truncate_text(obj.text, max_length=100)
         return "(empty)"
+
+
+@admin.register(BackfillJob)
+class BackfillJobAdmin(admin.ModelAdmin):
+    """Admin interface for BackfillJob model."""
+
+    list_display = [
+        "id",
+        "municipality",
+        "document_type",
+        "status",
+        "pages_created",
+        "pages_updated",
+        "errors_encountered",
+        "created",
+        "verified_at",
+    ]
+    list_filter = ["status", "document_type", "created"]
+    search_fields = ["municipality__subdomain", "municipality__name"]
+    readonly_fields = [
+        "id",
+        "created",
+        "modified",
+        "verified_at",
+        "pages_fetched",
+        "pages_created",
+        "pages_updated",
+        "errors_encountered",
+        "expected_count",
+        "actual_count",
+    ]
+    fieldsets = [
+        (
+            "Job Info",
+            {
+                "fields": [
+                    "id",
+                    "municipality",
+                    "document_type",
+                    "status",
+                    "created",
+                    "modified",
+                ]
+            },
+        ),
+        (
+            "Progress",
+            {
+                "fields": [
+                    "last_cursor",
+                    "pages_fetched",
+                    "pages_created",
+                    "pages_updated",
+                    "errors_encountered",
+                ]
+            },
+        ),
+        (
+            "Verification",
+            {
+                "fields": [
+                    "expected_count",
+                    "actual_count",
+                    "verified_at",
+                ]
+            },
+        ),
+        (
+            "Errors",
+            {
+                "fields": [
+                    "last_error",
+                    "retry_count",
+                ]
+            },
+        ),
+    ]
 
 
 @admin.register(BackfillProgress)
