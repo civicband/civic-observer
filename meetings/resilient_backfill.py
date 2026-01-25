@@ -120,3 +120,47 @@ class ResilientBackfillService:
 
         # Should never reach here due to raise in loop
         raise RuntimeError("Unexpected code path in _fetch_with_retry")
+
+    def _build_base_url(self) -> str:
+        """
+        Build base URL for the civic.band API.
+
+        Returns:
+            Base URL for the municipality and document type
+        """
+        muni = self.job.municipality
+        table_name = "agendas" if self.job.document_type == "agenda" else "minutes"
+        return f"https://{muni.subdomain}.civic.band/meetings/{table_name}.json"
+
+    def _build_initial_url(self) -> str:
+        """
+        Build starting URL, resuming from checkpoint if exists.
+
+        Returns:
+            URL to begin fetching (either first page or resume point)
+        """
+        base_url = self._build_base_url()
+
+        # Resume from last checkpoint if job was interrupted
+        if self.job.last_cursor:
+            logger.info(f"Resuming from cursor: {self.job.last_cursor[:50]}...")
+            return f"{base_url}?_size={self.batch_size}&_next={self.job.last_cursor}"
+
+        # Start from beginning
+        return f"{base_url}?_size={self.batch_size}"
+
+    def _get_next_url(self, data: dict[str, Any]) -> str | None:
+        """
+        Get URL for next page of results.
+
+        Args:
+            data: API response data containing optional 'next' cursor
+
+        Returns:
+            URL for next page, or None if no more pages
+        """
+        next_cursor = data.get("next")
+        if next_cursor:
+            base_url = self._build_base_url()
+            return f"{base_url}?_size={self.batch_size}&_next={next_cursor}"
+        return None

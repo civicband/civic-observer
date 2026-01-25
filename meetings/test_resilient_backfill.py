@@ -115,3 +115,65 @@ class TestResilientBackfillService:
 
         # Should not retry on HTTP errors
         assert mock_get.call_count == 1
+
+    def test_build_base_url(self, job):
+        """Test building base URL for API."""
+        service = ResilientBackfillService(job)
+        url = service._build_base_url()
+
+        assert url == "https://berkeley.ca.civic.band/meetings/agendas.json"
+
+    def test_build_base_url_for_minutes(self, muni):
+        """Test building base URL for minutes."""
+        job = BackfillJob.objects.create(
+            municipality=muni,
+            document_type="minutes",
+        )
+        service = ResilientBackfillService(job)
+        url = service._build_base_url()
+
+        assert url == "https://berkeley.ca.civic.band/meetings/minutes.json"
+
+    def test_build_initial_url_without_cursor(self, job):
+        """Test building initial URL without existing cursor."""
+        service = ResilientBackfillService(job)
+        url = service._build_initial_url()
+
+        expected = "https://berkeley.ca.civic.band/meetings/agendas.json?_size=1000"
+        assert url == expected
+
+    def test_build_initial_url_with_cursor(self, job):
+        """Test building URL resumes from existing cursor."""
+        job.last_cursor = "eyJwYWdlIjogMn0="  # Example cursor
+        job.save()
+
+        service = ResilientBackfillService(job)
+        url = service._build_initial_url()
+
+        expected = (
+            "https://berkeley.ca.civic.band/meetings/agendas.json"
+            "?_size=1000&_next=eyJwYWdlIjogMn0="
+        )
+        assert url == expected
+
+    def test_get_next_url_with_cursor(self, job):
+        """Test building next page URL with cursor."""
+        service = ResilientBackfillService(job)
+        data = {"next": "eyJwYWdlIjogM30="}
+
+        url = service._get_next_url(data)
+
+        expected = (
+            "https://berkeley.ca.civic.band/meetings/agendas.json"
+            "?_size=1000&_next=eyJwYWdlIjogM30="
+        )
+        assert url == expected
+
+    def test_get_next_url_without_cursor(self, job):
+        """Test get_next_url returns None when no cursor."""
+        service = ResilientBackfillService(job)
+        data: dict[str, str] = {}
+
+        url = service._get_next_url(data)
+
+        assert url is None
