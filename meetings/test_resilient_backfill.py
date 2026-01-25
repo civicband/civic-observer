@@ -177,3 +177,64 @@ class TestResilientBackfillService:
         url = service._get_next_url(data)
 
         assert url is None
+
+    def test_update_checkpoint(self, job):
+        """Test updating checkpoint saves progress to database."""
+        service = ResilientBackfillService(job)
+
+        stats = {
+            "pages_created": 150,
+            "pages_updated": 50,
+            "errors": 2,
+        }
+
+        service._update_checkpoint(cursor="cursor123", stats=stats)
+
+        # Refresh from database
+        job.refresh_from_db()
+
+        assert job.last_cursor == "cursor123"
+        assert job.pages_fetched == 1000  # batch_size
+        assert job.pages_created == 150
+        assert job.pages_updated == 50
+        assert job.errors_encountered == 2
+
+    def test_update_checkpoint_accumulates_stats(self, job):
+        """Test checkpoint updates accumulate stats across batches."""
+        # Set initial values
+        job.pages_fetched = 1000
+        job.pages_created = 100
+        job.pages_updated = 20
+        job.errors_encountered = 1
+        job.save()
+
+        service = ResilientBackfillService(job)
+
+        stats = {
+            "pages_created": 150,
+            "pages_updated": 30,
+            "errors": 2,
+        }
+
+        service._update_checkpoint(cursor="cursor456", stats=stats)
+
+        job.refresh_from_db()
+
+        assert job.last_cursor == "cursor456"
+        assert job.pages_fetched == 2000  # 1000 + 1000
+        assert job.pages_created == 250  # 100 + 150
+        assert job.pages_updated == 50  # 20 + 30
+        assert job.errors_encountered == 3  # 1 + 2
+
+    def test_update_checkpoint_with_none_cursor(self, job):
+        """Test checkpoint update handles None cursor (final batch)."""
+        service = ResilientBackfillService(job)
+
+        stats = {"pages_created": 50, "pages_updated": 10, "errors": 0}
+
+        service._update_checkpoint(cursor=None, stats=stats)
+
+        job.refresh_from_db()
+
+        assert job.last_cursor == ""  # None becomes empty string
+        assert job.pages_created == 50

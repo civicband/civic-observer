@@ -164,3 +164,37 @@ class ResilientBackfillService:
             base_url = self._build_base_url()
             return f"{base_url}?_size={self.batch_size}&_next={next_cursor}"
         return None
+
+    def _update_checkpoint(self, cursor: str | None, stats: dict[str, int]) -> None:
+        """
+        Save checkpoint after processing batch.
+
+        Updates the BackfillJob with current progress so backfill can
+        resume from this point if interrupted.
+
+        Args:
+            cursor: Pagination cursor for next batch (None if final batch)
+            stats: Statistics from this batch (pages_created, pages_updated, errors)
+        """
+        self.job.last_cursor = cursor or ""
+        self.job.pages_fetched += self.batch_size
+        self.job.pages_created += stats.get("pages_created", 0)
+        self.job.pages_updated += stats.get("pages_updated", 0)
+        self.job.errors_encountered += stats.get("errors", 0)
+
+        self.job.save(
+            update_fields=[
+                "last_cursor",
+                "pages_fetched",
+                "pages_created",
+                "pages_updated",
+                "errors_encountered",
+                "modified",  # TimeStampedModel auto-updates this
+            ]
+        )
+
+        logger.info(
+            f"Checkpoint saved: {self.job.pages_fetched} fetched, "
+            f"{self.job.pages_created} created, {self.job.pages_updated} updated, "
+            f"{self.job.errors_encountered} errors"
+        )
