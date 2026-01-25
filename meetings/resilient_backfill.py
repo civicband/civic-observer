@@ -400,9 +400,7 @@ class ResilientBackfillService:
 
         # Datasette provides count in the response metadata
         # Fetch first page to get total count
-        response = self.client.get(f"{base_url}?_size=1")
-        response.raise_for_status()
-        data = response.json()
+        data = self._fetch_with_retry(f"{base_url}?_size=1")
 
         # Check for count in response (datasette format varies)
         if "filtered_table_rows_count" in data:
@@ -437,9 +435,7 @@ class ResilientBackfillService:
         url = f"{self._build_base_url()}?_size={self.batch_size}"
 
         while url:
-            response = self.client.get(url)
-            response.raise_for_status()
-            data = response.json()
+            data = self._fetch_with_retry(url)
             count += len(data.get("rows", []))
 
             next_cursor = data.get("next")
