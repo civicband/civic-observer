@@ -500,3 +500,133 @@ class TestResilientBackfillService:
         count = service._get_local_count()
 
         assert count == 5  # Only agenda pages for job.municipality
+
+    @patch("httpx.Client.get")
+    def test_run_complete_backfill_flow(self, mock_get, job):
+        """Test complete backfill flow from start to verification."""
+        # Mock API responses
+        mock_responses = [
+            # First batch
+            Mock(
+                json=lambda: {
+                    "rows": [
+                        {
+                            "id": "page-1",
+                            "meeting": "CityCouncil",
+                            "date": "2024-01-15",
+                            "page": 1,
+                            "text": "Page 1",
+                            "page_image": "/_agendas/CityCouncil/2024-01-15/1.png",
+                        },
+                        {
+                            "id": "page-2",
+                            "meeting": "CityCouncil",
+                            "date": "2024-01-15",
+                            "page": 2,
+                            "text": "Page 2",
+                            "page_image": "/_agendas/CityCouncil/2024-01-15/2.png",
+                        },
+                    ],
+                    "next": "cursor123",
+                },
+                raise_for_status=lambda: None,
+            ),
+            # Second batch (final)
+            Mock(
+                json=lambda: {
+                    "rows": [
+                        {
+                            "id": "page-3",
+                            "meeting": "CityCouncil",
+                            "date": "2024-01-15",
+                            "page": 3,
+                            "text": "Page 3",
+                            "page_image": "/_agendas/CityCouncil/2024-01-15/3.png",
+                        },
+                    ],
+                    "next": None,  # No more pages
+                },
+                raise_for_status=lambda: None,
+            ),
+            # Verification count request
+            Mock(
+                json=lambda: {"count": 3, "rows": []},
+                raise_for_status=lambda: None,
+            ),
+        ]
+        mock_get.side_effect = mock_responses
+
+        service = ResilientBackfillService(job, batch_size=1000)
+        result = service.run()
+
+        # Check result stats
+        assert result["pages_created"] == 3
+        assert result["pages_updated"] == 0
+        assert result["errors"] == 0
+
+        # Check job was updated
+        job.refresh_from_db()
+        assert job.status == "completed"
+        assert job.pages_created == 3
+        assert job.pages_fetched == 2000  # 2 batches
+        assert job.expected_count == 3
+        assert job.actual_count == 3
+        assert job.verified_at is not None
+
+        # Verify pages were created
+        assert MeetingPage.objects.count() == 3
+
+    @patch("httpx.Client.get")
+    def test_run_handles_failure(self, mock_get, job):
+        """Test run method handles failures gracefully."""
+        mock_get.side_effect = httpx.HTTPStatusError(
+            "500 Server Error",
+            request=Mock(),
+            response=Mock(status_code=500),
+        )
+
+        service = ResilientBackfillService(job)
+
+        with pytest.raises(httpx.HTTPStatusError):
+            service.run()
+
+        # Job should be marked as failed
+        job.refresh_from_db()
+        assert job.status == "failed"
+        assert "500 Server Error" in job.last_error
+
+    @patch("httpx.Client.get")
+    def test_run_resumes_from_checkpoint(self, mock_get, job):
+        """Test run method resumes from existing checkpoint."""
+        # Set job to have existing checkpoint
+        job.last_cursor = "cursor123"
+        job.pages_fetched = 1000
+        job.pages_created = 2
+        job.save()
+
+        # Mock response for resumed batch
+        mock_get.return_value = Mock(
+            json=lambda: {
+                "rows": [
+                    {
+                        "id": "page-3",
+                        "meeting": "CityCouncil",
+                        "date": "2024-01-15",
+                        "page": 3,
+                        "text": "Page 3",
+                        "page_image": "/_agendas/CityCouncil/2024-01-15/3.png",
+                    },
+                ],
+                "next": None,
+            },
+            raise_for_status=lambda: None,
+        )
+
+        service = ResilientBackfillService(job)
+        result = service.run()
+
+        # Should only create 1 new page (resumed from checkpoint)
+        assert result["pages_created"] == 1
+
+        job.refresh_from_db()
+        assert job.pages_created == 3  # 2 from before + 1 new

@@ -445,3 +445,74 @@ class ResilientBackfillService:
                 break
 
         return count
+
+    def run(self) -> dict[str, int]:
+        """
+        Run the backfill with automatic checkpointing and verification.
+
+        Returns:
+            Dictionary with statistics (pages_created, pages_updated, errors)
+
+        Raises:
+            BackfillError: If backfill fails or verification fails
+        """
+        logger.info(f"Starting resilient backfill for job {self.job.id}")
+
+        # Mark job as running
+        self.job.status = "running"
+        self.job.save(update_fields=["status", "modified"])
+
+        total_stats = {"pages_created": 0, "pages_updated": 0, "errors": 0}
+
+        try:
+            # Resume from last checkpoint if exists
+            url: str | None = self._build_initial_url()
+
+            # Fetch and process batches
+            while url:
+                # Fetch batch with retry logic
+                data = self._fetch_with_retry(url, max_retries=3)
+
+                # Process batch
+                batch_stats = self._process_batch(data.get("rows", []))
+
+                # Accumulate stats
+                for key in total_stats:
+                    total_stats[key] += batch_stats[key]
+
+                # Update checkpoint (save progress)
+                self._update_checkpoint(cursor=data.get("next"), stats=batch_stats)
+
+                # Get next URL
+                url = self._get_next_url(data)
+
+            # Verify completeness after fetching all data
+            self._verify_completeness()
+
+            # Mark as completed
+            self.job.status = "completed"
+            self.job.save(update_fields=["status", "modified"])
+
+            logger.info(
+                f"Resilient backfill completed for job {self.job.id}: {total_stats}"
+            )
+            return total_stats
+
+        except Exception as e:
+            # Handle failure
+            self._handle_failure(e)
+            raise
+
+    def _handle_failure(self, error: Exception) -> None:
+        """
+        Handle backfill failure by updating job status.
+
+        Args:
+            error: Exception that caused the failure
+        """
+        logger.error(f"Backfill failed for job {self.job.id}: {error}", exc_info=True)
+
+        self.job.status = "failed"
+        self.job.last_error = str(error)
+        self.job.retry_count += 1
+        self.job.save(update_fields=["status", "last_error", "retry_count", "modified"])
