@@ -136,6 +136,16 @@ The project uses environment-based settings:
 
 Set the `DJANGO_SETTINGS_MODULE` environment variable to switch between configurations.
 
+## Data Backfill
+
+Use the resilient backfill system to populate meeting data:
+
+```bash
+python manage.py resilient_backfill --subdomain=all
+```
+
+See [Resilient Backfill Guide](docs/RESILIENT_BACKFILL.md) for details.
+
 ## Just Commands
 
 This project uses [just](https://github.com/casey/just) for task running. Available commands:
