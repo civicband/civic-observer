@@ -77,3 +77,46 @@ class ResilientBackfillService:
     def __exit__(self, exc_type, exc_val, exc_tb):
         """Context manager exit - ensures client is closed."""
         self.close()
+
+    def _fetch_with_retry(self, url: str, max_retries: int = 3) -> dict[str, Any]:
+        """
+        Fetch URL with exponential backoff retry on timeout.
+
+        Args:
+            url: URL to fetch
+            max_retries: Maximum number of retry attempts (default: 3)
+
+        Returns:
+            JSON response data as dictionary
+
+        Raises:
+            httpx.TimeoutException: If all retries are exhausted
+            httpx.HTTPError: For non-timeout HTTP errors (no retry)
+        """
+        for attempt in range(max_retries):
+            try:
+                logger.info(f"Fetching {url} (attempt {attempt + 1}/{max_retries})")
+                response = self.client.get(url)
+                response.raise_for_status()
+                return response.json()
+
+            except httpx.TimeoutException as e:
+                if attempt == max_retries - 1:
+                    # Last attempt - re-raise
+                    logger.error(f"Timeout after {max_retries} attempts: {e}")
+                    raise
+
+                # Exponential backoff: 2^0=1s, 2^1=2s, 2^2=4s
+                wait_time = 2**attempt
+                logger.warning(
+                    f"Timeout on attempt {attempt + 1}, retrying in {wait_time}s: {e}"
+                )
+                time.sleep(wait_time)
+
+            except httpx.HTTPError as e:
+                # HTTP errors (4xx, 5xx) - don't retry
+                logger.error(f"HTTP error: {e}")
+                raise
+
+        # Should never reach here due to raise in loop
+        raise RuntimeError("Unexpected code path in _fetch_with_retry")
