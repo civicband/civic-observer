@@ -198,3 +198,152 @@ class ResilientBackfillService:
             f"{self.job.pages_created} created, {self.job.pages_updated} updated, "
             f"{self.job.errors_encountered} errors"
         )
+
+    def _process_batch(self, rows: list[dict[str, Any]]) -> dict[str, int]:
+        """
+        Process batch of rows with per-page error handling.
+
+        Groups rows by document (meeting + date), then processes each page
+        individually so one bad page doesn't fail the entire document.
+
+        Args:
+            rows: List of row dictionaries from API
+
+        Returns:
+            Statistics dictionary with pages_created, pages_updated, errors
+        """
+        stats = {"pages_created": 0, "pages_updated": 0, "errors": 0}
+
+        # Group rows by document (meeting, date)
+        documents_map = self._group_rows_by_document(rows, stats)
+
+        # Process each document independently
+        for doc_key, pages_data in documents_map.items():
+            try:
+                with transaction.atomic():
+                    document = self._get_or_create_document(doc_key)
+
+                    # Process pages individually (don't fail whole doc if one page fails)
+                    for page_data in pages_data:
+                        try:
+                            created = self._create_or_update_page(document, page_data)
+                            if created:
+                                stats["pages_created"] += 1
+                            else:
+                                stats["pages_updated"] += 1
+
+                        except Exception as e:
+                            # Log error but continue with other pages
+                            logger.warning(
+                                f"Failed to process page {page_data.get('id')}: {e}",
+                                exc_info=True,
+                            )
+                            stats["errors"] += 1
+
+            except Exception as e:
+                # Document creation failed - log and continue
+                logger.error(f"Failed to create document {doc_key}: {e}", exc_info=True)
+                stats["errors"] += 1
+
+        return stats
+
+    def _group_rows_by_document(
+        self, rows: list[dict[str, Any]], stats: dict[str, int]
+    ) -> dict[tuple[str, str], list[dict[str, Any]]]:
+        """
+        Group rows by (meeting_name, meeting_date) to create documents.
+
+        Args:
+            rows: List of row dictionaries from API
+            stats: Statistics dictionary to update with errors
+
+        Returns:
+            Dictionary mapping (meeting_name, date_str) to list of page data
+        """
+        from datetime import date
+
+        documents_map: dict[tuple[str, str], list[dict[str, Any]]] = {}
+
+        for row in rows:
+            try:
+                meeting_name = row.get("meeting", "")
+                date_str = row.get("date", "")
+
+                if not meeting_name or not date_str:
+                    logger.warning(f"Skipping row with missing data: {row}")
+                    stats["errors"] += 1
+                    continue
+
+                # Validate date format
+                date.fromisoformat(date_str)
+
+                key = (meeting_name, date_str)
+                if key not in documents_map:
+                    documents_map[key] = []
+                documents_map[key].append(row)
+
+            except (ValueError, TypeError) as e:
+                logger.warning(f"Error processing row {row}: {e}")
+                stats["errors"] += 1
+
+        return documents_map
+
+    def _get_or_create_document(self, doc_key: tuple[str, str]) -> MeetingDocument:
+        """
+        Get or create a MeetingDocument.
+
+        Args:
+            doc_key: Tuple of (meeting_name, date_str)
+
+        Returns:
+            MeetingDocument instance
+        """
+        from datetime import date
+
+        meeting_name, date_str = doc_key
+        meeting_date = date.fromisoformat(date_str)
+
+        document, created = MeetingDocument.objects.update_or_create(
+            municipality=self.job.municipality,
+            meeting_name=meeting_name,
+            meeting_date=meeting_date,
+            document_type=self.job.document_type,
+        )
+
+        return document
+
+    def _create_or_update_page(
+        self, document: MeetingDocument, page_data: dict[str, Any]
+    ) -> bool:
+        """
+        Create or update a MeetingPage.
+
+        Args:
+            document: MeetingDocument this page belongs to
+            page_data: Dictionary with page data from API
+
+        Returns:
+            True if page was created, False if updated
+
+        Raises:
+            ValueError: If page_id is missing
+        """
+        page_id = page_data.get("id")
+        if not page_id:
+            raise ValueError(f"Missing page ID in data: {page_data}")
+
+        page_number = page_data.get("page", 0)
+        text = page_data.get("text", "")
+        page_image = page_data.get("page_image", "")
+
+        page, created = MeetingPage.objects.update_or_create(
+            id=page_id,
+            defaults={
+                "document": document,
+                "page_number": page_number,
+                "text": text,
+                "page_image": page_image,
+            },
+        )
+
+        return created

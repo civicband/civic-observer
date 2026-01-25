@@ -3,7 +3,7 @@ from unittest.mock import Mock, patch
 import httpx
 import pytest
 
-from meetings.models import BackfillJob
+from meetings.models import BackfillJob, MeetingDocument, MeetingPage
 from meetings.resilient_backfill import ResilientBackfillService
 from municipalities.models import Muni
 
@@ -238,3 +238,141 @@ class TestResilientBackfillService:
 
         assert job.last_cursor == ""  # None becomes empty string
         assert job.pages_created == 50
+
+    def test_process_batch_creates_documents_and_pages(self, job):
+        """Test processing batch creates MeetingDocuments and MeetingPages."""
+        service = ResilientBackfillService(job)
+
+        rows = [
+            {
+                "id": "page-1",
+                "meeting": "CityCouncil",
+                "date": "2024-01-15",
+                "page": 1,
+                "text": "Test page 1",
+                "page_image": "/_agendas/CityCouncil/2024-01-15/1.png",
+            },
+            {
+                "id": "page-2",
+                "meeting": "CityCouncil",
+                "date": "2024-01-15",
+                "page": 2,
+                "text": "Test page 2",
+                "page_image": "/_agendas/CityCouncil/2024-01-15/2.png",
+            },
+        ]
+
+        stats = service._process_batch(rows)
+
+        assert stats["pages_created"] == 2
+        assert stats["pages_updated"] == 0
+        assert stats["errors"] == 0
+
+        # Verify document was created
+        assert MeetingDocument.objects.filter(
+            municipality=job.municipality,
+            meeting_name="CityCouncil",
+            meeting_date="2024-01-15",
+            document_type="agenda",
+        ).exists()
+
+        # Verify pages were created
+        assert MeetingPage.objects.filter(id="page-1").exists()
+        assert MeetingPage.objects.filter(id="page-2").exists()
+
+    def test_process_batch_updates_existing_pages(self, job):
+        """Test processing batch updates existing pages."""
+        # Create existing document and page
+        from tests.factories import MeetingDocumentFactory, MeetingPageFactory
+
+        doc = MeetingDocumentFactory(
+            municipality=job.municipality,
+            meeting_name="CityCouncil",
+            meeting_date="2024-01-15",
+            document_type="agenda",
+        )
+        MeetingPageFactory(
+            id="page-1",
+            document=doc,
+            page_number=1,
+            text="Old text",
+        )
+
+        service = ResilientBackfillService(job)
+
+        rows = [
+            {
+                "id": "page-1",
+                "meeting": "CityCouncil",
+                "date": "2024-01-15",
+                "page": 1,
+                "text": "Updated text",
+                "page_image": "/_agendas/CityCouncil/2024-01-15/1.png",
+            },
+        ]
+
+        stats = service._process_batch(rows)
+
+        assert stats["pages_created"] == 0
+        assert stats["pages_updated"] == 1
+        assert stats["errors"] == 0
+
+        # Verify page was updated
+        page = MeetingPage.objects.get(id="page-1")
+        assert page.text == "Updated text"
+
+    def test_process_batch_handles_missing_required_fields(self, job):
+        """Test batch processing skips rows with missing required fields."""
+        service = ResilientBackfillService(job)
+
+        rows = [
+            {"id": "page-1", "meeting": "", "date": "2024-01-15"},  # Missing meeting
+            {"id": "page-2", "meeting": "CityCouncil", "date": ""},  # Missing date
+            {"meeting": "CityCouncil", "date": "2024-01-15"},  # Missing id
+        ]
+
+        stats = service._process_batch(rows)
+
+        assert stats["pages_created"] == 0
+        assert stats["errors"] == 3
+
+    def test_process_batch_continues_after_page_error(self, job):
+        """Test batch processing continues even if individual page fails."""
+        service = ResilientBackfillService(job)
+
+        rows = [
+            {
+                "id": "page-1",
+                "meeting": "CityCouncil",
+                "date": "2024-01-15",
+                "page": 1,
+                "text": "Good page",
+                "page_image": "/_agendas/CityCouncil/2024-01-15/1.png",
+            },
+            {
+                "id": "page-2",
+                "meeting": "CityCouncil",
+                "date": "invalid-date",  # This will fail
+                "page": 2,
+                "text": "Bad page",
+                "page_image": "/_agendas/CityCouncil/2024-01-15/2.png",
+            },
+            {
+                "id": "page-3",
+                "meeting": "CityCouncil",
+                "date": "2024-01-15",
+                "page": 3,
+                "text": "Another good page",
+                "page_image": "/_agendas/CityCouncil/2024-01-15/3.png",
+            },
+        ]
+
+        stats = service._process_batch(rows)
+
+        # Should create 2 pages despite 1 error
+        assert stats["pages_created"] == 2
+        assert stats["errors"] >= 1
+
+        assert MeetingPage.objects.filter(id="page-1").exists()
+        assert not MeetingPage.objects.filter(id="page-2").exists()
+        assert MeetingPage.objects.filter(id="page-3").exists()
