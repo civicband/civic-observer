@@ -5,6 +5,7 @@ import pytest
 
 from meetings.models import BackfillJob, MeetingDocument, MeetingPage
 from meetings.resilient_backfill import ResilientBackfillService
+from meetings.services import BackfillError
 from municipalities.models import Muni
 
 
@@ -376,3 +377,126 @@ class TestResilientBackfillService:
         assert MeetingPage.objects.filter(id="page-1").exists()
         assert not MeetingPage.objects.filter(id="page-2").exists()
         assert MeetingPage.objects.filter(id="page-3").exists()
+
+    @patch("httpx.Client.get")
+    def test_verify_completeness_with_matching_counts(self, mock_get, job):
+        """Test verification passes when counts match."""
+        from tests.factories import MeetingDocumentFactory, MeetingPageFactory
+
+        # Create 10 pages in database
+        doc = MeetingDocumentFactory(
+            municipality=job.municipality,
+            document_type="agenda",
+        )
+        for _ in range(10):
+            MeetingPageFactory(document=doc)
+
+        # Mock API to return count of 10
+        mock_response = Mock()
+        mock_response.json.return_value = {"count": 10, "rows": []}
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        service = ResilientBackfillService(job)
+        service._verify_completeness()  # Should not raise
+
+        job.refresh_from_db()
+        assert job.expected_count == 10
+        assert job.actual_count == 10
+        assert job.verified_at is not None
+
+    @patch("httpx.Client.get")
+    def test_verify_completeness_fails_with_missing_data(self, mock_get, job):
+        """Test verification fails when significant data is missing."""
+        from tests.factories import MeetingDocumentFactory, MeetingPageFactory
+
+        # Create 5 pages in database
+        doc = MeetingDocumentFactory(
+            municipality=job.municipality,
+            document_type="agenda",
+        )
+        for _ in range(5):
+            MeetingPageFactory(document=doc)
+
+        # Mock API to return count of 100 (missing 95 pages = 95%)
+        mock_response = Mock()
+        mock_response.json.return_value = {"count": 100, "rows": []}
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        service = ResilientBackfillService(job)
+
+        with pytest.raises(BackfillError, match="Missing 95 pages"):
+            service._verify_completeness()
+
+        job.refresh_from_db()
+        assert job.expected_count == 100
+        assert job.actual_count == 5
+        assert job.status == "failed"
+
+    @patch("httpx.Client.get")
+    def test_verify_completeness_allows_minor_discrepancy(self, mock_get, job):
+        """Test verification passes with minor discrepancy (<1%)."""
+        from tests.factories import MeetingDocumentFactory, MeetingPageFactory
+
+        # Create 999 pages in database
+        doc = MeetingDocumentFactory(
+            municipality=job.municipality,
+            document_type="agenda",
+        )
+        for _ in range(999):
+            MeetingPageFactory(document=doc)
+
+        # Mock API to return count of 1000 (missing 1 page = 0.1%)
+        mock_response = Mock()
+        mock_response.json.return_value = {"count": 1000, "rows": []}
+        mock_response.raise_for_status = Mock()
+        mock_get.return_value = mock_response
+
+        service = ResilientBackfillService(job)
+        service._verify_completeness()  # Should not raise (< 1% missing)
+
+        job.refresh_from_db()
+        assert job.expected_count == 1000
+        assert job.actual_count == 999
+        assert job.status != "failed"  # Should not mark as failed
+
+    def test_get_local_count(self, job):
+        """Test counting local pages for municipality and document type."""
+        from tests.factories import MeetingDocumentFactory, MeetingPageFactory
+
+        # Create 5 agenda pages for this municipality
+        agenda_doc = MeetingDocumentFactory(
+            municipality=job.municipality,
+            document_type="agenda",
+        )
+        for _ in range(5):
+            MeetingPageFactory(document=agenda_doc)
+
+        # Create 3 minutes pages (should not be counted)
+        minutes_doc = MeetingDocumentFactory(
+            municipality=job.municipality,
+            document_type="minutes",
+        )
+        for _ in range(3):
+            MeetingPageFactory(document=minutes_doc)
+
+        # Create 2 agenda pages for different municipality (should not be counted)
+        other_muni = Muni.objects.create(
+            subdomain="other.ca",
+            name="Other City",
+            state="CA",
+            country="US",
+            kind="city",
+        )
+        other_doc = MeetingDocumentFactory(
+            municipality=other_muni,
+            document_type="agenda",
+        )
+        for _ in range(2):
+            MeetingPageFactory(document=other_doc)
+
+        service = ResilientBackfillService(job)
+        count = service._get_local_count()
+
+        assert count == 5  # Only agenda pages for job.municipality

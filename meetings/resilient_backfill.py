@@ -345,3 +345,107 @@ class ResilientBackfillService:
         )
 
         return created
+
+    def _verify_completeness(self) -> None:
+        """
+        Verify backfill completeness by comparing local vs API counts.
+
+        Raises:
+            BackfillError: If >1% of expected data is missing
+        """
+        logger.info(f"Verifying backfill completeness for job {self.job.id}")
+
+        # Get expected count from API
+        expected = self._get_api_total_count()
+
+        # Get actual count from local database
+        actual = self._get_local_count()
+
+        # Update job with verification results
+        self.job.expected_count = expected
+        self.job.actual_count = actual
+        self.job.verified_at = timezone.now()
+        self.job.save(
+            update_fields=["expected_count", "actual_count", "verified_at", "modified"]
+        )
+
+        # Check if counts match
+        if actual < expected:
+            missing = expected - actual
+            error_msg = f"Missing {missing} pages! Expected {expected}, got {actual}"
+            logger.error(error_msg)
+
+            # Mark as failed if significant data is missing
+            missing_pct = (missing / expected) if expected > 0 else 0
+            if missing > 100 or missing_pct > 0.01:  # >1% missing
+                self.job.status = "failed"
+                self.job.last_error = error_msg
+                self.job.save(update_fields=["status", "last_error", "modified"])
+                raise BackfillError(error_msg)
+            else:
+                logger.warning(
+                    f"Minor discrepancy: {missing} pages missing ({missing_pct:.2%})"
+                )
+
+        logger.info(f"Verification passed: {actual}/{expected} pages")
+
+    def _get_api_total_count(self) -> int:
+        """
+        Get total record count from API.
+
+        Returns:
+            Expected number of pages from API metadata
+        """
+        base_url = self._build_base_url()
+
+        # Datasette provides count in the response metadata
+        # Fetch first page to get total count
+        response = self.client.get(f"{base_url}?_size=1")
+        response.raise_for_status()
+        data = response.json()
+
+        # Check for count in response (datasette format varies)
+        if "filtered_table_rows_count" in data:
+            return data["filtered_table_rows_count"]
+        elif "count" in data:
+            return data["count"]
+        else:
+            # Fallback: count by fetching all pages (expensive but accurate)
+            logger.warning("API doesn't provide count metadata, counting all pages")
+            return self._count_all_api_pages()
+
+    def _get_local_count(self) -> int:
+        """
+        Get count of pages in local database for this job.
+
+        Returns:
+            Number of MeetingPage records matching municipality and document_type
+        """
+        return MeetingPage.objects.filter(
+            document__municipality=self.job.municipality,
+            document__document_type=self.job.document_type,
+        ).count()
+
+    def _count_all_api_pages(self) -> int:
+        """
+        Fallback: count all pages by iterating through API (slow but accurate).
+
+        Returns:
+            Total count of pages by iterating all API responses
+        """
+        count = 0
+        url = f"{self._build_base_url()}?_size={self.batch_size}"
+
+        while url:
+            response = self.client.get(url)
+            response.raise_for_status()
+            data = response.json()
+            count += len(data.get("rows", []))
+
+            next_cursor = data.get("next")
+            if next_cursor:
+                url = f"{self._build_base_url()}?_size={self.batch_size}&_next={next_cursor}"
+            else:
+                break
+
+        return count
