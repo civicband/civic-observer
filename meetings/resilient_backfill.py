@@ -7,6 +7,7 @@ with automatic retry, progress checkpointing, and verification.
 
 import logging
 import time  # noqa: F401 - Used in Tasks 3-8
+from datetime import date
 from typing import Any  # noqa: F401 - Used in Tasks 3-8
 
 import httpx
@@ -260,16 +261,15 @@ class ResilientBackfillService:
         Returns:
             Dictionary mapping (meeting_name, date_str) to list of page data
         """
-        from datetime import date
-
         documents_map: dict[tuple[str, str], list[dict[str, Any]]] = {}
 
         for row in rows:
             try:
                 meeting_name = row.get("meeting", "")
                 date_str = row.get("date", "")
+                page_id = row.get("id", "")
 
-                if not meeting_name or not date_str:
+                if not meeting_name or not date_str or not page_id:
                     logger.warning(f"Skipping row with missing data: {row}")
                     stats["errors"] += 1
                     continue
@@ -298,8 +298,6 @@ class ResilientBackfillService:
         Returns:
             MeetingDocument instance
         """
-        from datetime import date
-
         meeting_name, date_str = doc_key
         meeting_date = date.fromisoformat(date_str)
 

@@ -371,7 +371,7 @@ class TestResilientBackfillService:
 
         # Should create 2 pages despite 1 error
         assert stats["pages_created"] == 2
-        assert stats["errors"] >= 1
+        assert stats["errors"] == 1
 
         assert MeetingPage.objects.filter(id="page-1").exists()
         assert not MeetingPage.objects.filter(id="page-2").exists()
