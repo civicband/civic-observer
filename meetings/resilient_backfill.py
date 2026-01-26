@@ -350,8 +350,11 @@ class ResilientBackfillService:
         """
         Verify backfill completeness by comparing local vs API counts.
 
+        Allows small discrepancies due to pagination timing (< 0.1% or 10 pages).
+        Logs warnings if we have more data than expected.
+
         Raises:
-            BackfillError: If >1% of expected data is missing
+            BackfillError: If significant data is missing
         """
         logger.info(f"Verifying backfill completeness for job {self.job.id}")
 
@@ -369,22 +372,37 @@ class ResilientBackfillService:
             update_fields=["expected_count", "actual_count", "verified_at", "modified"]
         )
 
-        # Check if counts match
-        if actual < expected:
-            missing = expected - actual
-            error_msg = f"Missing {missing} pages! Expected {expected}, got {actual}"
-            logger.error(error_msg)
+        # Check for discrepancies
+        if actual != expected:
+            discrepancy = abs(expected - actual)
+            discrepancy_pct = (discrepancy / expected) if expected > 0 else 0
 
-            # Mark as failed if significant data is missing
-            missing_pct = (missing / expected) if expected > 0 else 0
-            if missing > 100 or missing_pct > 0.01:  # >1% missing
-                self.job.status = "failed"
-                self.job.last_error = error_msg
-                self.job.save(update_fields=["status", "last_error", "modified"])
-                raise BackfillError(error_msg)
+            if actual < expected:
+                # Missing data - fail if significant
+                error_msg = (
+                    f"Missing {discrepancy} pages! Expected {expected}, got {actual}"
+                )
+                logger.error(error_msg)
+
+                # Allow tiny discrepancy for pagination edge cases (< 0.1% AND < 10 pages)
+                # This handles race conditions where API count changes during backfill
+                if discrepancy_pct > 0.001 and discrepancy > 10:
+                    self.job.status = "failed"
+                    self.job.last_error = error_msg
+                    self.job.save(update_fields=["status", "last_error", "modified"])
+                    raise BackfillError(error_msg)
+                else:
+                    logger.warning(
+                        f"Minor discrepancy tolerated: {discrepancy} pages missing "
+                        f"({discrepancy_pct:.3%})"
+                    )
             else:
+                # More data than expected - log warning but don't fail
+                # This can happen if pages were added to API during backfill
+                # or if data was created by other processes
                 logger.warning(
-                    f"Minor discrepancy: {missing} pages missing ({missing_pct:.2%})"
+                    f"Found {actual} pages but API reports {expected} "
+                    f"(+{discrepancy} extra pages, {discrepancy_pct:.2%})"
                 )
 
         logger.info(f"Verification passed: {actual}/{expected} pages")

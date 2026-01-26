@@ -2,6 +2,26 @@
 
 The resilient backfill system provides reliable backfilling of meeting data from civic.band with automatic checkpoint/resume capability and verification.
 
+## Architecture Overview
+
+This system uses **two complementary models** for different use cases:
+
+### BackfillJob (Management Command)
+- **Purpose**: Manual, on-demand backfills with detailed verification
+- **Used by**: `resilient_backfill` management command
+- **Features**: Checkpoint/resume, verification, detailed progress tracking
+- **Admin**: `/admin/meetings/backfilljob/`
+- **When to use**: One-off backfills, data validation, debugging
+
+### BackfillProgress (Webhook-Triggered)
+- **Purpose**: Automated daily updates via webhooks
+- **Used by**: Webhook system and background tasks
+- **Features**: Mode selection (full/incremental), job chaining
+- **Admin**: `/admin/meetings/backfillprogress/`
+- **When to use**: Automatically triggered by civic.band webhooks
+
+**Important**: Both systems coordinate to prevent concurrent backfills for the same municipality. See "Concurrent Backfill Prevention" below.
+
 ## Features
 
 - **Checkpoint/Resume**: Automatically saves progress every 1000 records. If interrupted, resumes from last checkpoint.
@@ -63,6 +83,35 @@ for job in failed:
 incomplete = BackfillJob.objects.filter(
     status="completed", actual_count__lt=models.F("expected_count")
 )
+```
+
+## Concurrent Backfill Prevention
+
+To prevent data conflicts and wasted resources, the system automatically prevents concurrent backfills:
+
+### How It Works
+
+1. **BackfillJob (Management Command)**: Checks for active BackfillProgress jobs before starting
+2. **BackfillProgress (Webhooks)**: Uses database locking to prevent duplicate jobs
+3. **Shared Check**: Both systems check each other's status before proceeding
+
+### When Concurrent Backfill is Detected
+
+If you try to start a manual backfill while a webhook-triggered one is running (or vice versa):
+
+```
+⚠️  Backfill already in progress for oakland.ca (started: 2 minutes ago)
+    Active job: BackfillProgress (incremental mode)
+    You can check status in admin or wait for completion.
+```
+
+### Overriding (Use with Caution)
+
+If a job is stuck and you need to force a new backfill:
+
+```bash
+# Mark stuck job as failed in admin first, then run:
+python manage.py resilient_backfill --subdomain=oakland.ca
 ```
 
 ## Troubleshooting

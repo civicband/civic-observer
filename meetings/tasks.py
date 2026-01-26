@@ -37,6 +37,8 @@ def backfill_municipality_meetings_task(muni_id: UUID | str) -> dict[str, str]:
     - force_full_backfill flag set → Full backfill
     - Existing municipality → Incremental backfill (±6 months)
 
+    Prevents concurrent backfills by checking for active jobs.
+
     Args:
         muni_id: Primary key of the Municipality to backfill
 
@@ -46,7 +48,12 @@ def backfill_municipality_meetings_task(muni_id: UUID | str) -> dict[str, str]:
     Raises:
         Muni.DoesNotExist: If the municipality doesn't exist
     """
-    from meetings.models import BackfillProgress, MeetingDocument
+    from datetime import timedelta
+
+    from django.db import transaction
+    from django.utils import timezone
+
+    from meetings.models import BackfillJob, BackfillProgress, MeetingDocument
 
     logger.info(f"Starting backfill orchestrator for municipality ID: {muni_id}")
 
@@ -57,18 +64,61 @@ def backfill_municipality_meetings_task(muni_id: UUID | str) -> dict[str, str]:
 
         # Process both agendas and minutes
         for document_type in ["agenda", "minutes"]:
-            # Get or create progress tracker
-            progress, created = BackfillProgress.objects.get_or_create(
-                municipality=muni,
-                document_type=document_type,
-            )
+            # Use atomic transaction with select_for_update to prevent race conditions
+            with transaction.atomic():
+                # Get or create progress tracker with lock
+                progress, created = (
+                    BackfillProgress.objects.select_for_update().get_or_create(
+                        municipality=muni,
+                        document_type=document_type,
+                    )
+                )
 
-            # Determine if full backfill is needed
-            is_new = not MeetingDocument.objects.filter(
-                municipality=muni,
-                document_type=document_type,
-            ).exists()
-            needs_full = is_new or progress.force_full_backfill
+                # Check if already running
+                if progress.status == "in_progress":
+                    # Check if job is stale (no update in last hour)
+                    stale_threshold = timezone.now() - timedelta(hours=1)
+                    if progress.updated_at < stale_threshold:
+                        logger.warning(
+                            f"Detected stale BackfillProgress for {muni.subdomain} "
+                            f"{document_type} (last update: {progress.updated_at}), "
+                            f"marking as failed and restarting"
+                        )
+                        progress.status = "failed"
+                        progress.error_message = "Job timed out (no update in 1+ hour)"
+                        progress.save()
+                        # Continue to start new job
+                    else:
+                        logger.info(
+                            f"BackfillProgress already in progress for {muni.subdomain} "
+                            f"{document_type} (started: {timezone.now() - progress.updated_at} ago)"
+                        )
+                        result[document_type] = "already_running:BackfillProgress"
+                        continue
+
+                # Also check for active BackfillJob (from management command)
+                active_job = BackfillJob.objects.filter(
+                    municipality=muni,
+                    document_type=document_type,
+                    status__in=["pending", "running"],
+                ).first()
+
+                if active_job:
+                    logger.info(
+                        f"BackfillJob already active for {muni.subdomain} {document_type} "
+                        f"(ID: {active_job.id}, status: {active_job.status})"
+                    )
+                    result[document_type] = (
+                        f"already_running:BackfillJob:{active_job.id}"
+                    )
+                    continue
+
+                # Determine if full backfill is needed
+                is_new = not MeetingDocument.objects.filter(
+                    municipality=muni,
+                    document_type=document_type,
+                ).exists()
+                needs_full = is_new or progress.force_full_backfill
 
             if needs_full:
                 # Start full backfill chain

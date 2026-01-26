@@ -83,7 +83,71 @@ class Command(BaseCommand):
                     self._run_job(job, batch_size)
 
     def _create_job(self, muni: Muni, doc_type: str) -> BackfillJob:
-        """Create a new backfill job."""
+        """Create a new backfill job.
+
+        Checks for concurrent backfills before creating.
+        """
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from meetings.models import BackfillProgress
+
+        # Check for active BackfillJob
+        active_job = BackfillJob.objects.filter(
+            municipality=muni,
+            document_type=doc_type,
+            status__in=["pending", "running"],
+        ).first()
+
+        if active_job:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"  ⚠️  Backfill already in progress for {muni.subdomain} {doc_type}\n"
+                    f"     Active BackfillJob: {active_job.id} (status: {active_job.status})\n"
+                    f"     Started: {timezone.now() - active_job.created} ago\n"
+                    f"     Check /admin/meetings/backfilljob/ for details"
+                )
+            )
+            raise CommandError(
+                f"Backfill already running for {muni.subdomain} {doc_type}. "
+                "Mark it as failed in admin if it's stuck."
+            )
+
+        # Check for active BackfillProgress (webhook-triggered)
+        progress = BackfillProgress.objects.filter(
+            municipality=muni,
+            document_type=doc_type,
+            status="in_progress",
+        ).first()
+
+        if progress:
+            # Check if stale
+            stale_threshold = timezone.now() - timedelta(hours=1)
+            if progress.updated_at < stale_threshold:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"  ⚠️  Detected stale BackfillProgress (last update: {progress.updated_at})\n"
+                        f"     Marking as failed and proceeding with new backfill"
+                    )
+                )
+                progress.status = "failed"
+                progress.error_message = "Job timed out (no update in 1+ hour)"
+                progress.save()
+            else:
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"  ⚠️  Backfill already in progress for {muni.subdomain} {doc_type}\n"
+                        f"     Active BackfillProgress (webhook-triggered)\n"
+                        f"     Mode: {progress.mode}, Started: {timezone.now() - progress.updated_at} ago\n"
+                        f"     Check /admin/meetings/backfillprogress/ for details"
+                    )
+                )
+                raise CommandError(
+                    f"Webhook-triggered backfill already running for {muni.subdomain} {doc_type}. "
+                    "Wait for it to complete or mark as failed in admin."
+                )
+
         job = BackfillJob.objects.create(
             municipality=muni,
             document_type=doc_type,
