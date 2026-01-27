@@ -104,3 +104,16 @@ class TestMuniFilter:
         f = MuniFilter({"q": "BERKELEY"}, queryset=qs)
         assert f.qs.count() == 1
         assert f.qs.first().name == "Berkeley"
+
+    def test_filter_by_activity_excludes_null_dates(self, municipalities):
+        """Municipalities with null last_updated are excluded from activity filter."""
+        Muni.objects.create(
+            subdomain="new-city", name="New City", state="CA", kind="City", pages=10
+        )
+        qs = Muni.objects.all()
+        f = MuniFilter({"activity": "7"}, queryset=qs)
+        # Should only include Oakland (has recent last_updated)
+        # Should exclude New City (has null last_updated)
+        assert f.qs.count() == 1
+        assert f.qs.first().name == "Oakland"
+        assert all(m.last_updated is not None for m in f.qs)

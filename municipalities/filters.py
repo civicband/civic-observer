@@ -24,7 +24,7 @@ class ActivityFilter(django_filters.ChoiceFilter):
             return qs
         days = int(value)
         cutoff = timezone.now() - timedelta(days=days)
-        return qs.filter(last_updated__gte=cutoff)
+        return qs.filter(last_updated__gte=cutoff).exclude(last_updated__isnull=True)
 
 
 class MuniFilter(django_filters.FilterSet):

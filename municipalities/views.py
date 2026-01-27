@@ -39,7 +39,6 @@ class MuniCRUDView(CRUDView):
     ]
     search_fields = ["name", "subdomain", "state"]
     filterset_fields = ["state", "kind", "country"]
-    paginate_by = 25
 
     def get_queryset(self):
         queryset = (
