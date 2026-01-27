@@ -668,9 +668,10 @@
             const queryInput = document.getElementById('id_query');
             const resultsContainer = document.getElementById('search-results');
 
-            // Trigger search on page load if there are existing params
+            // Trigger search on page load if there are existing params OR if this is a public page
             const urlParams = new URLSearchParams(window.location.search);
             const hasParams = urlParams.has('query') || urlParams.has('meeting_name_query') || urlParams.has('municipalities') || urlParams.has('states') || urlParams.has('date_from') || urlParams.has('date_to') || urlParams.has('document_type');
+            const autoExecute = {{ auto_execute_search|default:"false"|lower }};
 
             // Auto-expand advanced filters if any advanced filter params are present
             // Note: municipalities and states are now outside the drawer, so only check for date range, document type, and meeting name
@@ -704,7 +705,7 @@
                 }
             }
 
-            if (hasParams) {
+            if (hasParams || autoExecute) {
                 triggerSearch();
             }
 
