@@ -399,6 +399,7 @@ def public_search_detail(request, slug):
         "public_page": page,
         "lock_search_term": page.lock_search_term,
         "has_query": bool(page.search.search_term),
+        "auto_execute_search": True,  # Auto-execute search on page load for public pages
     }
 
     return render(request, "meetings/meeting_search.html", context)
