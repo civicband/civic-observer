@@ -62,6 +62,7 @@
                           hx-target="#search-results"
                           hx-swap="innerHTML show:top"
                           hx-indicator="#search-loading"
+                          {% if public_page %}hx-vals='{"public_page_slug": "{{ public_page.slug }}"}'{% endif %}
                           aria-label="Meeting document search filters"
                           role="search">
 
