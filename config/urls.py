@@ -19,6 +19,7 @@ from django.contrib import admin
 from django.urls import URLPattern, URLResolver, include, path
 
 from apikeys.urls import internal_urlpatterns as apikeys_internal
+from searches.views import public_search_detail, public_search_list
 from users.views import datasette_auth, login_view
 
 from . import views
@@ -40,5 +41,8 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("notebooks/", include("notebooks.urls")),
     path("notifications/", include("notifications.urls")),
     path("searches/", include("searches.urls")),
+    # Public topics - moved to root level
+    path("topics/", public_search_list, name="public-search-list"),
+    path("topics/<slug:slug>/", public_search_detail, name="public-search-detail"),
     path("users/", include("users.urls")),
 ]
