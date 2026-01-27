@@ -342,7 +342,7 @@ class PublicSearchPageAdmin(admin.ModelAdmin):
     @admin.display(description="Preview")
     def preview_url(self, obj):
         """Link to preview the public page."""
-        if obj.pk:
+        if obj.pk and obj.slug:
             url = obj.get_absolute_url()
             return format_html('<a href="{}" target="_blank">Preview Page →</a>', url)
         return "Save first to preview"
@@ -350,7 +350,7 @@ class PublicSearchPageAdmin(admin.ModelAdmin):
     @admin.display(description="View")
     def view_on_site_link(self, obj):
         """Link to view the published page."""
-        if obj.pk and obj.is_published:
+        if obj.pk and obj.slug and obj.is_published:
             url = obj.get_absolute_url()
             return format_html('<a href="{}" target="_blank">View →</a>', url)
         elif obj.pk:
