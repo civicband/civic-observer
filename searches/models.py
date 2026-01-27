@@ -380,7 +380,7 @@ class PublicSearchPage(TimeStampedModel):
         return f"{status} {self.title} (/topics/{self.slug}/)"
 
     def get_absolute_url(self) -> str:
-        return reverse("searches:public-search-detail", kwargs={"slug": self.slug})
+        return reverse("public-search-detail", kwargs={"slug": self.slug})
 
     def get_scope_description(self) -> str:
         """Human-readable description of admin-set scope limits."""
