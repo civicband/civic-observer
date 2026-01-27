@@ -4,7 +4,7 @@ from django.urls import reverse
 from django.utils import timezone
 from django.utils.html import format_html
 
-from .models import SavedSearch, Search
+from .models import PublicSearchPage, SavedSearch, Search
 from .tasks import check_saved_search_for_updates
 
 User = get_user_model()
@@ -249,3 +249,110 @@ class SavedSearchAdmin(admin.ModelAdmin):
         self.message_user(
             request, f"Cleared pending results for {count} saved search(es)."
         )
+
+
+@admin.register(PublicSearchPage)
+class PublicSearchPageAdmin(admin.ModelAdmin):
+    """Admin interface for managing public search pages."""
+
+    list_display = [
+        "title",
+        "slug",
+        "is_published",
+        "search_term_preview",
+        "scope_preview",
+        "view_count",
+        "created",
+        "view_on_site_link",
+    ]
+    list_filter = ["is_published", "created", "created_by"]
+    search_fields = ["title", "slug", "search__search_term", "description"]
+    prepopulated_fields = {"slug": ("title",)}
+    filter_horizontal = ["allowed_municipalities"]
+    readonly_fields = ["created", "modified", "view_count", "created_by", "preview_url"]
+
+    fieldsets = [
+        (
+            "Basic Info",
+            {
+                "fields": [
+                    "title",
+                    "slug",
+                    "description",
+                    "is_published",
+                    "preview_url",
+                ]
+            },
+        ),
+        (
+            "Search Configuration",
+            {
+                "fields": [
+                    "search",
+                    "lock_search_term",
+                ],
+                "description": "Select an existing Search object. Create one first if needed via the Search admin.",
+            },
+        ),
+        (
+            "Scope Limits (Optional)",
+            {
+                "fields": [
+                    "allowed_municipalities",
+                    "allowed_states",
+                    "min_date",
+                    "max_date",
+                ],
+                "description": "Leave empty for 'wide open'. Set limits to restrict what users can filter to.",
+            },
+        ),
+        (
+            "Metadata",
+            {
+                "fields": [
+                    "view_count",
+                    "created",
+                    "modified",
+                    "created_by",
+                ],
+                "classes": ["collapse"],
+            },
+        ),
+    ]
+
+    def save_model(self, request, obj, form, change):
+        """Set created_by on new objects."""
+        if not change:  # Creating new object
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
+
+    @admin.display(description="Search Term")
+    def search_term_preview(self, obj):
+        """Preview of the search term."""
+        search_term = obj.search.search_term
+        if len(search_term) > 50:
+            return search_term[:50] + "..."
+        return search_term or "(empty - all updates mode)"
+
+    @admin.display(description="Scope")
+    def scope_preview(self, obj):
+        """Preview of scope limits."""
+        return obj.get_scope_description()
+
+    @admin.display(description="Preview")
+    def preview_url(self, obj):
+        """Link to preview the public page."""
+        if obj.pk and obj.slug:
+            url = obj.get_absolute_url()
+            return format_html('<a href="{}" target="_blank">Preview Page →</a>', url)
+        return "Save first to preview"
+
+    @admin.display(description="View")
+    def view_on_site_link(self, obj):
+        """Link to view the published page."""
+        if obj.pk and obj.slug and obj.is_published:
+            url = obj.get_absolute_url()
+            return format_html('<a href="{}" target="_blank">View →</a>', url)
+        elif obj.pk:
+            return "Unpublished"
+        return "-"

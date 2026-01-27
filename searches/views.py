@@ -2,17 +2,18 @@ from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from django.db.models import Q, QuerySet
 from django.http import HttpResponse, JsonResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.views.decorators.http import require_GET, require_POST
 from django.views.generic import CreateView, UpdateView, View
 from neapolitan.views import CRUDView
 
+from meetings.forms import MeetingSearchForm
 from municipalities.models import Muni
 
 from .forms import SavedSearchCreateForm, SavedSearchEditForm
-from .models import SavedSearch, Search
+from .models import PublicSearchPage, SavedSearch, Search
 
 
 class SavedSearchCRUDView(CRUDView):
@@ -315,3 +316,78 @@ def save_search_from_params(request):
 
     except Exception as e:
         return JsonResponse({"error": str(e)}, status=500)
+
+
+@require_GET
+def public_search_list(request):
+    """Browse all published public search pages."""
+    pages = (
+        PublicSearchPage.objects.filter(is_published=True)
+        .select_related("search")
+        .prefetch_related("allowed_municipalities")
+    )
+
+    context = {
+        "pages": pages,
+    }
+    return render(request, "searches/public_search_list.html", context)
+
+
+@require_GET
+def public_search_detail(request, slug):
+    """
+    Display a public search page with fixed search term and user-controlled filters.
+
+    The search term is locked by admin. Users can filter within admin-defined boundaries.
+    """
+    page = get_object_or_404(
+        PublicSearchPage.objects.select_related("search").prefetch_related(
+            "search__municipalities",
+            "allowed_municipalities",
+        ),
+        slug=slug,
+        is_published=True,
+    )
+
+    # Increment view count
+    page.view_count += 1
+    page.save(update_fields=["view_count"])
+
+    # Build the form, but with scope-limited choices
+    form_data = request.GET.copy() if request.GET else {}
+
+    # Always set the locked search term
+    form_data["query"] = page.search.search_term
+
+    # Create form
+    form = MeetingSearchForm(form_data or None)
+
+    # Apply scope limits to form choices
+    if page.allowed_municipalities.exists():
+        # Limit municipality choices to allowed ones
+        form.fields["municipalities"].queryset = page.allowed_municipalities.all()  # type: ignore[attr-defined]
+
+    if page.allowed_states:
+        # Limit state choices to allowed ones
+        form.fields["states"].choices = [  # type: ignore[attr-defined]
+            (code, name)
+            for code, name in Muni.STATE_FIELD_CHOICES
+            if code in page.allowed_states
+        ]
+
+    # Date widget attributes for min/max enforcement
+    if page.min_date:
+        form.fields["date_from"].widget.attrs["min"] = page.min_date.isoformat()
+        form.fields["date_to"].widget.attrs["min"] = page.min_date.isoformat()
+    if page.max_date:
+        form.fields["date_from"].widget.attrs["max"] = page.max_date.isoformat()
+        form.fields["date_to"].widget.attrs["max"] = page.max_date.isoformat()
+
+    context = {
+        "form": form,
+        "public_page": page,
+        "lock_search_term": page.lock_search_term,
+        "has_query": bool(page.search.search_term),
+    }
+
+    return render(request, "meetings/meeting_search.html", context)
