@@ -7,8 +7,18 @@
         <!-- Page Header -->
         <div class="sm:flex sm:items-center sm:justify-between mb-6">
             <div>
-                <h1 class="text-3xl font-bold tracking-tight text-gray-900">Search Meeting Documents</h1>
-                <p class="mt-2 text-sm text-gray-600">Search across all meeting agendas and minutes using full-text search</p>
+                {% if public_page %}
+                    <h1 class="text-3xl font-bold tracking-tight text-gray-900">{{ public_page.title }}</h1>
+                    {% if public_page.description %}
+                        <p class="mt-2 text-sm text-gray-600">{{ public_page.description }}</p>
+                    {% endif %}
+                    <p class="mt-1 text-xs text-gray-500">
+                        Searching for: <span class="font-semibold text-gray-700">{{ public_page.search.search_term }}</span>
+                    </p>
+                {% else %}
+                    <h1 class="text-3xl font-bold tracking-tight text-gray-900">Search Meeting Documents</h1>
+                    <p class="mt-2 text-sm text-gray-600">Search across all meeting agendas and minutes using full-text search</p>
+                {% endif %}
             </div>
         </div>
 
@@ -55,16 +65,30 @@
                           aria-label="Meeting document search filters"
                           role="search">
 
+                        {% if public_page %}
+                            {# Pass public page slug for server-side scope enforcement #}
+                            <input type="hidden" name="public_page_slug" value="{{ public_page.slug }}">
+                        {% endif %}
+
                         <!-- Search Query (Essential) -->
                         <div class="mb-3">
-                            <label for="id_query" class="block text-sm font-medium text-gray-700 mb-2">
-                                Search Query
-                                <span class="text-red-500" aria-label="required">*</span>
-                            </label>
-                            {{ form.query }}
-                            <p id="query-help-text" class="mt-1 text-xs text-gray-500">
-                                Use quotes for exact phrases. Supports AND, OR, NOT operators.
-                            </p>
+                            {% if lock_search_term %}
+                                <input type="hidden" name="query" value="{{ form.query.value }}">
+                                <div class="px-4 py-3 bg-indigo-50 border border-indigo-200 rounded-lg">
+                                    <p class="text-sm font-medium text-indigo-900">Fixed Search Term</p>
+                                    <p class="text-sm text-indigo-700 mt-1">{{ form.query.value }}</p>
+                                    <p class="text-xs text-indigo-600 mt-1">Use filters below to refine results</p>
+                                </div>
+                            {% else %}
+                                <label for="id_query" class="block text-sm font-medium text-gray-700 mb-2">
+                                    Search Query
+                                    <span class="text-red-500" aria-label="required">*</span>
+                                </label>
+                                {{ form.query }}
+                                <p id="query-help-text" class="mt-1 text-xs text-gray-500">
+                                    Use quotes for exact phrases. Supports AND, OR, NOT operators.
+                                </p>
+                            {% endif %}
                         </div>
 
                         <!-- Municipalities Multi-Select Filter -->
