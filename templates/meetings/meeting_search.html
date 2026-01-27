@@ -673,6 +673,8 @@
             const hasParams = urlParams.has('query') || urlParams.has('meeting_name_query') || urlParams.has('municipalities') || urlParams.has('states') || urlParams.has('date_from') || urlParams.has('date_to') || urlParams.has('document_type');
             const autoExecute = {% if auto_execute_search %}true{% else %}false{% endif %};
 
+            console.log('[Auto-Execute Debug] hasParams:', hasParams, 'autoExecute:', autoExecute);
+
             // Auto-expand advanced filters if any advanced filter params are present
             // Note: municipalities and states are now outside the drawer, so only check for date range, document type, and meeting name
             const hasAdvancedParams = urlParams.has('date_from') || urlParams.has('date_to') || urlParams.has('document_type') || urlParams.has('meeting_name_query');
@@ -688,17 +690,20 @@
 
             // Function to trigger search with HTMX (with fallback)
             function triggerSearch() {
+                console.log('[Auto-Execute Debug] Triggering search, htmx available:', typeof htmx !== 'undefined');
                 // Check if HTMX is loaded and ready
                 if (typeof htmx !== 'undefined' && htmx.trigger) {
+                    console.log('[Auto-Execute Debug] Using HTMX trigger');
                     htmx.trigger('#search-form', 'submit');
                 } else {
                     // HTMX not loaded - wait a bit and retry, or fall back to form submit
+                    console.log('[Auto-Execute Debug] HTMX not ready, waiting 500ms...');
                     setTimeout(() => {
                         if (typeof htmx !== 'undefined' && htmx.trigger) {
+                            console.log('[Auto-Execute Debug] HTMX ready after delay, triggering');
                             htmx.trigger('#search-form', 'submit');
                         } else {
                             // Final fallback: submit the form normally
-                            // The view will redirect back with params and try again
                             console.warn('HTMX not available, falling back to regular form submission');
                         }
                     }, 500);
@@ -706,7 +711,10 @@
             }
 
             if (hasParams || autoExecute) {
+                console.log('[Auto-Execute Debug] Condition met, calling triggerSearch()');
                 triggerSearch();
+            } else {
+                console.log('[Auto-Execute Debug] Condition NOT met, not triggering search');
             }
 
             // Keyboard shortcut: / to focus search
