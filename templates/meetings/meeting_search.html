@@ -700,18 +700,36 @@
                 }
 
                 // Check if HTMX is loaded and ready
-                if (typeof htmx !== 'undefined') {
-                    console.log('[Auto-Execute Debug] Using HTMX - triggering request via form.requestSubmit()');
-                    // Trigger HTMX request by submitting the form
-                    // HTMX will intercept the submit event and handle it via the hx-get attribute
-                    formElement.requestSubmit();
+                if (typeof htmx !== 'undefined' && htmx.ajax) {
+                    console.log('[Auto-Execute Debug] Using HTMX.ajax() directly to bypass form submission');
+                    // Use HTMX ajax directly to avoid form submission issues
+                    // Build URL with query params from form
+                    const formData = new FormData(formElement);
+                    const params = new URLSearchParams(formData);
+                    const url = formElement.getAttribute('hx-get') || formElement.action;
+                    const fullUrl = url + '?' + params.toString();
+
+                    console.log('[Auto-Execute Debug] Making HTMX request to:', fullUrl);
+
+                    htmx.ajax('GET', fullUrl, {
+                        target: '#search-results',
+                        swap: 'innerHTML show:top'
+                    });
                 } else {
                     // HTMX not loaded - wait a bit and retry, or fall back to form submit
                     console.log('[Auto-Execute Debug] HTMX not ready, waiting 500ms...');
                     setTimeout(() => {
-                        if (typeof htmx !== 'undefined') {
-                            console.log('[Auto-Execute Debug] HTMX ready after delay, triggering via requestSubmit()');
-                            formElement.requestSubmit();
+                        if (typeof htmx !== 'undefined' && htmx.ajax) {
+                            console.log('[Auto-Execute Debug] HTMX ready after delay, triggering via ajax()');
+                            const formData = new FormData(formElement);
+                            const params = new URLSearchParams(formData);
+                            const url = formElement.getAttribute('hx-get') || formElement.action;
+                            const fullUrl = url + '?' + params.toString();
+
+                            htmx.ajax('GET', fullUrl, {
+                                target: '#search-results',
+                                swap: 'innerHTML show:top'
+                            });
                         } else {
                             // Final fallback: submit the form normally
                             console.warn('HTMX not available, falling back to regular form submission');
