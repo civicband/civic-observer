@@ -228,7 +228,32 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
 
     Handles both HTMX requests (returns partial) and regular requests (redirects
     to main search page with results).
+
+    Security: Requires authentication UNLESS request includes a valid public_page_slug
+    for a published PublicSearchPage.
     """
+    # Check authentication - allow if:
+    # 1. User is authenticated (regular search), OR
+    # 2. Request has valid public_page_slug (public search page)
+    public_page_slug = request.GET.get("public_page_slug")
+    is_public_search = False
+
+    if public_page_slug:
+        # Verify this is a valid published public search page
+        from searches.models import PublicSearchPage
+
+        try:
+            PublicSearchPage.objects.get(slug=public_page_slug, is_published=True)
+            is_public_search = True
+        except PublicSearchPage.DoesNotExist:
+            pass
+
+    # Require authentication if not a public search
+    if not is_public_search and not request.user.is_authenticated:
+        from django.contrib.auth.views import redirect_to_login
+
+        return redirect_to_login(request.get_full_path())
+
     # For non-HTMX requests (e.g., when JavaScript fails to load on mobile),
     # redirect to the main search page with query params preserved.
     # The main page will then trigger the HTMX search on load.
