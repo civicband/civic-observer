@@ -698,6 +698,15 @@
                     return;
                 }
 
+                // Debug: Check form data
+                const formData = new FormData(formElement);
+                console.log('[Auto-Execute Debug] Form data:');
+                for (let [key, value] of formData.entries()) {
+                    console.log(`  ${key}: ${value}`);
+                }
+                console.log('[Auto-Execute Debug] Form action:', formElement.action);
+                console.log('[Auto-Execute Debug] Form hx-get:', formElement.getAttribute('hx-get'));
+
                 // Check if HTMX is loaded and ready
                 if (typeof htmx !== 'undefined') {
                     console.log('[Auto-Execute Debug] Using HTMX - triggering request via form.requestSubmit()');
