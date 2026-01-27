@@ -57,6 +57,17 @@ class SavedSearchCreateView(CreateView):
             return redirect_to_login(request.get_full_path())
         return super().dispatch(request, *args, **kwargs)
 
+    def get_initial(self):
+        """Pre-fill municipality from query parameter."""
+        initial = super().get_initial()
+        municipality_id = self.request.GET.get("municipality")
+        if municipality_id:
+            try:
+                initial["municipality"] = Muni.objects.get(pk=municipality_id)
+            except (Muni.DoesNotExist, ValueError):
+                pass
+        return initial
+
     def form_valid(self, form):
         # Authentication check
         if not self.request.user.is_authenticated:

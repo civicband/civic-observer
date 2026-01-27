@@ -112,6 +112,14 @@ services:
     init: true
     tty: true
 
+  tailwind:
+    <<: *common-settings
+    command: python manage.py tailwind watch
+    init: true
+    tty: true
+    depends_on:
+      - db
+
 volumes:
   postgres-data:
   redis-data:
