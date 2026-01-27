@@ -228,7 +228,32 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
 
     Handles both HTMX requests (returns partial) and regular requests (redirects
     to main search page with results).
+
+    Security: Requires authentication UNLESS request includes a valid public_page_slug
+    for a published PublicSearchPage.
     """
+    # Check authentication - allow if:
+    # 1. User is authenticated (regular search), OR
+    # 2. Request has valid public_page_slug (public search page)
+    public_page_slug = request.GET.get("public_page_slug")
+    is_public_search = False
+
+    if public_page_slug:
+        # Verify this is a valid published public search page
+        from searches.models import PublicSearchPage
+
+        try:
+            PublicSearchPage.objects.get(slug=public_page_slug, is_published=True)
+            is_public_search = True
+        except PublicSearchPage.DoesNotExist:
+            pass
+
+    # Require authentication if not a public search
+    if not is_public_search and not request.user.is_authenticated:
+        from django.contrib.auth.views import redirect_to_login
+
+        return redirect_to_login(request.get_full_path())
+
     # For non-HTMX requests (e.g., when JavaScript fails to load on mobile),
     # redirect to the main search page with query params preserved.
     # The main page will then trigger the HTMX search on load.
@@ -266,6 +291,43 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
     date_from = form.cleaned_data.get("date_from")
     date_to = form.cleaned_data.get("date_to")
     document_type = form.cleaned_data.get("document_type")
+
+    # Check if this request is from a public search page and enforce scope limits
+    public_page_slug = request.GET.get("public_page_slug")
+    if public_page_slug:
+        from searches.models import PublicSearchPage
+
+        try:
+            public_page = PublicSearchPage.objects.prefetch_related(
+                "allowed_municipalities"
+            ).get(slug=public_page_slug, is_published=True)
+
+            # Enforce municipality scope
+            if public_page.allowed_municipalities.exists():
+                allowed_muni_ids = set(
+                    public_page.allowed_municipalities.values_list("id", flat=True)
+                )
+                if municipalities:
+                    # Filter to only allowed municipalities
+                    municipalities = municipalities.filter(id__in=allowed_muni_ids)
+                # Note: If no municipalities selected, we don't auto-add them
+                # to keep the search "wide" within scope
+
+            # Enforce state scope
+            if public_page.allowed_states and states:
+                states = [s for s in states if s in public_page.allowed_states]
+
+            # Enforce date scope
+            if public_page.min_date:
+                if not date_from or date_from < public_page.min_date:
+                    date_from = public_page.min_date
+            if public_page.max_date:
+                if not date_to or date_to > public_page.max_date:
+                    date_to = public_page.max_date
+
+        except PublicSearchPage.DoesNotExist:
+            # Invalid slug - continue without scope enforcement
+            pass
 
     # Require a search query
     if not query:

@@ -158,6 +158,11 @@ RQ_QUEUES: dict[str, dict[str, Any]] = {
 }
 RQ_SHOW_ADMIN_LINK = True
 
+# Backfill Configuration
+INCREMENTAL_BACKFILL_MONTHS = 6  # ±6 months from today
+FULL_BACKFILL_BATCH_SIZE = 10  # API pages per job (10 pages = ~10k records)
+BACKFILL_API_PAGE_SIZE = 1000  # Records per API request
+
 # API Key Validation
 CORKBOARD_SERVICE_SECRET = env.str("CORKBOARD_SERVICE_SECRET", "")
 

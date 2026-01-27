@@ -142,7 +142,7 @@ markers = [
     "integration: marks tests as integration tests",
     "unit: marks tests as unit tests",
 ]
-testpaths = ["tests", "users/tests.py", "municipalities/tests.py", "meetings/tests.py"]
+testpaths = ["tests", "users/tests.py", "municipalities/tests.py", "meetings/tests"]
 
 [tool.coverage.run]
 source = [".", "users"]

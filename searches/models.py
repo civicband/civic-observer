@@ -4,6 +4,7 @@ from django.conf import settings
 from django.core.mail import EmailMultiAlternatives
 from django.db import models
 from django.template.loader import get_template, render_to_string
+from django.urls import reverse
 from django.utils import timezone
 from model_utils.models import TimeStampedModel
 
@@ -280,3 +281,118 @@ class SavedSearch(TimeStampedModel):
         self.last_notification_sent = timezone.now()
         self.has_pending_results = False
         self.save(update_fields=["last_notification_sent", "has_pending_results"])
+
+
+class PublicSearchPage(TimeStampedModel):
+    """
+    Admin-curated public search page accessible without authentication.
+
+    Reuses existing Search infrastructure but adds:
+    - Public-facing metadata (slug, title, description)
+    - Scope limits (restrict which municipalities/states/dates users can filter to)
+    - Search term locking (users cannot change the search term, only filters)
+
+    Example: Admin creates /topics/rent/ with search_term="rent control OR tenant rights"
+    Users can view results and filter within admin-defined boundaries.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+
+    # Public-facing metadata
+    slug = models.SlugField(
+        max_length=100,
+        unique=True,
+        db_index=True,
+        help_text="URL slug (e.g., 'rent' for /topics/rent/)",
+    )
+    title = models.CharField(
+        max_length=200, help_text="Display title (e.g., 'Rent Control Discussions')"
+    )
+    description = models.TextField(
+        blank=True,
+        help_text="Optional description/intro text shown at top of page",
+    )
+    is_published = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Only published pages are visible to public",
+    )
+
+    # The core search configuration (reuses Search model)
+    search = models.ForeignKey(
+        Search,
+        on_delete=models.CASCADE,
+        related_name="public_pages",
+        help_text="The search configuration for this public page",
+    )
+
+    # Search term locking
+    lock_search_term = models.BooleanField(
+        default=True,
+        help_text="If true, users cannot modify the search term (only filters)",
+    )
+
+    # Admin-Configurable Scope Limits
+    # If set, users can ONLY filter within these boundaries
+    allowed_municipalities = models.ManyToManyField(
+        Muni,
+        related_name="public_search_pages",
+        blank=True,
+        help_text="Limit users to only these municipalities (empty = all allowed)",
+    )
+    allowed_states = models.JSONField(
+        default=list,
+        blank=True,
+        help_text="Limit users to only these states (empty = all allowed)",
+    )
+    min_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Users cannot search before this date",
+    )
+    max_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Users cannot search after this date",
+    )
+
+    # Metadata
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        related_name="created_public_searches",
+    )
+    view_count = models.IntegerField(
+        default=0, help_text="Number of times this page has been viewed"
+    )
+
+    class Meta:
+        verbose_name = "Public Search Page"
+        verbose_name_plural = "Public Search Pages"
+        ordering = ["title"]
+        indexes = [
+            models.Index(fields=["is_published", "slug"]),
+        ]
+
+    def __str__(self) -> str:
+        status = "✓" if self.is_published else "✗"
+        return f"{status} {self.title} (/topics/{self.slug}/)"
+
+    def get_absolute_url(self) -> str:
+        return reverse("searches:public-search-detail", kwargs={"slug": self.slug})
+
+    def get_scope_description(self) -> str:
+        """Human-readable description of admin-set scope limits."""
+        parts = []
+        if self.allowed_municipalities.exists():
+            count = self.allowed_municipalities.count()
+            parts.append(f"{count} municipalities")
+        if self.allowed_states:
+            parts.append(f"states: {', '.join(self.allowed_states)}")
+        if self.min_date or self.max_date:
+            date_range = (
+                f"{self.min_date or 'beginning'} to {self.max_date or 'present'}"
+            )
+            parts.append(f"dates: {date_range}")
+        return " | ".join(parts) if parts else "No scope limits"

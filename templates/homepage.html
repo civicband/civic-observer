@@ -21,7 +21,7 @@
                     Search meeting agendas and minutes, save important pages, and get notified when topics you care about come up in your community.
                 </p>
                 <div class="mt-10 flex flex-col sm:flex-row gap-4 justify-center">
-                    <a href="{% url 'stagedoor:login' %}" class="inline-flex items-center justify-center px-8 py-4 border border-transparent text-lg font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200">
+                    <a href="{% url 'login' %}" class="inline-flex items-center justify-center px-8 py-4 border border-transparent text-lg font-medium rounded-lg text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg hover:shadow-xl transition-all duration-200">
                         Get Started Free
                         <svg class="ml-2 w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"></path>
@@ -352,7 +352,7 @@
                 </p>
             </div>
             <div class="mt-8 flex flex-col sm:flex-row gap-4 lg:mt-0 lg:flex-shrink-0">
-                <a href="{% url 'stagedoor:login' %}" class="inline-flex items-center justify-center px-6 py-4 border border-transparent text-lg font-medium rounded-lg text-indigo-600 bg-white hover:bg-indigo-50 shadow-lg transition-all duration-200">
+                <a href="{% url 'login' %}" class="inline-flex items-center justify-center px-6 py-4 border border-transparent text-lg font-medium rounded-lg text-indigo-600 bg-white hover:bg-indigo-50 shadow-lg transition-all duration-200">
                     Get Started Free
                 </a>
                 <a href="{% url 'meetings:meeting-search' %}" class="inline-flex items-center justify-center px-6 py-4 border-2 border-white text-lg font-medium rounded-lg text-white hover:bg-indigo-500 transition-all duration-200">

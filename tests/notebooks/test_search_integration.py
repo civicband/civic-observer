@@ -47,7 +47,7 @@ class TestSearchResultsSaveButton:
         assert 'fill="currentColor"' in response.content.decode()
 
     def test_no_save_button_for_anonymous_users(self, client):
-        """Test save button not shown for anonymous users."""
+        """Test anonymous users cannot access search results (must use public search pages)."""
         muni = MuniFactory()
         doc = MeetingDocumentFactory(municipality=muni)
         MeetingPageFactory(document=doc, text="housing policy discussion")
@@ -55,5 +55,6 @@ class TestSearchResultsSaveButton:
         url = reverse("meetings:meeting-search-results")
         response = client.get(url, {"query": "housing"}, HTTP_HX_REQUEST="true")
 
-        assert response.status_code == 200
-        assert "save-page" not in response.content.decode()
+        # Anonymous users should be redirected to login
+        assert response.status_code == 302
+        assert "/login/" in response.url

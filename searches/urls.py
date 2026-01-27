@@ -6,6 +6,8 @@ from .views import (
     SavedSearchCRUDView,
     SavedSearchEditView,
     municipality_search,
+    public_search_detail,
+    public_search_list,
     save_search_from_params,
     saved_search_email_preview,
 )
@@ -13,6 +15,10 @@ from .views import (
 app_name = "searches"
 
 urlpatterns = [
+    # Public search pages
+    path("topics/", public_search_list, name="public-search-list"),
+    path("topics/<slug:slug>/", public_search_detail, name="public-search-detail"),
+    # Saved searches (authenticated users)
     path("", SavedSearchCRUDView.as_view(role=Role.LIST), name="savedsearch-list"),
     path(
         "create/",

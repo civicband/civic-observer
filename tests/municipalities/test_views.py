@@ -1,4 +1,5 @@
 from datetime import timedelta
+from unittest.mock import Mock, patch
 
 import pytest
 from django.test import Client
@@ -106,3 +107,39 @@ class TestMuniListViewLinks:
         assert "utm_source=civicobserver" in content
         assert "utm_medium=municipalities" in content
         assert "utm_campaign=municipality_list" in content
+
+
+class TestMuniWebhookUpdateView:
+    @pytest.mark.django_db
+    @patch.dict("os.environ", {"WEBHOOK_SECRET": "test-secret"})
+    @patch("django_rq.get_queue")
+    def test_webhook_uses_new_backfill_system(self, mock_get_queue):
+        """Test that webhook triggers new backfill orchestrator."""
+        import json
+
+        mock_queue = Mock()
+        mock_get_queue.return_value = mock_queue
+        mock_job = Mock(id="job123")
+        mock_queue.enqueue.return_value = mock_job
+
+        # Create new municipality via webhook
+        client = Client()
+        response = client.post(
+            "/munis/api/update/new-city/",
+            data=json.dumps(
+                {
+                    "name": "New City",
+                    "state": "CA",
+                    "pages": 100,
+                }
+            ),
+            content_type="application/json",
+            HTTP_AUTHORIZATION="Bearer test-secret",
+        )
+
+        assert response.status_code == 201
+
+        # Verify backfill_municipality_meetings_task was enqueued
+        mock_queue.enqueue.assert_called_once()
+        call_args = mock_queue.enqueue.call_args[0]
+        assert call_args[0].__name__ == "backfill_municipality_meetings_task"
