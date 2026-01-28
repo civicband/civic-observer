@@ -16,26 +16,35 @@ class Migration(migrations.Migration):
     both the indexed column (document_id) and additional columns (search_vector)
     without having to visit the heap table.
 
-    Note: Cannot use CONCURRENTLY because it requires running outside a transaction,
-    and Django migrations run inside transactions by default.
+    IMPORTANT: This migration uses CREATE INDEX CONCURRENTLY which:
+    - Does NOT lock the table during index creation
+    - Allows normal read/write operations to continue
+    - Takes approximately 5-15 minutes for 12 million rows
+    - Requires atomic=False to run outside a transaction
+
+    If index creation fails partway through, you may need to manually drop the
+    invalid index before re-running:
+        DROP INDEX CONCURRENTLY IF EXISTS meetingpage_doc_search_covering_idx;
     """
 
     dependencies = [
         ("meetings", "0006_backfilljob"),
     ]
 
+    # REQUIRED: atomic=False allows CREATE INDEX CONCURRENTLY to run outside transaction
+    atomic = False
+
     operations = [
         # Create composite index with INCLUDE to optimize search + filter queries
-        # This uses PostgreSQL-specific INCLUDE syntax for covering indexes
-        # Note: Using regular CREATE INDEX (not CONCURRENTLY) to work within migration transactions
+        # Uses CONCURRENTLY to avoid locking the table (safe for production)
         migrations.RunSQL(
             sql="""
-                CREATE INDEX IF NOT EXISTS meetingpage_doc_search_covering_idx
+                CREATE INDEX CONCURRENTLY IF NOT EXISTS meetingpage_doc_search_covering_idx
                 ON meetings_meetingpage (document_id)
                 INCLUDE (search_vector);
             """,
             reverse_sql="""
-                DROP INDEX IF EXISTS meetingpage_doc_search_covering_idx;
+                DROP INDEX CONCURRENTLY IF EXISTS meetingpage_doc_search_covering_idx;
             """,
         ),
     ]
