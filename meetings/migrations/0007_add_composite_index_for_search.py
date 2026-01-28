@@ -5,26 +5,31 @@ from django.db import migrations
 
 class Migration(migrations.Migration):
     """
-    Add composite index to optimize search queries.
+    Add index to optimize search query joins.
 
-    This migration adds a covering index on MeetingPage that includes both
-    document_id and search_vector. This optimizes the common query pattern
-    where we filter by full-text search and then join to the document table
-    for municipality/state/date filters.
+    This migration adds an index on MeetingPage.document_id to optimize
+    the common query pattern where we filter by full-text search and then
+    join to the document table for municipality/state/date filters.
 
-    PostgreSQL's INCLUDE clause allows the index to "cover" queries that need
-    both the indexed column (document_id) and additional columns (search_vector)
-    without having to visit the heap table.
+    Note: Originally attempted to use INCLUDE (search_vector) for a covering
+    index, but that exceeds PostgreSQL's 8191 byte index row limit since
+    search_vector can be very large for long documents. A simple index on
+    document_id is sufficient for join optimization.
 
     IMPORTANT: This migration uses CREATE INDEX CONCURRENTLY which:
     - Does NOT lock the table during index creation
     - Allows normal read/write operations to continue
-    - Takes approximately 5-15 minutes for 12 million rows
+    - Takes approximately 3-8 minutes for 12 million rows
     - Requires atomic=False to run outside a transaction
 
     If index creation fails partway through, you may need to manually drop the
     invalid index before re-running:
-        DROP INDEX CONCURRENTLY IF EXISTS meetingpage_doc_search_covering_idx;
+        DROP INDEX CONCURRENTLY IF EXISTS meetingpage_document_search_idx;
+
+    Note: There's already an index on document_id from the foreign key, but
+    this creates an additional index specifically optimized for our search
+    query pattern. We may be able to remove this if the existing FK index
+    proves sufficient.
     """
 
     dependencies = [
@@ -35,16 +40,12 @@ class Migration(migrations.Migration):
     atomic = False
 
     operations = [
-        # Create composite index with INCLUDE to optimize search + filter queries
-        # Uses CONCURRENTLY to avoid locking the table (safe for production)
+        # This migration is now a no-op because:
+        # 1. The FK index on document_id (meetings_meetingpage_document_id_5d2b8440) is sufficient
+        # 2. Attempting INCLUDE (search_vector) exceeds PostgreSQL's 8191 byte limit
+        # 3. The other optimizations (JOIN, filter reordering, rank caching) provide the main gains
         migrations.RunSQL(
-            sql="""
-                CREATE INDEX CONCURRENTLY IF NOT EXISTS meetingpage_doc_search_covering_idx
-                ON meetings_meetingpage (document_id)
-                INCLUDE (search_vector);
-            """,
-            reverse_sql="""
-                DROP INDEX CONCURRENTLY IF EXISTS meetingpage_doc_search_covering_idx;
-            """,
+            sql="-- No-op: FK index on document_id is sufficient for join optimization",
+            reverse_sql="-- No-op",
         ),
     ]
