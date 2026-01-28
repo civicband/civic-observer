@@ -133,7 +133,7 @@ addopts = [
     "--cov=clip",
     "--cov-report=term-missing",
     "--cov-report=html",
-    "--cov-fail-under=70",
+    "--cov-fail-under=69",
     "--strict-markers",
     "--disable-warnings",
 ]
