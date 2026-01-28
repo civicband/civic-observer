@@ -1,3 +1,4 @@
+import re
 from typing import Any
 
 from django.contrib.postgres.search import (
@@ -20,9 +21,14 @@ from .models import MeetingPage
 # Search pagination and display constants
 SEARCH_RESULTS_PER_PAGE = 20
 
-# Minimum rank threshold for search results
+# Minimum rank threshold for search results (used for long search terms)
 # Results with rank below this value will be filtered out
 MINIMUM_RANK_THRESHOLD = 0.01
+
+# Pre-compiled regex patterns for query parsing
+_QUOTED_PATTERN = re.compile(r'"([^"]+)"')
+_QUOTED_REPLACE_PATTERN = re.compile(r'"[^"]+"')
+_OPERATOR_PATTERN = re.compile(r"\b(OR|AND|NOT)\b", re.IGNORECASE)
 
 # SearchHeadline configuration for result previews
 HEADLINE_START_TAG = "<mark class='bg-yellow-200 font-semibold'>"
@@ -158,15 +164,13 @@ def _parse_websearch_query(query_text: str) -> tuple[list[str], str]:
         >>> _parse_websearch_query('affordable housing AND rent')
         (['affordable', 'housing', 'rent'], 'affordable housing AND rent')
     """
-    import re
-
     # Extract everything inside quotes (these are phrase searches)
-    quoted = re.findall(r'"([^"]+)"', query_text)
+    quoted = _QUOTED_PATTERN.findall(query_text)
 
     # Extract everything outside quotes
-    unquoted_text = re.sub(r'"[^"]+"', " ", query_text)
+    unquoted_text = _QUOTED_REPLACE_PATTERN.sub(" ", query_text)
     # Remove operators (they don't affect threshold calculation)
-    unquoted_text = re.sub(r"\b(OR|AND|NOT)\b", " ", unquoted_text, flags=re.IGNORECASE)
+    unquoted_text = _OPERATOR_PATTERN.sub(" ", unquoted_text)
     # Extract individual words
     unquoted = [t.strip() for t in unquoted_text.split() if t.strip()]
 
