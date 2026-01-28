@@ -104,6 +104,8 @@ def _apply_meeting_name_filter(queryset, meeting_name_query):
     Uses 'simple' search configuration for multilingual support (works across
     Spanish, English, and other languages without language-specific stemming).
 
+    Performance: Uses JOIN instead of subquery for better query planning.
+
     Args:
         queryset: MeetingPage queryset to filter
         meeting_name_query: Search query for meeting names (supports websearch syntax: phrases, AND, OR, NOT)
@@ -119,21 +121,19 @@ def _apply_meeting_name_filter(queryset, meeting_name_query):
         meeting_name_query, search_type="websearch", config="simple"
     )
 
-    # Filter to pages from documents where meeting_name matches
-    # Use subquery to filter by document IDs that match the meeting name search
-    from .models import MeetingDocument
-
-    matching_doc_ids = (
-        MeetingDocument.objects.annotate(
+    # Use JOIN and filter on the document relationship (much faster than subquery)
+    # PostgreSQL can optimize this join pattern better than IN (subquery)
+    queryset = (
+        queryset.filter(document__meeting_name_search_vector=meeting_name_search_query)
+        .annotate(
             meeting_name_rank=SearchRank(
-                F("meeting_name_search_vector"), meeting_name_search_query
+                F("document__meeting_name_search_vector"), meeting_name_search_query
             )
         )
         .filter(meeting_name_rank__gte=MINIMUM_RANK_THRESHOLD)
-        .values_list("id", flat=True)
     )
 
-    return queryset.filter(document_id__in=matching_doc_ids)
+    return queryset
 
 
 def _apply_full_text_search(queryset, query_text):
@@ -143,6 +143,9 @@ def _apply_full_text_search(queryset, query_text):
     Uses 'simple' search configuration for multilingual support (works across
     Spanish, English, and other languages without language-specific stemming).
 
+    Performance: Annotates search_rank which can be reused later to avoid
+    recalculating expensive ts_rank function.
+
     Args:
         queryset: MeetingPage queryset to search
         query_text: Search query string (supports websearch syntax: phrases, AND, OR, NOT)
@@ -150,6 +153,7 @@ def _apply_full_text_search(queryset, query_text):
     Returns:
         Tuple of (filtered_queryset, search_query_object)
         - Queryset is filtered to rank >= MINIMUM_RANK_THRESHOLD and ordered by relevance
+        - QuerySet includes 'search_rank' annotation for reuse
         - SearchQuery object is returned for use in headline generation
     """
     # Create search query using 'simple' config for multilingual support
@@ -158,13 +162,14 @@ def _apply_full_text_search(queryset, query_text):
     # IMPORTANT: Filter using @@ operator FIRST to use the GIN index
     # This dramatically reduces rows before computing expensive ts_rank
     # Only then compute rank and filter by minimum threshold
+    # Annotate as 'search_rank' (not 'rank') so it can be reused later
     queryset = (
         queryset.filter(search_vector=search_query)  # Uses GIN index via @@ operator
         .annotate(
-            rank=SearchRank(F("search_vector"), search_query),
+            search_rank=SearchRank(F("search_vector"), search_query),
         )
-        .filter(rank__gte=MINIMUM_RANK_THRESHOLD)
-        .order_by("-rank", "-document__meeting_date")
+        .filter(search_rank__gte=MINIMUM_RANK_THRESHOLD)
+        .order_by("-search_rank", "-document__meeting_date")
     )
 
     return queryset, search_query
@@ -178,42 +183,60 @@ def _generate_headlines_for_page(page_results, search_query):
     for results that won't be displayed. Generates highlighted text snippets
     showing where search terms appear in the document.
 
+    Performance: Reuses search_rank from page_results if available to avoid
+    recalculating expensive ts_rank function.
+
     Args:
-        page_results: List of MeetingPage objects from current page
+        page_results: List of MeetingPage objects from current page (may include search_rank annotation)
         search_query: SearchQuery object used for highlighting matches
 
     Returns:
-        List of MeetingPage objects with headline and rank annotations
+        List of MeetingPage objects with headline and search_rank annotations
     """
     # Extract PKs from page results
     page_pks = [result.pk for result in page_results]
 
-    # Single query to fetch all headlines and ranks for the page
-    # This is MUCH faster than querying each result individually (N+1 problem)
-    results_with_headlines = (
-        MeetingPage.objects.filter(pk__in=page_pks)
-        .annotate(
-            rank=SearchRank(F("search_vector"), search_query),
-            headline=SearchHeadline(
-                "text",
-                search_query,
-                start_sel=HEADLINE_START_TAG,
-                stop_sel=HEADLINE_STOP_TAG,
-                max_words=HEADLINE_MAX_WORDS,
-                min_words=HEADLINE_MIN_WORDS,
-                short_word=HEADLINE_SHORT_WORD_LENGTH,
-                highlight_all=False,
-                max_fragments=HEADLINE_MAX_FRAGMENTS,
-                fragment_delimiter=HEADLINE_FRAGMENT_DELIMITER,
-                config="simple",
-            ),
-        )
-        .select_related("document", "document__municipality")
-    )
+    # Check if page_results already have search_rank annotation
+    # If so, we can reuse it instead of recalculating
+    has_rank = hasattr(page_results[0], "search_rank") if page_results else False
 
-    # Preserve original ordering
+    # Single query to fetch all headlines for the page
+    # This is MUCH faster than querying each result individually (N+1 problem)
+    queryset = MeetingPage.objects.filter(pk__in=page_pks)
+
+    # Only compute rank if not already present (avoids expensive recalculation)
+    if not has_rank:
+        queryset = queryset.annotate(
+            search_rank=SearchRank(F("search_vector"), search_query),
+        )
+
+    results_with_headlines = queryset.annotate(
+        headline=SearchHeadline(
+            "text",
+            search_query,
+            start_sel=HEADLINE_START_TAG,
+            stop_sel=HEADLINE_STOP_TAG,
+            max_words=HEADLINE_MAX_WORDS,
+            min_words=HEADLINE_MIN_WORDS,
+            short_word=HEADLINE_SHORT_WORD_LENGTH,
+            highlight_all=False,
+            max_fragments=HEADLINE_MAX_FRAGMENTS,
+            fragment_delimiter=HEADLINE_FRAGMENT_DELIMITER,
+            config="simple",
+        ),
+    ).select_related("document", "document__municipality")
+
+    # Preserve original ordering and include rank from original if it exists
     results_dict = {result.pk: result for result in results_with_headlines}
-    return [results_dict[pk] for pk in page_pks if pk in results_dict]
+    final_results = []
+    for i, pk in enumerate(page_pks):
+        if pk in results_dict:
+            result = results_dict[pk]
+            # If original had rank but new query didn't, copy it over
+            if has_rank and not hasattr(result, "search_rank"):
+                result.search_rank = page_results[i].search_rank  # type: ignore[attr-defined]
+            final_results.append(result)
+    return final_results
 
 
 def _is_htmx_request(request: HttpRequest) -> bool:
@@ -348,7 +371,16 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
         "document", "document__municipality"
     ).all()
 
-    # Apply filter parameters
+    # Performance optimization: Apply full-text search FIRST (most selective filter)
+    # This dramatically reduces the dataset before applying other filters and joins
+    queryset, search_query = _apply_full_text_search(queryset, query)
+
+    # Apply meeting name filter (if provided)
+    # This is applied after full-text search but before other filters
+    # because it uses the document join which is already loaded
+    queryset = _apply_meeting_name_filter(queryset, meeting_name_query)
+
+    # Apply remaining filter parameters to the already-reduced dataset
     queryset = _apply_search_filters(
         queryset,
         municipalities=municipalities,
@@ -357,12 +389,6 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
         date_to=date_to,
         document_type=document_type,
     )
-
-    # Apply meeting name filter (if provided)
-    queryset = _apply_meeting_name_filter(queryset, meeting_name_query)
-
-    # Apply full-text search
-    queryset, search_query = _apply_full_text_search(queryset, query)
 
     # Paginate results
     # IMPORTANT: Paginate BEFORE generating headlines for performance
@@ -389,14 +415,16 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
     }
 
     # Add saved page IDs for authenticated users (for save button state)
-    if request.user.is_authenticated:
+    # Performance: Only check if pages on THIS page are saved (not all pages)
+    if request.user.is_authenticated and context["results"]:
         from notebooks.models import NotebookEntry
 
-        # Get page IDs that are saved to any of user's notebooks
+        # Only check the page IDs that are in the current results
+        result_page_ids = [r.pk for r in context["results"]]
         saved_page_ids = set(
-            NotebookEntry.objects.filter(notebook__user=request.user).values_list(
-                "meeting_page_id", flat=True
-            )
+            NotebookEntry.objects.filter(
+                notebook__user=request.user, meeting_page_id__in=result_page_ids
+            ).values_list("meeting_page_id", flat=True)
         )
         context["saved_page_ids"] = saved_page_ids
     else:
