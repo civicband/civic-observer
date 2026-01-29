@@ -209,26 +209,26 @@ def _get_smart_threshold(tokens: list[str]) -> float:
     Calculate rank threshold based on query token characteristics.
 
     Short tokens match more documents with lower average relevance, so we use
-    higher thresholds to filter noise and improve performance.
+    moderately higher thresholds to filter noise and improve performance while
+    preserving relevant results.
 
-    Performance impact:
-        - 2 char terms: 0.20 threshold (20x higher) - filters ~95% of matches
-        - 3 char terms: 0.12 threshold (12x higher) - filters ~90% of matches
-        - 4 char terms: 0.06 threshold (6x higher) - filters ~70% of matches
-        - 5+ char terms: 0.01 threshold (normal) - minimal filtering
+    Performance impact (conservative thresholds to avoid over-filtering):
+        - 2 char terms: 0.02 threshold (2x higher) - filters very low quality matches
+        - 3 char terms: 0.015 threshold (1.5x higher) - filters noise
+        - 4+ char terms: 0.01 threshold (normal) - minimal filtering
 
     Args:
         tokens: List of search terms extracted from query
 
     Returns:
-        Threshold value (0.01 to 0.20) based on shortest token
+        Threshold value (0.01 to 0.02) based on shortest token
 
     Examples:
         >>> _get_smart_threshold(['ice'])
-        0.12  # 3 characters
+        0.015  # 3 characters
 
         >>> _get_smart_threshold(['ice', 'immigration'])
-        0.12  # Shortest token (ice) is 3 characters
+        0.015  # Shortest token (ice) is 3 characters
 
         >>> _get_smart_threshold(['affordable', 'housing'])
         0.01  # Both tokens are long
@@ -239,15 +239,13 @@ def _get_smart_threshold(tokens: list[str]) -> float:
     # Get shortest token length (limiting factor for precision)
     min_length = min(len(t) for t in tokens)
 
-    # Aggressive thresholds for very short terms
+    # Conservative thresholds that filter noise without losing relevant results
     if min_length <= 2:
-        return 0.20  # "or", "to", "be" - extremely common
+        return 0.02  # "or", "to", "be" - extremely common
     elif min_length == 3:
-        return 0.12  # "ice", "law", "ada" - very common
-    elif min_length == 4:
-        return 0.06  # "rent", "park" - common
+        return 0.015  # "ice", "law", "ada" - very common
     else:
-        return MINIMUM_RANK_THRESHOLD  # 0.01 - normal
+        return MINIMUM_RANK_THRESHOLD  # 0.01 - normal (4+ chars)
 
 
 def _apply_full_text_search(queryset, query_text):

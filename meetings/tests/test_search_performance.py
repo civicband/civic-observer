@@ -86,21 +86,21 @@ class TestSmartThreshold:
 
     def test_very_short_tokens(self):
         """2 characters or less gets highest threshold."""
-        assert _get_smart_threshold(["to"]) == 0.20
-        assert _get_smart_threshold(["be"]) == 0.20
-        assert _get_smart_threshold(["or"]) == 0.20
+        assert _get_smart_threshold(["to"]) == 0.02
+        assert _get_smart_threshold(["be"]) == 0.02
+        assert _get_smart_threshold(["or"]) == 0.02
 
     def test_short_tokens(self):
-        """3 character tokens get high threshold."""
-        assert _get_smart_threshold(["ice"]) == 0.12
-        assert _get_smart_threshold(["law"]) == 0.12
-        assert _get_smart_threshold(["ada"]) == 0.12
+        """3 character tokens get moderate threshold."""
+        assert _get_smart_threshold(["ice"]) == 0.015
+        assert _get_smart_threshold(["law"]) == 0.015
+        assert _get_smart_threshold(["ada"]) == 0.015
 
     def test_medium_short_tokens(self):
-        """4 character tokens get medium threshold."""
-        assert _get_smart_threshold(["rent"]) == 0.06
-        assert _get_smart_threshold(["park"]) == 0.06
-        assert _get_smart_threshold(["zone"]) == 0.06
+        """4 character tokens get normal threshold."""
+        assert _get_smart_threshold(["rent"]) == 0.01
+        assert _get_smart_threshold(["park"]) == 0.01
+        assert _get_smart_threshold(["zone"]) == 0.01
 
     def test_normal_length_tokens(self):
         """5+ character tokens get normal threshold."""
@@ -111,10 +111,10 @@ class TestSmartThreshold:
     def test_multiple_tokens_uses_shortest(self):
         """With multiple tokens, use shortest for threshold."""
         # "ice" (3 chars) is shortest
-        assert _get_smart_threshold(["ice", "immigration"]) == 0.12
+        assert _get_smart_threshold(["ice", "immigration"]) == 0.015
 
         # "rent" (4 chars) is shortest
-        assert _get_smart_threshold(["affordable", "rent", "housing"]) == 0.06
+        assert _get_smart_threshold(["affordable", "rent", "housing"]) == 0.01
 
         # "housing" (7 chars) is shortest
         assert _get_smart_threshold(["housing", "affordable"]) == 0.01
@@ -134,10 +134,10 @@ class TestSmartThreshold:
     def test_mixed_length_tokens(self):
         """Mix of short and long tokens uses shortest."""
         # "or" (2 chars) should dominate
-        assert _get_smart_threshold(["or", "affordable", "housing"]) == 0.20
+        assert _get_smart_threshold(["or", "affordable", "housing"]) == 0.02
 
         # "ice" (3 chars) should dominate
-        assert _get_smart_threshold(["ice", "rent", "housing"]) == 0.12
+        assert _get_smart_threshold(["ice", "rent", "housing"]) == 0.015
 
 
 class TestIntegratedBehavior:
@@ -146,15 +146,15 @@ class TestIntegratedBehavior:
     @pytest.mark.parametrize(
         "query,expected_threshold",
         [
-            ("ice", 0.12),  # 3 chars
-            ('"ICE"', 0.12),  # 3 chars in quotes
-            ('"ICE" OR immigration', 0.12),  # Shortest is 3 chars
+            ("ice", 0.015),  # 3 chars
+            ('"ICE"', 0.015),  # 3 chars in quotes
+            ('"ICE" OR immigration', 0.015),  # Shortest is 3 chars
             ("affordable housing", 0.01),  # Both long
             ('"affordable housing"', 0.01),  # Long phrase
-            ("rent AND housing", 0.06),  # Shortest is 4 chars
-            ('"or"', 0.20),  # 2 chars in quotes (otherwise filtered as operator)
-            ("law OR rent", 0.12),  # Shortest is 3 chars
-            ("housing NOT rent", 0.06),  # Shortest is 4 chars
+            ("rent AND housing", 0.01),  # Shortest is 4 chars
+            ('"or"', 0.02),  # 2 chars in quotes (otherwise filtered as operator)
+            ("law OR rent", 0.015),  # Shortest is 3 chars (law)
+            ("housing NOT rent", 0.01),  # Shortest is 4 chars (rent)
         ],
     )
     def test_query_to_threshold(self, query, expected_threshold):
