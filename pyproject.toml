@@ -161,6 +161,7 @@ omit = [
     "*/__pycache__/*",
     "*/static/*",
     "*/media/*",
+    "*/management/commands/*",
 ]
 branch = true
 
