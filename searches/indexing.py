@@ -96,25 +96,27 @@ def index_queryset_in_batches(
     """
     Index a queryset of MeetingPages in batches.
 
-    Efficiently processes large querysets by batching documents.
-    Useful for initial indexing or re-indexing operations.
+    Efficiently processes large querysets by batching documents using
+    Django's .iterator() to avoid loading all objects into memory.
+
+    IMPORTANT: Caller should use select_related("document", "document__municipality")
+    on the queryset for optimal performance.
 
     Args:
-        queryset: QuerySet of MeetingPage objects
+        queryset: QuerySet of MeetingPage objects (should use select_related)
         batch_size: Number of pages to index per batch
         progress_callback: Optional callback function(current, total) for progress updates
 
     Returns:
         Dict with summary statistics
     """
-    # Optimize queryset with select_related
-    queryset = queryset.select_related("document", "document__municipality")
-
     total = queryset.count()
     indexed = 0
     batch = []
     tasks = []
 
+    # Use iterator() to stream results without loading everything into memory
+    # This is critical for indexing millions of pages
     for page in queryset.iterator(chunk_size=batch_size):
         batch.append(page)
 
