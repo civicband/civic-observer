@@ -111,6 +111,8 @@ services:
     entrypoint: ["/src/compose-entrypoint.sh"]
     init: true
     tty: true
+    deploy:
+      replicas: 7
 
   tailwind:
     <<: *common-settings
