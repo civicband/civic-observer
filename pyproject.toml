@@ -163,6 +163,10 @@ omit = [
     "*/static/*",
     "*/media/*",
     "*/management/commands/*",
+    # Meilisearch modules (optional feature, not tested without Meilisearch service)
+    "searches/meilisearch_client.py",
+    "searches/indexing.py",
+    "searches/search_backends.py",
 ]
 branch = true
 
