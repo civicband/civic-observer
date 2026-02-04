@@ -7,12 +7,17 @@ This command identifies and queues backfill jobs for:
 - Municipalities with suspiciously low page counts (< 100 pages)
 """
 
+from collections import namedtuple
+
 import django_rq
 from django.core.management.base import BaseCommand
-from django.db.models import Count, Q
+from django.db import connection
 
 from meetings.tasks import backfill_municipality_meetings_task
-from municipalities.models import Muni
+
+MuniWithCount = namedtuple(
+    "MuniWithCount", ["id", "subdomain", "name", "last_indexed", "page_count"]
+)
 
 
 class Command(BaseCommand):
@@ -42,6 +47,25 @@ class Command(BaseCommand):
             help="Only backfill municipalities with zero pages",
         )
 
+    def _get_municipalities_with_page_counts(self):
+        """Get all municipalities with their page counts using efficient SQL."""
+        with connection.cursor() as cursor:
+            cursor.execute("""
+                SELECT
+                    m.id,
+                    m.subdomain,
+                    m.name,
+                    m.last_indexed,
+                    COALESCE(COUNT(mp.id), 0) as page_count
+                FROM municipalities_muni m
+                LEFT JOIN meetings_meetingdocument md ON md.municipality_id = m.id
+                LEFT JOIN meetings_meetingpage mp ON mp.document_id = md.id
+                GROUP BY m.id, m.subdomain, m.name, m.last_indexed
+                ORDER BY m.subdomain
+            """)
+            rows = cursor.fetchall()
+            return [MuniWithCount(*row) for row in rows]
+
     def handle(self, *args, **options):
         min_pages = options["min_pages"]
         dry_run = options["dry_run"]
@@ -52,24 +76,38 @@ class Command(BaseCommand):
             self.style.WARNING("=" * 80 + "\nRe-backfill Failed Municipalities\n=" * 80)
         )
 
-        # Get municipalities with page counts
-        municipalities = Muni.objects.annotate(page_count=Count("meetings__pages"))
+        # Get municipalities with page counts using efficient SQL
+        self.stdout.write("Analyzing municipalities... ")
+        all_municipalities = self._get_municipalities_with_page_counts()
+        self.stdout.write(
+            self.style.SUCCESS(
+                f"Found {len(all_municipalities)} total municipalities.\n"
+            )
+        )
 
-        # Build query based on options
+        # Filter based on options
         if only_never_indexed:
-            query = Q(last_indexed__isnull=True)
+            municipalities_to_backfill = [
+                m for m in all_municipalities if m.last_indexed is None
+            ]
             description = "never indexed"
         elif only_zero_pages:
-            query = Q(last_indexed__isnull=False) & Q(page_count=0)
+            municipalities_to_backfill = [
+                m
+                for m in all_municipalities
+                if m.last_indexed is not None and m.page_count == 0
+            ]
             description = "indexed but have 0 pages"
         else:
             # Default: all failed/incomplete
-            query = Q(last_indexed__isnull=True) | Q(page_count__lt=min_pages)
+            municipalities_to_backfill = [
+                m
+                for m in all_municipalities
+                if m.last_indexed is None or m.page_count < min_pages
+            ]
             description = f"never indexed or have < {min_pages} pages"
 
-        municipalities_to_backfill = municipalities.filter(query).order_by("subdomain")
-
-        total_count = municipalities_to_backfill.count()
+        total_count = len(municipalities_to_backfill)
 
         if total_count == 0:
             self.stdout.write(
@@ -84,15 +122,23 @@ class Command(BaseCommand):
         )
 
         # Show breakdown
-        never_indexed = municipalities_to_backfill.filter(
-            last_indexed__isnull=True
-        ).count()
-        zero_pages = municipalities_to_backfill.filter(
-            last_indexed__isnull=False, page_count=0
-        ).count()
-        incomplete = municipalities_to_backfill.filter(
-            last_indexed__isnull=False, page_count__gt=0, page_count__lt=min_pages
-        ).count()
+        never_indexed = len(
+            [m for m in municipalities_to_backfill if m.last_indexed is None]
+        )
+        zero_pages = len(
+            [
+                m
+                for m in municipalities_to_backfill
+                if m.last_indexed is not None and m.page_count == 0
+            ]
+        )
+        incomplete = len(
+            [
+                m
+                for m in municipalities_to_backfill
+                if m.last_indexed is not None and 0 < m.page_count < min_pages
+            ]
+        )
 
         self.stdout.write(f"  • Never indexed: {never_indexed}")
         self.stdout.write(f"  • Zero pages: {zero_pages}")
@@ -141,19 +187,21 @@ class Command(BaseCommand):
 
         self.stdout.write(self.style.WARNING("\nEnqueueing backfill jobs...\n"))
 
-        for muni in municipalities_to_backfill:
+        for muni_data in municipalities_to_backfill:
             try:
                 job = queue.enqueue(
                     backfill_municipality_meetings_task,
-                    muni.id,
+                    muni_data.id,
                     job_timeout="30m",  # 30 minute timeout per municipality
                 )
                 enqueued_count += 1
-                self.stdout.write(f"  ✓ {muni.subdomain:30} (job: {job.id[:8]}...)")
+                self.stdout.write(
+                    f"  ✓ {muni_data.subdomain:30} (job: {job.id[:8]}...)"
+                )
             except Exception as e:
                 error_count += 1
                 self.stdout.write(
-                    self.style.ERROR(f"  ✗ {muni.subdomain:30} ERROR: {e}")
+                    self.style.ERROR(f"  ✗ {muni_data.subdomain:30} ERROR: {e}")
                 )
 
         # Summary
