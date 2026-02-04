@@ -53,9 +53,7 @@ class Command(BaseCommand):
         )
 
         # Get municipalities with page counts
-        municipalities = Muni.objects.annotate(
-            page_count=Count("meetings__meetingpage")
-        )
+        municipalities = Muni.objects.annotate(page_count=Count("meetings__pages"))
 
         # Build query based on options
         if only_never_indexed:
