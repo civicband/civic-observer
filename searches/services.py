@@ -4,10 +4,13 @@ Shared search service for executing searches against local MeetingPage database.
 This module provides reusable search functions used by both:
 - Page search interface (meetings/views.py)
 - Saved search system (searches/models.py)
+
+The search backend (PostgreSQL or Meilisearch) is configured via SEARCH_BACKEND setting.
 """
 
 import re
 
+from django.conf import settings
 from django.contrib.postgres.search import SearchQuery, SearchRank
 from django.db.models import F
 
@@ -26,6 +29,8 @@ def execute_search(search):
     """
     Execute a Search object against local MeetingPage database.
 
+    Uses the configured search backend (PostgreSQL or Meilisearch).
+
     Args:
         search: Search model instance with filter configuration
 
@@ -33,6 +38,52 @@ def execute_search(search):
         QuerySet of MeetingPage objects matching the search criteria.
         If search_term is empty/null, returns all pages matching other filters
         (all updates mode).
+
+    Note:
+        When SEARCH_BACKEND='meilisearch', this returns a QuerySet reconstructed
+        from Meilisearch results for backwards compatibility. For better performance,
+        use execute_search_with_backend() which returns raw dictionaries.
+    """
+    backend_name = getattr(settings, "SEARCH_BACKEND", "postgres")
+
+    if backend_name == "meilisearch":
+        # Use Meilisearch but reconstruct QuerySet for backwards compatibility
+        from .search_backends import get_search_backend
+
+        backend = get_search_backend()
+        results, _ = backend.search(
+            query_text=search.search_term,
+            municipalities=search.municipalities.all(),
+            states=search.states,
+            date_from=search.date_from,
+            date_to=search.date_to,
+            document_type=search.document_type,
+            meeting_name_query=search.meeting_name_query,
+            limit=10000,  # Large limit for backwards compat
+        )
+
+        # Extract IDs and return QuerySet in same order
+        page_ids = [result["id"] for result in results]
+        if not page_ids:
+            return MeetingPage.objects.none()
+
+        # Return QuerySet - order from Meilisearch is lost but this maintains backwards compat
+        # For proper ordering, use execute_search_with_backend() instead
+        return MeetingPage.objects.filter(id__in=page_ids)
+    else:
+        # Use original PostgreSQL implementation
+        return _execute_search_postgres(search)
+
+
+def _execute_search_postgres(search):
+    """
+    Execute a Search object using PostgreSQL full-text search (original implementation).
+
+    Args:
+        search: Search model instance with filter configuration
+
+    Returns:
+        QuerySet of MeetingPage objects matching the search criteria.
     """
     # Start with all meeting pages
     queryset = MeetingPage.objects.select_related(
@@ -62,6 +113,42 @@ def execute_search(search):
         queryset = queryset.order_by("-document__meeting_date")
 
     return queryset
+
+
+def execute_search_with_backend(search, limit=100, offset=0):
+    """
+    Execute a Search object using the configured backend, returning raw results.
+
+    This is the preferred method for new code as it returns lightweight dictionaries
+    instead of full Django model instances.
+
+    Args:
+        search: Search model instance with filter configuration
+        limit: Maximum number of results to return
+        offset: Number of results to skip (for pagination)
+
+    Returns:
+        Tuple of (results, total_count)
+        - results: List of dictionaries with page data
+        - total_count: Total number of matching results
+    """
+    from .search_backends import get_search_backend
+
+    backend = get_search_backend()
+
+    results, total = backend.search(
+        query_text=search.search_term,
+        municipalities=search.municipalities.all(),
+        states=search.states,
+        date_from=search.date_from,
+        date_to=search.date_to,
+        document_type=search.document_type,
+        meeting_name_query=search.meeting_name_query,
+        limit=limit,
+        offset=offset,
+    )
+
+    return results, total
 
 
 def get_new_pages(search):
