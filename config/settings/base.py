@@ -166,6 +166,106 @@ BACKFILL_API_PAGE_SIZE = 1000  # Records per API request
 # API Key Validation
 CORKBOARD_SERVICE_SECRET = env.str("CORKBOARD_SERVICE_SECRET", "")
 
+# Meilisearch Configuration
+MEILISEARCH_URL = env.str("MEILISEARCH_URL", "http://meilisearch:7700")
+MEILISEARCH_MASTER_KEY = env.str("MEILI_MASTER_KEY", "masterKey")
+MEILISEARCH_INDEX_PREFIX = env.str("MEILISEARCH_INDEX_PREFIX", "civic_observer")
+
+# Search Backend Configuration
+# Options: 'postgres', 'meilisearch'
+SEARCH_BACKEND = env.str("SEARCH_BACKEND", "postgres")
+
+# Meilisearch Index Configuration
+# These settings control which fields are searchable, filterable, and sortable
+# To enable advanced features, modify these settings and run:
+#   python manage.py configure_meilisearch_index
+MEILISEARCH_INDEX_SETTINGS = {
+    "meeting_pages": {
+        # Fields that can be used in search queries
+        "searchableAttributes": [
+            "text",  # Page content (primary search field)
+            "meeting_name",  # Name of the meeting body
+            "municipality_name",  # Municipality name
+        ],
+        # Fields that can be used for filtering (e.g., filter by state or document type)
+        "filterableAttributes": [
+            "municipality_id",
+            "municipality_subdomain",
+            "municipality_name",
+            "state",
+            "meeting_date",
+            "document_type",
+            "meeting_name",
+        ],
+        # Fields that can be used for sorting results
+        "sortableAttributes": [
+            "meeting_date",
+            "page_number",
+        ],
+        # Fields to return in search results (reduces payload size)
+        "displayedAttributes": [
+            "id",
+            "page_number",
+            "text",
+            "page_image",
+            "meeting_name",
+            "meeting_date",
+            "document_type",
+            "municipality_id",
+            "municipality_subdomain",
+            "municipality_name",
+            "state",
+        ],
+        # Ranking rules (order matters - earlier rules have higher priority)
+        # See: https://www.meilisearch.com/docs/learn/core_concepts/relevancy
+        "rankingRules": [
+            "words",  # Number of matching query words
+            "typo",  # Fewer typos = higher rank
+            "proximity",  # Closer words = higher rank
+            "attribute",  # Earlier attributes in searchableAttributes = higher rank
+            "sort",  # Custom sort (if specified in query)
+            "exactness",  # Exact matches = higher rank
+        ],
+        # Typo tolerance configuration
+        # See: https://www.meilisearch.com/docs/learn/configuration/typo_tolerance
+        "typoTolerance": {
+            "enabled": True,
+            "minWordSizeForTypos": {
+                "oneTypo": 5,  # Allow 1 typo for words >= 5 chars
+                "twoTypos": 9,  # Allow 2 typos for words >= 9 chars
+            },
+        },
+        # Pagination limits
+        "pagination": {
+            "maxTotalHits": 20000,  # Maximum number of results that can be retrieved
+        },
+    }
+}
+
+# Advanced Meilisearch Features (not yet enabled - see documentation)
+#
+# To enable these features, update MEILISEARCH_INDEX_SETTINGS above and run:
+#   python manage.py configure_meilisearch_index
+#
+# Synonyms:
+#   Add common term variations to improve search relevance
+#   Example: {"synonyms": {"housing": ["affordable housing", "rent control"], ...}}
+#   See: https://www.meilisearch.com/docs/learn/configuration/synonyms
+#
+# Stop Words:
+#   Ignore common words that don't add search value
+#   Example: {"stopWords": ["the", "a", "an"]}
+#   See: https://www.meilisearch.com/docs/learn/configuration/stop_words
+#
+# Word Separators:
+#   Customize how words are split (useful for hyphenated terms)
+#   See: https://www.meilisearch.com/docs/learn/configuration/separators
+#
+# Faceting:
+#   Enable faceted search for filtering by multiple dimensions
+#   Example: Show counts per state, document type, date range
+#   See: https://www.meilisearch.com/docs/learn/fine_tuning_results/faceted_search
+
 # Notification Channel Settings
 DISCORD_BOT_TOKEN = env.str("DISCORD_BOT_TOKEN", "")
 BLUESKY_BOT_HANDLE = env.str("BLUESKY_BOT_HANDLE", "")
