@@ -71,48 +71,35 @@ def execute_search(search):
         # For proper ordering, use execute_search_with_backend() instead
         return MeetingPage.objects.filter(id__in=page_ids)
     else:
-        # Use original PostgreSQL implementation
-        return _execute_search_postgres(search)
+        # Use PostgreSQL implementation
+        # Start with all meeting pages
+        queryset = MeetingPage.objects.select_related(
+            "document", "document__municipality"
+        ).all()
 
+        # Apply filter parameters
+        queryset = _apply_search_filters(
+            queryset,
+            municipalities=search.municipalities.all(),
+            states=search.states,
+            date_from=search.date_from,
+            date_to=search.date_to,
+            document_type=search.document_type,
+        )
 
-def _execute_search_postgres(search):
-    """
-    Execute a Search object using PostgreSQL full-text search (original implementation).
+        # Apply meeting name filter (if provided)
+        if search.meeting_name_query:
+            queryset = _apply_meeting_name_filter(queryset, search.meeting_name_query)
 
-    Args:
-        search: Search model instance with filter configuration
+        # Apply full-text search ONLY if search_term is not empty (all updates mode)
+        if search.search_term:
+            queryset, _ = _apply_full_text_search(queryset, search.search_term)
+        else:
+            # All updates mode - return all pages matching other filters
+            # Order by date descending for most recent first
+            queryset = queryset.order_by("-document__meeting_date")
 
-    Returns:
-        QuerySet of MeetingPage objects matching the search criteria.
-    """
-    # Start with all meeting pages
-    queryset = MeetingPage.objects.select_related(
-        "document", "document__municipality"
-    ).all()
-
-    # Apply filter parameters
-    queryset = _apply_search_filters(
-        queryset,
-        municipalities=search.municipalities.all(),
-        states=search.states,
-        date_from=search.date_from,
-        date_to=search.date_to,
-        document_type=search.document_type,
-    )
-
-    # Apply meeting name filter (if provided)
-    if search.meeting_name_query:
-        queryset = _apply_meeting_name_filter(queryset, search.meeting_name_query)
-
-    # Apply full-text search ONLY if search_term is not empty (all updates mode)
-    if search.search_term:
-        queryset, _ = _apply_full_text_search(queryset, search.search_term)
-    else:
-        # All updates mode - return all pages matching other filters
-        # Order by date descending for most recent first
-        queryset = queryset.order_by("-document__meeting_date")
-
-    return queryset
+        return queryset
 
 
 def execute_search_with_backend(search, limit=100, offset=0):
