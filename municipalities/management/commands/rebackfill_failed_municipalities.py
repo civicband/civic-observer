@@ -54,7 +54,7 @@ class Command(BaseCommand):
 
         # Get municipalities with page counts
         municipalities = Muni.objects.annotate(
-            page_count=Count("meetingdocument__meetingpage")
+            page_count=Count("meetings__meetingpage")
         )
 
         # Build query based on options
