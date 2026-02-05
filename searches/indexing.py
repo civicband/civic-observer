@@ -96,14 +96,12 @@ def index_queryset_in_batches(
     """
     Index a queryset of MeetingPages in batches.
 
-    Efficiently processes large querysets by batching documents using
-    Django's .iterator() to avoid loading all objects into memory.
-
-    IMPORTANT: Caller should use select_related("document", "document__municipality")
-    on the queryset for optimal performance.
+    Uses keyset pagination (filtering by pk > last_pk) to efficiently process
+    large querysets without creating PostgreSQL temp files. This is critical
+    for indexing millions of rows.
 
     Args:
-        queryset: QuerySet of MeetingPage objects (should use select_related)
+        queryset: QuerySet of MeetingPage objects
         batch_size: Number of pages to index per batch
         progress_callback: Optional callback function(current, total) for progress updates
 
@@ -112,28 +110,27 @@ def index_queryset_in_batches(
     """
     total = queryset.count()
     indexed = 0
-    batch = []
     tasks = []
+    last_pk = 0
 
-    # Use iterator() to stream results without loading everything into memory
-    # This is critical for indexing millions of pages
-    for page in queryset.iterator(chunk_size=batch_size):
-        batch.append(page)
+    # Use keyset pagination to avoid temp file issues
+    # This fetches small batches at a time using WHERE id > last_id
+    while True:
+        # Get next batch using pk filtering (very efficient, no temp files)
+        batch = list(
+            queryset.filter(pk__gt=last_pk)
+            .order_by("pk")
+            .select_related("document", "document__municipality")[:batch_size]
+        )
 
-        if len(batch) >= batch_size:
-            task = index_pages_batch(batch)
-            tasks.append(task)
-            indexed += len(batch)
-            batch = []
+        if not batch:
+            break
 
-            if progress_callback:
-                progress_callback(indexed, total)
-
-    # Index remaining pages
-    if batch:
+        # Index this batch
         task = index_pages_batch(batch)
         tasks.append(task)
         indexed += len(batch)
+        last_pk = batch[-1].pk
 
         if progress_callback:
             progress_callback(indexed, total)
