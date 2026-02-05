@@ -112,18 +112,48 @@ class Command(BaseCommand):
                 )
                 return
 
-        # Build queryset with filters
-        queryset = MeetingPage.objects.select_related(
-            "document", "document__municipality"
-        ).all()
+        # Show current index stats
+        try:
+            stats = get_index_stats("meeting_pages")
+            current_docs = stats.number_of_documents
+            self.stdout.write(f"\nCurrent index size: {current_docs:,} documents\n")
+        except Exception as e:
+            self.stdout.write(self.style.WARNING(f"Could not get index stats: {e}\n"))
 
-        filters_applied = []
+        # Rebuild: delete all documents first
+        if rebuild:
+            self.stdout.write(
+                self.style.WARNING(
+                    "\n⚠️  REBUILD MODE: This will DELETE all existing documents first!\n"
+                )
+            )
+            if not dry_run:
+                confirm = input(
+                    "⚠️  Are you sure you want to DELETE and rebuild the index? [yes/NO]: "
+                )
+                if confirm.lower() != "yes":
+                    self.stdout.write(self.style.WARNING("\nAborted.\n"))
+                    return
 
+                self.stdout.write("\nDeleting all documents from index...")
+                try:
+                    task = delete_all_documents("meeting_pages")
+                    self.stdout.write(
+                        self.style.SUCCESS(
+                            f"  ✓ Delete queued (task {task.task_uid})\n"
+                        )
+                    )
+                except Exception as e:
+                    self.stdout.write(
+                        self.style.ERROR(f"  ✗ Failed to delete documents: {e}\n")
+                    )
+                    return
+
+        # If specific municipality requested, process just that one
         if municipality_subdomain:
             try:
                 municipality = Muni.objects.get(subdomain=municipality_subdomain)
-                queryset = queryset.filter(document__municipality=municipality)
-                filters_applied.append(f"municipality: {municipality.name}")
+                municipalities = [municipality]
             except Muni.DoesNotExist:
                 self.stdout.write(
                     self.style.ERROR(
@@ -131,116 +161,112 @@ class Command(BaseCommand):
                     )
                 )
                 return
-
-        if date_from:
-            queryset = queryset.filter(document__meeting_date__gte=date_from)
-            filters_applied.append(f"date from: {date_from}")
-
-        if date_to:
-            queryset = queryset.filter(document__meeting_date__lte=date_to)
-            filters_applied.append(f"date to: {date_to}")
-
-        if limit:
-            queryset = queryset[:limit]
-            filters_applied.append(f"limit: {limit} pages")
-
-        total_pages = queryset.count()
-
-        # Show what will be indexed
-        self.stdout.write(f"\nPages to index: {total_pages:,}")
-        if filters_applied:
-            self.stdout.write("Filters:")
-            for f in filters_applied:
-                self.stdout.write(f"  • {f}")
-        self.stdout.write("")
-
-        if total_pages == 0:
-            self.stdout.write(self.style.WARNING("No pages to index.\n"))
-            return
-
-        # Show current index stats
-        try:
-            stats = get_index_stats("meeting_pages")
-            current_docs = stats.number_of_documents
-            self.stdout.write(f"Current index size: {current_docs:,} documents\n")
-        except Exception as e:
-            self.stdout.write(self.style.WARNING(f"Could not get index stats: {e}\n"))
-
-        # Rebuild warning
-        if rebuild:
-            self.stdout.write(
-                self.style.WARNING(
-                    "⚠️  REBUILD MODE: This will DELETE all existing documents first!\n"
-                )
-            )
-
-        # Dry run
-        if dry_run:
-            self.stdout.write(
-                self.style.WARNING(
-                    "[DRY RUN] Would index these pages.\n"
-                    "Run without --dry-run to actually index.\n"
-                )
-            )
-            return
-
-        # Confirm before proceeding
-        if rebuild:
-            confirm = input(
-                "⚠️  Are you sure you want to DELETE and rebuild the index? [yes/NO]: "
-            )
-            if confirm.lower() != "yes":
-                self.stdout.write(self.style.WARNING("\nAborted.\n"))
-                return
         else:
-            confirm = input(f"Index {total_pages:,} pages? [y/N]: ")
-            if confirm.lower() != "y":
-                self.stdout.write(self.style.WARNING("\nAborted.\n"))
-                return
+            # Process all municipalities one at a time
+            municipalities = list(
+                Muni.objects.filter(meetings__pages__isnull=False)
+                .distinct()
+                .order_by("name")
+            )
 
-        # Rebuild: delete all documents
-        if rebuild:
-            self.stdout.write("\nDeleting all documents from index...")
-            try:
-                task = delete_all_documents("meeting_pages")
-                self.stdout.write(
-                    self.style.SUCCESS(f"  ✓ Delete queued (task {task.task_uid})\n")
-                )
-            except Exception as e:
-                self.stdout.write(
-                    self.style.ERROR(f"  ✗ Failed to delete documents: {e}\n")
-                )
-                return
-
-        # Index pages
         self.stdout.write(
-            f"\nIndexing {total_pages:,} pages in batches of {batch_size}...\n"
+            f"\nWill process {len(municipalities)} municipalities one at a time\n"
         )
 
-        def progress_callback(current, total):
-            percent = (current / total) * 100
-            self.stdout.write(f"  Progress: {current:,} / {total:,} ({percent:.1f}%)")
+        # Process each municipality
+        total_indexed = 0
+        total_batches = 0
+        failed_municipalities = []
 
-        try:
-            result = index_queryset_in_batches(
-                queryset, batch_size=batch_size, progress_callback=progress_callback
+        for idx, municipality in enumerate(municipalities, 1):
+            self.stdout.write(
+                f"\n[{idx}/{len(municipalities)}] Processing: {municipality.name} ({municipality.subdomain})"
             )
+
+            # Build queryset for this municipality
+            queryset = MeetingPage.objects.filter(
+                document__municipality=municipality
+            ).select_related("document", "document__municipality")
+
+            if date_from:
+                queryset = queryset.filter(document__meeting_date__gte=date_from)
+            if date_to:
+                queryset = queryset.filter(document__meeting_date__lte=date_to)
+            if limit:
+                queryset = queryset[:limit]
+
+            muni_total = queryset.count()
+            self.stdout.write(f"  Pages: {muni_total:,}")
+
+            if muni_total == 0:
+                self.stdout.write("  Skipping (no pages)")
+                continue
+
+            if dry_run:
+                self.stdout.write("  [DRY RUN] Would index these pages")
+                continue
+
+            # Index this municipality
+            def progress_callback(current, total):
+                percent = (current / total) * 100
+                self.stdout.write(
+                    f"    Progress: {current:,} / {total:,} ({percent:.1f}%)"
+                )
+
+            try:
+                result = index_queryset_in_batches(
+                    queryset,
+                    batch_size=batch_size,
+                    progress_callback=progress_callback,
+                )
+
+                total_indexed += result["indexed"]
+                total_batches += result["batches"]
+
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"  ✓ Indexed {result['indexed']:,} pages in {result['batches']} batches"
+                    )
+                )
+
+            except Exception as e:
+                failed_municipalities.append((municipality, str(e)))
+                self.stdout.write(
+                    self.style.ERROR(f"  ✗ Failed to index {municipality.name}: {e}")
+                )
+                # Continue to next municipality instead of crashing
+
+        # Summary
+        self.stdout.write(
+            self.style.WARNING(f"\n{'=' * 80}\nIndexing Summary\n{'=' * 80}\n")
+        )
+
+        if dry_run:
+            self.stdout.write(
+                "[DRY RUN] No pages were actually indexed.\n"
+                "Run without --dry-run to actually index.\n"
+            )
+        else:
+            self.stdout.write(f"Municipalities processed: {len(municipalities)}")
+            self.stdout.write(f"Total pages indexed: {total_indexed:,}")
+            self.stdout.write(f"Total batches: {total_batches}")
+
+            if failed_municipalities:
+                self.stdout.write(
+                    self.style.ERROR(
+                        f"\n⚠️  {len(failed_municipalities)} municipalities failed:"
+                    )
+                )
+                for muni, error in failed_municipalities:
+                    self.stdout.write(f"  • {muni.name}: {error}")
+            else:
+                self.stdout.write(
+                    self.style.SUCCESS("\n✓ All municipalities indexed successfully!")
+                )
 
             self.stdout.write(
-                self.style.SUCCESS(
-                    f"\n{'=' * 80}\n"
-                    f"Indexing Complete!\n"
-                    f"  • Total pages: {result['total']:,}\n"
-                    f"  • Indexed: {result['indexed']:,}\n"
-                    f"  • Batches: {result['batches']}\n"
-                    f"  • Batch size: {result['batch_size']}\n"
-                    f"\nNote: Meilisearch processes documents asynchronously.\n"
-                    f"Large batches may take a few minutes to appear in search.\n"
-                    f"Check progress at: {self.style.HTTP_INFO('http://localhost:7700')}\n"
-                    f"{'=' * 80}\n"
-                )
+                f"\nNote: Meilisearch processes documents asynchronously.\n"
+                f"Check progress at: {self.style.HTTP_INFO('http://localhost:7700')}\n"
             )
 
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f"\n✗ Indexing failed: {e}\n"))
-            raise
+        self.stdout.write("=" * 80 + "\n")
