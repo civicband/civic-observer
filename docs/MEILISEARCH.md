@@ -277,8 +277,8 @@ Visit `http://localhost:7700` to access the Meilisearch dashboard (development o
 from searches.meilisearch_client import get_index_stats
 
 stats = get_index_stats("meeting_pages")
-print(f"Documents: {stats['numberOfDocuments']}")
-print(f"Indexing: {stats['isIndexing']}")
+print(f"Documents: {stats.number_of_documents}")
+print(f"Indexing: {stats.is_indexing}")
 ```
 
 ### Task Status
@@ -290,7 +290,7 @@ from searches.meilisearch_client import get_meilisearch_client
 
 client = get_meilisearch_client()
 task = client.get_task(task_uid)
-print(task["status"])  # "enqueued", "processing", "succeeded", "failed"
+print(task.status)  # "enqueued", "processing", "succeeded", "failed"
 ```
 
 ## Troubleshooting

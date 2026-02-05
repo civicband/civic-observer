@@ -161,9 +161,7 @@ class Command(BaseCommand):
         # Show current index stats
         try:
             stats = get_index_stats("meeting_pages")
-            current_docs = getattr(
-                stats, "number_of_documents", getattr(stats, "numberOfDocuments", 0)
-            )
+            current_docs = stats.number_of_documents
             self.stdout.write(f"Current index size: {current_docs:,} documents\n")
         except Exception as e:
             self.stdout.write(self.style.WARNING(f"Could not get index stats: {e}\n"))
@@ -205,11 +203,8 @@ class Command(BaseCommand):
             self.stdout.write("\nDeleting all documents from index...")
             try:
                 task = delete_all_documents("meeting_pages")
-                task_uid = getattr(
-                    task, "task_uid", getattr(task, "taskUid", "unknown")
-                )
                 self.stdout.write(
-                    self.style.SUCCESS(f"  ✓ Delete queued (task {task_uid})\n")
+                    self.style.SUCCESS(f"  ✓ Delete queued (task {task.task_uid})\n")
                 )
             except Exception as e:
                 self.stdout.write(

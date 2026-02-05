@@ -70,11 +70,10 @@ class Command(BaseCommand):
 
             try:
                 task = configure_index(idx_key)
-                task_uid = getattr(
-                    task, "task_uid", getattr(task, "taskUid", "unknown")
-                )
                 self.stdout.write(
-                    self.style.SUCCESS(f"  ✓ Configuration queued (task {task_uid})")
+                    self.style.SUCCESS(
+                        f"  ✓ Configuration queued (task {task.task_uid})"
+                    )
                 )
 
                 # Show what was configured
