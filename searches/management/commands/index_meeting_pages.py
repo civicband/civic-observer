@@ -36,8 +36,8 @@ class Command(BaseCommand):
         parser.add_argument(
             "--batch-size",
             type=int,
-            default=1000,
-            help="Number of pages to index per batch (default: 1000)",
+            default=10000,
+            help="Number of pages to index per batch (default: 10000, recommended: 10000-50000)",
         )
         parser.add_argument(
             "--dry-run",

@@ -91,18 +91,18 @@ def remove_page_from_index(page_id: str) -> dict[str, Any]:
 
 
 def index_queryset_in_batches(
-    queryset, batch_size: int = 1000, progress_callback=None
+    queryset, batch_size: int = 10000, progress_callback=None
 ) -> dict[str, Any]:
     """
     Index a queryset of MeetingPages in batches.
 
-    Uses keyset pagination (filtering by pk > last_pk) to efficiently process
-    large querysets without creating PostgreSQL temp files. This is critical
-    for indexing millions of rows.
+    Uses keyset pagination with values() to efficiently fetch and index
+    large querysets without creating PostgreSQL temp files or instantiating
+    unnecessary model objects.
 
     Args:
         queryset: QuerySet of MeetingPage objects
-        batch_size: Number of pages to index per batch
+        batch_size: Number of pages to index per batch (recommended: 10000-50000)
         progress_callback: Optional callback function(current, total) for progress updates
 
     Returns:
@@ -111,26 +111,59 @@ def index_queryset_in_batches(
     total = queryset.count()
     indexed = 0
     tasks = []
-    last_pk = 0
+    last_pk = ""  # MeetingPage uses CharField as primary key
 
-    # Use keyset pagination to avoid temp file issues
-    # This fetches small batches at a time using WHERE id > last_id
+    # Use keyset pagination with values() for maximum performance
+    # This avoids ORM overhead and gets just the fields we need
     while True:
         # Get next batch using pk filtering (very efficient, no temp files)
-        batch = list(
+        # Use values() to avoid instantiating model objects
+        batch_values = list(
             queryset.filter(pk__gt=last_pk)
             .order_by("pk")
-            .select_related("document", "document__municipality")[:batch_size]
+            .values(
+                "id",
+                "page_number",
+                "text",
+                "page_image",
+                "document__id",
+                "document__meeting_name",
+                "document__meeting_date",
+                "document__document_type",
+                "document__municipality__id",
+                "document__municipality__subdomain",
+                "document__municipality__name",
+                "document__municipality__state",
+            )[:batch_size]
         )
 
-        if not batch:
+        if not batch_values:
             break
 
-        # Index this batch
-        task = index_pages_batch(batch)
+        # Convert to Meilisearch document format
+        documents = [
+            {
+                "id": row["id"],
+                "page_number": row["page_number"],
+                "text": row["text"],
+                "page_image": row["page_image"],
+                "document_id": str(row["document__id"]),
+                "meeting_name": row["document__meeting_name"],
+                "meeting_date": row["document__meeting_date"].isoformat(),
+                "document_type": row["document__document_type"],
+                "municipality_id": str(row["document__municipality__id"]),
+                "municipality_subdomain": row["document__municipality__subdomain"],
+                "municipality_name": row["document__municipality__name"],
+                "state": row["document__municipality__state"],
+            }
+            for row in batch_values
+        ]
+
+        # Index this batch directly
+        task = index_meeting_pages_batch(documents)
         tasks.append(task)
-        indexed += len(batch)
-        last_pk = batch[-1].pk
+        indexed += len(batch_values)
+        last_pk = batch_values[-1]["id"]
 
         if progress_callback:
             progress_callback(indexed, total)
