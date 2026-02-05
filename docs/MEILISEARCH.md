@@ -369,6 +369,21 @@ Based on a database with 7.5M pages:
 
 ## Production Considerations
 
+### Production Deployment
+
+Meilisearch is included in `docker-compose.production-base.yml` and will be available to both blue and green deployments.
+
+**Starting Meilisearch in production:**
+```bash
+# Start production base services (includes Meilisearch)
+docker-compose -f docker-compose.production-base.yml up -d
+
+# Then start your blue or green deployment
+docker-compose -f docker-compose.production-base.yml -f docker-compose.blue.yml up -d
+```
+
+**Note:** The blue/green web and worker containers will automatically be able to connect to Meilisearch via the `civic-network`.
+
 ### Security
 
 1. **Change master key:**
@@ -377,16 +392,21 @@ Based on a database with 7.5M pages:
    openssl rand -base64 32
    ```
 
-2. **Set in production environment:**
+2. **Set in production environment (.env.production):**
    ```bash
    MEILI_MASTER_KEY=<your-secure-key>
    ```
 
-3. **Restrict network access** - Meilisearch should only be accessible from web/worker containers
+3. **Restrict network access** - Meilisearch is on the `civic-network` Docker network and only accessible from web/worker containers. Port 7700 is exposed but should be firewalled in production.
 
 ### Persistence
 
 Meilisearch data is stored in Docker volume `meilisearch-data`. Ensure this is backed up in production.
+
+**Backup strategy:**
+- Volume is persistent across container restarts
+- Can be re-indexed from PostgreSQL at any time
+- Consider periodic snapshots of the volume for faster recovery
 
 ### Scaling
 
