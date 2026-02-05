@@ -161,7 +161,9 @@ class Command(BaseCommand):
         # Show current index stats
         try:
             stats = get_index_stats("meeting_pages")
-            current_docs = stats.get("numberOfDocuments", 0)
+            current_docs = getattr(
+                stats, "number_of_documents", getattr(stats, "numberOfDocuments", 0)
+            )
             self.stdout.write(f"Current index size: {current_docs:,} documents\n")
         except Exception as e:
             self.stdout.write(self.style.WARNING(f"Could not get index stats: {e}\n"))
