@@ -203,10 +203,11 @@ class Command(BaseCommand):
             self.stdout.write("\nDeleting all documents from index...")
             try:
                 task = delete_all_documents("meeting_pages")
+                task_uid = getattr(
+                    task, "task_uid", getattr(task, "taskUid", "unknown")
+                )
                 self.stdout.write(
-                    self.style.SUCCESS(
-                        f"  ✓ Delete queued (task {task.get('taskUid')})\n"
-                    )
+                    self.style.SUCCESS(f"  ✓ Delete queued (task {task_uid})\n")
                 )
             except Exception as e:
                 self.stdout.write(
