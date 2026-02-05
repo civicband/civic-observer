@@ -24,8 +24,29 @@ services:
     networks:
       - civic-network
 
+  meilisearch:
+    image: "getmeili/meilisearch:v1.11"
+    init: true
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    environment:
+      - MEILI_ENV=production
+      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY}
+      - MEILI_NO_ANALYTICS=true
+    ports:
+      - "7700:7700"
+    volumes:
+      - meilisearch-data:/meili_data
+    restart: always
+    networks:
+      - civic-network
+
 volumes:
   redis-data:
+  meilisearch-data:
 
 networks:
   civic-network:
