@@ -11,8 +11,7 @@ The search backend (PostgreSQL or Meilisearch) is configured via SEARCH_BACKEND 
 import re
 
 from django.conf import settings
-from django.contrib.postgres.search import SearchQuery, SearchRank
-from django.db.models import F
+from django.contrib.postgres.search import SearchQuery
 
 from meetings.models import MeetingDocument, MeetingPage
 
@@ -210,6 +209,7 @@ def _apply_meeting_name_filter(queryset, meeting_name_query):
     Filter pages by meeting name using full-text search.
 
     Uses 'simple' search configuration for multilingual support.
+    Performance: Uses only GIN index (@@ operator) without expensive ts_rank computation.
 
     Args:
         queryset: MeetingPage queryset to filter
@@ -227,15 +227,10 @@ def _apply_meeting_name_filter(queryset, meeting_name_query):
     )
 
     # Filter to pages from documents where meeting_name matches
-    matching_doc_ids = (
-        MeetingDocument.objects.annotate(
-            meeting_name_rank=SearchRank(
-                F("meeting_name_search_vector"), meeting_name_search_query
-            )
-        )
-        .filter(meeting_name_rank__gte=MINIMUM_RANK_THRESHOLD)
-        .values_list("id", flat=True)
-    )
+    # Use only @@ operator (GIN index) - no rank computation needed
+    matching_doc_ids = MeetingDocument.objects.filter(
+        meeting_name_search_vector=meeting_name_search_query
+    ).values_list("id", flat=True)
 
     return queryset.filter(document_id__in=matching_doc_ids)
 
@@ -326,9 +321,8 @@ def _apply_full_text_search(queryset, query_text):
     """
     Apply full-text search to the queryset using PostgreSQL search.
 
-    Performance: Annotates rank which can be reused later to avoid
-    recalculating expensive ts_rank function. Uses smart thresholds based on
-    query characteristics to dramatically improve performance for short terms.
+    Performance optimized: Uses only GIN index (@@ operator) without expensive
+    ts_rank computation. Sorted by date for maximum speed.
 
     Args:
         queryset: MeetingPage queryset to search
@@ -336,31 +330,17 @@ def _apply_full_text_search(queryset, query_text):
 
     Returns:
         Tuple of (filtered_queryset, search_query_object)
-        - Queryset is filtered to rank >= smart threshold and ordered by relevance
+        - Queryset is filtered using GIN index and ordered by date
         - SearchQuery object is returned for use in headline generation
     """
-    # Parse query to extract tokens (for threshold calculation only)
-    # Original query structure is preserved for PostgreSQL
-    tokens, original_query = _parse_websearch_query(query_text)
-
-    # Calculate smart threshold based on shortest token
-    # Short terms need higher thresholds to filter noise
-    threshold = _get_smart_threshold(tokens)
-
     # Create search query using 'simple' config for multilingual support
-    # Pass original query unchanged to preserve operators and quoted phrases
-    search_query = SearchQuery(original_query, search_type="websearch", config="simple")
+    search_query = SearchQuery(query_text, search_type="websearch", config="simple")
 
-    # IMPORTANT: Filter using @@ operator FIRST to use the GIN index
-    # This dramatically reduces rows before computing expensive ts_rank
-    # Only then compute rank and filter by smart threshold
-    queryset = (
-        queryset.filter(search_vector=search_query)  # Uses GIN index via @@ operator
-        .annotate(
-            rank=SearchRank(F("search_vector"), search_query),
-        )
-        .filter(rank__gte=threshold)
-        .order_by("-rank", "-document__meeting_date")
-    )
+    # IMPORTANT: Use ONLY the @@ operator (GIN index) - no ts_rank computation
+    # This is dramatically faster as it avoids computing rank for every row
+    # Sort by date descending for consistent, fast results
+    queryset = queryset.filter(
+        search_vector=search_query
+    ).order_by("-document__meeting_date")  # Uses GIN index via @@ operator
 
     return queryset, search_query
