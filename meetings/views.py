@@ -414,23 +414,6 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
     # Mark that we have a query for template
     context["has_query"] = True
 
-    # Parse batch parameter for progressive loading
-    # Batch 1 (default) = 5 results, Batch 2+ = 10 results each
-    try:
-        batch_num = int(request.GET.get("batch", 1))
-        if batch_num < 1:
-            batch_num = 1
-    except (ValueError, TypeError):
-        batch_num = 1
-
-    # Calculate batch size and offset
-    if batch_num == 1:
-        batch_size = 5  # First batch shows 5 results for fast initial load
-        offset = 0
-    else:
-        batch_size = 10  # Subsequent batches show 10 results each
-        offset = 5 + ((batch_num - 2) * 10)  # 5 from first batch + (n-2)*10
-
     # Start with all meeting pages
     queryset = MeetingPage.objects.select_related(
         "document", "document__municipality"
@@ -455,31 +438,20 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
         document_type=document_type,
     )
 
-    # Get total count (only for first batch to avoid recalculating)
-    if batch_num == 1:
-        total_count = queryset.count()
-        context["total_count"] = total_count
-    else:
-        total_count = None  # Don't recalculate for subsequent batches
+    # Paginate results
+    # IMPORTANT: Paginate BEFORE generating headlines for performance
+    from django.core.paginator import Paginator
 
-    # Get current batch of results (fetch one extra to check if there's more)
-    batch_results = list(queryset[offset : offset + batch_size + 1])
+    paginator = Paginator(queryset, SEARCH_RESULTS_PER_PAGE)
+    page_number = request.GET.get("page", 1)
+    page_obj = paginator.get_page(page_number)
 
-    # Check if there are more results beyond this batch
-    if len(batch_results) > batch_size:
-        has_more = True
-        # Remove the extra result we fetched for checking
-        batch_results = batch_results[:batch_size]
-    else:
-        has_more = False
-
-    # Generate headlines ONLY for the current batch (not all results)
+    # Generate headlines ONLY for the current page (not all results)
     # This is a major performance optimization - headlines are expensive to compute
-    context["results"] = _generate_headlines_for_page(batch_results, search_query)
-
-    context["batch_num"] = batch_num
-    context["has_more"] = has_more
-    context["next_batch"] = batch_num + 1 if has_more else None
+    context["results"] = _generate_headlines_for_page(
+        page_obj.object_list, search_query
+    )
+    context["page_obj"] = page_obj
 
     # Add active filters to context for display
     context["active_filters"] = {
