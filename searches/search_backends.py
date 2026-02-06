@@ -126,13 +126,14 @@ class PostgresSearchBackend(SearchBackend):
             original_query, search_type="websearch", config="simple"
         )
 
+        # Sort by date only (not rank) for better performance - rank sorting is expensive
         queryset = (
             queryset.filter(search_vector=search_query)
             .annotate(
                 rank=SearchRank(F("search_vector"), search_query),
             )
             .filter(rank__gte=threshold)
-            .order_by("-rank", "-document__meeting_date")
+            .order_by("-document__meeting_date")
         )
 
         return queryset
