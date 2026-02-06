@@ -4,9 +4,7 @@ from typing import Any
 from django.contrib.postgres.search import (
     SearchHeadline,
     SearchQuery,
-    SearchRank,
 )
-from django.db.models import F
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
 from django.template.loader import render_to_string
@@ -126,16 +124,9 @@ def _apply_meeting_name_filter(queryset, meeting_name_query):
         meeting_name_query, search_type="websearch", config="simple"
     )
 
-    # Use JOIN and filter on the document relationship (much faster than subquery)
-    # PostgreSQL can optimize this join pattern better than IN (subquery)
-    queryset = (
-        queryset.filter(document__meeting_name_search_vector=meeting_name_search_query)
-        .annotate(
-            meeting_name_rank=SearchRank(
-                F("document__meeting_name_search_vector"), meeting_name_search_query
-            )
-        )
-        .filter(meeting_name_rank__gte=MINIMUM_RANK_THRESHOLD)
+    # Use only @@ operator (GIN index) - no rank computation needed
+    queryset = queryset.filter(
+        document__meeting_name_search_vector=meeting_name_search_query
     )
 
     return queryset
@@ -234,30 +225,14 @@ def _apply_full_text_search(queryset, query_text):
         - QuerySet includes 'search_rank' annotation for reuse
         - SearchQuery object is returned for use in headline generation
     """
-    # Parse query to extract tokens (for threshold calculation only)
-    # Original query structure is preserved for PostgreSQL
-    tokens, original_query = _parse_websearch_query(query_text)
-
-    # Calculate smart threshold based on shortest token
-    # Short terms need higher thresholds to filter noise
-    threshold = _get_smart_threshold(tokens)
-
     # Create search query using 'simple' config for multilingual support
-    # Pass original query unchanged to preserve operators and quoted phrases
-    search_query = SearchQuery(original_query, search_type="websearch", config="simple")
+    search_query = SearchQuery(query_text, search_type="websearch", config="simple")
 
-    # IMPORTANT: Filter using @@ operator FIRST to use the GIN index
-    # This dramatically reduces rows before computing expensive ts_rank
-    # Only then compute rank and filter by smart threshold
-    # Sort by date only (not rank) for better performance - rank sorting is expensive
-    # Annotate as 'search_rank' (not 'rank') so it can be reused later
-    queryset = (
-        queryset.filter(search_vector=search_query)  # Uses GIN index via @@ operator
-        .annotate(
-            search_rank=SearchRank(F("search_vector"), search_query),
-        )
-        .filter(search_rank__gte=threshold)
-        .order_by("-document__meeting_date")
+    # IMPORTANT: Use ONLY the @@ operator (GIN index) - no ts_rank computation
+    # This is dramatically faster as it avoids computing rank for every row
+    # Sort by date descending for consistent, fast results
+    queryset = queryset.filter(search_vector=search_query).order_by(
+        "-document__meeting_date"
     )
 
     return queryset, search_query
@@ -271,59 +246,44 @@ def _generate_headlines_for_page(page_results, search_query):
     for results that won't be displayed. Generates highlighted text snippets
     showing where search terms appear in the document.
 
-    Performance: Reuses search_rank from page_results if available to avoid
-    recalculating expensive ts_rank function.
-
     Args:
-        page_results: List of MeetingPage objects from current page (may include search_rank annotation)
+        page_results: List of MeetingPage objects from current page
         search_query: SearchQuery object used for highlighting matches
 
     Returns:
-        List of MeetingPage objects with headline and search_rank annotations
+        List of MeetingPage objects with headline annotations
     """
     # Extract PKs from page results
     page_pks = [result.pk for result in page_results]
 
-    # Check if page_results already have search_rank annotation
-    # If so, we can reuse it instead of recalculating
-    has_rank = hasattr(page_results[0], "search_rank") if page_results else False
-
     # Single query to fetch all headlines for the page
     # This is MUCH faster than querying each result individually (N+1 problem)
-    queryset = MeetingPage.objects.filter(pk__in=page_pks)
-
-    # Only compute rank if not already present (avoids expensive recalculation)
-    if not has_rank:
-        queryset = queryset.annotate(
-            search_rank=SearchRank(F("search_vector"), search_query),
+    results_with_headlines = (
+        MeetingPage.objects.filter(pk__in=page_pks)
+        .annotate(
+            headline=SearchHeadline(
+                "text",
+                search_query,
+                start_sel=HEADLINE_START_TAG,
+                stop_sel=HEADLINE_STOP_TAG,
+                max_words=HEADLINE_MAX_WORDS,
+                min_words=HEADLINE_MIN_WORDS,
+                short_word=HEADLINE_SHORT_WORD_LENGTH,
+                highlight_all=False,
+                max_fragments=HEADLINE_MAX_FRAGMENTS,
+                fragment_delimiter=HEADLINE_FRAGMENT_DELIMITER,
+                config="simple",
+            ),
         )
+        .select_related("document", "document__municipality")
+    )
 
-    results_with_headlines = queryset.annotate(
-        headline=SearchHeadline(
-            "text",
-            search_query,
-            start_sel=HEADLINE_START_TAG,
-            stop_sel=HEADLINE_STOP_TAG,
-            max_words=HEADLINE_MAX_WORDS,
-            min_words=HEADLINE_MIN_WORDS,
-            short_word=HEADLINE_SHORT_WORD_LENGTH,
-            highlight_all=False,
-            max_fragments=HEADLINE_MAX_FRAGMENTS,
-            fragment_delimiter=HEADLINE_FRAGMENT_DELIMITER,
-            config="simple",
-        ),
-    ).select_related("document", "document__municipality")
-
-    # Preserve original ordering and include rank from original if it exists
+    # Preserve original ordering
     results_dict = {result.pk: result for result in results_with_headlines}
     final_results = []
-    for i, pk in enumerate(page_pks):
+    for pk in page_pks:
         if pk in results_dict:
-            result = results_dict[pk]
-            # If original had rank but new query didn't, copy it over
-            if has_rank and not hasattr(result, "search_rank"):
-                result.search_rank = page_results[i].search_rank  # type: ignore[attr-defined]
-            final_results.append(result)
+            final_results.append(results_dict[pk])
     return final_results
 
 

@@ -11,13 +11,12 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from django.conf import settings
-from django.contrib.postgres.search import SearchQuery, SearchRank
-from django.db.models import F, QuerySet
+from django.contrib.postgres.search import SearchQuery
+from django.db.models import QuerySet
 
 from meetings.models import MeetingPage
 
 from .meilisearch_client import get_meeting_pages_index
-from .services import _get_smart_threshold, _parse_websearch_query
 
 
 class SearchBackend(ABC):
@@ -118,22 +117,13 @@ class PostgresSearchBackend(SearchBackend):
         return results, total_count
 
     def _apply_full_text_search(self, queryset: QuerySet, query_text: str) -> QuerySet:
-        """Apply PostgreSQL full-text search with smart thresholds."""
-        tokens, original_query = _parse_websearch_query(query_text)
-        threshold = _get_smart_threshold(tokens)
+        """Apply PostgreSQL full-text search optimized for speed."""
+        search_query = SearchQuery(query_text, search_type="websearch", config="simple")
 
-        search_query = SearchQuery(
-            original_query, search_type="websearch", config="simple"
-        )
-
-        # Sort by date only (not rank) for better performance - rank sorting is expensive
-        queryset = (
-            queryset.filter(search_vector=search_query)
-            .annotate(
-                rank=SearchRank(F("search_vector"), search_query),
-            )
-            .filter(rank__gte=threshold)
-            .order_by("-document__meeting_date")
+        # Use only GIN index (@@ operator) without expensive ts_rank computation
+        # This is dramatically faster - no rank computation needed
+        queryset = queryset.filter(search_vector=search_query).order_by(
+            "-document__meeting_date"
         )
 
         return queryset
