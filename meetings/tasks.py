@@ -238,6 +238,11 @@ def backfill_incremental_task(
         progress.error_message = None
         progress.save()
 
+        # Invalidate search cache for this municipality
+        from searches.cache import invalidate_search_cache_for_municipality
+
+        invalidate_search_cache_for_municipality(int(muni.id))
+
         logger.info(
             f"Incremental backfill completed for {muni.subdomain} {document_type}: {stats}"
         )
@@ -346,6 +351,11 @@ def backfill_batch_task(
             if progress.force_full_backfill:
                 progress.force_full_backfill = False
             progress.save()
+
+            # Invalidate search cache for this municipality
+            from searches.cache import invalidate_search_cache_for_municipality
+
+            invalidate_search_cache_for_municipality(int(muni.id))
 
             logger.info(
                 f"Batch backfill completed for {muni.subdomain} {document_type}"

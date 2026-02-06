@@ -100,6 +100,11 @@ DATABASES: dict[str, dict[str, Any]] = {  # type: ignore[no-redef]
         "CONN_MAX_AGE": 600,  # Keep connections alive for 10 minutes
         "CONN_HEALTH_CHECKS": True,  # Validate connections before use
         # Note: connect_timeout not supported by pgBouncer in transaction mode
+        "OPTIONS": {
+            # FTS optimization: Disable JIT to eliminate 50-200ms compilation overhead
+            # JIT helps long-running analytical queries but hurts fast OLTP/FTS queries
+            "options": "-c jit=off -c work_mem=64MB"
+        },
     }
 }
 
