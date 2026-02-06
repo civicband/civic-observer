@@ -249,6 +249,7 @@ def _apply_full_text_search(queryset, query_text):
     # IMPORTANT: Filter using @@ operator FIRST to use the GIN index
     # This dramatically reduces rows before computing expensive ts_rank
     # Only then compute rank and filter by smart threshold
+    # Sort by date only (not rank) for better performance - rank sorting is expensive
     # Annotate as 'search_rank' (not 'rank') so it can be reused later
     queryset = (
         queryset.filter(search_vector=search_query)  # Uses GIN index via @@ operator
@@ -256,7 +257,7 @@ def _apply_full_text_search(queryset, query_text):
             search_rank=SearchRank(F("search_vector"), search_query),
         )
         .filter(search_rank__gte=threshold)
-        .order_by("-search_rank", "-document__meeting_date")
+        .order_by("-document__meeting_date")
     )
 
     return queryset, search_query
