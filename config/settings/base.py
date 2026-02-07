@@ -96,7 +96,8 @@ CACHES: dict[str, dict[str, Any]] = {
         "LOCATION": env.str("REDIS_URL", "redis://redis:6379/1"),
         "OPTIONS": {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
-            "PARSER_CLASS": "redis.connection.HiredisParser",
+            # HiredisParser is optional - falls back to PythonParser if hiredis not installed
+            # Removed PARSER_CLASS to allow automatic selection
             "SOCKET_CONNECT_TIMEOUT": 5,
             "SOCKET_TIMEOUT": 5,
             "COMPRESSOR": "django_redis.compressors.zlib.ZlibCompressor",

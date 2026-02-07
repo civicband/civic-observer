@@ -23,3 +23,24 @@ RQ_QUEUES: dict[str, dict[str, Any]] = {  # type: ignore[no-redef]
         "ASYNC": False,  # Run tasks synchronously in tests
     },
 }
+
+# Override cache configuration for tests
+# Use localhost instead of docker service name for tests run outside docker
+CACHES: dict[str, dict[str, Any]] = {  # type: ignore[no-redef]
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": "redis://localhost:6379/1",
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            "SOCKET_CONNECT_TIMEOUT": 5,
+            "SOCKET_TIMEOUT": 5,
+            "COMPRESSOR": "django_redis.compressors.zlib.ZlibCompressor",
+            "CONNECTION_POOL_KWARGS": {
+                "max_connections": 50,
+                "retry_on_timeout": True,
+            },
+        },
+        "KEY_PREFIX": "civicobs",
+        "TIMEOUT": 300,
+    }
+}

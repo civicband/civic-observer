@@ -185,7 +185,8 @@ def invalidate_search_cache_for_municipality(municipality_id: int) -> None:
 
         redis_conn = get_redis_connection("default")
         # Delete all keys matching pattern
-        keys = redis_conn.keys("civicobs:search:v1:*")
+        # Note: django-redis adds database number to key prefix (e.g., civicobs:1:search:v1:*)
+        keys = redis_conn.keys("civicobs:*:search:v1:*")
         if keys:
             redis_conn.delete(*keys)
             logger.info(
@@ -215,7 +216,8 @@ def invalidate_all_search_caches() -> None:
         from django_redis import get_redis_connection
 
         redis_conn = get_redis_connection("default")
-        keys = redis_conn.keys("civicobs:search:v1:*")
+        # Note: django-redis adds database number to key prefix (e.g., civicobs:1:search:v1:*)
+        keys = redis_conn.keys("civicobs:*:search:v1:*")
         if keys:
             redis_conn.delete(*keys)
             logger.info(

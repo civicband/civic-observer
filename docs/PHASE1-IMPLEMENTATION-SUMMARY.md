@@ -21,13 +21,33 @@ Phase 1 of the search optimization plan has been implemented. This phase focuses
 
 **Impact**: Eliminates 465ms-3,155ms latency spikes from pending list cleanup
 
-**To Deploy**:
-```bash
-# Run migrations
-python manage.py migrate
+**⚠️ PRODUCTION DEPLOYMENT WARNING**:
 
-# This will drop and recreate indexes
-# Takes ~15-30 minutes on 12M rows with proper maintenance_work_mem
+This migration drops and recreates indexes **WITHOUT CONCURRENTLY**, which will:
+- Acquire **ACCESS EXCLUSIVE** locks on tables
+- **BLOCK all reads and writes** during index rebuild
+- Take **15-30 minutes** on 12M rows with maintenance_work_mem=2GB
+
+**Recommended Production Approach**:
+1. Skip this migration (use `--fake` or comment out)
+2. Run these commands manually during a maintenance window:
+
+```sql
+-- For meetings_meetingpage (critical - 12M+ rows)
+DROP INDEX CONCURRENTLY IF EXISTS meetingpage_search_vector_idx;
+CREATE INDEX CONCURRENTLY meetingpage_search_vector_idx
+    ON meetings_meetingpage USING GIN (search_vector) WITH (fastupdate=off);
+
+-- For meetings_meetingdocument (smaller table)
+DROP INDEX CONCURRENTLY IF EXISTS meetingdocument_meeting_name_search_idx;
+CREATE INDEX CONCURRENTLY meetingdocument_meeting_name_search_idx
+    ON meetings_meetingdocument USING GIN (meeting_name_search_vector) WITH (fastupdate=off);
+```
+
+**For Development/Staging**:
+```bash
+# Safe to run normally (lower volume)
+python manage.py migrate
 ```
 
 ---

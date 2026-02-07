@@ -15,10 +15,30 @@ class Migration(migrations.Migration):
     This trades slightly slower inserts for dramatically better read performance,
     which is the right tradeoff for a read-heavy search workload.
 
-    Note: For production, consider running this manually with CONCURRENTLY:
-        DROP INDEX CONCURRENTLY meetingpage_search_vector_idx;
-        CREATE INDEX CONCURRENTLY meetingpage_search_vector_idx
-        ON meetings_meetingpage USING GIN (search_vector) WITH (fastupdate=off);
+    **PRODUCTION DEPLOYMENT WARNING**:
+
+    This migration drops and recreates GIN indexes WITHOUT using CONCURRENTLY,
+    which means it will acquire ACCESS EXCLUSIVE locks on the tables. This will
+    BLOCK all reads and writes to meetings_meetingpage and meetings_meetingdocument
+    during index rebuilds.
+
+    **Estimated duration on 12M rows**: 15-30 minutes with maintenance_work_mem=2GB
+
+    **RECOMMENDED PRODUCTION APPROACH**:
+    1. Skip this migration (comment out or use --fake)
+    2. Run these commands manually during a maintenance window:
+
+       -- For meetings_meetingpage (this is the critical one - 12M+ rows)
+       DROP INDEX CONCURRENTLY IF EXISTS meetingpage_search_vector_idx;
+       CREATE INDEX CONCURRENTLY meetingpage_search_vector_idx
+           ON meetings_meetingpage USING GIN (search_vector) WITH (fastupdate=off);
+
+       -- For meetings_meetingdocument (smaller table, faster)
+       DROP INDEX CONCURRENTLY IF EXISTS meetingdocument_meeting_name_search_idx;
+       CREATE INDEX CONCURRENTLY meetingdocument_meeting_name_search_idx
+           ON meetings_meetingdocument USING GIN (meeting_name_search_vector) WITH (fastupdate=off);
+
+    **For development/staging**: This migration is safe to run normally.
     """
 
     dependencies = [
