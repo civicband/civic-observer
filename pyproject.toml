@@ -28,6 +28,8 @@ dependencies = [
     "redis>=5.0.0",
     "atproto>=0.0.63",
     "meilisearch>=0.40.0",
+    "django-redis>=6.0.0",
+    "hiredis>=3.3.0",
 ]
 
 

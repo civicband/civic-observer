@@ -88,6 +88,29 @@ DATABASES: dict[str, dict[str, Any]] = {
 # across transactions, so Django must use client-side cursors instead
 DISABLE_SERVER_SIDE_CURSORS: bool = True
 
+# Redis Cache Configuration
+# Using django-redis for high-performance caching with compression
+CACHES: dict[str, dict[str, Any]] = {
+    "default": {
+        "BACKEND": "django_redis.cache.RedisCache",
+        "LOCATION": env.str("REDIS_URL", "redis://redis:6379/1"),
+        "OPTIONS": {
+            "CLIENT_CLASS": "django_redis.client.DefaultClient",
+            # HiredisParser is optional - falls back to PythonParser if hiredis not installed
+            # Removed PARSER_CLASS to allow automatic selection
+            "SOCKET_CONNECT_TIMEOUT": 5,
+            "SOCKET_TIMEOUT": 5,
+            "COMPRESSOR": "django_redis.compressors.zlib.ZlibCompressor",
+            "CONNECTION_POOL_KWARGS": {
+                "max_connections": 50,
+                "retry_on_timeout": True,
+            },
+        },
+        "KEY_PREFIX": "civicobs",
+        "TIMEOUT": 300,  # 5 minutes default
+    }
+}
+
 AUTHENTICATION_BACKENDS = (
     "stagedoor.backends.EmailTokenBackend",
     "django.contrib.auth.backends.ModelBackend",
