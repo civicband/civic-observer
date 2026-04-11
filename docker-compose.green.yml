@@ -7,8 +7,6 @@ x-green-settings: &green-settings
     redis:
       condition: service_healthy
   env_file: .env.production
-  environment:
-    - DEPLOYMENT_COLOR=green
   restart: always
   networks:
     - civic-network
@@ -17,8 +15,8 @@ services:
   web-green:
     <<: *green-settings
     container_name: civic-web-green
-    command: uvicorn config.asgi:application --host 0.0.0.0 --port 8000
     entrypoint: ["/src/compose-entrypoint.sh"]
+    command: uvicorn config.asgi:application --host 0.0.0.0 --port 8000
     init: true
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8000/health/"]
@@ -28,15 +26,12 @@ services:
       start_period: 30s
     ports:
       - "8889:8000"
-    labels:
-      - "civic.deployment.color=green"
-      - "civic.deployment.service=web"
 
   worker-green:
     <<: *green-settings
     container_name: civic-worker-green
-    command: python manage.py rqworker default
     entrypoint: ["/src/compose-entrypoint.sh"]
+    command: python manage.py rqworker default
     init: true
     labels:
       - "civic.deployment.color=green"

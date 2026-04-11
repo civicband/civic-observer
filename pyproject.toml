@@ -44,6 +44,7 @@ dev = [
 
 [dependency-groups]
 dev = [
+    "basedpyright>=1.38.1",
     "django-extensions>=4.1",
     "django-stubs[compatible-mypy]>=5.2.0",
     "pre-commit>=4.2.0",

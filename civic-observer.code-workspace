@@ -1,0 +1,14 @@
+{
+    "folders": [
+        {
+            "path": "."
+        }
+    ],
+    "settings": {
+        "python.languageServer": "None",
+        "basedpyright.analysis.typeCheckingMode": "basic",
+        "python.pythonPath": ".venv/bin/python",
+        "ruff.format.backend": "uv",
+        "python.testing.pytestEnabled": true,
+    }
+}
