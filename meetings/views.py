@@ -340,7 +340,7 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
     # Default empty context
     context: dict[str, Any] = {
         "results": [],
-        "page_obj": None,
+        "page_info": None,
         "has_query": False,
         "error": None,
     }
@@ -438,20 +438,37 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
         document_type=document_type,
     )
 
-    # Paginate results
-    # IMPORTANT: Paginate BEFORE generating headlines for performance
-    from django.core.paginator import Paginator
+    # Paginate results using LIMIT+1 strategy to avoid expensive COUNT(*)
+    # Django's Paginator calls .count() which scans the full result set — this
+    # can take 3-5s on broad FTS queries matching hundreds of thousands of rows.
+    # Instead, we fetch page_size+1 rows: if we get the extra row, there's a next page.
+    try:
+        page_number = int(request.GET.get("page", 1))
+    except (TypeError, ValueError):
+        page_number = 1
+    if page_number < 1:
+        page_number = 1
+    offset = (page_number - 1) * SEARCH_RESULTS_PER_PAGE
 
-    paginator = Paginator(queryset, SEARCH_RESULTS_PER_PAGE)
-    page_number = request.GET.get("page", 1)
-    page_obj = paginator.get_page(page_number)
+    # Fetch one extra row to detect if there's a next page
+    page_results = list(queryset[offset : offset + SEARCH_RESULTS_PER_PAGE + 1])
+    has_next = len(page_results) > SEARCH_RESULTS_PER_PAGE
+    if has_next:
+        page_results = page_results[:SEARCH_RESULTS_PER_PAGE]
+
+    # Build a lightweight page info object for the template
+    page_info = {
+        "number": page_number,
+        "has_previous": page_number > 1,
+        "has_next": has_next,
+        "previous_page_number": page_number - 1 if page_number > 1 else None,
+        "next_page_number": page_number + 1 if has_next else None,
+    }
 
     # Generate headlines ONLY for the current page (not all results)
     # This is a major performance optimization - headlines are expensive to compute
-    context["results"] = _generate_headlines_for_page(
-        page_obj.object_list, search_query
-    )
-    context["page_obj"] = page_obj
+    context["results"] = _generate_headlines_for_page(page_results, search_query)
+    context["page_info"] = page_info
 
     # Add active filters to context for display
     context["active_filters"] = {
