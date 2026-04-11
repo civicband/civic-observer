@@ -190,16 +190,26 @@ class PostgresSearchBackend(SearchBackend):
             # All updates mode - order by date descending
             queryset = queryset.order_by("-document__meeting_date")
 
-        # Get total count before pagination
-        total_count = queryset.count()
-
-        # Apply pagination
-        results_queryset = queryset[offset : offset + limit]
+        # Avoid expensive COUNT(*) — fetch limit+1 rows to detect if there are more
+        results_queryset = queryset[offset : offset + limit + 1]
 
         # Convert to dictionaries
         results = []
         for page in results_queryset:
             results.append(self._page_to_dict(page))
+
+        # If we got more than limit results, there are more pages
+        has_more = len(results) > limit
+        if has_more:
+            results = results[:limit]
+
+        # Return a count that's useful for pagination without scanning full result set:
+        # - If fewer results than limit, we know the exact total
+        # - If more, report offset + limit + 1 to signal "there are more"
+        if has_more:
+            total_count = offset + limit + 1
+        else:
+            total_count = offset + len(results)
 
         return results, total_count
 
