@@ -1,0 +1,22 @@
+Today's Civic Meetings — {{ meeting_date|date:"F d, Y" }}
+=========================================================
+
+Hello {{ user.email }},
+
+Here are the meetings scheduled for {{ meeting_date|date:"F d, Y" }}:
+
+{% for municipality, meetings in grouped_meetings %}
+{{ municipality.name }}, {{ municipality.state }}
+-----------------------------------------------
+{% for meeting in meetings %}
+  - {{ meeting.meeting_name }} ({{ meeting.document_type }})
+    Date: {{ meeting.meeting_date|date:"F d, Y" }}
+    View: https://civic.observer/meetings/search/?municipality={{ municipality.subdomain }}
+
+{% endfor %}
+{% endfor %}
+---------------------------------------------------------
+
+Manage your digest subscriptions: https://civic.observer/notifications/digests/
+
+Civic Observer - Monitoring local government meetings

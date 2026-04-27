@@ -73,8 +73,8 @@ class UserAdmin(BaseUserAdmin):
     search_fields = ["email", "username", "first_name", "last_name"]
     ordering = ["email"]
 
-    # Add analytics_opt_out to the permissions fieldset
+    # Add analytics_opt_out and timezone to the permissions fieldset
     fieldsets = (
         *(BaseUserAdmin.fieldsets or ()),
-        ("Analytics", {"fields": ("analytics_opt_out",)}),
+        ("Analytics", {"fields": ("analytics_opt_out", "timezone")}),
     )

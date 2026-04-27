@@ -86,3 +86,41 @@ class NotificationChannel(TimeStampedModel):
         self.failure_count = 0
         self.last_used_at = timezone.now()
         self.save(update_fields=["failure_count", "last_used_at"])
+
+
+class DigestSubscription(TimeStampedModel):
+    """
+    Represents a user's opt-in subscription for daily meeting digest emails
+    for a specific municipality.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="digest_subscriptions",
+    )
+    municipality = models.ForeignKey(
+        "municipalities.Muni",
+        on_delete=models.CASCADE,
+        related_name="digest_subscriptions",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this digest subscription is currently active",
+    )
+    last_digest_sent = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date the last digest was sent for this subscription",
+    )
+
+    class Meta:
+        db_table = "digest_subscription"
+        unique_together = ["user", "municipality"]
+        ordering = ["municipality__name"]
+        verbose_name = "Daily Digest Subscription"
+        verbose_name_plural = "Daily Digest Subscriptions"
+
+    def __str__(self) -> str:
+        return f"{self.user.email} → {self.municipality}"
