@@ -129,8 +129,8 @@ class Command(BaseCommand):
 
         self.stdout.write(
             self.style.WARNING(
-            "=" * 80
-            + "\nIndex Meeting Pages to Quickwit (S3: Fastly Object Storage)\n"
+                "=" * 80
+                + "\nIndex Meeting Pages to Quickwit (S3: Fastly Object Storage)\n"
                 + "=" * 80
                 + f"\nQuickwit URL: {qw_url}"
                 + f"\nIndex ID: {qw_index_id}\n"
@@ -243,9 +243,7 @@ class Command(BaseCommand):
             if result["success"]:
                 indexed += result["count"]
                 pct = (indexed / total) * 100
-                self.stdout.write(
-                    f"  ✓ Batch: {indexed:,} / {total:,} ({pct:.1f}%)"
-                )
+                self.stdout.write(f"  ✓ Batch: {indexed:,} / {total:,} ({pct:.1f}%)")
             else:
                 failed_batches += 1
                 self.stdout.write(
@@ -257,11 +255,11 @@ class Command(BaseCommand):
         # Summary
         self.stdout.write(self.style.WARNING(f"\n{'=' * 80}"))
         self.stdout.write(f"Total indexed: {indexed:,}")
-        self.stdout.write(f"Total batches: {indexed // batch_size + (1 if indexed % batch_size else 0)}")
+        self.stdout.write(
+            f"Total batches: {indexed // batch_size + (1 if indexed % batch_size else 0)}"
+        )
         if failed_batches:
-            self.stdout.write(
-                self.style.ERROR(f"Failed batches: {failed_batches}")
-            )
+            self.stdout.write(self.style.ERROR(f"Failed batches: {failed_batches}"))
         self.stdout.write(f"Total pages in database: {total:,}")
         self.stdout.write(
             self.style.SUCCESS(

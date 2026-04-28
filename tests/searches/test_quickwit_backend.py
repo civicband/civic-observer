@@ -39,7 +39,9 @@ class TestQuickwitBackendBuildQuery:
     def test_build_query_with_states(self, backend):
         query = backend._build_query("test", states=["CA", "OR"])
         filters = query["filters"]
-        state_filter = next(f for f in filters if "terms" in f and "state" in f["terms"])
+        state_filter = next(
+            f for f in filters if "terms" in f and "state" in f["terms"]
+        )
         assert state_filter["terms"]["state"] == ["CA", "OR"]
 
     def test_build_query_with_date_from(self, backend):
@@ -62,7 +64,9 @@ class TestQuickwitBackendBuildQuery:
 
     def test_build_query_document_type_all_ignored(self, backend):
         query = backend._build_query("test", document_type="all")
-        assert "filters" not in query or not any("term" in f for f in query.get("filters", []))
+        assert "filters" not in query or not any(
+            "term" in f for f in query.get("filters", [])
+        )
 
     def test_build_query_with_meeting_name(self, backend):
         query = backend._build_query("test", meeting_name_query="city council")
@@ -100,11 +104,11 @@ class TestQuickwitBackendSearch:
                                 "municipality_subdomain": "test-city",
                                 "municipality_name": "Test City",
                                 "state": "CA",
-                              },
+                            },
                             "_score": 1.0,
                         }
                     }
-                ]
+                ],
             }
         }
 

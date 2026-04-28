@@ -84,7 +84,9 @@ def delete_index() -> dict | None:
         return {"success": False, "error": "timeout"}
 
 
-def ingest_documents(documents: list[dict[str, Any]], input_format: str = "json") -> dict:
+def ingest_documents(
+    documents: list[dict[str, Any]], input_format: str = "json"
+) -> dict:
     """Ingest a batch of documents into the Quickwit index.
 
     Uses the ingest API: POST /api/v1/{index_id}/ingest
@@ -108,7 +110,9 @@ def ingest_documents(documents: list[dict[str, Any]], input_format: str = "json"
         )
         response.raise_for_status()
         result = response.json() if response.content else {}
-        logger.info(f"Ingested {len(documents)} documents into Quickwit index '{index_id}'")
+        logger.info(
+            f"Ingested {len(documents)} documents into Quickwit index '{index_id}'"
+        )
         return result
     except httpx.HTTPError as e:
         logger.error(f"Failed to ingest documents into Quickwit: {e}")
@@ -210,7 +214,10 @@ def execute_search_elasticsearch_compat(
 
     try:
         response = httpx.post(
-            url, json=es_body, headers={"Content-Type": "application/json"}, timeout=_get_quickwit_timeout()
+            url,
+            json=es_body,
+            headers={"Content-Type": "application/json"},
+            timeout=_get_quickwit_timeout(),
         )
         response.raise_for_status()
         return response.json()

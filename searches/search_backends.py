@@ -462,60 +462,47 @@ class QuickwitBackend(SearchBackend):
 
             if muni_ids:
                 muni_filter = {
-                    "terms": {
-                        "municipality_id": [str(mid) for mid in muni_ids]
-                    }
+                    "terms": {"municipality_id": [str(mid) for mid in muni_ids]}
                 }
                 filters.append(muni_filter)
 
         if states:
-            state_filter = {
-                "terms": {
-                    "state": states
-                }
-            }
+            state_filter = {"terms": {"state": states}}
             filters.append(state_filter)
 
         if date_from:
-            date_str = date_from.isoformat() if hasattr(date_from, "isoformat") else str(date_from)
-            filters.append({
-                "range": {
-                    "meeting_date": {"gte": date_str}
-                }
-            })
+            date_str = (
+                date_from.isoformat()
+                if hasattr(date_from, "isoformat")
+                else str(date_from)
+            )
+            filters.append({"range": {"meeting_date": {"gte": date_str}}})
 
         if date_to:
-            date_str = date_to.isoformat() if hasattr(date_to, "isoformat") else str(date_to)
-            filters.append({
-                "range": {
-                    "meeting_date": {"lte": date_str}
-                }
-            })
+            date_str = (
+                date_to.isoformat() if hasattr(date_to, "isoformat") else str(date_to)
+            )
+            filters.append({"range": {"meeting_date": {"lte": date_str}}})
 
         if document_type and document_type != "all":
-            filters.append({
-                "term": {
-                    "document_type": document_type
-                }
-            })
+            filters.append({"term": {"document_type": document_type}})
 
         should_clauses: list[dict[str, Any]] = []
         if meeting_name_query:
-            should_clauses.append({
-                "query_string": {
-                    "query": meeting_name_query,
-                    "fields": ["meeting_name"]
+            should_clauses.append(
+                {
+                    "query_string": {
+                        "query": meeting_name_query,
+                        "fields": ["meeting_name"],
+                    }
                 }
-            })
+            )
 
         result: dict[str, Any] = {}
         if should_clauses and query_text:
-            should_clauses.append({
-                "query_string": {
-                    "query": query_text,
-                    "fields": ["text"]
-                }
-            })
+            should_clauses.append(
+                {"query_string": {"query": query_text, "fields": ["text"]}}
+            )
             result["should"] = should_clauses
         elif query_text:
             result["main_query"] = query_text

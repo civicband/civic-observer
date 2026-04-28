@@ -25,14 +25,18 @@ def override_settings(settings):
 class TestCreateIndex:
     @patch("subprocess.run")
     def test_create_index_success(self, mock_run):
-        mock_run.return_value = MagicMock(returncode=0, stdout="Index created\n", stderr="")
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="Index created\n", stderr=""
+        )
         result = create_index()
         assert result is not None
         assert result["success"] is True
 
     @patch("subprocess.run")
     def test_create_index_already_exists(self, mock_run):
-        mock_run.return_value = MagicMock(returncode=1, stdout="", stderr="Error: index already exists")
+        mock_run.return_value = MagicMock(
+            returncode=1, stdout="", stderr="Error: index already exists"
+        )
         result = create_index()
         assert result is not None
         assert result["success"] is True
@@ -47,6 +51,7 @@ class TestCreateIndex:
     @patch("subprocess.run")
     def test_create_index_timeout(self, mock_run):
         import subprocess
+
         mock_run.side_effect = subprocess.TimeoutExpired(cmd="quickwit", timeout=60)
         result = create_index()
         assert result is not None
@@ -56,7 +61,9 @@ class TestCreateIndex:
 class TestDeleteIndex:
     @patch("subprocess.run")
     def test_delete_index_success(self, mock_run):
-        mock_run.return_value = MagicMock(returncode=0, stdout="Index deleted\n", stderr="")
+        mock_run.return_value = MagicMock(
+            returncode=0, stdout="Index deleted\n", stderr=""
+        )
         result = delete_index()
         assert result is not None
         assert result["success"] is True
@@ -88,6 +95,7 @@ class TestIngestDocuments:
     @patch("searches.quickwit_client.httpx.post")
     def test_ingest_documents_http_error(self, mock_post):
         import httpx
+
         mock_post.side_effect = httpx.ConnectError("Connection refused")
 
         documents = [{"id": "1", "text": "hello"}]
@@ -140,7 +148,11 @@ class TestExecuteSearchElasticsearchCompat:
             "hits": {
                 "total": {"value": 5},
                 "hits": [
-                    {"_id": "1", "_score": 1.0, "_source": {"id": "1", "text": "police budget"}},
+                    {
+                        "_id": "1",
+                        "_score": 1.0,
+                        "_source": {"id": "1", "text": "police budget"},
+                    },
                 ],
             }
         }
@@ -154,9 +166,7 @@ class TestExecuteSearchElasticsearchCompat:
     def test_es_compat_search_with_bool_query(self, mock_post):
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "hits": {"total": {"value": 0}, "hits": []}
-        }
+        mock_response.json.return_value = {"hits": {"total": {"value": 0}, "hits": []}}
         mock_post.return_value = mock_response
 
         execute_search_elasticsearch_compat(
@@ -176,9 +186,7 @@ class TestExecuteSearchElasticsearchCompat:
     def test_es_compat_search_match_all(self, mock_post):
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {
-            "hits": {"total": {"value": 10}, "hits": []}
-        }
+        mock_response.json.return_value = {"hits": {"total": {"value": 10}, "hits": []}}
         mock_post.return_value = mock_response
 
         execute_search_elasticsearch_compat(query_text="")
@@ -189,6 +197,7 @@ class TestExecuteSearchElasticsearchCompat:
     @patch("searches.quickwit_client.httpx.post")
     def test_es_compat_search_http_error(self, mock_post):
         import httpx
+
         mock_post.side_effect = httpx.ConnectError("Connection refused")
 
         result = execute_search_elasticsearch_compat("test")
@@ -201,7 +210,10 @@ class TestGetIndexStats:
     def test_get_index_stats_success(self, mock_get):
         mock_response = MagicMock()
         mock_response.status_code = 200
-        mock_response.json.return_value = {"index_id": "meeting_pages", "num_docs": 1000}
+        mock_response.json.return_value = {
+            "index_id": "meeting_pages",
+            "num_docs": 1000,
+        }
         mock_get.return_value = mock_response
 
         result = get_index_stats()
@@ -211,6 +223,7 @@ class TestGetIndexStats:
     @patch("searches.quickwit_client.httpx.get")
     def test_get_index_stats_http_error(self, mock_get):
         import httpx
+
         mock_get.side_effect = httpx.ConnectError("Connection refused")
         result = get_index_stats()
         assert result == {}
@@ -234,5 +247,6 @@ class TestHealthCheck:
     @patch("searches.quickwit_client.httpx.get")
     def test_health_check_connection_error(self, mock_get):
         import httpx
+
         mock_get.side_effect = httpx.ConnectError("Connection refused")
         assert health_check() is False

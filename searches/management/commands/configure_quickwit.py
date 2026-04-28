@@ -44,9 +44,7 @@ class Command(BaseCommand):
         config_path = options["config"]
 
         self.stdout.write(
-            self.style.WARNING(
-                "=" * 80 + "\nQuickwit Index Configuration\n" + "=" * 80
-            )
+            self.style.WARNING("=" * 80 + "\nQuickwit Index Configuration\n" + "=" * 80)
         )
 
         url = getattr(settings, "QUICKWIT_URL", "http://quickwit:7280/api/v1")
@@ -58,7 +56,9 @@ class Command(BaseCommand):
 
         if reset:
             self.stdout.write(
-                self.style.WARNING("\n⚠️  RESET MODE: This will DELETE the entire index!")
+                self.style.WARNING(
+                    "\n⚠️  RESET MODE: This will DELETE the entire index!"
+                )
             )
             if not dry_run:
                 confirm = input("⚠️  Are you sure? [yes/NO]: ")
