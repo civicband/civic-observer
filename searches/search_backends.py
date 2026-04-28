@@ -452,7 +452,7 @@ class QuickwitBackend(SearchBackend):
         """
         Build Quickwit-compatible query filters.
         """
-        filters = []
+        filters: list[dict[str, Any]] = []
 
         if municipalities:
             if hasattr(municipalities, "values_list"):
@@ -499,7 +499,7 @@ class QuickwitBackend(SearchBackend):
                 }
             })
 
-        should_clauses = []
+        should_clauses: list[dict[str, Any]] = []
         if meeting_name_query:
             should_clauses.append({
                 "query_string": {
@@ -508,7 +508,7 @@ class QuickwitBackend(SearchBackend):
                 }
             })
 
-        result = {}
+        result: dict[str, Any] = {}
         if should_clauses and query_text:
             should_clauses.append({
                 "query_string": {

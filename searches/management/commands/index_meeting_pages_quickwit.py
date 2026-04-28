@@ -22,7 +22,7 @@ import json
 import logging
 from datetime import datetime
 
-import requests
+import httpx
 from django.conf import settings
 from django.core.management.base import BaseCommand
 
@@ -67,16 +67,17 @@ def ingest_batch(documents: list[dict], url: str, index_id: str, timeout: int) -
         ingest_url = f"{url}/{index_id}/ingest"
         # Quickwit expects NDJSON (newline-delimited JSON)
         body = "\n".join(json.dumps(doc, default=str) for doc in documents)
-        response = requests.post(
-            ingest_url,
-            data=body.encode("utf-8"),
-            headers={"Content-Type": "application/x-ndjson"},
-            timeout=timeout,
-        )
-        response.raise_for_status()
+        with httpx.Client() as client:
+            response = client.post(
+                ingest_url,
+                content=body.encode("utf-8"),
+                headers={"Content-Type": "application/x-ndjson"},
+                timeout=timeout,
+            )
+            response.raise_for_status()
         # Quickwit 0.8 returns 202 with {"numDocs": N, "numBytes": M}
         return {"success": True, "count": len(documents), "response": response.json()}
-    except requests.RequestException as e:
+    except httpx.HTTPError as e:
         logger.error(f"Quickwit ingest failed: {e}")
         return {"success": False, "count": 0, "error": str(e)}
 
@@ -123,14 +124,13 @@ class Command(BaseCommand):
         municipality_subdomain = options.get("municipality")
         date_from_str = options.get("date_from")
         date_to_str = options.get("date_to")
-        limit = options.get("limit")
 
         qw_url, qw_index_id, qw_timeout = get_quickwit_config()
 
         self.stdout.write(
             self.style.WARNING(
-                "=" * 80
-                + f"\nIndex Meeting Pages to Quickwit (S3: Fastly Object Storage)\n"
+            "=" * 80
+            + "\nIndex Meeting Pages to Quickwit (S3: Fastly Object Storage)\n"
                 + "=" * 80
                 + f"\nQuickwit URL: {qw_url}"
                 + f"\nIndex ID: {qw_index_id}\n"
