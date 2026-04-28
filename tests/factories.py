@@ -23,6 +23,7 @@ class UserFactory(DjangoModelFactory):
     email = factory.LazyAttribute(lambda obj: f"{obj.username}@example.com")  # type: ignore
     first_name = factory.Faker("first_name")  # type: ignore
     last_name = factory.Faker("last_name")  # type: ignore
+    timezone = "America/New_York"  # type: ignore
     is_active = True
     is_staff = False
     is_superuser = False
@@ -165,3 +166,13 @@ class NotificationChannelFactory(DjangoModelFactory):
     is_validated = False
     is_enabled = True
     failure_count = 0
+
+
+class DigestSubscriptionFactory(DjangoModelFactory):
+    class Meta:
+        model = "notifications.DigestSubscription"
+
+    user = factory.SubFactory(UserFactory)  # type: ignore
+    municipality = factory.SubFactory(MuniFactory)  # type: ignore
+    is_active = True
+    last_digest_sent = None

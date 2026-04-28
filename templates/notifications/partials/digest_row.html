@@ -1,0 +1,33 @@
+{% load analytics %}
+<li id="digest-{{ subscription.pk }}" class="px-4 py-4 sm:px-6">
+    <div class="flex items-center justify-between">
+        <div class="flex items-center">
+            <div class="flex-shrink-0">
+                <span class="text-2xl">📧</span>
+            </div>
+            <div class="ml-4">
+                <p class="text-sm font-medium text-gray-900">{{ subscription.municipality.name }}, {{ subscription.municipality.state }}</p>
+                <p class="text-sm text-gray-500">Daily at 5:00 AM ({{ user.timezone }})</p>
+            </div>
+        </div>
+        <div class="flex items-center gap-4">
+            {% if subscription.is_active %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    Active
+                </span>
+            {% else %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    Inactive
+                </span>
+            {% endif %}
+            <button hx-post="{% url 'notifications:digest-delete' subscription.pk %}"
+                    hx-target="#digest-{{ subscription.pk }}"
+                    hx-swap="outerHTML"
+                    hx-confirm="Are you sure you want to unsubscribe from this daily digest?"
+                    class="text-red-600 hover:text-red-900 text-sm"
+                    data-umami-htmx-event="digest_subscription_deleted">
+                Unsubscribe
+            </button>
+        </div>
+    </div>
+</li>
