@@ -1,8 +1,12 @@
+from typing import cast
+
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from django.urls import reverse_lazy
 from django.views.generic import CreateView, DeleteView, ListView
+
+from users.models import User
 
 from .forms import DigestSubscriptionForm
 from .models import DigestSubscription
@@ -16,8 +20,9 @@ class DigestSubscriptionListView(LoginRequiredMixin, ListView):
     context_object_name = "subscriptions"
 
     def get_queryset(self):
+        user = cast(User, self.request.user)
         return (
-            DigestSubscription.objects.filter(user=self.request.user)
+            DigestSubscription.objects.filter(user=user)
             .select_related("municipality")
             .order_by("municipality__name")
         )
@@ -32,7 +37,7 @@ class DigestSubscriptionCreateView(LoginRequiredMixin, CreateView):
     success_url = reverse_lazy("notifications:digest-list")
 
     def form_valid(self, form):
-        form.instance.user = self.request.user
+        form.instance.user = cast(User, self.request.user)
         self.object = form.save()
 
         # Return HTMX response
@@ -54,7 +59,8 @@ class DigestSubscriptionDeleteView(LoginRequiredMixin, DeleteView):
     success_url = reverse_lazy("notifications:digest-list")
 
     def get_queryset(self):
-        return DigestSubscription.objects.filter(user=self.request.user)
+        user = cast(User, self.request.user)
+        return DigestSubscription.objects.filter(user=user)
 
     def delete(self, request, *args, **kwargs):
         self.object = self.get_object()

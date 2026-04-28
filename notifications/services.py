@@ -375,7 +375,7 @@ def _send_digest_email(user, saved_searches, frequency="daily"):
         body=txt_content,
     )
     msg.attach_alternative(html_content, "text/html")
-    msg.esp_extra = {"MessageStream": "outbound"}
+    msg.esp_extra = {"MessageStream": "outbound"}  # type: ignore[attr-defined]
 
     # Use transaction to ensure email and DB updates are atomic
     with transaction.atomic():

@@ -60,7 +60,7 @@ class SendMeetingDigestEmailTest(TestCase):
         )
         send_meeting_digest_email(self.user, all_meetings, self.today)
 
-        html_content = mail.outbox[0].alternatives[0][0]
+        html_content = mail.outbox[0].alternatives[0][0]  # type: ignore[attr-defined]
         self.assertIn("Springfield", html_content)
         self.assertIn("Shelbyville", html_content)
         self.assertIn("City Council", html_content)
