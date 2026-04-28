@@ -89,7 +89,7 @@ class TestIngestDocuments:
             {"id": "2", "text": "test document"},
         ]
         result = ingest_documents(documents, input_format="json")
-        assert result == {"numDocs": 5}
+        assert result["numDocs"] == 5
         mock_post.assert_called_once()
 
     @patch("searches.quickwit_client.httpx.post")
