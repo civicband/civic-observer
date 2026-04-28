@@ -77,3 +77,21 @@ logs-service service:
 # Install dependencies (for local development tools)
 install:
     uv sync --group dev --group test
+
+# Quickwit: Create index on Quickwit server
+quickwit-create-index:
+    docker-compose exec quickwit quickwit index create --index-config /opt/quickwit/index-config.yaml
+
+# Quickwit: Index meeting pages from PostgreSQL
+quickwit-index *args:
+    docker-compose run --rm utility python manage.py index_meeting_pages_quickwit {{args}}
+
+# Quickwit: Search index (curl shortcut)
+quickwit-search query="", limit=10:
+    @curl -s "http://localhost:7280/api/v1/_elastic/meeting_pages/_search" \
+      -H "Content-Type: application/json" \
+      -d "{\"query\":{\"query_string\":{\"query\":\"{{query}}\"}},\"from\":0,\"size\":{{limit}},\"sort\":[{\"meeting_date\":\"desc\"}]}" | python3 -m json.tool
+
+# Quickwit: Show index stats
+quickwit-stats:
+    @curl -s "http://localhost:7280/api/v1/indexes/meeting_pages" | python3 -m json.tool

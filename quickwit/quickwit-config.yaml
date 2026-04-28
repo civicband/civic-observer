@@ -1,0 +1,20 @@
+# Quickwit node configuration
+# S3 endpoint and credentials come from environment variables:
+#   QW_S3_ENDPOINT
+#   AWS_ACCESS_KEY_ID
+#   AWS_SECRET_ACCESS_KEY
+#   AWS_DEFAULT_REGION
+version: 0.8
+
+node_id: civic-observer-1
+listen_address: 0.0.0.0
+
+rest:
+  listen_port: 7280
+  cors_allow_origins:
+    - "*"
+
+metastore_uri: s3://quickwit-civic-observer/metastore
+default_index_root_uri: s3://quickwit-civic-observer/indexes
+
+data_dir: /quickwit/data

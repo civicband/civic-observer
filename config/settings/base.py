@@ -195,8 +195,13 @@ MEILISEARCH_MASTER_KEY = env.str("MEILI_MASTER_KEY", "masterKey")
 MEILISEARCH_INDEX_PREFIX = env.str("MEILISEARCH_INDEX_PREFIX", "civic_observer")
 
 # Search Backend Configuration
-# Options: 'postgres', 'meilisearch'
+# Options: 'postgres', 'meilisearch', 'quickwit'
 SEARCH_BACKEND = env.str("SEARCH_BACKEND", "postgres")
+
+# Quickwit Configuration (Elasticsearch-compatible search on S3 object storage)
+QUICKWIT_URL = env.str("QUICKWIT_URL", "http://quickwit:7280/api/v1")
+QUICKWIT_INDEX_ID = env.str("QUICKWIT_INDEX_ID", "meeting_pages")
+QUICKWIT_TIMEOUT = env.int("QUICKWIT_TIMEOUT", 30)
 
 # Meilisearch Index Configuration
 # These settings control which fields are searchable, filterable, and sortable

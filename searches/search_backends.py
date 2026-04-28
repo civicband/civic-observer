@@ -21,6 +21,7 @@ from meetings.models import MeetingPage
 
 from .cache import get_cached_search_results, set_cached_search_results
 from .meilisearch_client import get_meeting_pages_index
+from .quickwit_client import execute_search_elasticsearch_compat
 
 
 class SearchBackend(ABC):
@@ -379,6 +380,178 @@ class MeilisearchBackend(SearchBackend):
         return " AND ".join(filter_parts)
 
 
+class QuickwitBackend(SearchBackend):
+    """
+    Quickwit backend for full-text search on S3-backed storage.
+
+    Quickwit stores its index on Fastly Object Storage (S3-compatible),
+    making it cost-efficient for large document collections (10M-100M+).
+    """
+
+    def get_backend_name(self) -> str:
+        return "quickwit"
+
+    def search(
+        self,
+        query_text: str,
+        municipalities: QuerySet | list | None = None,
+        states: list | None = None,
+        date_from=None,
+        date_to=None,
+        document_type: str | None = None,
+        meeting_name_query: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[list[dict[str, Any]], int]:
+        """
+        Search using Quickwit's Elasticsearch-compatible API.
+        """
+        es_query = self._build_query(
+            query_text=query_text,
+            municipalities=municipalities,
+            states=states,
+            date_from=date_from,
+            date_to=date_to,
+            document_type=document_type,
+            meeting_name_query=meeting_name_query,
+            limit=limit,
+            offset=offset,
+        )
+
+        result = execute_search_elasticsearch_compat(
+            query_text=query_text,
+            limit=limit,
+            offset=offset,
+            filters=es_query.get("filters"),
+            should=es_query.get("should"),
+            sort_by=[{"meeting_date": "desc"}],
+        )
+
+        hits = result.get("hits", {}).get("hits", [])
+        total = result.get("hits", {}).get("total", {}).get("value", 0)
+
+        results = []
+        for hit in hits:
+            source = hit.get("_source", hit)
+            results.append(self._hit_to_dict(source))
+
+        return results, total
+
+    def _build_query(
+        self,
+        query_text: str,
+        municipalities: QuerySet | list | None = None,
+        states: list | None = None,
+        date_from=None,
+        date_to=None,
+        document_type: str | None = None,
+        meeting_name_query: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> dict[str, Any]:
+        """
+        Build Quickwit-compatible query filters.
+        """
+        filters = []
+
+        if municipalities:
+            if hasattr(municipalities, "values_list"):
+                muni_ids = list(municipalities.values_list("id", flat=True))
+            else:
+                muni_ids = [m.id if hasattr(m, "id") else m for m in municipalities]
+
+            if muni_ids:
+                muni_filter = {
+                    "terms": {
+                        "municipality_id": [str(mid) for mid in muni_ids]
+                    }
+                }
+                filters.append(muni_filter)
+
+        if states:
+            state_filter = {
+                "terms": {
+                    "state": states
+                }
+            }
+            filters.append(state_filter)
+
+        if date_from:
+            date_str = date_from.isoformat() if hasattr(date_from, "isoformat") else str(date_from)
+            filters.append({
+                "range": {
+                    "meeting_date": {"gte": date_str}
+                }
+            })
+
+        if date_to:
+            date_str = date_to.isoformat() if hasattr(date_to, "isoformat") else str(date_to)
+            filters.append({
+                "range": {
+                    "meeting_date": {"lte": date_str}
+                }
+            })
+
+        if document_type and document_type != "all":
+            filters.append({
+                "term": {
+                    "document_type": document_type
+                }
+            })
+
+        should_clauses = []
+        if meeting_name_query:
+            should_clauses.append({
+                "query_string": {
+                    "query": meeting_name_query,
+                    "fields": ["meeting_name"]
+                }
+            })
+
+        result = {}
+        if should_clauses and query_text:
+            should_clauses.append({
+                "query_string": {
+                    "query": query_text,
+                    "fields": ["text"]
+                }
+            })
+            result["should"] = should_clauses
+        elif query_text:
+            result["main_query"] = query_text
+        elif should_clauses:
+            result["should"] = should_clauses
+
+        if filters:
+            result["filters"] = filters
+
+        return result
+
+    def _hit_to_dict(self, hit: dict[str, Any]) -> dict[str, Any]:
+        """Convert a Quickwit ES-compatible hit to a standardized result dictionary.
+
+        Quickwit 0.8 with store_source=true wraps documents as _source._source,
+        so we need to unwrap the inner document.
+        """
+        source = hit.get("_source", hit)
+        # Unwrap the double-nested source if present
+        inner = source.get("_source", source)
+        return {
+            "id": inner.get("id", ""),
+            "page_number": inner.get("page_number", 0),
+            "text": inner.get("text", ""),
+            "page_image": inner.get("page_image", ""),
+            "meeting_name": inner.get("meeting_name", ""),
+            "meeting_date": inner.get("meeting_date", ""),
+            "document_type": inner.get("document_type", ""),
+            "municipality_id": inner.get("municipality_id", ""),
+            "municipality_subdomain": inner.get("municipality_subdomain", ""),
+            "municipality_name": inner.get("municipality_name", ""),
+            "state": inner.get("state", ""),
+            "document_id": inner.get("document_id", ""),
+        }
+
+
 def get_search_backend() -> SearchBackend:
     """
     Get the configured search backend.
@@ -393,6 +566,8 @@ def get_search_backend() -> SearchBackend:
 
     if backend_name == "meilisearch":
         return MeilisearchBackend()
+    elif backend_name == "quickwit":
+        return QuickwitBackend()
     else:
         # Default to Postgres
         return PostgresSearchBackend()

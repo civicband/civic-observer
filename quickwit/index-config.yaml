@@ -1,0 +1,86 @@
+# Quickwit index configuration for civic-observer meeting pages
+# Docs: https://quickwit.io/docs/configuration/index-config
+
+version: 0.8
+
+index_id: meeting_pages
+
+doc_mapping:
+  mode: strict
+
+  store_source: true
+
+  field_mappings:
+    - name: id
+      type: text
+      tokenizer: raw
+      fast: true
+
+    - name: page_number
+      type: u64
+      fast: true
+
+    - name: text
+      type: text
+      tokenizer: default
+      record: position
+      fieldnorms: true
+      fast: true
+
+    - name: page_image
+      type: text
+      tokenizer: raw
+      stored: false
+
+    - name: document_id
+      type: text
+      tokenizer: raw
+      fast: true
+
+    - name: meeting_name
+      type: text
+      tokenizer: default
+      record: position
+      fast: true
+
+    - name: meeting_date
+      type: datetime
+      input_formats:
+        - rfc3339
+        - "%Y-%m-%dT%H:%M:%S"
+      output_format: rfc3339
+      fast: true
+      fast_precision: seconds
+
+    - name: document_type
+      type: text
+      tokenizer: raw
+      fast: true
+
+    - name: municipality_id
+      type: text
+      tokenizer: raw
+      fast: true
+
+    - name: municipality_subdomain
+      type: text
+      tokenizer: raw
+      fast: true
+
+    - name: municipality_name
+      type: text
+      tokenizer: default
+      record: position
+      fast: true
+
+    - name: state
+      type: text
+      tokenizer: raw
+      fast: true
+
+search_settings:
+  default_search_fields: [text, meeting_name, municipality_name]
+
+indexing_settings:
+  commit_timeout_secs: 10
+  split_num_docs_target: 10000000
