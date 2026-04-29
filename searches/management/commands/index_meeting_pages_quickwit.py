@@ -42,6 +42,9 @@ def get_quickwit_config():
 
 def page_to_document(page) -> dict:
     """Convert a MeetingPage to a Quickwit-compatible document."""
+    md = page.document.meeting_date
+    meeting_date_str = f"{md.isoformat()}T00:00:00"
+
     return {
         "id": page.id,
         "page_number": page.page_number,
@@ -49,7 +52,7 @@ def page_to_document(page) -> dict:
         "page_image": page.page_image,
         "document_id": str(page.document.id),
         "meeting_name": page.document.meeting_name,
-        "meeting_date": page.document.meeting_date.isoformat(),
+        "meeting_date": meeting_date_str,
         "document_type": page.document.document_type,
         "municipality_id": str(page.document.municipality.id),
         "municipality_subdomain": page.document.municipality.subdomain,

@@ -48,6 +48,7 @@ doc_mapping:
       input_formats:
         - rfc3339
         - "%Y-%m-%dT%H:%M:%S"
+        - "%Y-%m-%d"
       output_format: rfc3339
       fast: true
       fast_precision: seconds
@@ -82,5 +83,5 @@ search_settings:
   default_search_fields: [text, meeting_name, municipality_name]
 
 indexing_settings:
-  commit_timeout_secs: 10
+  commit_timeout_secs: 1
   split_num_docs_target: 10000000

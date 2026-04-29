@@ -85,70 +85,72 @@ class Command(BaseCommand):
             # Check for existing fixture data
             existing_docs = MeetingDocument.objects.filter(municipality=muni)
             existing_count = MeetingPage.objects.filter(document__in=existing_docs).count()
+
             if existing_count > 0 and not overwrite:
-                self.stdout.write(f"\n  Found {existing_count} existing pages, skipping generation (use --overwrite to replace)")
-                self.stdout.write(f"  Tip: delete from admin or use --overwrite --fixtures to replace")
-            if existing_count == 0 or overwrite:
+                self.stdout.write(f"\n  Found {existing_count} existing pages, skipping generation")
+                self.stdout.write(f"  Tip: use --overwrite --fixtures --quickwit to re-index")
+                existing_docs_qs = None
+            else:
                 if existing_count > 0 and overwrite:
                     self.stdout.write(f"\n  Overwriting {existing_count} existing pages...")
                     MeetingPage.objects.filter(document__in=existing_docs).delete()
                     existing_docs.delete()
 
-                self.stdout.write(f"  Generating {fixture_count} pages across {fixture_docs} documents...")
+                self.stdout.write(f"\n  Generating {fixture_count} pages across {fixture_docs} documents...")
 
-            documents = []
-            base_date = date.today() - timedelta(days=30)
-            meeting_names = [
-                "City Council Regular Meeting",
-                "Planning Commission",
-                "Board of Supervisors",
-                "Budget Committee",
-                "Public Safety Committee",
-            ]
+                documents = []
+                base_date = date.today() - timedelta(days=30)
+                meeting_names = [
+                    "City Council Regular Meeting",
+                    "Planning Commission",
+                    "Board of Supervisors",
+                    "Budget Committee",
+                    "Public Safety Committee",
+                ]
 
-            for i in range(fixture_docs):
-                meeting_date = base_date + timedelta(days=i * 7)
-                for doc_type in ("agenda", "minutes"):
-                    doc = MeetingDocument.objects.create(
-                        municipality_id=muni.id,
-                        meeting_name=f"{meeting_names[i % len(meeting_names)]}",
-                        meeting_date=meeting_date,
-                        document_type=doc_type,
-                    )
-                    documents.append(doc)
+                for i in range(fixture_docs):
+                    meeting_date = base_date + timedelta(days=i * 7)
+                    for doc_type in ("agenda", "minutes"):
+                        doc = MeetingDocument.objects.create(
+                            municipality_id=muni.id,
+                            meeting_name=f"{meeting_names[i % len(meeting_names)]}",
+                            meeting_date=meeting_date,
+                            document_type=doc_type,
+                        )
+                        documents.append(doc)
 
-            pages_per_doc = fixture_count // len(documents)
-            sample_texts = [
-                "The city council discussed the new police budget allocation for the upcoming fiscal year.",
-                "Planning commission reviewed the zoning changes for downtown development and affordable housing.",
-                "Public safety committee addressed emergency response times and fire department staffing.",
-                "Budget committee approved the quarterly spending report and tax revenue projections.",
-                "City council voted on the new infrastructure bill and road maintenance funding.",
-                "The meeting covered community input on environmental policy and green energy initiatives.",
-                "Discussion focused on public transit expansion and bus route improvements.",
-                "The council reviewed the proposed amendments to the municipal code regarding short-term rentals.",
-                "Public comment period included residents discussing neighborhood safety concerns.",
-                "The committee approved the new park development plan and recreation center funding.",
-                "City staff presented the annual report on water quality and sewage treatment upgrades.",
-                "Mayor discussed the city's response to homelessness and social services expansion.",
-            ]
+                pages_per_doc = fixture_count // len(documents)
+                sample_texts = [
+                    "The city council discussed the new police budget allocation for the upcoming fiscal year.",
+                    "Planning commission reviewed the zoning changes for downtown development and affordable housing.",
+                    "Public safety committee addressed emergency response times and fire department staffing.",
+                    "Budget committee approved the quarterly spending report and tax revenue projections.",
+                    "City council voted on the new infrastructure bill and road maintenance funding.",
+                    "The meeting covered community input on environmental policy and green energy initiatives.",
+                    "Discussion focused on public transit expansion and bus route improvements.",
+                    "The council reviewed the proposed amendments to the municipal code regarding short-term rentals.",
+                    "Public comment period included residents discussing neighborhood safety concerns.",
+                    "The committee approved the new park development plan and recreation center funding.",
+                    "City staff presented the annual report on water quality and sewage treatment upgrades.",
+                    "Mayor discussed the city's response to homelessness and social services expansion.",
+                ]
 
-            created = 0
-            for doc in documents:
-                for page_num in range(1, pages_per_doc + 1):
-                    page_id = str(uuid.uuid4())[:24]
-                    text = f"[Page {page_num}] {sample_texts[(page_num - 1) % len(sample_texts)]}"
-                    MeetingPage.objects.create(
-                        id=page_id,
-                        document=doc,
-                        page_number=page_num,
-                        text=text,
-                    )
-                    created += 1
+                created = 0
+                for doc in documents:
+                    for page_num in range(1, pages_per_doc + 1):
+                        page_id = str(uuid.uuid4())[:24]
+                        text = f"[Page {page_num}] {sample_texts[(page_num - 1) % len(sample_texts)]}"
+                        MeetingPage.objects.create(
+                            id=page_id,
+                            document=doc,
+                            page_number=page_num,
+                            text=text,
+                        )
+                        created += 1
 
-            muni.pages = created
-            muni.save(update_fields=["pages"])
-            self.stdout.write(self.style.SUCCESS(f"\n  ✓ Created {created} pages across {len(documents)} documents"))
+                muni.pages = created
+                muni.save(update_fields=["pages"])
+                self.stdout.write(self.style.SUCCESS(f"  ✓ Created {created} pages across {len(documents)} documents"))
 
         elif do_backfill:
             self.stdout.write(f"\n  Starting backfill for {muni.subdomain}...")
@@ -172,6 +174,7 @@ class Command(BaseCommand):
         # Index into Quickwit if requested
         if do_quickwit:
             self.stdout.write(f"\n  Indexing pages into Quickwit...")
+            self.stdout.write(f"  (Quickwit commit timeout is 10s — results available after ~10s)")
             try:
                 from searches.quickwit_client import ingest_documents
                 from meetings.models import MeetingPage
@@ -180,23 +183,7 @@ class Command(BaseCommand):
                     "document", "document__municipality"
                 ).filter(document__municipality=muni)
 
-                documents = []
-                for page in pages:
-                    doc = {
-                        "id": page.id,
-                        "page_number": page.page_number,
-                        "text": page.text,
-                        "page_image": page.page_image,
-                        "meeting_name": page.document.meeting_name,
-                        "meeting_date": page.document.meeting_date.isoformat(),
-                        "document_type": page.document.document_type,
-                        "municipality_id": str(page.document.municipality.id),
-                        "municipality_subdomain": page.document.municipality.subdomain,
-                        "municipality_name": page.document.municipality.name,
-                        "state": page.document.municipality.state,
-                        "document_id": str(page.document.id),
-                    }
-                    documents.append(doc)
+                documents = [self._page_to_quickwit_doc(page) for page in pages]
 
                 if documents:
                     result = ingest_documents(documents)
@@ -292,3 +279,23 @@ class Command(BaseCommand):
         if "name" not in data:
             data["name"] = subdomain.replace("-", " ").title()
         return data
+
+    def _page_to_quickwit_doc(self, page):
+        """Convert a MeetingPage to a Quickwit-compatible document dict."""
+        md = page.document.meeting_date
+        meeting_date_str = f"{md.isoformat()}T00:00:00"
+
+        return {
+            "id": page.id,
+            "page_number": page.page_number,
+            "text": page.text,
+            "page_image": page.page_image,
+            "meeting_name": page.document.meeting_name,
+            "meeting_date": meeting_date_str,
+            "document_type": page.document.document_type,
+            "municipality_id": str(page.document.municipality.id),
+            "municipality_subdomain": page.document.municipality.subdomain,
+            "municipality_name": page.document.municipality.name,
+            "state": page.document.municipality.state,
+            "document_id": str(page.document.id),
+        }
