@@ -110,7 +110,7 @@ services:
     init: true
     command: ["run"]
     healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:7280/api/v1/indexes/meeting_pages >/dev/null || exit 1"]
+      test: ["CMD-SHELL", "curl -sf http://localhost:7280/api/v1/health >/dev/null || exit 1"]
       interval: 10s
       timeout: 5s
       retries: 5

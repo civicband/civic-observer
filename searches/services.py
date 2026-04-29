@@ -45,8 +45,8 @@ def execute_search(search):
     """
     backend_name = getattr(settings, "SEARCH_BACKEND", "postgres")
 
-    if backend_name == "meilisearch":
-        # Use Meilisearch but reconstruct QuerySet for backwards compatibility
+    if backend_name in ("meilisearch", "quickwit"):
+        # Use external search backend but reconstruct QuerySet for backwards compatibility
         from .search_backends import get_search_backend
 
         backend = get_search_backend()
