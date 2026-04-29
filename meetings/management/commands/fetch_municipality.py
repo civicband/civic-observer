@@ -88,8 +88,7 @@ class Command(BaseCommand):
 
             if existing_count > 0 and not overwrite:
                 self.stdout.write(f"\n  Found {existing_count} existing pages, skipping generation")
-                self.stdout.write(f"  Tip: use --overwrite --fixtures --quickwit to re-index")
-                existing_docs_qs = None
+                self.stdout.write("  Tip: use --overwrite --fixtures --quickwit to re-index")
             else:
                 if existing_count > 0 and overwrite:
                     self.stdout.write(f"\n  Overwriting {existing_count} existing pages...")
@@ -98,7 +97,7 @@ class Command(BaseCommand):
 
                 self.stdout.write(f"\n  Generating {fixture_count} pages across {fixture_docs} documents...")
 
-                documents = []
+                docs = []
                 base_date = date.today() - timedelta(days=30)
                 meeting_names = [
                     "City Council Regular Meeting",
@@ -117,9 +116,9 @@ class Command(BaseCommand):
                             meeting_date=meeting_date,
                             document_type=doc_type,
                         )
-                        documents.append(doc)
+                        docs.append(doc)
 
-                pages_per_doc = fixture_count // len(documents)
+                pages_per_doc = fixture_count // len(docs)
                 sample_texts = [
                     "The city council discussed the new police budget allocation for the upcoming fiscal year.",
                     "Planning commission reviewed the zoning changes for downtown development and affordable housing.",
@@ -136,7 +135,7 @@ class Command(BaseCommand):
                 ]
 
                 created = 0
-                for doc in documents:
+                for doc in docs:
                     for page_num in range(1, pages_per_doc + 1):
                         page_id = str(uuid.uuid4())[:24]
                         text = f"[Page {page_num}] {sample_texts[(page_num - 1) % len(sample_texts)]}"
@@ -150,7 +149,7 @@ class Command(BaseCommand):
 
                 muni.pages = created
                 muni.save(update_fields=["pages"])
-                self.stdout.write(self.style.SUCCESS(f"  ✓ Created {created} pages across {len(documents)} documents"))
+                self.stdout.write(self.style.SUCCESS(f"  ✓ Created {created} pages across {len(docs)} documents"))
 
         elif do_backfill:
             self.stdout.write(f"\n  Starting backfill for {muni.subdomain}...")
@@ -158,7 +157,7 @@ class Command(BaseCommand):
                 from meetings.services import backfill_municipality_meetings
 
                 stats = backfill_municipality_meetings(muni)
-                self.stdout.write(self.style.SUCCESS(f"\n  ✓ Backfill completed:"))
+                self.stdout.write(self.style.SUCCESS("\n  ✓ Backfill completed:"))
                 self.stdout.write(f"    Documents created: {stats['documents_created']}")
                 self.stdout.write(f"    Documents updated: {stats['documents_updated']}")
                 self.stdout.write(f"    Pages created:     {stats['pages_created']}")
@@ -169,29 +168,29 @@ class Command(BaseCommand):
                 return
             except Exception as e:
                 self.stdout.write(self.style.ERROR(f"\n  ✗ Backfill failed: {e}"))
-                raise CommandError(f"Backfill failed: {e}")
+                raise CommandError(f"Backfill failed: {e}") from e
 
         # Index into Quickwit if requested
         if do_quickwit:
-            self.stdout.write(f"\n  Indexing pages into Quickwit...")
-            self.stdout.write(f"  (Quickwit commit timeout is 10s — results available after ~10s)")
+            self.stdout.write("\n  Indexing pages into Quickwit...")
+            self.stdout.write("  (Quickwit commit timeout is 10s — results available after ~10s)")
             try:
-                from searches.quickwit_client import ingest_documents
                 from meetings.models import MeetingPage
+                from searches.quickwit_client import ingest_documents
 
                 pages = MeetingPage.objects.select_related(
                     "document", "document__municipality"
                 ).filter(document__municipality=muni)
 
-                documents = [self._page_to_quickwit_doc(page) for page in pages]
+                qw_documents: list[dict] = [self._page_to_quickwit_doc(page) for page in pages]
 
-                if documents:
-                    result = ingest_documents(documents)
+                if qw_documents:
+                    result = ingest_documents(qw_documents)
                     if "error" in result:
                         self.stdout.write(self.style.ERROR(f"  ✗ {result['error']}"))
                     else:
                         self.stdout.write(
-                            self.style.SUCCESS(f"\n  ✓ Indexed {len(documents)} pages into Quickwit")
+                            self.style.SUCCESS(f"\n  ✓ Indexed {len(qw_documents)} pages into Quickwit")
                         )
                 else:
                     self.stdout.write(self.style.WARNING("\n  No pages to index"))
@@ -199,7 +198,7 @@ class Command(BaseCommand):
             except Exception as e:
                 self.stdout.write(self.style.ERROR(f"\n  ✗ Quickwit indexing failed: {e}"))
                 if not do_fixtures and not do_backfill:
-                    raise CommandError(f"Quickwit indexing failed: {e}")
+                    raise CommandError(f"Quickwit indexing failed: {e}") from e
 
     def _ensure_municipality(self, subdomain, overwrite):
         import httpx
