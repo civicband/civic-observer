@@ -74,7 +74,9 @@ class Command(BaseCommand):
 
         self.stdout.write(f"\n{'=' * 60}")
         self.stdout.write(f"  Municipality: {subdomain}")
-        self.stdout.write(f"  Mode: {'fixtures' if do_fixtures else 'api backfill' if do_backfill else 'municipality only'}")
+        self.stdout.write(
+            f"  Mode: {'fixtures' if do_fixtures else 'api backfill' if do_backfill else 'municipality only'}"
+        )
         self.stdout.write(f"{'=' * 60}\n")
 
         muni = self._ensure_municipality(subdomain, overwrite)
@@ -84,18 +86,28 @@ class Command(BaseCommand):
 
             # Check for existing fixture data
             existing_docs = MeetingDocument.objects.filter(municipality=muni)
-            existing_count = MeetingPage.objects.filter(document__in=existing_docs).count()
+            existing_count = MeetingPage.objects.filter(
+                document__in=existing_docs
+            ).count()
 
             if existing_count > 0 and not overwrite:
-                self.stdout.write(f"\n  Found {existing_count} existing pages, skipping generation")
-                self.stdout.write("  Tip: use --overwrite --fixtures --quickwit to re-index")
+                self.stdout.write(
+                    f"\n  Found {existing_count} existing pages, skipping generation"
+                )
+                self.stdout.write(
+                    "  Tip: use --overwrite --fixtures --quickwit to re-index"
+                )
             else:
                 if existing_count > 0 and overwrite:
-                    self.stdout.write(f"\n  Overwriting {existing_count} existing pages...")
+                    self.stdout.write(
+                        f"\n  Overwriting {existing_count} existing pages..."
+                    )
                     MeetingPage.objects.filter(document__in=existing_docs).delete()
                     existing_docs.delete()
 
-                self.stdout.write(f"\n  Generating {fixture_count} pages across {fixture_docs} documents...")
+                self.stdout.write(
+                    f"\n  Generating {fixture_count} pages across {fixture_docs} documents..."
+                )
 
                 docs = []
                 base_date = date.today() - timedelta(days=30)
@@ -149,7 +161,11 @@ class Command(BaseCommand):
 
                 muni.pages = created
                 muni.save(update_fields=["pages"])
-                self.stdout.write(self.style.SUCCESS(f"  ✓ Created {created} pages across {len(docs)} documents"))
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"  ✓ Created {created} pages across {len(docs)} documents"
+                    )
+                )
 
         elif do_backfill:
             self.stdout.write(f"\n  Starting backfill for {muni.subdomain}...")
@@ -158,8 +174,12 @@ class Command(BaseCommand):
 
                 stats = backfill_municipality_meetings(muni)
                 self.stdout.write(self.style.SUCCESS("\n  ✓ Backfill completed:"))
-                self.stdout.write(f"    Documents created: {stats['documents_created']}")
-                self.stdout.write(f"    Documents updated: {stats['documents_updated']}")
+                self.stdout.write(
+                    f"    Documents created: {stats['documents_created']}"
+                )
+                self.stdout.write(
+                    f"    Documents updated: {stats['documents_updated']}"
+                )
                 self.stdout.write(f"    Pages created:     {stats['pages_created']}")
                 self.stdout.write(f"    Pages updated:     {stats['pages_updated']}")
                 self.stdout.write(f"    Errors:            {stats['errors']}")
@@ -173,7 +193,9 @@ class Command(BaseCommand):
         # Index into Quickwit if requested
         if do_quickwit:
             self.stdout.write("\n  Indexing pages into Quickwit...")
-            self.stdout.write("  (Quickwit commit timeout is 10s — results available after ~10s)")
+            self.stdout.write(
+                "  (Quickwit commit timeout is 10s — results available after ~10s)"
+            )
             try:
                 from meetings.models import MeetingPage
                 from searches.quickwit_client import ingest_documents
@@ -182,7 +204,9 @@ class Command(BaseCommand):
                     "document", "document__municipality"
                 ).filter(document__municipality=muni)
 
-                qw_documents: list[dict] = [self._page_to_quickwit_doc(page) for page in pages]
+                qw_documents: list[dict] = [
+                    self._page_to_quickwit_doc(page) for page in pages
+                ]
 
                 if qw_documents:
                     result = ingest_documents(qw_documents)
@@ -190,13 +214,17 @@ class Command(BaseCommand):
                         self.stdout.write(self.style.ERROR(f"  ✗ {result['error']}"))
                     else:
                         self.stdout.write(
-                            self.style.SUCCESS(f"\n  ✓ Indexed {len(qw_documents)} pages into Quickwit")
+                            self.style.SUCCESS(
+                                f"\n  ✓ Indexed {len(qw_documents)} pages into Quickwit"
+                            )
                         )
                 else:
                     self.stdout.write(self.style.WARNING("\n  No pages to index"))
 
             except Exception as e:
-                self.stdout.write(self.style.ERROR(f"\n  ✗ Quickwit indexing failed: {e}"))
+                self.stdout.write(
+                    self.style.ERROR(f"\n  ✗ Quickwit indexing failed: {e}")
+                )
                 if not do_fixtures and not do_backfill:
                     raise CommandError(f"Quickwit indexing failed: {e}") from e
 
@@ -252,12 +280,16 @@ class Command(BaseCommand):
                 subdomain=subdomain, defaults=muni_data
             )
             if created:
-                self.stdout.write(self.style.SUCCESS(f"  ✓ Created municipality: {muni}"))
+                self.stdout.write(
+                    self.style.SUCCESS(f"  ✓ Created municipality: {muni}")
+                )
             elif overwrite:
                 for key, value in muni_data.items():
                     setattr(muni, key, value)
                 muni.save()
-                self.stdout.write(self.style.SUCCESS(f"  ✓ Updated municipality: {muni}"))
+                self.stdout.write(
+                    self.style.SUCCESS(f"  ✓ Updated municipality: {muni}")
+                )
             else:
                 self.stdout.write(f"  ✓ Municipality already exists: {muni}")
             return muni
@@ -268,6 +300,7 @@ class Command(BaseCommand):
 
     def _parse_homepage_metadata(self, html, subdomain):
         import re
+
         data = {}
         name_match = re.search(
             r'<meta[^>]*property=["\']og:title["\'][^>]*content=["\']([^"\']+)["\']',
