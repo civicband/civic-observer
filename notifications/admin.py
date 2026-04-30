@@ -15,26 +15,17 @@ User = get_user_model()
 class NotificationChannelAdmin(admin.ModelAdmin):
     list_display = [
         "user",
-        "municipality",
-        "is_active",
-        "last_digest_sent",
+        "platform",
+        "handle",
+        "is_validated",
+        "is_enabled",
         "created",
-    ]
-    list_filter = ["is_active", "municipality__state", "municipality__name"]
-    search_fields = ["user__email", "municipality__name", "municipality__subdomain"]
-    readonly_fields = ["id", "created", "modified", "last_digest_sent"]
-    raw_id_fields = ["user", "municipality"]
-    ordering = ["-created"]
-    actions = [
-        "send_test_digest",
-        "send_test_digest_for_tomorrow",
-        "reset_last_digest_sent",
-        "mark_active",
-        "mark_inactive",
     ]
     list_filter = ["platform", "is_validated", "is_enabled"]
     search_fields = ["user__email", "handle"]
     readonly_fields = ["id", "created", "modified", "last_used_at"]
+    raw_id_fields = ["user"]
+    ordering = ["-created"]
 
 
 class DigestSubscriptionInline(admin.TabularInline):
