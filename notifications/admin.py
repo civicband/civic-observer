@@ -6,9 +6,25 @@ from django.core.mail import EmailMultiAlternatives
 from django.template.loader import get_template, render_to_string
 from django.utils import timezone
 
-from .models import DigestSubscription
+from .models import DigestSubscription, NotificationChannel
 
 User = get_user_model()
+
+
+@admin.register(NotificationChannel)
+class NotificationChannelAdmin(admin.ModelAdmin):
+    list_display = [
+        "user",
+        "platform",
+        "handle",
+        "is_validated",
+        "is_enabled",
+        "failure_count",
+        "last_used_at",
+    ]
+    list_filter = ["platform", "is_validated", "is_enabled"]
+    search_fields = ["user__email", "handle"]
+    readonly_fields = ["id", "created", "modified", "last_used_at"]
 
 
 class DigestSubscriptionInline(admin.TabularInline):
