@@ -1,17 +1,19 @@
 x-common-settings: &common-settings
-  build:
-    context: .
-    dockerfile: ./Dockerfile
-    target: release
-  depends_on:
-    db:
-      condition: service_healthy
-    redis:
-      condition: service_healthy
-  env_file: .env
-  restart: on-failure
-  volumes:
-    - .:/src:cache
+    build:
+      context: .
+      dockerfile: ./Dockerfile
+      target: release
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      quickwit:
+        condition: service_started
+    env_file: .env
+    restart: on-failure
+    volumes:
+      - .:/src:cache
 
 services:
 
@@ -46,6 +48,8 @@ services:
   redis:
     image: "redis:7-alpine"
     init: true
+    ports:
+      - "6379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -103,6 +107,40 @@ services:
       retries: 3
     restart: on-failure
 
+  quickwit:
+    image: "quickwit/quickwit:0.8.1"
+    init: true
+    command: ["run"]
+    healthcheck:
+      test: ["CMD-SHELL", "curl -sf http://localhost:7280/api/v1/health >/dev/null || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    environment:
+      # File-backed metastore for dev (default — no S3 needed for local testing)
+      # To test against Fastly S3 staging bucket, use:
+      #   docker compose -f docker-compose.yml -f docker-compose.quickwit-s3.yml up
+      - QW_METASTORE_URI=file:///quickwit/data/metastore
+      - QW_DEFAULT_INDEX_ROOT_URI=file:///quickwit/data/indexes
+      - QW_LISTEN_ADDRESS=0.0.0.0
+      - QW_ENABLE_OPENTELEMETRY=false
+      - QW_ENABLE_JAEGER_EXPORTER=false
+      #
+      # S3 metastore vars (set via docker-compose.quickwit-s3.yml override):
+      #   QW_METASTORE_URI=s3://${QUICKWIT_BUCKET}/metastore
+      #   QW_DEFAULT_INDEX_ROOT_URI=s3://${QUICKWIT_BUCKET}/indexes
+      #   QW_S3_ENDPOINT=https://${FASTLY_REGION}.object.fastlystorage.app
+      #   AWS_ACCESS_KEY_ID=${FASTLY_ACCESS_KEY_ID}
+      #   AWS_SECRET_ACCESS_KEY=${FASTLY_SECRET_ACCESS_KEY}
+      #   AWS_DEFAULT_REGION=${FASTLY_REGION}
+    ports:
+      - "7280:7280"
+    volumes:
+      - ./quickwit/index-config.yaml:/opt/quickwit/index-config.yaml:ro
+      - quickwit-data:/quickwit/data
+    restart: on-failure
+
   utility:
     <<: *common-settings
     tty: true
@@ -112,6 +150,13 @@ services:
     command: uvicorn config.asgi:application --host 0.0.0.0
     entrypoint: ["/src/compose-entrypoint.sh"]
     init: true
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      quickwit:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8000/health/"]
       interval: 30s
@@ -143,3 +188,4 @@ volumes:
   postgres-data:
   redis-data:
   meilisearch-data:
+  quickwit-data:

@@ -1,0 +1,13 @@
+# Quickwit node configuration
+# S3 endpoint and credentials come from environment variables
+version: 0.8
+
+node_id: civic-observer-1
+listen_address: 0.0.0.0
+
+rest:
+  listen_port: 7280
+  cors_allow_origins:
+    - "*"
+
+data_dir: /quickwit/data
