@@ -1,24 +1,22 @@
-# Override file for testing Quickwit against Fastly S3 (staging bucket)
+# Override file for local Quickwit development with local file storage.
+# Note: S3 uploads in Quickwit 0.8 are broken in Docker due to Rusoto's async
+# DNS resolver bug (bypasses /etc/hosts). Use local file storage for dev/testing.
+# For production S3, upgrade to Quickwit 0.9+ when stable.
+#
 # Usage: docker compose -f docker-compose.yml -f docker-compose.quickwit-s3.yml up
-#
-# Prerequisites: .env must contain:
-#   QUICKWIT_BUCKET=quickwit-civic-observer-staging
-#   FASTLY_ACCESS_KEY_ID=...
-#   FASTLY_SECRET_ACCESS_KEY=...
-#   FASTLY_REGION=us-west
-#
-# We use s3+path:// URIs to force path-style access (required for S3-compatible stores)
 
 services:
   quickwit:
+    image: "quickwit/quickwit:0.8.1"
+    command: ["run"]
     environment:
-      - QW_METASTORE_URI=s3://${QUICKWIT_BUCKET}/metastore
-      - QW_DEFAULT_INDEX_ROOT_URI=s3://${QUICKWIT_BUCKET}/indexes
-      - AWS_ACCESS_KEY_ID=${FASTLY_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${FASTLY_SECRET_ACCESS_KEY}
-      - AWS_DEFAULT_REGION=${FASTLY_REGION}
+      # File-based metastore for local startup reliability
+      - QW_METASTORE_URI=file:///quickwit/data/metastore
+      # Store index data locally (not S3, due to Rusoto DNS bug in Docker)
+      - QW_DEFAULT_INDEX_ROOT_URI=file:///quickwit/data/indexes
       - QW_LISTEN_ADDRESS=0.0.0.0
       - QW_ENABLE_OPENTELEMETRY=false
       - QW_ENABLE_JAEGER_EXPORTER=false
     volumes:
-      - ./quickwit/quickwit-config-s3.yaml:/quickwit/config/quickwit.yaml:ro
+      - ./quickwit/index-config.yaml:/opt/quickwit/index-config.yaml:ro
+      - quickwit-data:/quickwit/data

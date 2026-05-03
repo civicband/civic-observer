@@ -33,7 +33,7 @@ services:
       - .:/src:cache
       - postgres-data:/var/lib/postgresql/data/
       - ./docker/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
-    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf -c listen_addresses=*
     shm_size: 1gb
     # Resource limits commented out for compatibility
     # deploy:
@@ -65,24 +65,6 @@ services:
       - redis-data:/data
     restart: on-failure
 
-  meilisearch:
-    image: "getmeili/meilisearch:v1.11"
-    init: true
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:7700/health"]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-    environment:
-      - MEILI_ENV=development
-      - MEILI_MASTER_KEY=${MEILI_MASTER_KEY:-masterKey}
-      - MEILI_NO_ANALYTICS=true
-    ports:
-      - "7700:7700"
-    volumes:
-      - meilisearch-data:/meili_data
-    restart: on-failure
-
   pgbouncer:
     image: edoburu/pgbouncer:latest
     init: true
@@ -111,18 +93,19 @@ services:
     image: "quickwit/quickwit:0.8.1"
     init: true
     command: ["run"]
-    healthcheck:
-      test: ["CMD-SHELL", "curl -sf http://localhost:7280/api/v1/health >/dev/null || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-      start_period: 15s
+    # Commented out healthcheck to avoid DNS issues
+    # healthcheck:
+    #   test: ["CMD-SHELL", "wget -O /dev/null -q http://localhost:7280/api/v1/health || exit 1"]
+    #   interval: 5s
+    #   timeout: 5s
+    #   retries: 5
+    #   start_period: 15s
     environment:
       # File-backed metastore for dev (default — no S3 needed for local testing)
       # To test against Fastly S3 staging bucket, use:
       #   docker compose -f docker-compose.yml -f docker-compose.quickwit-s3.yml up
-      - QW_METASTORE_URI=file:///quickwit/data/metastore
-      - QW_DEFAULT_INDEX_ROOT_URI=file:///quickwit/data/indexes
+      # - QW_METASTORE_URI=file:///quickwit/data/metastore
+      # - QW_DEFAULT_INDEX_ROOT_URI=file:///quickwit/data/indexes
       - QW_LISTEN_ADDRESS=0.0.0.0
       - QW_ENABLE_OPENTELEMETRY=false
       - QW_ENABLE_JAEGER_EXPORTER=false
@@ -155,8 +138,6 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
-      quickwit:
-        condition: service_healthy
     healthcheck:
       test: ["CMD", "curl", "--fail", "http://localhost:8000/health/"]
       interval: 30s
@@ -173,8 +154,6 @@ services:
     entrypoint: ["/src/compose-entrypoint.sh"]
     init: true
     tty: true
-    deploy:
-      replicas: 7
 
   tailwind:
     <<: *common-settings

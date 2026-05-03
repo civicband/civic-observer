@@ -1,4 +1,12 @@
 # Quickwit node configuration for S3-backed metastore
+# This file is mounted by docker-compose.quickwit-s3.yml
+#
+# Storage configuration is handled via environment variables:
+#   QW_S3_ENDPOINT
+#   AWS_ACCESS_KEY_ID
+#   AWS_SECRET_ACCESS_KEY
+#   AWS_DEFAULT_REGION
+
 version: 0.8
 
 node_id: civic-observer-1
@@ -10,9 +18,3 @@ rest:
     - "*"
 
 data_dir: /quickwit/data
-
-storage:
-  s3:
-    endpoint: "https://us-west.object.fastlystorage.app"
-    region: us-west
-    force_path_style_access: true
