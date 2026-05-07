@@ -1,0 +1,88 @@
+x-django-settings: &django-settings
+  image: civic-observer:${VERSION:-latest}
+  depends_on:
+    redis:
+      condition: service_healthy
+  env_file: .env.production
+  restart: always
+  init: true
+  entrypoint: ["/src/compose-entrypoint.sh"]
+  networks:
+    - civic-network
+
+x-django-web: &django-web
+  <<: *django-settings
+  command: uvicorn config.asgi:application --host 0.0.0.0 --port 8000
+  healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8000/health/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+x-django-worker: &django-worker
+  <<: *django-settings
+  command: python manage.py rqworker default
+
+services:
+  redis:
+    image: "redis:7-alpine"
+    init: true
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+    command: >
+      redis-server
+      --maxmemory 256mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1
+      --loglevel warning
+    volumes:
+      - redis-data:/data
+    restart: always
+    networks:
+      - civic-network
+
+  quickwit:
+    image: "quickwit/quickwit:0.8.1"
+    command: ["run"]
+    environment:
+      # File-based metastore for local startup reliability
+      - QW_METASTORE_URI=file:///quickwit/data/metastore
+      # Store index data locally (not S3, due to Rusoto DNS bug in Docker)
+      - QW_DEFAULT_INDEX_ROOT_URI=file:///quickwit/data/indexes
+      - QW_LISTEN_ADDRESS=0.0.0.0
+      - QW_ENABLE_OPENTELEMETRY=false
+      - QW_ENABLE_JAEGER_EXPORTER=false
+    volumes:
+      - ./quickwit/index-config.yaml:/opt/quickwit/index-config.yaml:ro
+      - quickwit-data:/quickwit/data
+
+  web-blue:
+    <<: *django-web
+    container_name: observer-web-blue
+    ports:
+      - "8888:8000"
+
+  worker-blue:
+    <<: *django-worker
+    container_name: observer-worker-blue
+
+  web-green:
+    <<: *django-web
+    container_name: observer-web-green
+    ports:
+      - "8888:8000"
+
+  worker-green:
+    <<: *django-worker
+    container_name: observer-worker-green
+
+volumes:
+  redis-data:
+
+networks:
+  civic-network:
+    external: true
