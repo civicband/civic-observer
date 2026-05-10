@@ -14,11 +14,11 @@ x-django-web: &django-web
   <<: *django-settings
   command: uvicorn config.asgi:application --host 0.0.0.0 --port 8000
   healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8000/health/"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-      start_period: 30s
+    test: ["CMD", "curl", "--fail", "http://localhost:8000/health/"]
+    interval: 10s
+    timeout: 5s
+    retries: 3
+    start_period: 30s
 
 x-django-worker: &django-worker
   <<: *django-settings
@@ -82,6 +82,7 @@ services:
 
 volumes:
   redis-data:
+  quickwit-data:
 
 networks:
   civic-network:
