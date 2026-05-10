@@ -74,7 +74,7 @@ services:
     <<: *django-web
     container_name: observer-web-green
     ports:
-      - "8888:8000"
+      - "8889:8000"
 
   worker-green:
     <<: *django-worker
