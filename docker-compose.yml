@@ -1,27 +1,26 @@
 x-common-settings: &common-settings
-    build:
-      context: .
-      dockerfile: ./Dockerfile
-      target: release
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      quickwit:
-        condition: service_started
-    env_file: .env
-    restart: on-failure
-    volumes:
-      - .:/src:cache
+  build:
+    context: .
+    dockerfile: ./Dockerfile
+    target: release
+  depends_on:
+    db:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    quickwit:
+      condition: service_started
+  env_file: .env
+  restart: on-failure
+  volumes:
+    - .:/src:cache
 
 services:
-
   db:
     environment:
       - "POSTGRES_HOST_AUTH_METHOD=trust"
     healthcheck:
-      test: [ "CMD", "pg_isready", "-q", "-d", "postgres", "-U", "postgres" ]
+      test: ["CMD", "pg_isready", "-q", "-d", "postgres", "-U", "postgres"]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -74,7 +73,21 @@ services:
       - ./docker/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
       - ./docker/userlist.txt:/etc/pgbouncer/userlist.txt:ro
     healthcheck:
-      test: ["CMD", "psql", "-h", "localhost", "-p", "6432", "-U", "postgres", "-d", "postgres", "-c", "SELECT 1"]
+      test:
+        [
+          "CMD",
+          "psql",
+          "-h",
+          "localhost",
+          "-p",
+          "6432",
+          "-U",
+          "postgres",
+          "-d",
+          "postgres",
+          "-c",
+          "SELECT 1",
+        ]
       interval: 10s
       timeout: 3s
       retries: 3
@@ -157,5 +170,4 @@ services:
 volumes:
   postgres-data:
   redis-data:
-  meilisearch-data:
   quickwit-data:

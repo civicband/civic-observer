@@ -2,7 +2,7 @@
 Search backend abstraction layer.
 
 This module provides a unified interface for searching meeting pages,
-with support for multiple backends (PostgreSQL, Meilisearch).
+with support for multiple backends.
 
 The backend is selected via SEARCH_BACKEND setting, with PostgreSQL as the default fallback.
 
@@ -20,7 +20,6 @@ from django.db.models import QuerySet
 from meetings.models import MeetingPage
 
 from .cache import get_cached_search_results, set_cached_search_results
-from .meilisearch_client import get_meeting_pages_index
 from .quickwit_client import execute_search_elasticsearch_compat
 
 
@@ -52,7 +51,7 @@ class SearchBackend(ABC):
         muni_ids = []
         if municipalities:
             if hasattr(municipalities, "values_list"):
-                muni_ids = list(municipalities.values_list("id", flat=True))
+                muni_ids = list(municipalities.values_list("id", flat=True))  # pyright: ignore[reportAttributeAccessIssue]
             else:
                 muni_ids = [m.id if hasattr(m, "id") else m for m in municipalities]
 
@@ -244,142 +243,6 @@ class PostgresSearchBackend(SearchBackend):
         }
 
 
-class MeilisearchBackend(SearchBackend):
-    """Meilisearch backend for fast, typo-tolerant search."""
-
-    def get_backend_name(self) -> str:
-        return "meilisearch"
-
-    def search(
-        self,
-        query_text: str,
-        municipalities: QuerySet | list | None = None,
-        states: list | None = None,
-        date_from=None,
-        date_to=None,
-        document_type: str | None = None,
-        meeting_name_query: str | None = None,
-        limit: int = 100,
-        offset: int = 0,
-    ) -> tuple[list[dict[str, Any]], int]:
-        """
-        Search using Meilisearch.
-
-        Builds filter expressions and executes search with Meilisearch API.
-        """
-        index = get_meeting_pages_index()
-
-        # Build filter expression
-        filters = self._build_filters(
-            municipalities=municipalities,
-            states=states,
-            date_from=date_from,
-            date_to=date_to,
-            document_type=document_type,
-            meeting_name_query=meeting_name_query,
-        )
-
-        # Prepare search options
-        search_options: dict[str, Any] = {
-            "limit": limit,
-            "offset": offset,
-        }
-
-        if filters:
-            search_options["filter"] = filters
-
-        # Sort by date descending (most recent first)
-        search_options["sort"] = ["meeting_date:desc"]
-
-        # Execute search
-        results = index.search(query_text or "", search_options)
-
-        # Extract hits and total count
-        hits = results.get("hits", [])
-        total_count = results.get("estimatedTotalHits", 0)
-
-        return hits, total_count
-
-    def _build_filters(
-        self,
-        municipalities: QuerySet | list | None = None,
-        states: list | None = None,
-        date_from=None,
-        date_to=None,
-        document_type: str | None = None,
-        meeting_name_query: str | None = None,
-    ) -> str | None:
-        """
-        Build Meilisearch filter expression.
-
-        Meilisearch uses a special filter syntax:
-        - AND: field = value AND field2 = value2
-        - OR: field = value OR field = value2
-        - IN: field IN [value1, value2]
-        - Comparison: field >= value, field <= value
-
-        Returns:
-            Filter string or None if no filters
-        """
-        filter_parts = []
-
-        # Municipality filter
-        if municipalities:
-            if hasattr(municipalities, "values_list"):
-                muni_ids = list(municipalities.values_list("id", flat=True))
-            else:
-                muni_ids = [
-                    str(m.id) if hasattr(m, "id") else str(m) for m in municipalities
-                ]
-
-            if muni_ids:
-                # Convert UUIDs to strings for Meilisearch
-                muni_ids_str = [str(mid) for mid in muni_ids]
-                muni_filter = " OR ".join(
-                    [f'municipality_id = "{mid}"' for mid in muni_ids_str]
-                )
-                filter_parts.append(f"({muni_filter})")
-
-        # State filter
-        if states:
-            state_filter = " OR ".join([f'state = "{state}"' for state in states])
-            filter_parts.append(f"({state_filter})")
-
-        # Date filters
-        if date_from:
-            date_str = (
-                date_from.isoformat()
-                if hasattr(date_from, "isoformat")
-                else str(date_from)
-            )
-            filter_parts.append(f'meeting_date >= "{date_str}"')
-
-        if date_to:
-            date_str = (
-                date_to.isoformat() if hasattr(date_to, "isoformat") else str(date_to)
-            )
-            filter_parts.append(f'meeting_date <= "{date_str}"')
-
-        # Document type filter
-        if document_type and document_type != "all":
-            filter_parts.append(f'document_type = "{document_type}"')
-
-        # Meeting name query filter (substring search)
-        if meeting_name_query:
-            # For meeting name queries, we'll include it in the main search query
-            # and let Meilisearch's searchable attributes handle it
-            # Alternatively, you could add a filter like:
-            # filter_parts.append(f'meeting_name CONTAINS "{meeting_name_query}"')
-            # But Meilisearch doesn't support CONTAINS in filters by default
-            pass
-
-        # Combine all filters with AND
-        if not filter_parts:
-            return None
-
-        return " AND ".join(filter_parts)
-
-
 class QuickwitBackend(SearchBackend):
     """
     Quickwit backend for full-text search on S3-backed storage.
@@ -456,7 +319,7 @@ class QuickwitBackend(SearchBackend):
 
         if municipalities:
             if hasattr(municipalities, "values_list"):
-                muni_ids = list(municipalities.values_list("id", flat=True))
+                muni_ids = list(municipalities.values_list("id", flat=True))  # pyright: ignore[reportAttributeAccessIssue]
             else:
                 muni_ids = [m.id if hasattr(m, "id") else m for m in municipalities]
 
@@ -551,9 +414,7 @@ def get_search_backend() -> SearchBackend:
     """
     backend_name = getattr(settings, "SEARCH_BACKEND", "postgres")
 
-    if backend_name == "meilisearch":
-        return MeilisearchBackend()
-    elif backend_name == "quickwit":
+    if backend_name == "quickwit":
         return QuickwitBackend()
     else:
         # Default to Postgres

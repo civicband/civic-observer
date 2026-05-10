@@ -27,9 +27,9 @@ dependencies = [
     "django-rq>=3.0.0",
     "redis>=5.0.0",
     "atproto>=0.0.63",
-    "meilisearch>=0.40.0",
     "django-redis>=6.0.0",
     "hiredis>=3.3.0",
+    "certifi>=2025.4.26",
 ]
 
 
@@ -166,10 +166,6 @@ omit = [
     "*/static/*",
     "*/media/*",
     "*/management/commands/*",
-    # Meilisearch modules (optional feature, not tested without Meilisearch service)
-    "searches/meilisearch_client.py",
-    "searches/indexing.py",
-    "searches/search_backends.py",
 ]
 branch = true
 

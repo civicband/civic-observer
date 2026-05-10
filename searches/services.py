@@ -5,7 +5,7 @@ This module provides reusable search functions used by both:
 - Page search interface (meetings/views.py)
 - Saved search system (searches/models.py)
 
-The search backend (PostgreSQL or Meilisearch) is configured via SEARCH_BACKEND setting.
+The search backend is configured via SEARCH_BACKEND setting.
 """
 
 import re
@@ -28,7 +28,7 @@ def execute_search(search):
     """
     Execute a Search object against local MeetingPage database.
 
-    Uses the configured search backend (PostgreSQL or Meilisearch).
+    Uses the configured search backend.
 
     Args:
         search: Search model instance with filter configuration
@@ -37,15 +37,10 @@ def execute_search(search):
         QuerySet of MeetingPage objects matching the search criteria.
         If search_term is empty/null, returns all pages matching other filters
         (all updates mode).
-
-    Note:
-        When SEARCH_BACKEND='meilisearch', this returns a QuerySet reconstructed
-        from Meilisearch results for backwards compatibility. For better performance,
-        use execute_search_with_backend() which returns raw dictionaries.
     """
     backend_name = getattr(settings, "SEARCH_BACKEND", "postgres")
 
-    if backend_name in ("meilisearch", "quickwit"):
+    if backend_name in ("quickwit",):
         # Use external search backend but reconstruct QuerySet for backwards compatibility
         from .search_backends import get_search_backend
 
