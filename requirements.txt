@@ -15,7 +15,7 @@ dj-database-url==3.0.0
     # via environs
 dj-email-url==1.0.6
     # via environs
-django==5.2.2
+django==5.2.14
     # via
     #   civicobserver (pyproject.toml)
     #   dj-database-url
