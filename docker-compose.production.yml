@@ -49,6 +49,8 @@ services:
   quickwit:
     image: "quickwit/quickwit:0.8.1"
     command: ["run"]
+    networks:
+      - civic-network
     environment:
       # File-based metastore for local startup reliability
       - QW_METASTORE_URI=file:///quickwit/data/metastore
