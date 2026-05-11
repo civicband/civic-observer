@@ -63,7 +63,7 @@ semver==3.0.4
     # via django-tailwind-cli
 shellingham==1.5.4
     # via django-typer
-sqlparse==0.5.3
+sqlparse==0.5.4
     # via django
 typer-slim==0.16.0
     # via django-typer
