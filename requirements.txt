@@ -55,7 +55,7 @@ psycopg-binary==3.2.9
     # via psycopg
 python-dotenv==1.2.2
     # via environs
-requests==2.32.4
+requests==2.33.0
     # via
     #   django-anymail
     #   django-tailwind-cli
