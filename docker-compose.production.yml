@@ -49,6 +49,7 @@ services:
   quickwit:
     image: "quickwit/quickwit:0.8.2"
     command: ["run"]
+    env_file: .env.production
     networks:
       - civic-network
     environment:
