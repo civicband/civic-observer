@@ -1,6 +1,7 @@
 import re
 from typing import Any
 
+from django.conf import settings
 from django.contrib.postgres.search import (
     SearchHeadline,
     SearchQuery,
@@ -11,6 +12,8 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 from django.views.decorators.http import require_GET
 from django.views.generic import TemplateView
+
+from searches.search_backends import get_search_backend
 
 from .forms import MeetingSearchForm
 from .models import MeetingPage
@@ -414,61 +417,88 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
     # Mark that we have a query for template
     context["has_query"] = True
 
-    # Start with all meeting pages
-    queryset = MeetingPage.objects.select_related(
-        "document", "document__municipality"
-    ).all()
-
-    # Performance optimization: Apply full-text search FIRST (most selective filter)
-    # This dramatically reduces the dataset before applying other filters and joins
-    queryset, search_query = _apply_full_text_search(queryset, query)
-
-    # Apply meeting name filter (if provided)
-    # This is applied after full-text search but before other filters
-    # because it uses the document join which is already loaded
-    queryset = _apply_meeting_name_filter(queryset, meeting_name_query)
-
-    # Apply remaining filter parameters to the already-reduced dataset
-    queryset = _apply_search_filters(
-        queryset,
-        municipalities=municipalities,
-        states=states,
-        date_from=date_from,
-        date_to=date_to,
-        document_type=document_type,
-    )
-
-    # Paginate results using LIMIT+1 strategy to avoid expensive COUNT(*)
-    # Django's Paginator calls .count() which scans the full result set — this
-    # can take 3-5s on broad FTS queries matching hundreds of thousands of rows.
-    # Instead, we fetch page_size+1 rows: if we get the extra row, there's a next page.
     try:
         page_number = int(request.GET.get("page", 1))
     except (TypeError, ValueError):
         page_number = 1
     if page_number < 1:
         page_number = 1
-    offset = (page_number - 1) * SEARCH_RESULTS_PER_PAGE
 
-    # Fetch one extra row to detect if there's a next page
-    page_results = list(queryset[offset : offset + SEARCH_RESULTS_PER_PAGE + 1])
-    has_next = len(page_results) > SEARCH_RESULTS_PER_PAGE
-    if has_next:
-        page_results = page_results[:SEARCH_RESULTS_PER_PAGE]
+    # Check search backend configuration
+    backend_name = getattr(settings, "SEARCH_BACKEND", "postgres")
 
-    # Build a lightweight page info object for the template
-    page_info = {
-        "number": page_number,
-        "has_previous": page_number > 1,
-        "has_next": has_next,
-        "previous_page_number": page_number - 1 if page_number > 1 else None,
-        "next_page_number": page_number + 1 if has_next else None,
-    }
+    if backend_name in ("quickwit",):
+        backend = get_search_backend()
+        offset = (page_number - 1) * SEARCH_RESULTS_PER_PAGE
 
-    # Generate headlines ONLY for the current page (not all results)
-    # This is a major performance optimization - headlines are expensive to compute
-    context["results"] = _generate_headlines_for_page(page_results, search_query)
-    context["page_info"] = page_info
+        results, total = backend.search_with_cache(
+            query_text=query,
+            municipalities=municipalities,
+            states=states,
+            date_from=date_from,
+            date_to=date_to,
+            document_type=document_type,
+            meeting_name_query=meeting_name_query,
+            limit=SEARCH_RESULTS_PER_PAGE,
+            offset=offset,
+        )
+
+        page_ids = [result["id"] for result in results]
+        page_results = MeetingPage.objects.select_related(
+            "document", "document__municipality"
+        ).filter(id__in=page_ids)
+
+        # Preserve order from search backend
+        id_to_result = {pid: idx for idx, pid in enumerate(page_ids)}
+        page_results = sorted(page_results, key=lambda p: id_to_result.get(p.id, 0))  # type: ignore[assignment]
+
+        # Calculate pagination
+        has_next = offset + len(results) < total
+
+        page_info = {
+            "number": page_number,
+            "has_previous": page_number > 1,
+            "has_next": has_next,
+            "previous_page_number": page_number - 1 if page_number > 1 else None,
+            "next_page_number": page_number + 1 if has_next else None,
+        }
+
+        context["results"] = page_results
+        context["page_info"] = page_info
+    else:
+        # Use PostgreSQL full-text search
+        queryset = MeetingPage.objects.select_related(
+            "document", "document__municipality"
+        ).all()
+
+        queryset, search_query = _apply_full_text_search(queryset, query)
+        queryset = _apply_meeting_name_filter(queryset, meeting_name_query)
+        queryset = _apply_search_filters(
+            queryset,
+            municipalities=municipalities,
+            states=states,
+            date_from=date_from,
+            date_to=date_to,
+            document_type=document_type,
+        )
+
+        offset = (page_number - 1) * SEARCH_RESULTS_PER_PAGE
+
+        page_results = list(queryset[offset : offset + SEARCH_RESULTS_PER_PAGE + 1])  # type: ignore[assignment]
+        has_next = len(page_results) > SEARCH_RESULTS_PER_PAGE
+        if has_next:
+            page_results = page_results[:SEARCH_RESULTS_PER_PAGE]
+
+        page_info = {
+            "number": page_number,
+            "has_previous": page_number > 1,
+            "has_next": has_next,
+            "previous_page_number": page_number - 1 if page_number > 1 else None,
+            "next_page_number": page_number + 1 if has_next else None,
+        }
+
+        context["results"] = _generate_headlines_for_page(page_results, search_query)  # type: ignore[arg-type]
+        context["page_info"] = page_info
 
     # Add active filters to context for display
     context["active_filters"] = {

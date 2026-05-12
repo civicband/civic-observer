@@ -1,8 +1,10 @@
-# Quickwit node configuration for S3-backed metastore
-# This file is mounted by docker-compose.quickwit-s3.yml
+# Quickwit node configuration for S3-backed storage
+# WARNING: S3 uploads in Quickwit 0.8 are broken in Docker due to Rusoto's
+# async DNS resolver bug. Use docker-compose.quickwit-s3.yml with host networking
+# if you need S3 storage.
 #
-# Storage configuration is handled via environment variables:
-#   QW_S3_ENDPOINT
+# Required environment variables:
+#   QW_S3_ENDPOINT (optional, for custom S3-compatible endpoints)
 #   AWS_ACCESS_KEY_ID
 #   AWS_SECRET_ACCESS_KEY
 #   AWS_DEFAULT_REGION
@@ -18,3 +20,13 @@ rest:
     - "*"
 
 data_dir: /quickwit/data
+
+metastore:
+  type: s3
+  config:
+    region: us-west
+
+index_storage:
+  type: s3
+  config:
+    region: us-west

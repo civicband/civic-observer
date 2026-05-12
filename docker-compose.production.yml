@@ -47,7 +47,7 @@ services:
       - civic-network
 
   quickwit:
-    image: "quickwit/quickwit:0.8.1"
+    image: "quickwit/quickwit:0.8.2"
     command: ["run"]
     networks:
       - civic-network
