@@ -52,15 +52,17 @@ services:
     networks:
       - civic-network
     environment:
-      # File-based metastore for local startup reliability
-      - QW_METASTORE_URI=file:///quickwit/data/metastore
-      # Store index data locally (not S3, due to Rusoto DNS bug in Docker)
-      - QW_DEFAULT_INDEX_ROOT_URI=file:///quickwit/data/indexes
+      - QW_CONFIG_PATH=/opt/quickwit/quickwit.yaml
+      - QW_S3_ENDPOINT=https://${FASTLY_REGION:-us-west}.object.fastlystorage.app
+      - AWS_ACCESS_KEY_ID=${FASTLY_ACCESS_KEY_ID}
+      - AWS_SECRET_ACCESS_KEY=${FASTLY_SECRET_ACCESS_KEY}
+      - AWS_DEFAULT_REGION=${FASTLY_REGION:-us-west}
       - QW_LISTEN_ADDRESS=0.0.0.0
       - QW_ENABLE_OPENTELEMETRY=false
       - QW_ENABLE_JAEGER_EXPORTER=false
     volumes:
       - ./quickwit/index-config.yaml:/opt/quickwit/index-config.yaml:ro
+      - ./quickwit/quickwit-config-s3.yaml:/opt/quickwit/quickwit.yaml:ro
       - quickwit-data:/quickwit/data
 
   web-blue:
