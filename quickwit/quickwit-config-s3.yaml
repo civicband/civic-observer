@@ -1,13 +1,10 @@
-# Quickwit node configuration for S3-backed storage
-# WARNING: S3 uploads in Quickwit 0.8 are broken in Docker due to Rusoto's
-# async DNS resolver bug. Use docker-compose.quickwit-s3.yml with host networking
-# if you need S3 storage.
+# Quickwit node configuration for S3-backed storage (Fastly Object Storage)
 #
 # Required environment variables:
-#   QW_S3_ENDPOINT (optional, for custom S3-compatible endpoints)
+#   QW_S3_ENDPOINT=https://${FASTLY_REGION:-us-west}.object.fastlystorage.app
 #   AWS_ACCESS_KEY_ID
 #   AWS_SECRET_ACCESS_KEY
-#   AWS_DEFAULT_REGION
+#   AWS_DEFAULT_REGION=${FASTLY_REGION:-us-west}
 
 version: 0.8
 
@@ -24,9 +21,11 @@ data_dir: /quickwit/data
 metastore:
   type: s3
   config:
+    bucket: quickwit-civic-observer
     region: us-west
 
 index_storage:
   type: s3
   config:
+    bucket: quickwit-civic-observer
     region: us-west
