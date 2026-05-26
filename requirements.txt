@@ -55,7 +55,7 @@ psycopg-binary==3.2.9
     # via psycopg
 python-dotenv==1.2.2
     # via environs
-requests==2.32.4
+requests==2.33.0
     # via
     #   django-anymail
     #   django-tailwind-cli
@@ -71,7 +71,7 @@ typing-extensions==4.14.0
     # via
     #   dj-database-url
     #   typer-slim
-urllib3==2.6.3
+urllib3==2.7.0
     # via
     #   django-anymail
     #   requests
