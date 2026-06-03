@@ -18,14 +18,8 @@ rest:
 
 data_dir: /quickwit/data
 
-metastore:
-  type: s3
-  config:
-    bucket: quickwit-civic-observer
-    region: us-west
+# Use S3 for metastore (stores index metadata)
+metastore_uri: s3://quickwit-civic-observer/metastore
 
-index_storage:
-  type: s3
-  config:
-    bucket: quickwit-civic-observer
-    region: us-west
+# Use S3 for index storage (stores actual index data/splits)
+default_index_root_uri: s3://quickwit-civic-observer/indexes
