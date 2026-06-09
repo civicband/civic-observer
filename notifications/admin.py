@@ -6,7 +6,7 @@ from django.core.mail import EmailMultiAlternatives
 from django.template.loader import get_template, render_to_string
 from django.utils import timezone
 
-from .models import DigestSubscription, NotificationChannel
+from .models import DailySummarySubscription, DigestSubscription, NotificationChannel
 
 User = get_user_model()
 
@@ -105,12 +105,17 @@ class DigestSubscriptionAdmin(admin.ModelAdmin):
 
         context = {
             "user": subscription.user,
+            "summary_date": target_date,
             "grouped_meetings": [(subscription.municipality, list(meetings))],
-            "meeting_date": target_date,
+            "grouped_recent_docs": [],
+            "pending_searches": [],
+            "has_meetings": True,
+            "has_recent_docs": False,
+            "has_pending_searches": False,
         }
 
-        txt_content = render_to_string("email/meeting_digest.txt", context=context)
-        html_content = get_template("email/meeting_digest.html").render(context=context)
+        txt_content = render_to_string("email/daily_summary.txt", context=context)
+        html_content = get_template("email/daily_summary.html").render(context=context)
 
         msg = EmailMultiAlternatives(
             subject=f"TEST: Today's Civic Meetings — {target_date}",
@@ -136,6 +141,44 @@ class DigestSubscriptionAdmin(admin.ModelAdmin):
         self.message_user(request, f"Marked {count} subscription(s) as active.")
 
     @admin.action(description="Mark selected subscriptions as inactive")
+    def mark_inactive(self, request, queryset):
+        count = queryset.update(is_active=False)
+        self.message_user(request, f"Marked {count} subscription(s) as inactive.")
+
+
+@admin.register(DailySummarySubscription)
+class DailySummarySubscriptionAdmin(admin.ModelAdmin):
+    list_display = [
+        "user",
+        "is_active",
+        "last_summary_sent",
+        "created",
+        "modified",
+    ]
+    list_filter = ["is_active"]
+    search_fields = ["user__email"]
+    readonly_fields = ["id", "created", "modified", "last_summary_sent"]
+    raw_id_fields = ["user"]
+    ordering = ["-created"]
+    actions = [
+        "reset_last_summary_sent",
+        "mark_active",
+        "mark_inactive",
+    ]
+
+    @admin.action(description="Reset last summary sent date")
+    def reset_last_summary_sent(self, request, queryset):
+        count = queryset.update(last_summary_sent=None)
+        self.message_user(
+            request, f"Reset last_summary_sent for {count} subscription(s)."
+        )
+
+    @admin.action(description="Mark selected as active")
+    def mark_active(self, request, queryset):
+        count = queryset.update(is_active=True)
+        self.message_user(request, f"Marked {count} subscription(s) as active.")
+
+    @admin.action(description="Mark selected as inactive")
     def mark_inactive(self, request, queryset):
         count = queryset.update(is_active=False)
         self.message_user(request, f"Marked {count} subscription(s) as inactive.")

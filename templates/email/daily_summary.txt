@@ -1,0 +1,34 @@
+Your Civic Observer Daily Summary — {{ summary_date|date:"F d, Y" }}
+====================================================================
+
+Hello {{ user.email }},
+
+Here's your summary for {{ summary_date|date:"F d, Y" }}:
+
+{% if has_meetings %}Today's Meetings:
+{% for municipality, meetings in grouped_meetings %}
+{{ municipality.name }}, {{ municipality.state }}
+{% for meeting in meetings %}
+  - {{ meeting.meeting_name }} ({{ meeting.document_type }})
+    View: https://civic.observer/meetings/search/?municipality={{ municipality.subdomain }}
+{% endfor %}{% endfor %}{% endif %}
+
+{% if has_recent_docs %}Recently Published:
+{% for municipality, docs in grouped_recent_docs %}
+{{ municipality.name }}, {{ municipality.state }}
+{% for doc in docs %}
+  - {{ doc.meeting_name }} ({{ doc.document_type }}) — {{ doc.meeting_date|date:"F d, Y" }}
+    View: https://civic.observer/meetings/search/?municipality={{ municipality.subdomain }}
+{% endfor %}{% endfor %}{% endif %}
+
+{% if has_pending_searches %}Saved Search Results:
+{% for saved_search in pending_searches %}
+  - {{ saved_search.name }}
+{% if saved_search.search.search_term %}    Search: "{{ saved_search.search.search_term }}"{% endif %}
+    View: https://civic.observer/searches/{{ saved_search.id }}/
+{% endfor %}{% endif %}
+----------------------------------------------------------------------
+
+Manage your subscriptions: https://civic.observer/notifications/
+
+Civic Observer - Monitoring local government meetings

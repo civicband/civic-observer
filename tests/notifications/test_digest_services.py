@@ -1,41 +1,23 @@
-"""Tests for notifications/services.py digest email sending."""
+"""Tests for notifications/services.py daily summary email sending."""
 
 from datetime import date
 
 from django.core import mail
 from django.test import TestCase, override_settings
 
-from notifications.models import DigestSubscription
-from notifications.services import send_meeting_digest_email
+from notifications.services import send_daily_summary_email
 from tests.factories import MeetingDocumentFactory, MuniFactory, UserFactory
 
 
 @override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
-class SendMeetingDigestEmailTest(TestCase):
+class SendDailySummaryEmailTest(TestCase):
     def setUp(self):
         self.user = UserFactory(
-            email="digestuser@example.com",
+            email="summaryuser@example.com",
             timezone="America/Chicago",
         )
         self.muni = MuniFactory(name="Springfield", state="IL", subdomain="springfield")
         self.today = date.today()
-
-    def _create_meetings(self, count=2):
-        meeting_names = [
-            "City Council",
-            "Planning Board",
-            "Zoning Committee",
-            "School Board",
-        ]
-        return [
-            MeetingDocumentFactory(
-                municipality=self.muni,
-                meeting_date=self.today,
-                meeting_name=meeting_names[i],
-                document_type="agenda",
-            )
-            for i in range(count)
-        ]
 
     def test_email_groups_meetings_by_municipality(self):
         muni2 = MuniFactory(name="Shelbyville", state="IL", subdomain="shelbyville")
@@ -53,33 +35,66 @@ class SendMeetingDigestEmailTest(TestCase):
         )
         from meetings.models import MeetingDocument
 
-        all_meetings = list(
-            MeetingDocument.objects.filter(
-                meeting_date=self.today,
-            ).select_related("municipality"),
+        today_meetings = list(
+            MeetingDocument.objects.filter(meeting_date=self.today).select_related(
+                "municipality"
+            ),
         )
-        send_meeting_digest_email(self.user, all_meetings, self.today)
+        send_daily_summary_email(
+            user=self.user,
+            today_meetings=today_meetings,
+            recent_docs=[],
+            pending_searches=[],
+            summary_date=self.today,
+        )
 
-        html_content = mail.outbox[0].alternatives[0][0]  # type: ignore[attr-defined]
+        html_content = mail.outbox[0].alternatives[0][0]
         self.assertIn("Springfield", html_content)
         self.assertIn("Shelbyville", html_content)
         self.assertIn("City Council", html_content)
         self.assertIn("Town Board", html_content)
 
     def test_uses_default_from_email_setting(self):
-        meetings = self._create_meetings(1)
-        send_meeting_digest_email(self.user, meetings, self.today)
+        meetings = [
+            MeetingDocumentFactory(
+                municipality=self.muni,
+                meeting_date=self.today,
+                meeting_name="City Council",
+                document_type="agenda",
+            )
+        ]
+        send_daily_summary_email(
+            user=self.user,
+            today_meetings=meetings,
+            recent_docs=[],
+            pending_searches=[],
+            summary_date=self.today,
+        )
 
         self.assertIn("noreply@civic.observer", mail.outbox[0].from_email)
 
-    def test_does_not_update_last_digest_sent(self):
-        """Service should NOT update last_digest_sent (that's the command's job)."""
-        DigestSubscription.objects.create(
-            user=self.user,
+    def test_includes_recent_docs_section(self):
+        MeetingDocumentFactory(
             municipality=self.muni,
+            meeting_date=self.today,
+            meeting_name="Planning Board",
+            document_type="minutes",
         )
-        meetings = self._create_meetings(1)
-        send_meeting_digest_email(self.user, meetings, self.today)
+        from meetings.models import MeetingDocument
 
-        sub = DigestSubscription.objects.get(user=self.user, municipality=self.muni)
-        self.assertIsNone(sub.last_digest_sent)
+        recent_docs = list(
+            MeetingDocument.objects.filter(meeting_date=self.today).select_related(
+                "municipality"
+            ),
+        )
+        send_daily_summary_email(
+            user=self.user,
+            today_meetings=[],
+            recent_docs=recent_docs,
+            pending_searches=[],
+            summary_date=self.today,
+        )
+
+        html_content = mail.outbox[0].alternatives[0][0]
+        self.assertIn("Recently Published", html_content)
+        self.assertIn("Planning Board", html_content)

@@ -124,3 +124,35 @@ class DigestSubscription(TimeStampedModel):
 
     def __str__(self) -> str:
         return f"{self.user.email} → {self.municipality}"
+
+
+class DailySummarySubscription(TimeStampedModel):
+    """
+    Master opt-in for daily summary emails.
+    A single toggle per user that enables the consolidated daily summary
+    (today's meetings, recently published docs, saved search results).
+    """
+
+    user = models.OneToOneField(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="daily_summary",
+    )
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Whether this daily summary subscription is active",
+    )
+    last_summary_sent = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date the last summary was sent",
+    )
+
+    class Meta:
+        db_table = "daily_summary_subscription"
+        ordering = ["user__email"]
+        verbose_name = "Daily Summary Subscription"
+        verbose_name_plural = "Daily Summary Subscriptions"
+
+    def __str__(self) -> str:
+        return f"Daily summary for {self.user.email}"

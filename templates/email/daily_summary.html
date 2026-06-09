@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="UTF-8">
+        <title>Your Daily Civic Observer Summary</title>
+    </head>
+    <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
+        <div style="max-width: 600px; margin: 0 auto; padding: 20px;">
+            <h1 style="color: #4F46E5;">Your Civic Observer Daily Summary</h1>
+
+            <p>Hello {{ user.email }},</p>
+
+            <p>Here's your summary for <strong>{{ summary_date|date:"F d, Y" }}</strong>:</p>
+
+            {% if has_meetings %}
+                <div style="margin: 20px 0; padding: 15px; background-color: #F3F4F6; border-radius: 5px; border-left: 4px solid #4F46E5;">
+                    <h2 style="margin-top: 0; color: #1F2937; font-size: 18px;">Today's Meetings</h2>
+
+                    {% for municipality, meetings in grouped_meetings %}
+                        <div style="margin: 10px 0; padding: 10px; background-color: #FFFFFF; border-radius: 3px;">
+                            <p style="margin: 0 0 5px 0; font-weight: bold; color: #4F46E5;">{{ municipality.name }}, {{ municipality.state }}</p>
+                            {% for meeting in meetings %}
+                                <p style="margin: 5px 0; padding: 5px 0; border-bottom: 1px solid #E5E7EB;">
+                                    <strong>{{ meeting.meeting_name }}</strong>
+                                    {% if meeting.document_type %}
+                                        <span style="background-color: #E0E7FF; color: #4338CA; padding: 2px 6px; border-radius: 3px; font-size: 12px; margin-left: 8px;">
+                                            {{ meeting.document_type }}
+                                        </span>
+                                    {% endif %}
+                                    <br>
+                                    <a href="https://civic.observer/meetings/search/?municipality={{ municipality.subdomain }}"
+                                       style="color: #4F46E5; font-size: 13px; text-decoration: none;">
+                                        View documents &rarr;
+                                    </a>
+                                </p>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {% if has_recent_docs %}
+                <div style="margin: 20px 0; padding: 15px; background-color: #F3F4F6; border-radius: 5px; border-left: 4px solid #059669;">
+                    <h2 style="margin-top: 0; color: #1F2937; font-size: 18px;">Recently Published</h2>
+
+                    {% for municipality, docs in grouped_recent_docs %}
+                        <div style="margin: 10px 0; padding: 10px; background-color: #FFFFFF; border-radius: 3px;">
+                            <p style="margin: 0 0 5px 0; font-weight: bold; color: #059669;">{{ municipality.name }}, {{ municipality.state }}</p>
+                            {% for doc in docs %}
+                                <p style="margin: 5px 0; padding: 5px 0; border-bottom: 1px solid #E5E7EB;">
+                                    <strong>{{ doc.meeting_name }}</strong>
+                                    {% if doc.document_type %}
+                                        <span style="background-color: #D1FAE5; color: #065F46; padding: 2px 6px; border-radius: 3px; font-size: 12px; margin-left: 8px;">
+                                            {{ doc.document_type }}
+                                        </span>
+                                    {% endif %}
+                                    <br>
+                                    <span style="color: #6B7280; font-size: 13px;">{{ doc.meeting_date|date:"F d, Y" }}</span>
+                                    <br>
+                                    <a href="https://civic.observer/meetings/search/?municipality={{ municipality.subdomain }}"
+                                       style="color: #059669; font-size: 13px; text-decoration: none;">
+                                        View documents &rarr;
+                                    </a>
+                                </p>
+                            {% endfor %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {% if has_pending_searches %}
+                <div style="margin: 20px 0; padding: 15px; background-color: #F3F4F6; border-radius: 5px; border-left: 4px solid #D97706;">
+                    <h2 style="margin-top: 0; color: #1F2937; font-size: 18px;">Saved Search Results</h2>
+
+                    {% for saved_search in pending_searches %}
+                        <div style="margin: 10px 0; padding: 10px; background-color: #FFFFFF; border-radius: 3px;">
+                            <p style="margin: 0; font-weight: bold; color: #92400E;">{{ saved_search.name }}</p>
+                            {% if saved_search.search.search_term %}
+                                <p style="margin: 5px 0; font-size: 14px; color: #6B7280;">
+                                    Search: "{{ saved_search.search.search_term }}"
+                                </p>
+                            {% endif %}
+                            <p style="margin: 5px 0;">
+                                <a href="https://civic.observer/searches/{{ saved_search.id }}/"
+                                   style="color: #D97706; font-size: 13px; text-decoration: none;">
+                                    View results &rarr;
+                                </a>
+                            </p>
+                        </div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+
+            {% if not has_meetings and not has_recent_docs and not has_pending_searches %}
+                <p>No meetings, recent documents, or saved search results to report today.</p>
+            {% endif %}
+
+            <hr style="border: none; border-top: 1px solid #E5E7EB; margin: 20px 0;">
+
+            <p style="color: #6B7280; font-size: 14px;">
+                Manage your subscriptions at
+                <a href="https://civic.observer/notifications/" style="color: #4F46E5;">Civic Observer Settings</a>
+            </p>
+
+            <p style="color: #6B7280; font-size: 12px; margin-top: 20px;">
+                Civic Observer - Monitoring local government meetings
+            </p>
+        </div>
+    </body>
+</html>

@@ -88,33 +88,45 @@ def dispatch_to_all_channels(
     return results
 
 
-def send_meeting_digest_email(user, meetings, meeting_date) -> None:
-    """Send a consolidated daily digest email with today's meetings.
+def send_daily_summary_email(
+    user, today_meetings, recent_docs, pending_searches, summary_date
+) -> None:
+    """Send a consolidated daily summary email.
+
+    Combines today's meetings, recently published documents, and
+    pending saved search results into a single email.
 
     Args:
-        user: The user to send the digest to.
-        meetings: QuerySet of MeetingDocument objects for today.
-        meeting_date: The date of the meetings being reported.
-
-    Note:
-        The caller (management command) is responsible for updating
-        last_digest_sent after successful delivery.
+        user: The user to send the summary to.
+        today_meetings: QuerySet of MeetingDocument for today.
+        recent_docs: QuerySet of MeetingDocument published in last 24h.
+        pending_searches: QuerySet of SavedSearch with pending results.
+        summary_date: The date of the summary.
     """
-    grouped_by_muni = defaultdict(list)
-    for meeting in meetings:
-        grouped_by_muni[meeting.municipality].append(meeting)
+    grouped_meetings = defaultdict(list)
+    for meeting in today_meetings:
+        grouped_meetings[meeting.municipality].append(meeting)
+
+    grouped_recent = defaultdict(list)
+    for doc in recent_docs:
+        grouped_recent[doc.municipality].append(doc)
 
     context = {
         "user": user,
-        "grouped_meetings": list(grouped_by_muni.items()),
-        "meeting_date": meeting_date,
+        "summary_date": summary_date,
+        "grouped_meetings": list(grouped_meetings.items()),
+        "grouped_recent_docs": list(grouped_recent.items()),
+        "pending_searches": pending_searches,
+        "has_meetings": bool(today_meetings),
+        "has_recent_docs": bool(recent_docs),
+        "has_pending_searches": bool(pending_searches),
     }
 
-    txt_content = render_to_string("email/meeting_digest.txt", context=context)
-    html_content = get_template("email/meeting_digest.html").render(context=context)
+    txt_content = render_to_string("email/daily_summary.txt", context=context)
+    html_content = get_template("email/daily_summary.html").render(context=context)
 
     msg = EmailMultiAlternatives(
-        subject=f"Today's Civic Meetings — {meeting_date}",
+        subject=f"Your Civic Observer Daily Summary — {summary_date}",
         to=[user.email],
         from_email=settings.DEFAULT_FROM_EMAIL,
         body=txt_content,
