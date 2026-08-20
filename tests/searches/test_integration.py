@@ -6,12 +6,18 @@ These tests verify the complete end-to-end workflow:
 2. Saving searches from parameters
 3. Triggering notifications after new pages are ingested
 4. Sending digest emails
+
+Since pg_search operators aren't available in the test database, we mock
+the search backend to return results based on the pages created in each test.
 """
+
+from unittest.mock import patch
 
 import pytest
 from django.contrib.auth import get_user_model
 from django.core import mail
 
+from meetings.models import MeetingPage
 from searches.models import SavedSearch, Search
 from searches.tasks import (
     check_all_immediate_searches,
@@ -29,11 +35,53 @@ from tests.factories import (
 User = get_user_model()
 
 
+def _mock_backend_returning_all_pages():
+    """Create a mock backend that returns all MeetingPage IDs."""
+    from unittest.mock import MagicMock
+
+    mock_backend = MagicMock()
+
+    def search_side_effect(**kwargs):
+        # Return all pages in the database matching the basic criteria
+        qs = MeetingPage.objects.all()
+        query_text = kwargs.get("query_text", "")
+        municipalities = kwargs.get("municipalities")
+        states = kwargs.get("states")
+        date_from = kwargs.get("date_from")
+        date_to = kwargs.get("date_to")
+        document_type = kwargs.get("document_type")
+
+        if query_text:
+            qs = qs.filter(text__icontains=query_text)
+        if municipalities is not None:
+            if hasattr(municipalities, "values_list"):
+                muni_ids = list(municipalities.values_list("id", flat=True))
+            else:
+                muni_ids = [m.id if hasattr(m, "id") else m for m in municipalities]
+            if muni_ids:
+                qs = qs.filter(municipality_id__in=muni_ids)
+        if states:
+            qs = qs.filter(state__in=states)
+        if date_from:
+            qs = qs.filter(meeting_date__gte=date_from)
+        if date_to:
+            qs = qs.filter(meeting_date__lte=date_to)
+        if document_type and document_type != "all":
+            qs = qs.filter(document_type=document_type)
+
+        results = [{"id": p.id} for p in qs]
+        return results, len(results)
+
+    mock_backend.search.side_effect = search_side_effect
+    return mock_backend
+
+
 @pytest.mark.django_db
 class TestEndToEndWorkflow:
     """Test complete workflow from search creation to notification."""
 
-    def test_complete_immediate_notification_workflow(self):
+    @patch("searches.search_backends.get_search_backend")
+    def test_complete_immediate_notification_workflow(self, mock_get_backend):
         """
         Test the complete workflow:
         1. Create a search with multiple filters
@@ -41,12 +89,12 @@ class TestEndToEndWorkflow:
         3. Ingest new pages that match
         4. Verify notification is sent
         """
-        # Setup: Create user and municipalities
+        mock_get_backend.return_value = _mock_backend_returning_all_pages()
+
         user = UserFactory(email="test@example.com")
         muni1 = MuniFactory(name="Oakland", state="CA")
         muni2 = MuniFactory(name="Berkeley", state="CA")
 
-        # Create a search with multiple filters
         search = Search.objects.get_or_create_for_params(
             search_term="housing",
             municipalities=[muni1, muni2],
@@ -54,7 +102,6 @@ class TestEndToEndWorkflow:
             document_type="agenda",
         )
 
-        # Create a saved search
         saved_search = SavedSearch.objects.create(
             user=user,
             search=search,
@@ -62,10 +109,8 @@ class TestEndToEndWorkflow:
             notification_frequency="immediate",
         )
 
-        # Verify no emails sent yet
         assert len(mail.outbox) == 0
 
-        # Simulate new page ingest
         doc = MeetingDocumentFactory(
             municipality=muni1, document_type="agenda", meeting_date="2025-01-15"
         )
@@ -73,22 +118,20 @@ class TestEndToEndWorkflow:
             document=doc, text="Discussion about affordable housing programs in Oakland"
         )
 
-        # Trigger notification check
         check_saved_search_for_updates(saved_search.id)
 
-        # Verify email was sent
         assert len(mail.outbox) == 1
         email = mail.outbox[0]
         assert email.to == ["test@example.com"]
         assert "housing" in email.body.lower()
         assert "Bay Area Housing Updates" in email.body
 
-        # Verify tracking fields updated
         saved_search.refresh_from_db()
         assert saved_search.last_notification_sent is not None
         assert saved_search.has_pending_results is False
 
-    def test_complete_daily_digest_workflow(self):
+    @patch("searches.search_backends.get_search_backend")
+    def test_complete_daily_digest_workflow(self, mock_get_backend):
         """
         Test daily digest workflow:
         1. Create multiple saved searches with daily digest
@@ -97,10 +140,11 @@ class TestEndToEndWorkflow:
         4. Run daily digest task
         5. Verify combined email is sent
         """
+        mock_get_backend.return_value = _mock_backend_returning_all_pages()
+
         user = UserFactory(email="digest@example.com")
         muni = MuniFactory(name="San Francisco", state="CA")
 
-        # Create two searches with daily digest
         search1 = Search.objects.get_or_create_for_params(
             search_term="budget", municipalities=[muni]
         )
@@ -121,28 +165,22 @@ class TestEndToEndWorkflow:
             notification_frequency="daily",
         )
 
-        # Ingest matching pages
         doc = MeetingDocumentFactory(municipality=muni)
         MeetingPageFactory(document=doc, text="Budget discussion for fiscal year 2025")
         MeetingPageFactory(document=doc, text="Proposed zoning changes for downtown")
 
-        # Check searches and flag for digest
         check_saved_search_for_updates(saved_search1.id)
         check_saved_search_for_updates(saved_search2.id)
 
-        # Verify no immediate emails sent
         assert len(mail.outbox) == 0
 
-        # Verify searches flagged
         saved_search1.refresh_from_db()
         saved_search2.refresh_from_db()
         assert saved_search1.has_pending_results is True
         assert saved_search2.has_pending_results is True
 
-        # Run daily digest
         send_daily_digests()
 
-        # Verify combined email sent
         assert len(mail.outbox) == 1
         email = mail.outbox[0]
         assert email.to == ["digest@example.com"]
@@ -150,17 +188,18 @@ class TestEndToEndWorkflow:
         assert "Zoning Changes" in email.body
         assert "daily" in email.subject.lower()
 
-        # Verify flags cleared
         saved_search1.refresh_from_db()
         saved_search2.refresh_from_db()
         assert saved_search1.has_pending_results is False
         assert saved_search2.has_pending_results is False
 
-    def test_batch_notification_after_ingest(self):
+    @patch("searches.search_backends.get_search_backend")
+    def test_batch_notification_after_ingest(self, mock_get_backend):
         """
         Test that after ingesting multiple pages, all immediate searches are checked.
         """
-        # Create multiple users with immediate searches
+        mock_get_backend.return_value = _mock_backend_returning_all_pages()
+
         user1 = UserFactory(email="user1@example.com")
         user2 = UserFactory(email="user2@example.com")
         muni = MuniFactory(name="Portland", state="OR")
@@ -170,7 +209,7 @@ class TestEndToEndWorkflow:
         )
         search2 = Search.objects.get_or_create_for_params(
             search_term="",
-            municipalities=[muni],  # All updates mode
+            municipalities=[muni],
         )
 
         SavedSearch.objects.create(
@@ -186,17 +225,14 @@ class TestEndToEndWorkflow:
             notification_frequency="immediate",
         )
 
-        # Ingest a page that matches both searches
         doc = MeetingDocumentFactory(municipality=muni)
         MeetingPageFactory(
             document=doc,
             text="New light rail transportation project proposal for downtown",
         )
 
-        # Run batch check (would be triggered after ingest)
         check_all_immediate_searches()
 
-        # Verify both users received emails
         assert len(mail.outbox) == 2
         recipients = {email.to[0] for email in mail.outbox}
         assert recipients == {"user1@example.com", "user2@example.com"}
@@ -227,14 +263,17 @@ class TestSearchFilterCombinations:
         assert search.document_type == "minutes"
         assert search.meeting_name_query == "planning OR council"
 
-    def test_all_updates_mode_with_multiple_municipalities(self):
+    @patch("searches.search_backends.get_search_backend")
+    def test_all_updates_mode_with_multiple_municipalities(self, mock_get_backend):
         """Test all updates mode (empty search_term) with multiple municipalities."""
+        mock_get_backend.return_value = _mock_backend_returning_all_pages()
+
         user = UserFactory()
         muni1 = MuniFactory(name="Austin", state="TX")
         muni2 = MuniFactory(name="Dallas", state="TX")
 
         search = Search.objects.get_or_create_for_params(
-            search_term="",  # All updates mode
+            search_term="",
             municipalities=[muni1, muni2],
         )
 
@@ -242,20 +281,21 @@ class TestSearchFilterCombinations:
             user=user, search=search, name="All Texas Updates"
         )
 
-        # Create pages in both municipalities
         doc1 = MeetingDocumentFactory(municipality=muni1)
         doc2 = MeetingDocumentFactory(municipality=muni2)
         page1 = MeetingPageFactory(document=doc1, text="Austin city council agenda")
         page2 = MeetingPageFactory(document=doc2, text="Dallas planning meeting")
 
-        # Update search should find both
         new_pages = search.update_search()
         assert new_pages.count() == 2
         assert page1 in new_pages
         assert page2 in new_pages
 
-    def test_date_range_filtering(self):
+    @patch("searches.search_backends.get_search_backend")
+    def test_date_range_filtering(self, mock_get_backend):
         """Test that date range filters work correctly."""
+        mock_get_backend.return_value = _mock_backend_returning_all_pages()
+
         muni = MuniFactory(name="Boston", state="MA")
 
         search = Search.objects.get_or_create_for_params(
@@ -265,7 +305,6 @@ class TestSearchFilterCombinations:
             date_to="2025-02-28",
         )
 
-        # Create pages with different dates
         doc_in_range = MeetingDocumentFactory(
             municipality=muni, meeting_date="2025-02-15"
         )
@@ -280,7 +319,6 @@ class TestSearchFilterCombinations:
         MeetingPageFactory(document=doc_before, text="Budget from January")
         MeetingPageFactory(document=doc_after, text="Budget from March")
 
-        # Update search should only find page in range
         new_pages = search.update_search()
         assert new_pages.count() == 1
         assert page_in_range in new_pages
@@ -290,21 +328,21 @@ class TestSearchFilterCombinations:
 class TestNotificationPreferences:
     """Test different notification frequency preferences."""
 
-    def test_switching_notification_frequency(self):
+    @patch("searches.search_backends.get_search_backend")
+    def test_switching_notification_frequency(self, mock_get_backend):
         """Test that changing notification frequency works correctly."""
+        mock_get_backend.return_value = _mock_backend_returning_all_pages()
+
         user = UserFactory()
         muni = MuniFactory()
 
-        # Create document and page first
         doc = MeetingDocumentFactory(municipality=muni)
         _page1 = MeetingPageFactory(document=doc, text="New parks development proposal")
 
-        # Create search after page exists
         search = Search.objects.get_or_create_for_params(
             search_term="parks", municipalities=[muni]
         )
 
-        # Start with immediate
         saved_search = SavedSearch.objects.create(
             user=user,
             search=search,
@@ -312,21 +350,17 @@ class TestNotificationPreferences:
             notification_frequency="immediate",
         )
 
-        # Check with immediate - should send email for existing page
         check_saved_search_for_updates(saved_search.id)
         assert len(mail.outbox) == 1
 
-        # Change to daily
         saved_search.notification_frequency = "daily"
         saved_search.save()
         mail.outbox.clear()
 
-        # Ingest another page
         _page2 = MeetingPageFactory(
             document=doc, text="Parks renovation budget approved"
         )
 
-        # Check with daily - should NOT send email, just flag
         check_saved_search_for_updates(saved_search.id)
         assert len(mail.outbox) == 0
         saved_search.refresh_from_db()
@@ -348,11 +382,9 @@ class TestNotificationPreferences:
             has_pending_results=True,
         )
 
-        # Run daily digest
         send_daily_digests()
-        assert len(mail.outbox) == 0  # Should not send
+        assert len(mail.outbox) == 0
 
-        # Run weekly digest
         send_weekly_digests()
         assert len(mail.outbox) == 1
         assert mail.outbox[0].to == ["weekly@example.com"]

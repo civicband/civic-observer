@@ -1,7 +1,5 @@
 import uuid
 
-from django.contrib.postgres.indexes import GinIndex
-from django.contrib.postgres.search import SearchVectorField
 from django.db import models
 from model_utils.models import TimeStampedModel
 
@@ -29,11 +27,6 @@ class MeetingDocument(TimeStampedModel):
         db_index=True,
         help_text="Name of the meeting body (e.g., 'CityCouncil', 'PlanningBoard')",
     )
-    # Pre-computed search vector for meeting name full-text search
-    # Auto-updated by database trigger (see migration 0004)
-    # Includes CamelCase preprocessing: "CityCouncil" → "City Council"
-    # This allows searching for "Council", "City", or "City Council"
-    meeting_name_search_vector = SearchVectorField(null=True)
     meeting_date = models.DateField(db_index=True)
     document_type = models.CharField(
         max_length=10, choices=DOCUMENT_TYPE_CHOICES, db_index=True
@@ -89,28 +82,64 @@ class MeetingPage(TimeStampedModel):
         blank=True,
         help_text="Path to the page image (e.g., '/_agendas/CityCouncil/2024-01-02/5.png')",
     )
-    # Pre-computed search vector for fast full-text search
-    # Auto-updated by database trigger (see migration 0003)
-    search_vector = SearchVectorField(null=True)
+
+    # --- from clerk ---------------------------------------------------------
+    legacy_id = models.CharField(max_length=64, null=True, blank=True, db_index=True)
+    content_hash = models.CharField(max_length=64, null=True, blank=True)
+
+    # --- denormalized for BM25 ---------------------------------------------
+    # db_constraint=False: this duplicates document.municipality, so the FK
+    # check on every COPY row costs throughput for integrity already enforced
+    # upstream. db_index=False: the BM25 index covers these; a separate btree
+    # is dead weight on 15.5M rows.
+    municipality = models.ForeignKey(
+        "municipalities.Muni",
+        on_delete=models.DO_NOTHING,
+        db_constraint=False,
+        db_index=False,
+        null=True,
+        related_name="+",
+    )
+    municipality_subdomain = models.CharField(max_length=255, blank=True)
+    municipality_name = models.CharField(max_length=255, blank=True)
+    state = models.CharField(max_length=64, blank=True)
+    meeting_name = models.CharField(max_length=255, blank=True)
+    meeting_date = models.DateField(null=True)
+    document_type = models.CharField(max_length=32, blank=True)
 
     class Meta:
         verbose_name = "Meeting Page"
         verbose_name_plural = "Meeting Pages"
         ordering = ["document", "page_number"]
-        indexes = [
-            models.Index(
-                fields=["document", "page_number"], name="meetings_doc_page_idx"
-            ),
-            GinIndex(
-                fields=["text"],
-                name="meetingpage_text_gin_idx",
-                opclasses=["gin_trgm_ops"],
-            ),
-        ]
         unique_together = [["document", "page_number"]]
+        # NOTE: no indexes here. The BM25 index is created out-of-band in
+        # Stage 6 — never in a migration. See migration 0008's docstring for
+        # what happens when a large index build runs inside a deploy.
 
-    def __str__(self) -> str:
-        return f"{self.document} - Page {self.page_number}"
+    @property
+    def civic_band_table_name(self) -> str:
+        return "agendas" if self.document_type == "agenda" else "minutes"
+
+    def denormalize(self, document=None):
+        """Populate the flattened columns from the parent document."""
+        doc = document or self.document
+        muni = doc.municipality
+        self.municipality_id = muni.id
+        self.municipality_subdomain = muni.subdomain
+        self.municipality_name = muni.name
+        self.state = muni.state
+        self.meeting_name = doc.meeting_name
+        self.meeting_date = doc.meeting_date
+        self.document_type = doc.document_type
+
+    def save(self, *args, **kwargs):
+        # Always refresh: a page can be reassigned to a different document, and
+        # a stale denormalized row is worse than a slightly slower save. The
+        # three existing call sites all have `document` in hand already, so
+        # this is usually free.
+        if self.document_id:
+            self.denormalize()
+        super().save(*args, **kwargs)
 
 
 class BackfillProgress(models.Model):

@@ -52,18 +52,9 @@ class FetchPageView(LoginRequiredMixin, View):
         if not all([page_id, subdomain, table]):
             return self._render_error("Missing required parameters.")
 
-        # Convert table to document_type
-        document_type = "agenda" if table == "agendas" else "minutes"
-
-        # Try to find the page locally using composite key
+        # Try to find the page locally
         try:
-            page = MeetingPage.objects.select_related(
-                "document", "document__municipality"
-            ).get(
-                id=page_id,
-                document__municipality__subdomain=subdomain,
-                document__document_type=document_type,
-            )
+            page = MeetingPage.objects.get(id=page_id)
             return self._render_preview(request, page, subdomain, table)
         except MeetingPage.DoesNotExist:
             pass  # Will try remote fetch

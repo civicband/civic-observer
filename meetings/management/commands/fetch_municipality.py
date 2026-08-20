@@ -9,8 +9,6 @@ Usage:
     python manage.py fetch_municipality alameda-ca --fixtures
     python manage.py fetch_municipality alameda-ca --fixtures --count 50
 
-    # Generate fixtures and index into Quickwit
-    python manage.py fetch_municipality alameda-ca --fixtures --quickwit
 """
 
 import uuid
@@ -53,11 +51,6 @@ class Command(BaseCommand):
             help="Number of meeting documents to create (with --fixtures, default: 5)",
         )
         parser.add_argument(
-            "--quickwit",
-            action="store_true",
-            help="Index generated pages into Quickwit",
-        )
-        parser.add_argument(
             "--overwrite",
             action="store_true",
             help="Overwrite existing municipality data",
@@ -67,7 +60,7 @@ class Command(BaseCommand):
         subdomain = options["subdomain"]
         do_backfill = options["backfill"]
         do_fixtures = options["fixtures"]
-        do_quickwit = options["quickwit"]
+
         overwrite = options["overwrite"]
         fixture_count = options["count"]
         fixture_docs = options["documents"]
@@ -94,9 +87,7 @@ class Command(BaseCommand):
                 self.stdout.write(
                     f"\n  Found {existing_count} existing pages, skipping generation"
                 )
-                self.stdout.write(
-                    "  Tip: use --overwrite --fixtures --quickwit to re-index"
-                )
+                self.stdout.write("  Tip: use --overwrite --fixtures to regenerate")
             else:
                 if existing_count > 0 and overwrite:
                     self.stdout.write(
@@ -190,44 +181,6 @@ class Command(BaseCommand):
                 self.stdout.write(self.style.ERROR(f"\n  ✗ Backfill failed: {e}"))
                 raise CommandError(f"Backfill failed: {e}") from e
 
-        # Index into Quickwit if requested
-        if do_quickwit:
-            self.stdout.write("\n  Indexing pages into Quickwit...")
-            self.stdout.write(
-                "  (Quickwit commit timeout is 10s — results available after ~10s)"
-            )
-            try:
-                from meetings.models import MeetingPage
-                from searches.quickwit_client import ingest_documents
-
-                pages = MeetingPage.objects.select_related(
-                    "document", "document__municipality"
-                ).filter(document__municipality=muni)
-
-                qw_documents: list[dict] = [
-                    self._page_to_quickwit_doc(page) for page in pages
-                ]
-
-                if qw_documents:
-                    result = ingest_documents(qw_documents)
-                    if "error" in result:
-                        self.stdout.write(self.style.ERROR(f"  ✗ {result['error']}"))
-                    else:
-                        self.stdout.write(
-                            self.style.SUCCESS(
-                                f"\n  ✓ Indexed {len(qw_documents)} pages into Quickwit"
-                            )
-                        )
-                else:
-                    self.stdout.write(self.style.WARNING("\n  No pages to index"))
-
-            except Exception as e:
-                self.stdout.write(
-                    self.style.ERROR(f"\n  ✗ Quickwit indexing failed: {e}")
-                )
-                if not do_fixtures and not do_backfill:
-                    raise CommandError(f"Quickwit indexing failed: {e}") from e
-
     def _ensure_municipality(self, subdomain, overwrite):
         import httpx
 
@@ -311,23 +264,3 @@ class Command(BaseCommand):
         if "name" not in data:
             data["name"] = subdomain.replace("-", " ").title()
         return data
-
-    def _page_to_quickwit_doc(self, page):
-        """Convert a MeetingPage to a Quickwit-compatible document dict."""
-        md = page.document.meeting_date
-        meeting_date_str = f"{md.isoformat()}T00:00:00"
-
-        return {
-            "id": page.id,
-            "page_number": page.page_number,
-            "text": page.text,
-            "page_image": page.page_image,
-            "meeting_name": page.document.meeting_name,
-            "meeting_date": meeting_date_str,
-            "document_type": page.document.document_type,
-            "municipality_id": str(page.document.municipality.id),
-            "municipality_subdomain": page.document.municipality.subdomain,
-            "municipality_name": page.document.municipality.name,
-            "state": page.document.municipality.state,
-            "document_id": str(page.document.id),
-        }

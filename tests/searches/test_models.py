@@ -6,6 +6,7 @@ They will initially fail (RED) until we implement the model changes (GREEN).
 """
 
 from datetime import date
+from unittest.mock import patch
 
 import pytest
 
@@ -148,9 +149,9 @@ class TestSearchModel:
         search.refresh_from_db()
         assert search.last_result_count == 42
 
-    def test_search_update_detects_new_pages(self):
+    @patch("searches.search_backends.get_search_backend")
+    def test_search_update_detects_new_pages(self, mock_get_backend):
         """Test that update_search() detects when new pages match the search."""
-        # Setup: Create a municipality with meeting pages
         muni = MuniFactory(name="Berkeley", subdomain="berkeley")
         doc = MeetingDocumentFactory(
             municipality=muni,
@@ -159,7 +160,6 @@ class TestSearchModel:
             document_type="agenda",
         )
 
-        # Create pages with searchable text
         page1 = MeetingPageFactory(
             document=doc, page_number=1, text="Discussion about housing policy"
         )
@@ -167,34 +167,41 @@ class TestSearchModel:
             document=doc, page_number=2, text="Budget allocation for housing projects"
         )
 
-        # Create a search for "housing"
+        # Mock backend to return both pages
+        mock_backend = mock_get_backend.return_value
+        mock_backend.search.return_value = (
+            [{"id": page1.id}, {"id": page2.id}],
+            2,
+        )
+
         search = SearchFactory(search_term="housing")
         search.municipalities.add(muni)
-        search.last_checked_for_new_pages = None  # No previous check
+        search.last_checked_for_new_pages = None
         search.save()
 
-        # Call update_search() - should find the new pages
         new_pages = search.update_search()
 
-        # Should return QuerySet of new pages
         assert new_pages is not None
         assert new_pages.count() == 2
         assert page1 in new_pages
         assert page2 in new_pages
 
-        # Should update last_checked_for_new_pages timestamp
         search.refresh_from_db()
         assert search.last_checked_for_new_pages is not None
         assert search.last_result_count == 2
 
-    def test_search_update_with_no_changes_returns_empty(self):
+    @patch("searches.search_backends.get_search_backend")
+    def test_search_update_with_no_changes_returns_empty(self, mock_get_backend):
         """Test that update_search() returns empty QuerySet when no new pages."""
         muni = MuniFactory(name="Oakland")
         doc = MeetingDocumentFactory(municipality=muni)
-        _page = MeetingPageFactory(document=doc, text="Budget discussion")
+        page = MeetingPageFactory(document=doc, text="Budget discussion")
 
-        # Create search and run initial check
         from django.utils import timezone
+
+        # Mock backend returns the page
+        mock_backend = mock_get_backend.return_value
+        mock_backend.search.return_value = ([{"id": page.id}], 1)
 
         search = SearchFactory(search_term="budget")
         search.municipalities.add(muni)
@@ -202,7 +209,6 @@ class TestSearchModel:
         search.last_result_count = 1
         search.save()
 
-        # Call update_search() - should find no new pages
         new_pages = search.update_search()
 
         assert new_pages is not None

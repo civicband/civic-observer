@@ -1,10 +1,8 @@
 """
 Search backend abstraction layer.
 
-This module provides a unified interface for searching meeting pages,
-with support for multiple backends.
-
-The backend is selected via SEARCH_BACKEND setting, with PostgreSQL as the default fallback.
+This module provides a unified interface for searching meeting pages
+via ParadeDB pg_search BM25.
 
 All search operations are automatically cached using Redis to eliminate database load
 for repeated queries.
@@ -13,14 +11,16 @@ for repeated queries.
 from abc import ABC, abstractmethod
 from typing import Any
 
-from django.conf import settings
-from django.contrib.postgres.search import SearchQuery
+from django.db import connection
 from django.db.models import QuerySet
 
-from meetings.models import MeetingPage
-
 from .cache import get_cached_search_results, set_cached_search_results
-from .quickwit_client import execute_search_elasticsearch_compat
+
+# Match the tags meetings/views.py already used for ts_headline so templates
+# and their |safe filters need no change.
+HEADLINE_START_TAG = "<mark>"
+HEADLINE_STOP_TAG = "</mark>"
+SNIPPET_MAX_CHARS = 150
 
 
 class SearchBackend(ABC):
@@ -138,11 +138,11 @@ class SearchBackend(ABC):
         pass
 
 
-class PostgresSearchBackend(SearchBackend):
-    """PostgreSQL full-text search backend using existing implementation."""
+class PgSearchBackend(SearchBackend):
+    """BM25 search over meetings_meetingpage via ParadeDB pg_search."""
 
     def get_backend_name(self) -> str:
-        return "postgres"
+        return "pg_search"
 
     def search(
         self,
@@ -156,266 +156,116 @@ class PostgresSearchBackend(SearchBackend):
         limit: int = 100,
         offset: int = 0,
     ) -> tuple[list[dict[str, Any]], int]:
-        """
-        Search using PostgreSQL full-text search.
+        where: list[str] = []
+        params: list[Any] = []
 
-        Uses the existing search_vector field and GIN indexes.
-        """
-        # Import here to avoid circular dependency
-        from .services import _apply_meeting_name_filter, _apply_search_filters
-
-        # Start with all pages
-        queryset = MeetingPage.objects.select_related(
-            "document", "document__municipality"
-        ).all()
-
-        # Apply filters
-        queryset = _apply_search_filters(
-            queryset,
-            municipalities=municipalities,
-            states=states,
-            date_from=date_from,
-            date_to=date_to,
-            document_type=document_type,
-        )
-
-        # Apply meeting name filter
-        if meeting_name_query:
-            queryset = _apply_meeting_name_filter(queryset, meeting_name_query)
-
-        # Apply full-text search if query provided
+        # --- full-text predicate -------------------------------------------
+        # `|||` is match-any (OR). Use `&&&` for match-all if you'd rather
+        # narrow results; that's a product decision, not a technical one.
         if query_text:
-            queryset = self._apply_full_text_search(queryset, query_text)
-        else:
-            # All updates mode - order by date descending
-            queryset = queryset.order_by("-document__meeting_date")
+            where.append("text ||| %s")
+            params.append(query_text)
 
-        # Avoid expensive COUNT(*) — fetch limit+1 rows to detect if there are more
-        results_queryset = queryset[offset : offset + limit + 1]
+        if meeting_name_query:
+            where.append("meeting_name ||| %s")
+            params.append(meeting_name_query)
 
-        # Convert to dictionaries
-        results = []
-        for page in results_queryset:
-            results.append(self._page_to_dict(page))
-
-        # If we got more than limit results, there are more pages
-        has_more = len(results) > limit
-        if has_more:
-            results = results[:limit]
-
-        # Return a count that's useful for pagination without scanning full result set:
-        # - If fewer results than limit, we know the exact total
-        # - If more, report offset + limit + 1 to signal "there are more"
-        if has_more:
-            total_count = offset + limit + 1
-        else:
-            total_count = offset + len(results)
-
-        return results, total_count
-
-    def _apply_full_text_search(self, queryset: QuerySet, query_text: str) -> QuerySet:
-        """Apply PostgreSQL full-text search optimized for speed."""
-        search_query = SearchQuery(query_text, search_type="websearch", config="simple")
-
-        # Use only GIN index (@@ operator) without expensive ts_rank computation
-        # This is dramatically faster - no rank computation needed
-        queryset = queryset.filter(search_vector=search_query).order_by(
-            "-document__meeting_date"
-        )
-
-        return queryset
-
-    def _page_to_dict(self, page: MeetingPage) -> dict[str, Any]:
-        """Convert a MeetingPage object to a dictionary."""
-        return {
-            "id": page.id,
-            "page_number": page.page_number,
-            "text": page.text,
-            "page_image": page.page_image,
-            "meeting_name": page.document.meeting_name,
-            "meeting_date": page.document.meeting_date.isoformat(),
-            "document_type": page.document.document_type,
-            "municipality_id": str(page.document.municipality_id),
-            "municipality_subdomain": page.document.municipality.subdomain,
-            "municipality_name": page.document.municipality.name,
-            "state": page.document.municipality.state,
-            "document_id": str(page.document.id),
-        }
-
-
-class QuickwitBackend(SearchBackend):
-    """
-    Quickwit backend for full-text search on S3-backed storage.
-
-    Quickwit stores its index on Fastly Object Storage (S3-compatible),
-    making it cost-efficient for large document collections (10M-100M+).
-    """
-
-    def get_backend_name(self) -> str:
-        return "quickwit"
-
-    def search(
-        self,
-        query_text: str,
-        municipalities: QuerySet | list | None = None,
-        states: list | None = None,
-        date_from=None,
-        date_to=None,
-        document_type: str | None = None,
-        meeting_name_query: str | None = None,
-        limit: int = 100,
-        offset: int = 0,
-    ) -> tuple[list[dict[str, Any]], int]:
-        """
-        Search using Quickwit's Elasticsearch-compatible API.
-        """
-        es_query = self._build_query(
-            query_text=query_text,
-            municipalities=municipalities,
-            states=states,
-            date_from=date_from,
-            date_to=date_to,
-            document_type=document_type,
-            meeting_name_query=meeting_name_query,
-            limit=limit,
-            offset=offset,
-        )
-
-        result = execute_search_elasticsearch_compat(
-            query_text=query_text,
-            limit=limit,
-            offset=offset,
-            filters=es_query.get("filters"),
-            should=es_query.get("should"),
-            sort_by=[{"meeting_date": "desc"}],
-        )
-
-        hits = result.get("hits", {}).get("hits", [])
-        total = result.get("hits", {}).get("total", {}).get("value", 0)
-
-        results = []
-        for hit in hits:
-            source = hit.get("_source", hit)
-            results.append(self._hit_to_dict(source))
-
-        return results, total
-
-    def _build_query(
-        self,
-        query_text: str,
-        municipalities: QuerySet | list | None = None,
-        states: list | None = None,
-        date_from=None,
-        date_to=None,
-        document_type: str | None = None,
-        meeting_name_query: str | None = None,
-        limit: int = 100,
-        offset: int = 0,
-    ) -> dict[str, Any]:
-        """
-        Build Quickwit-compatible query filters.
-        """
-        filters: list[dict[str, Any]] = []
-
-        if municipalities:
-            if hasattr(municipalities, "values_list"):
-                muni_ids = list(municipalities.values_list("id", flat=True))  # pyright: ignore[reportAttributeAccessIssue]
-            else:
-                muni_ids = [m.id if hasattr(m, "id") else m for m in municipalities]
-
+        # --- filters: all local columns now, no joins ----------------------
+        if municipalities is not None:
+            muni_ids = (
+                list(municipalities.values_list("id", flat=True))
+                if hasattr(municipalities, "values_list")
+                else [m.id if hasattr(m, "id") else m for m in municipalities]
+            )
             if muni_ids:
-                muni_filter = {
-                    "terms": {"municipality_id": [str(mid) for mid in muni_ids]}
-                }
-                filters.append(muni_filter)
+                where.append("municipality_id = ANY(%s)")
+                params.append(muni_ids)
 
         if states:
-            state_filter = {"terms": {"state": states}}
-            filters.append(state_filter)
+            where.append("state = ANY(%s)")
+            params.append(list(states))
 
         if date_from:
-            date_str = (
-                date_from.isoformat()
-                if hasattr(date_from, "isoformat")
-                else str(date_from)
-            )
-            filters.append({"range": {"meeting_date": {"gte": date_str}}})
+            where.append("meeting_date >= %s")
+            params.append(date_from)
 
         if date_to:
-            date_str = (
-                date_to.isoformat() if hasattr(date_to, "isoformat") else str(date_to)
-            )
-            filters.append({"range": {"meeting_date": {"lte": date_str}}})
+            where.append("meeting_date <= %s")
+            params.append(date_to)
 
         if document_type and document_type != "all":
-            filters.append({"term": {"document_type": document_type}})
+            where.append("document_type = %s")
+            params.append(document_type)
 
-        should_clauses: list[dict[str, Any]] = []
-        if meeting_name_query:
-            should_clauses.append(
-                {
-                    "query_string": {
-                        "query": meeting_name_query,
-                        "fields": ["meeting_name"],
-                    }
-                }
+        if not where:
+            where.append("TRUE")
+
+        where_sql = " AND ".join(where)
+
+        order_sql = (
+            "ORDER BY pdb.score(id) DESC, meeting_date DESC"
+            if query_text
+            else "ORDER BY meeting_date DESC, id"
+        )
+
+        # pdb.snippet() requires a ParadeDB operator in the same query, so it
+        # can only be selected when there IS a text query. This replaces the
+        # old two-pass design — one query instead of two, and the highlighting
+        # is guaranteed to match what BM25 actually matched.
+        if query_text:
+            snippet_sql = (
+                "pdb.snippet(text, start_tag => %s, end_tag => %s, "
+                "max_num_chars => %s) AS snippet"
             )
+            snippet_params = [HEADLINE_START_TAG, HEADLINE_STOP_TAG, SNIPPET_MAX_CHARS]
+        else:
+            snippet_sql = "NULL AS snippet"
+            snippet_params = []
 
-        result: dict[str, Any] = {}
-        if should_clauses and query_text:
-            should_clauses.append(
-                {"query_string": {"query": query_text, "fields": ["text"]}}
-            )
-            result["should"] = should_clauses
-        elif query_text:
-            result["main_query"] = query_text
-        elif should_clauses:
-            result["should"] = should_clauses
-
-        if filters:
-            result["filters"] = filters
-
-        return result
-
-    def _hit_to_dict(self, hit: dict[str, Any]) -> dict[str, Any]:
-        """Convert a Quickwit ES-compatible hit to a standardized result dictionary.
-
-        Quickwit 0.8 with store_source=true wraps documents as _source._source,
-        so we need to unwrap the inner document.
+        sql = f"""
+            SELECT id, document_id, page_number, text, page_image,
+                   municipality_id, municipality_subdomain, municipality_name,
+                   state, meeting_name, meeting_date, document_type,
+                   {snippet_sql},
+                   count(*) OVER () AS total_count
+            FROM meetings_meetingpage
+            WHERE {where_sql}
+            {order_sql}
+            LIMIT %s OFFSET %s
         """
-        source = hit.get("_source", hit)
-        # Unwrap the double-nested source if present
-        inner = source.get("_source", source)
+        # Snippet params bind in the SELECT list, which precedes WHERE.
+        params = snippet_params + params + [limit, offset]
+
+        with connection.cursor() as cur:
+            cur.execute(sql, params)
+            rows = cur.fetchall()
+
+        if not rows:
+            return [], 0
+
+        total = rows[0][-1]
+        return [self._row_to_dict(r) for r in rows], total
+
+    @staticmethod
+    def _row_to_dict(r) -> dict[str, Any]:
         return {
-            "id": inner.get("id", ""),
-            "page_number": inner.get("page_number", 0),
-            "text": inner.get("text", ""),
-            "page_image": inner.get("page_image", ""),
-            "meeting_name": inner.get("meeting_name", ""),
-            "meeting_date": inner.get("meeting_date", ""),
-            "document_type": inner.get("document_type", ""),
-            "municipality_id": inner.get("municipality_id", ""),
-            "municipality_subdomain": inner.get("municipality_subdomain", ""),
-            "municipality_name": inner.get("municipality_name", ""),
-            "state": inner.get("state", ""),
-            "document_id": inner.get("document_id", ""),
+            "id": r[0],
+            "document_id": str(r[1]),
+            "page_number": r[2],
+            "text": r[3],
+            "page_image": r[4],
+            "municipality_id": str(r[5]),
+            "subdomain": r[6],
+            "municipality_name": r[7],
+            "state": r[8],
+            "meeting_name": r[9],
+            "meeting_date": r[10],
+            "document_type": r[11],
+            "snippet": r[12],
+            "civic_band_table_name": "agendas" if r[11] == "agenda" else "minutes",
         }
 
 
 def get_search_backend() -> SearchBackend:
-    """
-    Get the configured search backend.
-
-    Returns the backend specified in SEARCH_BACKEND setting,
-    falling back to PostgreSQL if the setting is invalid.
-
-    Returns:
-        SearchBackend instance
-    """
-    backend_name = getattr(settings, "SEARCH_BACKEND", "postgres")
-
-    if backend_name == "quickwit":
-        return QuickwitBackend()
-    else:
-        # Default to Postgres
-        return PostgresSearchBackend()
+    """Get the search backend. Only one backend exists now."""
+    return PgSearchBackend()

@@ -829,8 +829,6 @@ class TestMeetingSearchResults:
             page_image="/_agendas/CityCouncil/2024-03-01/1.png",
         )
 
-        # Trigger search_vector population by saving documents again
-        # This ensures the database trigger runs and populates meeting_name_search_vector
         doc1.save()
         doc2.save()
         doc3.save()

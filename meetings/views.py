@@ -1,11 +1,5 @@
-import re
 from typing import Any
 
-from django.conf import settings
-from django.contrib.postgres.search import (
-    SearchHeadline,
-    SearchQuery,
-)
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect
 from django.template.loader import render_to_string
@@ -20,24 +14,6 @@ from .models import MeetingPage
 
 # Search pagination and display constants
 SEARCH_RESULTS_PER_PAGE = 20
-
-# Minimum rank threshold for search results (used for long search terms)
-# Results with rank below this value will be filtered out
-MINIMUM_RANK_THRESHOLD = 0.01
-
-# Pre-compiled regex patterns for query parsing
-_QUOTED_PATTERN = re.compile(r'"([^"]+)"')
-_QUOTED_REPLACE_PATTERN = re.compile(r'"[^"]+"')
-_OPERATOR_PATTERN = re.compile(r"\b(OR|AND|NOT)\b", re.IGNORECASE)
-
-# SearchHeadline configuration for result previews
-HEADLINE_START_TAG = "<mark class='bg-yellow-200 font-semibold'>"
-HEADLINE_STOP_TAG = "</mark>"
-HEADLINE_MAX_WORDS = 50
-HEADLINE_MIN_WORDS = 15
-HEADLINE_SHORT_WORD_LENGTH = "3"
-HEADLINE_MAX_FRAGMENTS = 3
-HEADLINE_FRAGMENT_DELIMITER = " ... "
 
 
 class MeetingSearchView(TemplateView):
@@ -58,236 +34,6 @@ class MeetingSearchView(TemplateView):
         context["form"] = MeetingSearchForm(self.request.GET or None)
         context["has_query"] = bool(self.request.GET.get("query"))
         return context
-
-
-# Helper functions for search views
-
-
-def _apply_search_filters(
-    queryset,
-    municipalities=None,
-    states=None,
-    date_from=None,
-    date_to=None,
-    document_type=None,
-):
-    """
-    Apply filter parameters to the meeting pages queryset.
-
-    Args:
-        queryset: Base MeetingPage queryset
-        municipalities: Optional list of municipalities to filter by
-        states: Optional list of states/provinces to filter by
-        date_from: Optional start date for meeting date range
-        date_to: Optional end date for meeting date range
-        document_type: Optional document type ('agenda' or 'minutes')
-
-    Returns:
-        Filtered queryset
-    """
-    if municipalities:
-        queryset = queryset.filter(document__municipality__in=municipalities)
-
-    if states:
-        queryset = queryset.filter(document__municipality__state__in=states)
-
-    if date_from:
-        queryset = queryset.filter(document__meeting_date__gte=date_from)
-
-    if date_to:
-        queryset = queryset.filter(document__meeting_date__lte=date_to)
-
-    if document_type:
-        queryset = queryset.filter(document__document_type=document_type)
-
-    return queryset
-
-
-def _apply_meeting_name_filter(queryset, meeting_name_query):
-    """
-    Filter pages by meeting name using full-text search.
-
-    Uses 'simple' search configuration for multilingual support (works across
-    Spanish, English, and other languages without language-specific stemming).
-
-    Performance: Uses JOIN instead of subquery for better query planning.
-
-    Args:
-        queryset: MeetingPage queryset to filter
-        meeting_name_query: Search query for meeting names (supports websearch syntax: phrases, AND, OR, NOT)
-
-    Returns:
-        Filtered queryset (only pages from documents with matching meeting names)
-    """
-    if not meeting_name_query:
-        return queryset
-
-    # Create search query for meeting names
-    meeting_name_search_query = SearchQuery(
-        meeting_name_query, search_type="websearch", config="simple"
-    )
-
-    # Use only @@ operator (GIN index) - no rank computation needed
-    queryset = queryset.filter(
-        document__meeting_name_search_vector=meeting_name_search_query
-    )
-
-    return queryset
-
-
-def _parse_websearch_query(query_text: str) -> tuple[list[str], str]:
-    """
-    Parse websearch query to extract tokens while preserving structure.
-
-    Extracts all search terms (inside and outside quotes) for analysis,
-    while preserving the original query structure for PostgreSQL.
-
-    Args:
-        query_text: Original search query with websearch syntax
-
-    Returns:
-        Tuple of (tokens, original_query) where:
-        - tokens: list of all search terms for threshold calculation
-        - original_query: unchanged query to pass to PostgreSQL
-
-    Examples:
-        >>> _parse_websearch_query('"ICE" OR immigration')
-        (['ICE', 'immigration'], '"ICE" OR immigration')
-
-        >>> _parse_websearch_query('affordable housing AND rent')
-        (['affordable', 'housing', 'rent'], 'affordable housing AND rent')
-    """
-    # Extract everything inside quotes (these are phrase searches)
-    quoted = _QUOTED_PATTERN.findall(query_text)
-
-    # Extract everything outside quotes
-    unquoted_text = _QUOTED_REPLACE_PATTERN.sub(" ", query_text)
-    # Remove operators (they don't affect threshold calculation)
-    unquoted_text = _OPERATOR_PATTERN.sub(" ", unquoted_text)
-    # Extract individual words
-    unquoted = [t.strip() for t in unquoted_text.split() if t.strip()]
-
-    # Combine all tokens for analysis
-    all_tokens = unquoted + quoted
-
-    return all_tokens, query_text
-
-
-def _get_smart_threshold(tokens: list[str]) -> float:
-    """
-    Calculate rank threshold based on query token characteristics.
-
-    Short tokens match more documents with lower average relevance, so we use
-    moderately higher thresholds to filter noise and improve performance while
-    preserving relevant results.
-
-    Args:
-        tokens: List of search terms extracted from query
-
-    Returns:
-        Threshold value for ts_rank filtering
-
-    Performance impact (conservative thresholds to avoid over-filtering):
-        - 2 char terms: 0.02 threshold (2x higher) - filters very low quality matches
-        - 3 char terms: 0.015 threshold (1.5x higher) - filters noise
-        - 4+ char terms: 0.01 threshold (normal) - minimal filtering
-    """
-    if not tokens:
-        return MINIMUM_RANK_THRESHOLD
-
-    # Get shortest token length (limiting factor for precision)
-    min_length = min(len(t) for t in tokens)
-
-    # Conservative thresholds that filter noise without losing relevant results
-    if min_length <= 2:
-        return 0.02  # "or", "to", "be" - extremely common
-    elif min_length == 3:
-        return 0.015  # "ice", "law", "ada" - very common
-    else:
-        return MINIMUM_RANK_THRESHOLD  # 0.01 - normal (4+ chars)
-
-
-def _apply_full_text_search(queryset, query_text):
-    """
-    Apply full-text search to the queryset using PostgreSQL search.
-
-    Uses 'simple' search configuration for multilingual support (works across
-    Spanish, English, and other languages without language-specific stemming).
-
-    Performance: Annotates search_rank which can be reused later to avoid
-    recalculating expensive ts_rank function. Uses smart thresholds based on
-    query characteristics to dramatically improve performance for short terms.
-
-    Args:
-        queryset: MeetingPage queryset to search
-        query_text: Search query string (supports websearch syntax: phrases, AND, OR, NOT)
-
-    Returns:
-        Tuple of (filtered_queryset, search_query_object)
-        - Queryset is filtered to rank >= smart threshold and ordered by relevance
-        - QuerySet includes 'search_rank' annotation for reuse
-        - SearchQuery object is returned for use in headline generation
-    """
-    # Create search query using 'simple' config for multilingual support
-    search_query = SearchQuery(query_text, search_type="websearch", config="simple")
-
-    # IMPORTANT: Use ONLY the @@ operator (GIN index) - no ts_rank computation
-    # This is dramatically faster as it avoids computing rank for every row
-    # Sort by date descending for consistent, fast results
-    queryset = queryset.filter(search_vector=search_query).order_by(
-        "-document__meeting_date"
-    )
-
-    return queryset, search_query
-
-
-def _generate_headlines_for_page(page_results, search_query):
-    """
-    Generate search result headlines for a page of results.
-
-    This is done AFTER pagination to avoid expensive headline generation
-    for results that won't be displayed. Generates highlighted text snippets
-    showing where search terms appear in the document.
-
-    Args:
-        page_results: List of MeetingPage objects from current page
-        search_query: SearchQuery object used for highlighting matches
-
-    Returns:
-        List of MeetingPage objects with headline annotations
-    """
-    # Extract PKs from page results
-    page_pks = [result.pk for result in page_results]
-
-    # Single query to fetch all headlines for the page
-    # This is MUCH faster than querying each result individually (N+1 problem)
-    results_with_headlines = (
-        MeetingPage.objects.filter(pk__in=page_pks)
-        .annotate(
-            headline=SearchHeadline(
-                "text",
-                search_query,
-                start_sel=HEADLINE_START_TAG,
-                stop_sel=HEADLINE_STOP_TAG,
-                max_words=HEADLINE_MAX_WORDS,
-                min_words=HEADLINE_MIN_WORDS,
-                short_word=HEADLINE_SHORT_WORD_LENGTH,
-                highlight_all=False,
-                max_fragments=HEADLINE_MAX_FRAGMENTS,
-                fragment_delimiter=HEADLINE_FRAGMENT_DELIMITER,
-                config="simple",
-            ),
-        )
-        .select_related("document", "document__municipality")
-    )
-
-    # Preserve original ordering
-    results_dict = {result.pk: result for result in results_with_headlines}
-    final_results = []
-    for pk in page_pks:
-        if pk in results_dict:
-            final_results.append(results_dict[pk])
-    return final_results
 
 
 def _is_htmx_request(request: HttpRequest) -> bool:
@@ -384,8 +130,6 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
                 if municipalities:
                     # Filter to only allowed municipalities
                     municipalities = municipalities.filter(id__in=allowed_muni_ids)
-                # Note: If no municipalities selected, we don't auto-add them
-                # to keep the search "wide" within scope
 
             # Enforce state scope
             if public_page.allowed_states and states:
@@ -400,7 +144,6 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
                     date_to = public_page.max_date
 
         except PublicSearchPage.DoesNotExist:
-            # Invalid slug - continue without scope enforcement
             pass
 
     # Require a search query
@@ -424,81 +167,46 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
     if page_number < 1:
         page_number = 1
 
-    # Check search backend configuration
-    backend_name = getattr(settings, "SEARCH_BACKEND", "postgres")
+    backend = get_search_backend()
+    offset = (page_number - 1) * SEARCH_RESULTS_PER_PAGE
 
-    if backend_name in ("quickwit",):
-        backend = get_search_backend()
-        offset = (page_number - 1) * SEARCH_RESULTS_PER_PAGE
+    results, total = backend.search_with_cache(
+        query_text=query,
+        municipalities=municipalities,
+        states=states,
+        date_from=date_from,
+        date_to=date_to,
+        document_type=document_type,
+        meeting_name_query=meeting_name_query,
+        limit=SEARCH_RESULTS_PER_PAGE,
+        offset=offset,
+    )
 
-        results, total = backend.search_with_cache(
-            query_text=query,
-            municipalities=municipalities,
-            states=states,
-            date_from=date_from,
-            date_to=date_to,
-            document_type=document_type,
-            meeting_name_query=meeting_name_query,
-            limit=SEARCH_RESULTS_PER_PAGE,
-            offset=offset,
-        )
+    page_ids = [result["id"] for result in results]
+    page_results = MeetingPage.objects.filter(id__in=page_ids)
 
-        page_ids = [result["id"] for result in results]
-        page_results = MeetingPage.objects.select_related(
-            "document", "document__municipality"
-        ).filter(id__in=page_ids)
+    # Preserve order from search backend
+    id_to_result = {pid: idx for idx, pid in enumerate(page_ids)}
+    page_results = sorted(page_results, key=lambda p: id_to_result.get(p.id, 0))  # type: ignore[assignment]
 
-        # Preserve order from search backend
-        id_to_result = {pid: idx for idx, pid in enumerate(page_ids)}
-        page_results = sorted(page_results, key=lambda p: id_to_result.get(p.id, 0))  # type: ignore[assignment]
+    # Attach snippet from backend results to page objects for template use
+    snippet_map = {r["id"]: r.get("snippet") for r in results}
+    for page in page_results:
+        page.snippet = snippet_map.get(page.id)  # type: ignore[attr-defined]
 
-        # Calculate pagination
-        has_next = offset + len(results) < total
+    # Calculate pagination
+    has_next = offset + len(results) < total
 
-        page_info = {
-            "number": page_number,
-            "has_previous": page_number > 1,
-            "has_next": has_next,
-            "previous_page_number": page_number - 1 if page_number > 1 else None,
-            "next_page_number": page_number + 1 if has_next else None,
-        }
+    page_info = {
+        "number": page_number,
+        "has_previous": page_number > 1,
+        "has_next": has_next,
+        "previous_page_number": page_number - 1 if page_number > 1 else None,
+        "next_page_number": page_number + 1 if has_next else None,
+    }
 
-        context["results"] = page_results
-        context["page_info"] = page_info
-    else:
-        # Use PostgreSQL full-text search
-        queryset = MeetingPage.objects.select_related(
-            "document", "document__municipality"
-        ).all()
-
-        queryset, search_query = _apply_full_text_search(queryset, query)
-        queryset = _apply_meeting_name_filter(queryset, meeting_name_query)
-        queryset = _apply_search_filters(
-            queryset,
-            municipalities=municipalities,
-            states=states,
-            date_from=date_from,
-            date_to=date_to,
-            document_type=document_type,
-        )
-
-        offset = (page_number - 1) * SEARCH_RESULTS_PER_PAGE
-
-        page_results = list(queryset[offset : offset + SEARCH_RESULTS_PER_PAGE + 1])  # type: ignore[assignment]
-        has_next = len(page_results) > SEARCH_RESULTS_PER_PAGE
-        if has_next:
-            page_results = page_results[:SEARCH_RESULTS_PER_PAGE]
-
-        page_info = {
-            "number": page_number,
-            "has_previous": page_number > 1,
-            "has_next": has_next,
-            "previous_page_number": page_number - 1 if page_number > 1 else None,
-            "next_page_number": page_number + 1 if has_next else None,
-        }
-
-        context["results"] = _generate_headlines_for_page(page_results, search_query)  # type: ignore[arg-type]
-        context["page_info"] = page_info
+    context["results"] = page_results
+    context["page_info"] = page_info
 
     # Add active filters to context for display
     context["active_filters"] = {
@@ -512,11 +220,9 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
     }
 
     # Add saved page IDs for authenticated users (for save button state)
-    # Performance: Only check if pages on THIS page are saved (not all pages)
     if request.user.is_authenticated and context["results"]:
         from notebooks.models import NotebookEntry
 
-        # Only check the page IDs that are in the current results
         result_page_ids = [r.pk for r in context["results"]]
         saved_page_ids = set(
             NotebookEntry.objects.filter(

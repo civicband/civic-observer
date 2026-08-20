@@ -7,9 +7,9 @@ We found new results for your saved search "{{ subscription.name }}".
 
 {% if new_pages %}NEW RESULTS ({{ new_pages|length }}):
 {% for page in new_pages|slice:":10" %}
-- {{ page.document.meeting_name }} - {{ page.document.meeting_date|date:"M d, Y" }}
-  {% if page.document.document_type == "agenda" %}Agenda{% else %}Minutes{% endif %} - Page {{ page.page_number }}
-  View: https://{{ page.document.municipality.subdomain }}.civic.band/meetings/{% if page.document.document_type == "agenda" %}agendas{% else %}minutes{% endif %}?meeting={{ page.document.meeting_name|urlencode }}&date={{ page.document.meeting_date|date:"Y-m-d" }}
+- {{ page.meeting_name }} - {{ page.meeting_date|date:"M d, Y" }}
+  {% if page.document_type == "agenda" %}Agenda{% else %}Minutes{% endif %} - Page {{ page.page_number }}
+  View: https://{{ page.municipality_subdomain }}.civic.band/meetings/{% if page.document_type == "agenda" %}agendas{% else %}minutes{% endif %}?meeting={{ page.meeting_name|urlencode }}&date={{ page.meeting_date|date:"Y-m-d" }}
 {% endfor %}
 {% if new_pages|length > 10 %}
 ... and {{ new_pages|length|add:"-10" }} more results
