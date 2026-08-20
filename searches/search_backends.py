@@ -234,10 +234,10 @@ class PgSearchBackend(SearchBackend):
             LIMIT %s OFFSET %s
         """
         # Snippet params bind in the SELECT list, which precedes WHERE.
-        params = snippet_params + params + [limit, offset]
+        params_for_execute: list[Any] = snippet_params + params + [limit, offset]
 
         with connection.cursor() as cur:
-            cur.execute(sql, params)
+            cur.execute(sql, params_for_execute)
             rows = cur.fetchall()
 
         if not rows:
