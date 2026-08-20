@@ -46,26 +46,6 @@ services:
     networks:
       - civic-network
 
-  quickwit:
-    image: "quickwit/quickwit:0.8.2"
-    command: ["run"]
-    env_file: .env.production
-    networks:
-      - civic-network
-    environment:
-      - QW_CONFIG_PATH=/opt/quickwit/quickwit.yaml
-      - QW_S3_ENDPOINT=https://${FASTLY_REGION:-us-west}.object.fastlystorage.app
-      - AWS_ACCESS_KEY_ID=${FASTLY_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${FASTLY_SECRET_ACCESS_KEY}
-      - AWS_DEFAULT_REGION=${FASTLY_REGION:-us-west}
-      - QW_LISTEN_ADDRESS=0.0.0.0
-      - QW_ENABLE_OPENTELEMETRY=false
-      - QW_ENABLE_JAEGER_EXPORTER=false
-    volumes:
-      - ./quickwit/index-config.yaml:/opt/quickwit/index-config.yaml:ro
-      - ./quickwit/quickwit-config-s3.yaml:/opt/quickwit/quickwit.yaml:ro
-      - quickwit-data:/quickwit/data
-
   web-blue:
     <<: *django-web
     container_name: observer-web-blue
@@ -88,7 +68,6 @@ services:
 
 volumes:
   redis-data:
-  quickwit-data:
 
 networks:
   civic-network:
