@@ -189,15 +189,6 @@ BACKFILL_API_PAGE_SIZE = 1000  # Records per API request
 # API Key Validation
 CORKBOARD_SERVICE_SECRET = env.str("CORKBOARD_SERVICE_SECRET", "")
 
-# Search Backend Configuration
-# Options: 'postgres', 'quickwit'
-SEARCH_BACKEND = env.str("SEARCH_BACKEND", "postgres")
-
-# Quickwit Configuration (Elasticsearch-compatible search on S3 object storage)
-QUICKWIT_URL = env.str("QUICKWIT_URL", "http://quickwit:7280/api/v1")
-QUICKWIT_INDEX_ID = env.str("QUICKWIT_INDEX_ID", "meeting_pages")
-QUICKWIT_TIMEOUT = env.int("QUICKWIT_TIMEOUT", 30)
-
 # Notification Channel Settings
 DISCORD_BOT_TOKEN = env.str("DISCORD_BOT_TOKEN", "")
 BLUESKY_BOT_HANDLE = env.str("BLUESKY_BOT_HANDLE", "")
