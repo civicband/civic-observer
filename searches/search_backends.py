@@ -217,12 +217,12 @@ class PgSearchBackend(SearchBackend):  # noqa: F821 — defined in search_backen
 
         # Relevance ordering only makes sense when there's a query to score.
         order_sql = (
-            "ORDER BY pdb.score(id) DESC, meeting_date DESC"
+            "ORDER BY paradedb.score(id) DESC, meeting_date DESC"
             if query_text
             else "ORDER BY meeting_date DESC, id"
         )
 
-        # pdb.snippet() requires a ParadeDB operator in the same query, so it
+        # paradedb.snippet() requires a ParadeDB operator in the same query, so it
         # can only be selected when there IS a text query. This replaces the
         # old two-pass design (search, then _generate_headlines_for_page over
         # the paginated slice) — one query instead of two, and the highlighting
@@ -232,7 +232,7 @@ class PgSearchBackend(SearchBackend):  # noqa: F821 — defined in search_backen
         # the LIMITed page, never the full result set.
         if query_text:
             snippet_sql = (
-                "pdb.snippet(text, start_tag => %s, end_tag => %s, "
+                "paradedb.snippet(text, start_tag => %s, end_tag => %s, "
                 "max_num_chars => %s) AS snippet"
             )
             snippet_params = [HEADLINE_START_TAG, HEADLINE_STOP_TAG, SNIPPET_MAX_CHARS]
