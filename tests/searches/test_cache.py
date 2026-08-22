@@ -5,6 +5,7 @@ Tests cover cache key generation, hit/miss behavior, invalidation,
 and edge cases to ensure reliable caching performance.
 """
 
+import uuid
 from typing import Any
 
 import pytest
@@ -90,6 +91,50 @@ class TestCacheKeyGeneration:
         cached = get_cached_search_results(
             search_term="budget",
             municipalities=[1, 2, 3],
+            states=[],
+        )
+
+        assert cached is not None
+        assert cached == (results, 1)
+
+    def test_cache_key_municipality_uuid_serializable(self):
+        """UUID municipality IDs should not break cache key generation."""
+        muni_id = uuid.uuid4()
+        results = [{"id": 1, "text": "test"}]
+
+        set_cached_search_results(
+            results=results,
+            total_count=1,
+            search_term="housing",
+            municipalities=[muni_id],
+            states=[],
+        )
+
+        cached = get_cached_search_results(
+            search_term="housing",
+            municipalities=[muni_id],
+            states=[],
+        )
+
+        assert cached is not None
+        assert cached == (results, 1)
+
+    def test_cache_key_municipality_uuid_order_independent(self):
+        """UUID municipality lists should be sorted for consistent cache keys."""
+        results = [{"id": 1, "text": "test"}]
+        muni_a, muni_b, muni_c = uuid.uuid4(), uuid.uuid4(), uuid.uuid4()
+
+        set_cached_search_results(
+            results=results,
+            total_count=1,
+            search_term="budget",
+            municipalities=[muni_c, muni_a, muni_b],
+            states=[],
+        )
+
+        cached = get_cached_search_results(
+            search_term="budget",
+            municipalities=[muni_a, muni_b, muni_c],
             states=[],
         )
 

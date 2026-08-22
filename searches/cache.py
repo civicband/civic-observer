@@ -55,7 +55,7 @@ def _make_search_cache_key(
     }
 
     # Create stable JSON representation
-    params_json = json.dumps(params, sort_keys=True)
+    params_json = json.dumps(params, sort_keys=True, default=str)
     params_hash = hashlib.md5(params_json.encode()).hexdigest()
 
     return f"search:v1:{params_hash}"

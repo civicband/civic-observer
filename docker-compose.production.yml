@@ -71,4 +71,3 @@ volumes:
 
 networks:
   civic-network:
-    external: true
