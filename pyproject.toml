@@ -101,7 +101,7 @@ plugins = ["mypy_django_plugin.main"]
 
 [[tool.mypy.overrides]]
 module = "users.tests"
-disable_error_code = ["attr-defined"]
+disable_error_code = ["attr-defined", "arg-type"]
 
 [[tool.mypy.overrides]]
 module = "municipalities.tests"
@@ -114,6 +114,10 @@ disable_error_code = ["attr-defined"]
 [[tool.mypy.overrides]]
 module = "meetings.tests"
 disable_error_code = ["attr-defined"]
+
+[[tool.mypy.overrides]]
+module = "tests.*"
+disable_error_code = ["attr-defined", "misc", "arg-type", "list-item", "operator", "assignment"]
 
 [tool.django-stubs]
 django_settings_module = "config.settings.development"

@@ -253,7 +253,7 @@ class PgSearchBackend(SearchBackend):  # noqa: F821 — defined in search_backen
             LIMIT %s OFFSET %s
         """
         # Snippet params bind in the SELECT list, which precedes WHERE.
-        row_params = snippet_params + params + [limit, offset]
+        row_params: list[Any] = snippet_params + params + [limit, offset]
 
         with connection.cursor() as cur:
             cur.execute(sql, row_params)

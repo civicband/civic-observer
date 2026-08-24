@@ -271,6 +271,10 @@ class TestPgSearchBackendRowToDict:
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
 
+        # _count() runs a separate cursor round-trip via fetchone(); give it a
+        # real int so the capped-count path (and its cache.set) works.
+        mock_cursor.fetchone.return_value = (42,)
+
         doc_id = uuid.uuid4()
         mock_cursor.fetchall.return_value = [
             (
