@@ -11,16 +11,21 @@ reducing load and improving response times from 100ms → <10ms for cache hits.
 import hashlib
 import json
 import logging
+import uuid
 from typing import Any
 
 from django.core.cache import cache
 
 logger = logging.getLogger(__name__)
 
+# Municipality primary keys are UUIDs (Muni.id). list[int] is kept for
+# backward compatibility with any callers that pass integer ids.
+MunicipalityIds = list[int] | list[uuid.UUID]
+
 
 def _make_search_cache_key(
     search_term: str,
-    municipalities: list[int],
+    municipalities: MunicipalityIds,
     states: list[str],
     date_from: str | None,
     date_to: str | None,
@@ -63,7 +68,7 @@ def _make_search_cache_key(
 
 def get_cached_search_results(
     search_term: str = "",
-    municipalities: list[int] | None = None,
+    municipalities: MunicipalityIds | None = None,
     states: list[str] | None = None,
     date_from: str | None = None,
     date_to: str | None = None,
@@ -119,7 +124,7 @@ def set_cached_search_results(
     results: list[dict[str, Any]],
     total_count: int,
     search_term: str = "",
-    municipalities: list[int] | None = None,
+    municipalities: MunicipalityIds | None = None,
     states: list[str] | None = None,
     date_from: str | None = None,
     date_to: str | None = None,

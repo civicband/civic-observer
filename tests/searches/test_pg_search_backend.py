@@ -1,9 +1,9 @@
 """
 Tests for PgSearchBackend.
 
-Since pg_search operators (|||, &&&, pdb.score, pdb.snippet) aren't available
-in test databases without the ParadeDB extension, these tests mock the
-database cursor to verify SQL construction and result parsing.
+Since pg_search operators (paradedb.parse, paradedb.score, paradedb.snippet)
+aren't available in test databases without the ParadeDB extension, these tests
+mock the database cursor to verify SQL construction and result parsing.
 """
 
 from datetime import date
@@ -26,7 +26,7 @@ class TestPgSearchBackendName:
 class TestPgSearchBackendSearch:
     @patch("searches.search_backends.connection")
     def test_search_with_text_query(self, mock_conn):
-        """Test that a text query produces the correct SQL with ||| operator."""
+        """Test that a text query produces the correct SQL with paradedb.parse."""
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
@@ -43,14 +43,14 @@ class TestPgSearchBackendSearch:
         sql = mock_cursor.execute.call_args[0][0]
         params = mock_cursor.execute.call_args[0][1]
 
-        assert "text ||| %s" in sql
-        assert "pdb.snippet" in sql
-        assert "pdb.score(id) DESC" in sql
-        # Params: snippet_start_tag, snippet_stop_tag, max_chars, query_text, limit, offset
+        assert "id @@@ paradedb.parse(%s)" in sql
+        assert "paradedb.snippet" in sql
+        assert "paradedb.score(id) DESC" in sql
+        # Params: snippet_start_tag, snippet_stop_tag, max_chars, parse_query, limit, offset
         assert params[0] == HEADLINE_START_TAG
         assert params[1] == HEADLINE_STOP_TAG
         assert params[2] == SNIPPET_MAX_CHARS
-        assert params[3] == "housing"
+        assert params[3] == "text:(housing)"
         assert params[4] == 10
         assert params[5] == 0
 
@@ -68,7 +68,7 @@ class TestPgSearchBackendSearch:
         sql = mock_cursor.execute.call_args[0][0]
         params = mock_cursor.execute.call_args[0][1]
 
-        assert "text |||" not in sql
+        assert "paradedb.parse" not in sql
         assert "NULL AS snippet" in sql
         assert "ORDER BY meeting_date DESC, id" in sql
         # No snippet params, just limit and offset
@@ -76,7 +76,7 @@ class TestPgSearchBackendSearch:
 
     @patch("searches.search_backends.connection")
     def test_search_with_meeting_name_query(self, mock_conn):
-        """Test that meeting_name_query adds a filter clause."""
+        """Test that meeting_name_query adds a parse predicate scoped to meeting_name."""
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
@@ -88,8 +88,10 @@ class TestPgSearchBackendSearch:
         sql = mock_cursor.execute.call_args[0][0]
         params = mock_cursor.execute.call_args[0][1]
 
-        assert "meeting_name ||| %s" in sql
-        assert "council" in params
+        assert "id @@@ paradedb.parse(%s)" in sql
+        assert "meeting_name:(council)" in params
+        assert "meeting_name:(council)" in params
+        assert "text:(budget)" in params
 
     @patch("searches.search_backends.connection")
     def test_search_with_municipality_queryset(self, mock_conn):
@@ -268,6 +270,10 @@ class TestPgSearchBackendRowToDict:
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+
+        # _count() runs a separate cursor round-trip via fetchone(); give it a
+        # real int so the capped-count path (and its cache.set) works.
+        mock_cursor.fetchone.return_value = (42,)
 
         doc_id = uuid.uuid4()
         mock_cursor.fetchall.return_value = [

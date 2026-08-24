@@ -167,19 +167,21 @@ class PgSearchBackend(SearchBackend):  # noqa: F821 — defined in search_backen
         where: list[str] = []
         params: list[Any] = []
 
-        # --- full-text predicate -------------------------------------------
-        # `|||` is match-any (OR). Use `&&&` for match-all if you'd rather
-        # narrow results; that's a product decision, not a technical one.
+        # --- full-text predicates ------------------------------------------
+        # Tantivy query-string language via paradedb.parse(): bare terms are
+        # OR'd by default, AND/OR/NOT keywords and `-term` negation are native,
+        # and quoted blocks become positional phrases. `@@@` matches the index
+        # key field (id) against the parsed query.
         if query_text:
-            where.append("text ||| %s")
-            params.append(query_text)
+            where.append("id @@@ paradedb.parse(%s)")
+            params.append(f"text:({query_text.strip()})")
 
         if meeting_name_query:
             # Raw meeting_name only. CamelCase splitting lives in a separate
             # meeting_name_alias lookup table (post-migration) rather than as a
             # column here — see meetingpage_model_changes.py for why.
-            where.append("meeting_name ||| %s")
-            params.append(meeting_name_query)
+            where.append("id @@@ paradedb.parse(%s)")
+            params.append(f"meeting_name:({meeting_name_query.strip()})")
 
         # --- filters: all local columns now, no joins ----------------------
         if municipalities is not None:
@@ -251,7 +253,7 @@ class PgSearchBackend(SearchBackend):  # noqa: F821 — defined in search_backen
             LIMIT %s OFFSET %s
         """
         # Snippet params bind in the SELECT list, which precedes WHERE.
-        row_params = snippet_params + params + [limit, offset]
+        row_params: list[Any] = snippet_params + params + [limit, offset]
 
         with connection.cursor() as cur:
             cur.execute(sql, row_params)
