@@ -60,8 +60,7 @@
                           action="{% url 'meetings:meeting-search-results' %}"
                           hx-get="{% url 'meetings:meeting-search-results' %}"
                           hx-target="#search-results"
-                          hx-swap="innerHTML show:top"
-                          hx-indicator="#search-loading"
+                          hx-swap="innerHTML show:window:top"
                           {% if public_page %}hx-vals='{"public_page_slug": "{{ public_page.slug }}"}'{% endif %}
                           aria-label="Meeting document search filters"
                           role="search">
@@ -669,6 +668,12 @@
             const queryInput = document.getElementById('id_query');
             const resultsContainer = document.getElementById('search-results');
 
+            // On history restore (Back/Forward) with no cached content, do a
+            // full page load so the URL params drive a fresh search.
+            if (window.htmx) {
+                htmx.config.refreshOnHistoryMiss = true;
+            }
+
             // Trigger search on page load if there are existing params OR if this is a public page
             const urlParams = new URLSearchParams(window.location.search);
             const hasParams = urlParams.has('query') || urlParams.has('meeting_name_query') || urlParams.has('municipalities') || urlParams.has('states') || urlParams.has('date_from') || urlParams.has('date_to') || urlParams.has('document_type');
@@ -721,6 +726,9 @@
                         resultsContainer.insertAdjacentHTML('afterbegin', loadingHTML);
                     }
 
+                    // Scroll to top so the spinner and fresh results are visible
+                    window.scrollTo(0, 0);
+
                     // Use HTMX ajax directly to avoid form submission issues
                     // Build URL with query params from form
                     const formData = new FormData(formElement);
@@ -732,7 +740,8 @@
 
                     htmx.ajax('GET', fullUrl, {
                         target: '#search-results',
-                        swap: 'innerHTML show:top'
+                        swap: 'innerHTML show:window:top',
+                        headers: { 'X-No-Push': 'true' }
                     });
                 } else {
                     // HTMX not loaded - wait a bit and retry, or fall back to form submit
@@ -756,6 +765,9 @@
                         resultsContainer.insertAdjacentHTML('afterbegin', loadingHTML);
                     }
 
+                    // Scroll to top so the spinner and fresh results are visible
+                    window.scrollTo(0, 0);
+
                     setTimeout(() => {
                         if (typeof htmx !== 'undefined' && htmx.ajax) {
                             console.log('[Auto-Execute Debug] HTMX ready after delay, triggering via ajax()');
@@ -766,7 +778,8 @@
 
                             htmx.ajax('GET', fullUrl, {
                                 target: '#search-results',
-                                swap: 'innerHTML show:top'
+                                swap: 'innerHTML show:window:top',
+                                headers: { 'X-No-Push': 'true' }
                             });
                         } else {
                             // Final fallback: submit the form normally
@@ -829,6 +842,9 @@
                     if (!resultsContainer.querySelector('.loading-overlay')) {
                         resultsContainer.insertAdjacentHTML('afterbegin', loadingHTML);
                     }
+
+                    // Scroll to top so the spinner is visible during the request
+                    window.scrollTo(0, 0);
                 }
             });
 
@@ -862,8 +878,9 @@
             position: absolute;
             inset: 0;
             display: flex;
-            align-items: center;
+            align-items: flex-start;
             justify-content: center;
+            padding-top: 3rem;
             background-color: rgba(255, 255, 255, 0.9);
             backdrop-filter: blur(2px);
             z-index: 10;
