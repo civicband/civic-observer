@@ -41,6 +41,35 @@ def _is_htmx_request(request: HttpRequest) -> bool:
     return request.headers.get("HX-Request") == "true"
 
 
+def _build_push_url(request: HttpRequest) -> str | None:
+    """
+    Build the URL HTMX should push into browser history for this search.
+
+    Keeps shared/bookmarkable URLs pointing at the full search page (or the
+    public topic page) instead of the partial results endpoint. Returns None
+    when pushing should be suppressed (e.g. auto-executed searches where the
+    URL already reflects the search).
+    """
+    if request.headers.get("X-No-Push") == "true":
+        return None
+
+    params = request.GET.copy()
+
+    base_url = reverse("meetings:meeting-search")
+    public_page_slug = params.pop("public_page_slug", None)
+    if public_page_slug:
+        from searches.models import PublicSearchPage
+
+        public_page = PublicSearchPage.objects.filter(
+            slug=public_page_slug[0], is_published=True
+        ).first()
+        if public_page:
+            base_url = public_page.get_absolute_url()
+
+    query_string = params.urlencode()
+    return f"{base_url}?{query_string}" if query_string else base_url
+
+
 @require_GET
 def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
     """
@@ -233,10 +262,14 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
     else:
         context["saved_page_ids"] = set()
 
-    return HttpResponse(
+    response = HttpResponse(
         render_to_string(
             "meetings/partials/search_results.html",
             context,
             request=request,
         )
     )
+    push_url = _build_push_url(request)
+    if push_url:
+        response["HX-Push-Url"] = push_url
+    return response
