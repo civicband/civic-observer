@@ -1,0 +1,45 @@
+sources:
+  docker:
+    type: docker_logs
+    exclude_containers:
+      - vector
+
+transforms:
+  process:
+    type: remap
+    inputs: [docker]
+    source: |
+      # host label (falls back to docker's host if the env var is unset)
+      .host = get_env_var("HOSTNAME_OVERRIDE") ?? .host
+
+      # if the container log line is JSON, parse it and lift its keys to the top
+      parsed, err = parse_json(.message)
+      if err == null && is_object(parsed) {
+        obj = object!(parsed)
+        del(obj.timestamp)      # keep Docker's timestamp, not the app's string
+        . = merge(., obj)
+      }
+
+
+sinks:
+  victorialogs:
+    type: elasticsearch
+    inputs: [process]
+    endpoints:
+      - "${VL_ENDPOINT}"
+    auth:
+      strategy: basic
+      user: "${VL_USER}"
+      password: "${VL_PASSWORD}"
+    api_version: v8
+    compression: gzip
+    healthcheck:
+      enabled: false
+    buffer:
+      type: disk
+      max_size: 536870912
+      when_full: block
+    query:
+      _msg_field: message
+      _time_field: timestamp
+      _stream_fields: host,container_name

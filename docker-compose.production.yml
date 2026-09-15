@@ -66,6 +66,20 @@ services:
     <<: *django-worker
     container_name: observer-worker-green
 
+  vector:
+    image: timberio/vector:nightly-distroless-libc # check for newer tag
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - VECTOR_DANGEROUSLY_ALLOW_ENV_VAR_INTERPOLATION=true
+    volumes:
+      - ./vector/:/etc/vector/:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    # optional: don't collect vector's own logs into a loop
+    logging:
+      driver: "json-file"
+      options: { max-size: "10m", max-file: "3" }
+
 volumes:
   redis-data:
 
