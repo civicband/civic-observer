@@ -1,17 +1,30 @@
-x-common-settings: &common-settings
-  build:
-    context: .
-    dockerfile: ./Dockerfile
-    target: release
+x-django-settings: &django-settings
+  image: civic-observer:${VERSION:-latest}
+  build: .
   depends_on:
-    db:
-      condition: service_healthy
     redis:
       condition: service_healthy
   env_file: .env
+  init: true
   restart: on-failure
-  volumes:
-    - .:/src:cache
+  networks:
+    civic-network:
+
+x-django-web: &django-web
+  <<: *django-settings
+  entrypoint: ["/src/compose-entrypoint.sh"]
+  command: uvicorn config.asgi:application --host 0.0.0.0 --port 8000
+  healthcheck:
+    test: ["CMD", "curl", "--fail", "http://localhost:8000/health/"]
+    interval: 10s
+    timeout: 5s
+    retries: 3
+    start_period: 30s
+
+x-django-worker: &django-worker
+  <<: *django-settings
+  entrypoint: ["/src/compose-entrypoint.sh"]
+  command: python manage.py rqworker default
 
 services:
   db:
@@ -32,6 +45,8 @@ services:
       - ./docker/postgres/postgresql.conf:/etc/postgresql/postgresql.conf:ro
     command: postgres -c config_file=/etc/postgresql/postgresql.conf -c listen_addresses=*
     shm_size: 1gb
+    networks:
+      - civic-network
 
   redis:
     image: "redis:7-alpine"
@@ -52,78 +67,35 @@ services:
     volumes:
       - redis-data:/data
     restart: on-failure
-
-  pgbouncer:
-    image: edoburu/pgbouncer:latest
-    init: true
-    depends_on:
-      db:
-        condition: service_healthy
-    environment:
-      - DATABASE_URL=postgres://postgres@db:5432/postgres
-      - POOL_MODE=transaction
-      - MAX_CLIENT_CONN=200
-      - DEFAULT_POOL_SIZE=25
-      - RESERVE_POOL_SIZE=5
-    ports:
-      - "6432:6432"
-    volumes:
-      - ./docker/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
-      - ./docker/userlist.txt:/etc/pgbouncer/userlist.txt:ro
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "psql",
-          "-h",
-          "localhost",
-          "-p",
-          "6432",
-          "-U",
-          "postgres",
-          "-d",
-          "postgres",
-          "-c",
-          "SELECT 1",
-        ]
-      interval: 10s
-      timeout: 3s
-      retries: 3
-    restart: on-failure
+    networks:
+      - civic-network
 
   utility:
-    <<: *common-settings
+    <<: *django-settings
     tty: true
 
-  web:
-    <<: *common-settings
-    command: uvicorn config.asgi:application --host 0.0.0.0
-    entrypoint: ["/src/compose-entrypoint.sh"]
-    init: true
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "--fail", "http://localhost:8000/health/"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
+  web-blue:
+    <<: *django-web
+    container_name: observer-web-blue
     ports:
-      - "${DJANGO_PORT}:8000"
-    tty: true
+      - "8888:8000"
 
-  worker:
-    <<: *common-settings
-    command: python manage.py rqworker default
-    entrypoint: ["/src/compose-entrypoint.sh"]
-    init: true
-    tty: true
+  worker-blue:
+    <<: *django-worker
+    container_name: observer-worker-blue
+
+  web-green:
+    <<: *django-web
+    container_name: observer-web-green
+    ports:
+      - "8889:8000"
+
+  worker-green:
+    <<: *django-worker
+    container_name: observer-worker-green
 
   tailwind:
-    <<: *common-settings
+    <<: *django-settings
     command: python manage.py tailwind watch
     init: true
     tty: true
@@ -133,3 +105,6 @@ services:
 volumes:
   postgres-data:
   redis-data:
+
+networks:
+  civic-network:
