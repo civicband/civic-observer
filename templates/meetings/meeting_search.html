@@ -62,6 +62,7 @@
                           hx-target="#search-results"
                           hx-swap="innerHTML show:window:top"
                           {% if public_page %}hx-vals='{"public_page_slug": "{{ public_page.slug }}"}'{% endif %}
+                          data-initial-query="{{ request.GET.urlencode }}"
                           aria-label="Meeting document search filters"
                           role="search">
 
@@ -99,6 +100,7 @@
                             <div x-data="multiSelect({
                                          name: 'municipalities',
                                          items: [{% for muni in form.municipalities.field.queryset %}{'id': '{{ muni.id }}', 'label': '{{ muni.name|escapejs }}, {{ muni.state|escapejs }}'}{% if not forloop.last %},{% endif %}{% endfor %}],
+                                         initialSelected: initialSearchParams().getAll('municipalities'),
                                          placeholder: 'Search municipalities...'
                                          })" class="relative">
                         <!-- Hidden inputs for form submission -->
@@ -161,6 +163,7 @@
                             <div x-data="multiSelect({
                                          name: 'states',
                                          items: [{% for code, name in form.states.field.choices %}{'id': '{{ code|escapejs }}', 'label': '{{ code|escapejs }} - {{ name|escapejs }}'}{% if not forloop.last %},{% endif %}{% endfor %}],
+                                         initialSelected: initialSearchParams().getAll('states'),
                                          placeholder: 'Search states...'
                                          })" class="relative">
                         <!-- Hidden inputs for form submission -->
@@ -448,13 +451,37 @@
     {% endif %}
 
     <script>
+        // Params the page was loaded with (server-rendered so partial-render
+        // states and public pages keep every filter, including those not bound
+        // to a form input such as `page`).
+        function initialSearchParams() {
+            const form = document.getElementById('search-form');
+            return new URLSearchParams((form && form.dataset.initialQuery) || '');
+        }
+
+        // Build the results URL for the initial auto-execute: start from the
+        // loaded params so nothing is dropped, then add form-only values
+        // (e.g. the locked query and public_page_slug on public pages).
+        function buildSearchUrl(formElement) {
+            const params = initialSearchParams();
+            const formData = new FormData(formElement);
+            for (const [key, value] of formData.entries()) {
+                if (!params.has(key)) {
+                    params.append(key, value);
+                }
+            }
+            const url = formElement.getAttribute('hx-get') || formElement.action;
+            const query = params.toString();
+            return query ? url + '?' + query : url;
+        }
+
         // Alpine.js multi-select component
         function multiSelect(config) {
             return {
                 name: config.name,
                 items: config.items,
                 placeholder: config.placeholder || 'Search...',
-                selected: [],
+                selected: config.initialSelected || [],
                 search: '',
                 open: false,
 
@@ -730,11 +757,8 @@
                     window.scrollTo(0, 0);
 
                     // Use HTMX ajax directly to avoid form submission issues
-                    // Build URL with query params from form
-                    const formData = new FormData(formElement);
-                    const params = new URLSearchParams(formData);
-                    const url = formElement.getAttribute('hx-get') || formElement.action;
-                    const fullUrl = url + '?' + params.toString();
+                    // Build URL from the loaded params plus form-only values
+                    const fullUrl = buildSearchUrl(formElement);
 
                     console.log('[Auto-Execute Debug] Making HTMX request to:', fullUrl);
 
@@ -771,10 +795,7 @@
                     setTimeout(() => {
                         if (typeof htmx !== 'undefined' && htmx.ajax) {
                             console.log('[Auto-Execute Debug] HTMX ready after delay, triggering via ajax()');
-                            const formData = new FormData(formElement);
-                            const params = new URLSearchParams(formData);
-                            const url = formElement.getAttribute('hx-get') || formElement.action;
-                            const fullUrl = url + '?' + params.toString();
+                            const fullUrl = buildSearchUrl(formElement);
 
                             htmx.ajax('GET', fullUrl, {
                                 target: '#search-results',
