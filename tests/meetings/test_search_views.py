@@ -6,7 +6,7 @@ import pytest
 from django.urls import reverse
 
 from searches.models import PublicSearchPage
-from tests.factories import MeetingPageFactory, SearchFactory
+from tests.factories import MeetingPageFactory, MuniFactory, SearchFactory
 
 pytestmark = pytest.mark.django_db
 
@@ -80,3 +80,29 @@ class TestSearchShellTemplate:
         content = response.content.decode()
         assert "show:window:top" in content
         assert 'hx-indicator="#search-loading"' not in content
+
+
+class TestSearchShellUrlParams:
+    """Loading the shell with params must not drop them when auto-executing."""
+
+    def test_form_exposes_loaded_query_string(self, authenticated_client):
+        muni = MuniFactory()
+        response = authenticated_client.get(
+            reverse("meetings:meeting-search"),
+            {"query": "housing", "page": "2", "municipalities": str(muni.id)},
+        )
+        content = response.content.decode()
+        assert "data-initial-query=" in content
+        assert "query=housing" in content
+        assert "page=2" in content
+
+    def test_multiselects_seed_selected_from_loaded_params(self, authenticated_client):
+        muni = MuniFactory()
+        response = authenticated_client.get(
+            reverse("meetings:meeting-search"),
+            {"query": "housing", "municipalities": str(muni.id), "states": "CA"},
+        )
+        content = response.content.decode()
+        assert "initialSelected" in content
+        assert "getAll('municipalities')" in content
+        assert "getAll('states')" in content
