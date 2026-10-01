@@ -23,7 +23,7 @@ dependencies = [
     "django-localflavor>=5.0",
     "django-countries>=7.6.1",
     "sentry-sdk[django]>=2.29.1",
-    "django-stagedoor>0.1.0",
+    "django-stagedoor>=0.3.1",
     "django-rq>=3.0.0",
     "redis>=5.0.0",
     "atproto>=0.0.63",

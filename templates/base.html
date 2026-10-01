@@ -77,6 +77,14 @@
                                 {% endif %}
                                 <a href="{% url 'api_page' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors" data-umami-event="nav_click" data-umami-event-destination="api">API</a>
                                 {% if user.is_staff %} <a href="{% url 'admin:index' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors" data-umami-event="nav_click" data-umami-event-destination="admin">Admin</a> {% endif %}
+                                {% if user.is_authenticated %}
+                                    <form method="post" action="{% url 'stagedoor:logout' %}" class="inline">
+                                        {% csrf_token %}
+                                        <button type="submit" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors" data-umami-event="nav_click" data-umami-event-destination="logout">Log out</button>
+                                    </form>
+                                {% else %}
+                                    <a href="{% url 'login' %}" class="text-gray-600 hover:text-indigo-600 font-medium transition-colors" data-umami-event="nav_click" data-umami-event-destination="login">Log in</a>
+                                {% endif %}
                             </div>
                         </div>
 
@@ -126,6 +134,14 @@
                             <a href="{% url 'api_page' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors" data-umami-event="nav_click" data-umami-event-destination="api">API</a>
                             {% if user.is_staff %}
                                 <a href="{% url 'admin:index' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors" data-umami-event="nav_click" data-umami-event-destination="admin">Admin</a>
+                            {% endif %}
+                            {% if user.is_authenticated %}
+                                <form method="post" action="{% url 'stagedoor:logout' %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="block w-full text-left px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors" data-umami-event="nav_click" data-umami-event-destination="logout">Log out</button>
+                                </form>
+                            {% else %}
+                                <a href="{% url 'login' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 transition-colors" data-umami-event="nav_click" data-umami-event-destination="login">Log in</a>
                             {% endif %}
                         </div>
                     </div>
