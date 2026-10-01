@@ -27,8 +27,8 @@ class TestLoginView:
         assert b"login" in response.content.lower()
 
     def test_login_form_posts_to_auth_login(self, client):
-        """Test that the login form posts to /auth/login."""
+        """Test that the login form posts to /auth/login/."""
         response = client.get(reverse("login"))
         assert response.status_code == 200
-        # The form should post to /auth/login
-        assert b'action="/auth/login"' in response.content
+        # The form should post to /auth/login/
+        assert b'action="/auth/login/"' in response.content
