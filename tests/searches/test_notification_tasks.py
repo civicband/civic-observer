@@ -239,6 +239,44 @@ class TestCheckSavedSearchesAfterIngest:
         search.refresh_from_db()
         assert search.last_checked_for_new_pages is not None
 
+    def test_check_all_immediate_searches_scopes_to_one_municipality(self):
+        """
+        When a municipality is given, only saved searches scoped to that
+        municipality are checked and notified.
+        """
+        from searches.tasks import check_all_immediate_searches
+        from tests.factories import MuniFactory
+
+        m1 = MuniFactory(subdomain="scope-city-1")
+        m2 = MuniFactory(subdomain="scope-city-2")
+        s1 = SearchFactory(search_term="budget")
+        s1.municipalities.add(m1)
+        SavedSearchFactory(search=s1, notification_frequency="immediate")
+        s2 = SearchFactory(search_term="budget")
+        s2.municipalities.add(m2)
+        SavedSearchFactory(search=s2, notification_frequency="immediate")
+
+        for muni in (m1, m2):
+            doc = MeetingDocumentFactory(municipality=muni)
+            MeetingPageFactory(document=doc, text="budget hearing")
+
+        check_all_immediate_searches(municipality_id=m1.id)
+        assert len(mail.outbox) == 1
+
+    def test_check_all_immediate_is_idempotent_across_runs(self):
+        """Re-running the check does not send duplicate notifications."""
+        from searches.tasks import check_all_immediate_searches
+
+        doc = MeetingDocumentFactory()
+        search = SearchFactory(search_term="budget")
+        search.municipalities.add(doc.municipality)
+        SavedSearchFactory(search=search, notification_frequency="immediate")
+        MeetingPageFactory(document=doc, text="budget hearing")
+
+        check_all_immediate_searches(municipality_id=doc.municipality_id)
+        check_all_immediate_searches(municipality_id=doc.municipality_id)
+        assert len(mail.outbox) == 1
+
 
 @pytest.mark.django_db
 class TestNotificationEdgeCases:

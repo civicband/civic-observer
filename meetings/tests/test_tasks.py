@@ -13,8 +13,9 @@ from municipalities.models import Muni
 
 @pytest.mark.django_db
 class TestBackfillIncrementalTask:
+    @patch("meetings.tasks.django_rq.get_queue")
     @patch("meetings.services._backfill_document_type")
-    def test_incremental_backfill_uses_date_range(self, mock_backfill):
+    def test_incremental_backfill_uses_date_range(self, mock_backfill, mock_get_queue):
         """Test that incremental backfill passes ±6 months date range."""
         muni = Muni.objects.create(
             subdomain="test-city",
@@ -53,6 +54,11 @@ class TestBackfillIncrementalTask:
         # Verify progress was marked complete
         progress.refresh_from_db()
         assert progress.status == "completed"
+
+        # Verify immediate notification check was enqueued
+        mock_get_queue.return_value.enqueue.assert_called_once()
+        enqueued = mock_get_queue.return_value.enqueue.call_args[0][0]
+        assert enqueued.__name__ == "check_all_immediate_searches"
 
     @patch("meetings.services._backfill_document_type")
     def test_incremental_backfill_handles_errors(self, mock_backfill):
@@ -174,8 +180,10 @@ class TestBackfillBatchTask:
         assert progress.next_cursor is None
         assert progress.force_full_backfill is False  # Flag cleared
 
-        # Verify NO next batch was enqueued
-        mock_queue.enqueue.assert_not_called()
+        # Verify immediate notification check was enqueued (and no next batch)
+        mock_queue.enqueue.assert_called_once()
+        enqueued = mock_queue.enqueue.call_args[0][0]
+        assert enqueued.__name__ == "check_all_immediate_searches"
 
     @patch("meetings.services._backfill_document_type")
     def test_batch_task_resumes_from_cursor(self, mock_backfill):
