@@ -340,7 +340,7 @@ requires-dist = [
     { name = "django-model-utils", specifier = ">=5.0.0" },
     { name = "django-redis", specifier = ">=6.0.0" },
     { name = "django-rq", specifier = ">=3.0.0" },
-    { name = "django-stagedoor", specifier = ">=0.3.1" },
+    { name = "django-stagedoor", specifier = ">=0.3.3" },
     { name = "django-stubs", extras = ["compatible-mypy"], marker = "extra == 'dev'", specifier = ">=5.2.0" },
     { name = "django-tailwind-cli", specifier = ">=2.2.0" },
     { name = "django-widget-tweaks", specifier = ">=1.5.0" },
@@ -671,16 +671,16 @@ wheels = [
 
 [[package]]
 name = "django-stagedoor"
-version = "0.3.1"
+version = "0.3.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "django" },
     { name = "django-phonenumber-field", extra = ["phonenumbers"] },
     { name = "twilio" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/0e/65/ac05e20c7e67c3c2824ce2d3065cf139b8cbe982e92d6fc3b501180ff299/django_stagedoor-0.3.1.tar.gz", hash = "sha256:dce0870adf113e4f8392f0064bf0e3d1c65d863ba2d621e1ce43ce30c2623d80", size = 15321, upload-time = "2026-06-02T20:16:45.943Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/5e/79/118cadf89e8ac09eeb15ba9c03ffc24e7fe99781509ffb0b39f861c6bf7c/django_stagedoor-0.3.3.tar.gz", hash = "sha256:85a0ca51403851fc85f95f720ceb2fc271cb694ed102d9515964283b119d9f87", size = 15345, upload-time = "2026-10-01T19:39:46.524Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/ec/48/a9091744f346e79b427f474d0252227267273433b4c5b207b380f352e4f1/django_stagedoor-0.3.1-py3-none-any.whl", hash = "sha256:3ee7211b80eaedb6d4798ffdca3024c51a6114efa5a35e7b65d71a6e55a7286f", size = 19962, upload-time = "2026-06-02T20:16:44.839Z" },
+    { url = "https://files.pythonhosted.org/packages/04/fc/3dab208a1531f260612fb6caed3dd09171ae540c5ce960c1c18e6bacd949/django_stagedoor-0.3.3-py3-none-any.whl", hash = "sha256:8fc43bdabe835af8cb5c324a2162525a5ce4dbca0ec48706e0f52b0b19d7e5c2", size = 19983, upload-time = "2026-10-01T19:39:45.164Z" },
 ]
 
 [[package]]
