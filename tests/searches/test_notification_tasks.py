@@ -420,3 +420,18 @@ class TestCheckAllSavedSearches:
         # Only the immediate search should have sent an email
         assert len(mail.outbox) == 1
         assert "budget" in mail.outbox[0].body.lower()
+
+    def test_all_municipality_search_is_notified_by_scoped_check(self):
+        """
+        A saved search with no municipality scope (all updates) must still be
+        notified when a scoped check runs for any municipality.
+        """
+        from searches.tasks import check_all_immediate_searches
+
+        doc = MeetingDocumentFactory()
+        search = SearchFactory(search_term="budget")  # no municipalities set
+        SavedSearchFactory(search=search, notification_frequency="immediate")
+        MeetingPageFactory(document=doc, text="budget hearing")
+
+        check_all_immediate_searches(municipality_id=doc.municipality_id)
+        assert len(mail.outbox) == 1

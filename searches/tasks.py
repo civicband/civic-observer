@@ -8,6 +8,7 @@ new matching pages are found.
 import logging
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from .models import SavedSearch
@@ -122,7 +123,8 @@ def check_all_immediate_searches(municipality_id=None) -> dict[str, int]:
     ).select_related("search", "user")
     if municipality_id is not None:
         immediate_searches = immediate_searches.filter(
-            search__municipalities__id=municipality_id
+            Q(search__municipalities__id=municipality_id)
+            | Q(search__municipalities__isnull=True)
         ).distinct()
 
     total_count = immediate_searches.count()
