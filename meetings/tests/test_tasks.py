@@ -58,7 +58,7 @@ class TestBackfillIncrementalTask:
         # Verify immediate notification check was enqueued
         mock_get_queue.return_value.enqueue.assert_called_once()
         enqueued = mock_get_queue.return_value.enqueue.call_args[0][0]
-        assert enqueued.__name__ == "check_all_immediate_searches"
+        assert enqueued.__name__ == "check_saved_searches"
 
     @patch("meetings.services._backfill_document_type")
     def test_incremental_backfill_handles_errors(self, mock_backfill):
@@ -183,7 +183,7 @@ class TestBackfillBatchTask:
         # Verify immediate notification check was enqueued (and no next batch)
         mock_queue.enqueue.assert_called_once()
         enqueued = mock_queue.enqueue.call_args[0][0]
-        assert enqueued.__name__ == "check_all_immediate_searches"
+        assert enqueued.__name__ == "check_saved_searches"
 
     @patch("meetings.services._backfill_document_type")
     def test_batch_task_resumes_from_cursor(self, mock_backfill):

@@ -239,12 +239,12 @@ class TestCheckSavedSearchesAfterIngest:
         search.refresh_from_db()
         assert search.last_checked_for_new_pages is not None
 
-    def test_check_all_immediate_searches_scopes_to_one_municipality(self):
+    def test_check_saved_searches_scopes_to_one_municipality(self):
         """
         When a municipality is given, only saved searches scoped to that
         municipality are checked and notified.
         """
-        from searches.tasks import check_all_immediate_searches
+        from searches.tasks import check_saved_searches
         from tests.factories import MuniFactory
 
         m1 = MuniFactory(subdomain="scope-city-1")
@@ -260,12 +260,12 @@ class TestCheckSavedSearchesAfterIngest:
             doc = MeetingDocumentFactory(municipality=muni)
             MeetingPageFactory(document=doc, text="budget hearing")
 
-        check_all_immediate_searches(municipality_id=m1.id)
+        check_saved_searches(municipality_id=m1.id)
         assert len(mail.outbox) == 1
 
     def test_check_all_immediate_is_idempotent_across_runs(self):
         """Re-running the check does not send duplicate notifications."""
-        from searches.tasks import check_all_immediate_searches
+        from searches.tasks import check_saved_searches
 
         doc = MeetingDocumentFactory()
         search = SearchFactory(search_term="budget")
@@ -273,8 +273,8 @@ class TestCheckSavedSearchesAfterIngest:
         SavedSearchFactory(search=search, notification_frequency="immediate")
         MeetingPageFactory(document=doc, text="budget hearing")
 
-        check_all_immediate_searches(municipality_id=doc.municipality_id)
-        check_all_immediate_searches(municipality_id=doc.municipality_id)
+        check_saved_searches(municipality_id=doc.municipality_id)
+        check_saved_searches(municipality_id=doc.municipality_id)
         assert len(mail.outbox) == 1
 
 
@@ -325,7 +325,7 @@ class TestNotificationEdgeCases:
 class TestCheckAllSavedSearches:
     """Test batch checking of all saved searches (triggered after ingest)."""
 
-    def test_check_all_immediate_searches(self):
+    def test_check_saved_searches(self):
         """
         After ingest, all saved searches with immediate frequency should be checked.
         """
@@ -364,18 +364,19 @@ class TestCheckAllSavedSearches:
         )
 
         # Trigger batch check (would be called after ingest)
-        from searches.tasks import check_all_immediate_searches
+        from searches.tasks import check_saved_searches
 
-        check_all_immediate_searches()
+        check_saved_searches()
 
         # Verify both users received emails
         assert len(mail.outbox) == 2
         recipient_emails = {msg.to[0] for msg in mail.outbox}
         assert recipient_emails == {"user1@example.com", "user2@example.com"}
 
-    def test_only_immediate_searches_checked(self):
+    def test_only_immediate_searches_email_digests_are_flagged(self):
         """
-        Batch check should only process saved searches with immediate frequency.
+        Batch check emails immediate searches and flags daily/weekly searches
+        for their next digest.
         """
         user = UserFactory(email="test@example.com")
 
@@ -384,17 +385,17 @@ class TestCheckAllSavedSearches:
         daily_search = SearchFactory(search_term="zoning")
         weekly_search = SearchFactory(search_term="housing")
 
-        SavedSearchFactory(
+        immediate_ss = SavedSearchFactory(
             user=user,
             search=immediate_search,
             notification_frequency="immediate",
         )
-        SavedSearchFactory(
+        daily_ss = SavedSearchFactory(
             user=user,
             search=daily_search,
             notification_frequency="daily",
         )
-        SavedSearchFactory(
+        weekly_ss = SavedSearchFactory(
             user=user,
             search=weekly_search,
             notification_frequency="weekly",
@@ -413,27 +414,36 @@ class TestCheckAllSavedSearches:
         )
 
         # Trigger batch check
-        from searches.tasks import check_all_immediate_searches
+        from searches.tasks import check_saved_searches
 
-        check_all_immediate_searches()
+        result = check_saved_searches()
 
-        # Only the immediate search should have sent an email
+        # Only the immediate search should have sent an email...
         assert len(mail.outbox) == 1
         assert "budget" in mail.outbox[0].body.lower()
+
+        # ...and the digest searches should be flagged for their next digest.
+        immediate_ss.refresh_from_db()
+        daily_ss.refresh_from_db()
+        weekly_ss.refresh_from_db()
+        assert immediate_ss.has_pending_results is False
+        assert daily_ss.has_pending_results is True
+        assert weekly_ss.has_pending_results is True
+        assert result["pending_marked"] == 2
 
     def test_all_municipality_search_is_notified_by_scoped_check(self):
         """
         A saved search with no municipality scope (all updates) must still be
         notified when a scoped check runs for any municipality.
         """
-        from searches.tasks import check_all_immediate_searches
+        from searches.tasks import check_saved_searches
 
         doc = MeetingDocumentFactory()
         search = SearchFactory(search_term="budget")  # no municipalities set
         SavedSearchFactory(search=search, notification_frequency="immediate")
         MeetingPageFactory(document=doc, text="budget hearing")
 
-        check_all_immediate_searches(municipality_id=doc.municipality_id)
+        check_saved_searches(municipality_id=doc.municipality_id)
         assert len(mail.outbox) == 1
 
     def test_shared_search_notifies_each_saved_search(self):
@@ -441,7 +451,7 @@ class TestCheckAllSavedSearches:
         Two users whose saved searches share one Search row must each receive a
         notification for the same batch of new pages.
         """
-        from searches.tasks import check_all_immediate_searches
+        from searches.tasks import check_saved_searches
 
         doc = MeetingDocumentFactory()
         search = SearchFactory(search_term="budget")
@@ -450,7 +460,7 @@ class TestCheckAllSavedSearches:
         SavedSearchFactory(search=search, notification_frequency="immediate")
         MeetingPageFactory(document=doc, text="budget hearing")
 
-        check_all_immediate_searches()
+        check_saved_searches()
 
         assert len(mail.outbox) == 2
 
@@ -459,7 +469,7 @@ class TestCheckAllSavedSearches:
         Re-running the batch check must not re-notify either saved search that
         shares a Search.
         """
-        from searches.tasks import check_all_immediate_searches
+        from searches.tasks import check_saved_searches
 
         doc = MeetingDocumentFactory()
         search = SearchFactory(search_term="budget")
@@ -468,7 +478,61 @@ class TestCheckAllSavedSearches:
         SavedSearchFactory(search=search, notification_frequency="immediate")
         MeetingPageFactory(document=doc, text="budget hearing")
 
-        check_all_immediate_searches()
-        check_all_immediate_searches()
+        check_saved_searches()
+        check_saved_searches()
 
         assert len(mail.outbox) == 2
+
+    def test_digest_searches_are_flagged_after_ingest(self):
+        """
+        After ingest, daily/weekly saved searches must be marked pending so the
+        next digest includes them, while immediate searches are notified.
+        """
+        from searches.tasks import check_saved_searches
+
+        doc = MeetingDocumentFactory()
+        immediate_search = SearchFactory(search_term="budget")
+        daily_search = SearchFactory(search_term="budget")
+        immediate_search.municipalities.add(doc.municipality)
+        daily_search.municipalities.add(doc.municipality)
+        immediate_ss = SavedSearchFactory(
+            search=immediate_search, notification_frequency="immediate"
+        )
+        daily_ss = SavedSearchFactory(
+            search=daily_search, notification_frequency="daily"
+        )
+        MeetingPageFactory(document=doc, text="budget hearing")
+
+        result = check_saved_searches(municipality_id=doc.municipality_id)
+
+        assert len(mail.outbox) == 1
+        immediate_ss.refresh_from_db()
+        daily_ss.refresh_from_db()
+        assert immediate_ss.has_pending_results is False
+        assert daily_ss.has_pending_results is True
+        assert result["pending_marked"] == 1
+
+    def test_shared_search_notifies_immediate_and_flags_digest(self):
+        """
+        One shared Search used by an immediate and a daily saved search must
+        notify the immediate one and flag the digest one from the same new pages.
+        """
+        from searches.tasks import check_saved_searches
+
+        doc = MeetingDocumentFactory()
+        search = SearchFactory(search_term="budget")
+        search.municipalities.add(doc.municipality)
+        immediate_ss = SavedSearchFactory(
+            search=search, notification_frequency="immediate"
+        )
+        daily_ss = SavedSearchFactory(search=search, notification_frequency="daily")
+        MeetingPageFactory(document=doc, text="budget hearing")
+
+        result = check_saved_searches(municipality_id=doc.municipality_id)
+
+        assert len(mail.outbox) == 1
+        immediate_ss.refresh_from_db()
+        daily_ss.refresh_from_db()
+        assert immediate_ss.has_pending_results is False
+        assert daily_ss.has_pending_results is True
+        assert result["pending_marked"] == 1
