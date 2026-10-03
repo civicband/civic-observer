@@ -169,14 +169,21 @@ class Search(TimeStampedModel):
         Returns:
             QuerySet of MeetingPage objects that are new since last check.
         """
-        from .services import execute_search, get_new_pages
+        from meetings.models import MeetingPage
 
-        # Get only new pages (created since the cutoff)
-        new_pages = get_new_pages(self, since=since)
+        from .services import search_result_ids
+
+        # One backend query yields both the matching ids and (via their length)
+        # the result count, avoiding a second search and a COUNT over a large
+        # id__in list.
+        page_ids = search_result_ids(self)
+        matching = MeetingPage.objects.filter(id__in=page_ids)
+
+        cutoff = since if since is not None else self.last_checked_for_new_pages
+        new_pages = matching.filter(created__gte=cutoff) if cutoff else matching
 
         # Update tracking fields with current timestamp and count
-        all_current_results = execute_search(self)
-        self.last_result_count = all_current_results.count()
+        self.last_result_count = len(page_ids)
         self.last_checked_for_new_pages = timezone.now()
         self.last_fetched = timezone.now()
         self.save()

@@ -224,22 +224,44 @@ class ResilientBackfillService:
                 with transaction.atomic():
                     document = self._get_or_create_document(doc_key)
 
-                    # Process pages individually (don't fail whole doc if one page fails)
-                    for page_data in pages_data:
-                        try:
-                            created = self._create_or_update_page(document, page_data)
-                            if created:
-                                stats["pages_created"] += 1
-                            else:
-                                stats["pages_updated"] += 1
+                    pages = self._build_pages(document, pages_data, stats)
+                    if not pages:
+                        continue
 
-                        except Exception as e:
-                            # Log error but continue with other pages
-                            logger.warning(
-                                f"Failed to process page {page_data.get('id')}: {e}",
-                                exc_info=True,
-                            )
-                            stats["errors"] += 1
+                    # One lookup per document to count creates vs updates.
+                    page_ids = [page.id for page in pages]
+                    existing_ids = set(
+                        MeetingPage.objects.filter(id__in=page_ids).values_list(
+                            "id", flat=True
+                        )
+                    )
+                    stats["pages_created"] += sum(
+                        1 for page in pages if page.id not in existing_ids
+                    )
+                    stats["pages_updated"] += sum(
+                        1 for page in pages if page.id in existing_ids
+                    )
+
+                    # Single upsert per document instead of one query per page.
+                    MeetingPage.objects.bulk_create(
+                        pages,
+                        update_conflicts=True,
+                        unique_fields=["id"],
+                        update_fields=[
+                            "document",
+                            "page_number",
+                            "text",
+                            "page_image",
+                            "municipality",
+                            "municipality_subdomain",
+                            "municipality_name",
+                            "state",
+                            "meeting_name",
+                            "meeting_date",
+                            "document_type",
+                            "modified",
+                        ],
+                    )
 
             except Exception as e:
                 # Document creation failed - log and continue
@@ -310,41 +332,46 @@ class ResilientBackfillService:
 
         return document
 
-    def _create_or_update_page(
-        self, document: MeetingDocument, page_data: dict[str, Any]
-    ) -> bool:
+    def _build_pages(
+        self,
+        document: MeetingDocument,
+        pages_data: list[dict[str, Any]],
+        stats: dict[str, int],
+    ) -> list[MeetingPage]:
         """
-        Create or update a MeetingPage.
+        Build (but do not save) MeetingPage instances for a document's rows.
+
+        bulk_create bypasses MeetingPage.save(), so denormalized columns are
+        populated here explicitly. Rows without an id are skipped and counted as
+        errors.
 
         Args:
-            document: MeetingDocument this page belongs to
-            page_data: Dictionary with page data from API
+            document: MeetingDocument the pages belong to
+            pages_data: Raw row dictionaries from the API
+            stats: Statistics dictionary to update with errors
 
         Returns:
-            True if page was created, False if updated
-
-        Raises:
-            ValueError: If page_id is missing
+            De-duplicated list of unsaved MeetingPage instances.
         """
-        page_id = page_data.get("id")
-        if not page_id:
-            raise ValueError(f"Missing page ID in data: {page_data}")
+        by_id: dict[str, MeetingPage] = {}
+        for page_data in pages_data:
+            page_id = page_data.get("id")
+            if not page_id:
+                logger.warning(f"Skipping page with no ID: {page_data}")
+                stats["errors"] += 1
+                continue
 
-        page_number = page_data.get("page", 0)
-        text = page_data.get("text", "")
-        page_image = page_data.get("page_image", "")
+            page = MeetingPage(
+                id=page_id,
+                document=document,
+                page_number=page_data.get("page", 0),
+                text=page_data.get("text", ""),
+                page_image=page_data.get("page_image", ""),
+            )
+            page.denormalize(document)
+            by_id[page_id] = page
 
-        page, created = MeetingPage.objects.update_or_create(
-            id=page_id,
-            defaults={
-                "document": document,
-                "page_number": page_number,
-                "text": text,
-                "page_image": page_image,
-            },
-        )
-
-        return created
+        return list(by_id.values())
 
     def _verify_completeness(self) -> None:
         """

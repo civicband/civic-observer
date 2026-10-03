@@ -169,36 +169,54 @@ def set_cached_search_results(
     )
 
 
+def _delete_cache_keys(pattern: str, batch_size: int = 500) -> int:
+    """
+    Delete all cache keys matching ``pattern`` using SCAN + batched DEL.
+
+    ``KEYS`` is O(N) and blocks the Redis event loop for the whole scan, so it
+    can stall every other client on a large keyspace. ``SCAN`` is incremental
+    and the deletes are batched to keep each round trip bounded.
+
+    Returns:
+        Number of keys deleted.
+    """
+    from django_redis import get_redis_connection
+
+    redis_conn = get_redis_connection("default")
+    deleted = 0
+    batch: list[str] = []
+    for key in redis_conn.scan_iter(match=pattern, count=batch_size):
+        batch.append(key)
+        if len(batch) >= batch_size:
+            deleted += redis_conn.delete(*batch)
+            batch = []
+    if batch:
+        deleted += redis_conn.delete(*batch)
+    return deleted
+
+
 def invalidate_search_cache_for_municipality(municipality_id: int) -> None:
     """
     Invalidate all search cache entries for a specific municipality.
 
     Called when new documents are indexed for a municipality.
 
-    Note: This is a naive implementation that clears the entire cache.
-    For production with high write volume, consider more sophisticated
-    invalidation using cache key patterns or versioning.
+    Note: This clears the entire search-result cache regardless of municipality.
+    It uses SCAN (not KEYS) so a large keyspace does not block Redis. For
+    production with high write volume, consider more sophisticated invalidation
+    using versioned cache keys.
 
     Args:
         municipality_id: ID of municipality that was updated
     """
-    # Simple approach: clear entire search cache when any municipality updates
-    # This is safe but may reduce cache hit rate
-    # For better performance, use Redis key patterns (requires django-redis backend)
     try:
-        from django_redis import get_redis_connection
-
-        redis_conn = get_redis_connection("default")
-        # Delete all keys matching pattern
-        # Note: django-redis adds database number to key prefix (e.g., civicobs:1:search:v1:*)
-        keys = redis_conn.keys("civicobs:*:search:v1:*")
-        if keys:
-            redis_conn.delete(*keys)
+        deleted = _delete_cache_keys("civicobs:*:search:v1:*")
+        if deleted:
             logger.info(
                 "search_cache_invalidated",
                 extra={
                     "municipality_id": municipality_id,
-                    "keys_deleted": len(keys),
+                    "keys_deleted": deleted,
                 },
             )
     except Exception as e:
@@ -218,16 +236,11 @@ def invalidate_all_search_caches() -> None:
     Use sparingly - primarily for admin actions or bulk data updates.
     """
     try:
-        from django_redis import get_redis_connection
-
-        redis_conn = get_redis_connection("default")
-        # Note: django-redis adds database number to key prefix (e.g., civicobs:1:search:v1:*)
-        keys = redis_conn.keys("civicobs:*:search:v1:*")
-        if keys:
-            redis_conn.delete(*keys)
+        deleted = _delete_cache_keys("civicobs:*:search:v1:*")
+        if deleted:
             logger.info(
                 "search_cache_cleared",
-                extra={"keys_deleted": len(keys)},
+                extra={"keys_deleted": deleted},
             )
     except Exception as e:
         logger.warning(

@@ -175,13 +175,20 @@ class MuniWebhookUpdateView(View):
         muni, created = Muni.objects.update_or_create(
             subdomain=subdomain, defaults=muni_data
         )
-        muni.update_searches()
 
         # Only backfill if this is a new municipality OR if the page count changed
         new_pages = muni.pages
         should_backfill = created or (old_pages is not None and old_pages != new_pages)
 
         if should_backfill:
+            # Refresh per-search tracking before the backfill inserts new pages.
+            # This must run before the backfill is enqueued: update_search advances
+            # last_checked_for_new_pages, and the completion-time check depends on
+            # that cutoff predating the pages the backfill will create. Skipping it
+            # for page-unchanged webhooks (the common case) avoids a synchronous
+            # search storm on every call.
+            muni.update_searches()
+
             # Backfill meeting data from civic.band asynchronously
             try:
                 import django_rq
