@@ -15,6 +15,44 @@ from meetings.models import MeetingPage
 logger = logging.getLogger(__name__)
 
 
+def search_result_ids(search, limit=10000):
+    """
+    Run a single backend search and return the matching page IDs.
+
+    Callers that need both "new pages" and a result count should use this once
+    rather than issuing separate backend queries.
+
+    Args:
+        search: Search model instance with filter configuration
+        limit: Maximum number of results to fetch
+
+    Returns:
+        List of matching MeetingPage IDs (capped at ``limit``).
+    """
+    from .search_backends import get_search_backend
+
+    backend = get_search_backend()
+    results, _total = backend.search(
+        query_text=search.search_term,
+        municipalities=search.municipalities.all(),
+        states=search.states,
+        date_from=search.date_from,
+        date_to=search.date_to,
+        document_type=search.document_type,
+        meeting_name_query=search.meeting_name_query,
+        limit=limit,
+    )
+
+    if len(results) == limit:
+        logger.warning(
+            "Search %s hit %s result cap — new-page notifications may under-report.",
+            search.pk,
+            f"{limit:,}",
+        )
+
+    return [result["id"] for result in results]
+
+
 def execute_search(search):
     """
     Execute a Search object against local MeetingPage database.
@@ -31,27 +69,7 @@ def execute_search(search):
     Returns:
         QuerySet of MeetingPage objects matching the search criteria.
     """
-    from .search_backends import get_search_backend
-
-    backend = get_search_backend()
-    results, total = backend.search(
-        query_text=search.search_term,
-        municipalities=search.municipalities.all(),
-        states=search.states,
-        date_from=search.date_from,
-        date_to=search.date_to,
-        document_type=search.document_type,
-        meeting_name_query=search.meeting_name_query,
-        limit=10000,
-    )
-
-    if len(results) == 10000:
-        logger.warning(
-            "Search %s hit 10,000 result cap — new-page notifications may under-report.",
-            search.pk,
-        )
-
-    page_ids = [result["id"] for result in results]
+    page_ids = search_result_ids(search)
     if not page_ids:
         return MeetingPage.objects.none()
 
