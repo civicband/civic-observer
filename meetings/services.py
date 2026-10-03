@@ -248,32 +248,68 @@ def _process_rows_batch(
                 else:
                     stats["documents_updated"] += 1
 
-                # Create or update pages
+                # Build the page rows for this document
+                pages: list[MeetingPage] = []
+                by_id: dict[str, MeetingPage] = {}
                 for page_data in pages_data:
                     page_id = page_data.get("id")
-                    page_number = page_data.get("page", 0)
-                    text = page_data.get("text", "")
-                    page_image = page_data.get("page_image", "")
-
                     if not page_id:
                         logger.warning(f"Skipping page with no ID: {page_data}")
                         stats["errors"] += 1
                         continue
 
-                    page, page_created = MeetingPage.objects.update_or_create(
+                    page = MeetingPage(
                         id=page_id,
-                        defaults={
-                            "document": document,
-                            "page_number": page_number,
-                            "text": text,
-                            "page_image": page_image,
-                        },
+                        document=document,
+                        page_number=page_data.get("page", 0),
+                        text=page_data.get("text", ""),
+                        page_image=page_data.get("page_image", ""),
                     )
+                    # bulk_create bypasses MeetingPage.save(), so denormalize here
+                    page.denormalize(document)
+                    by_id[page_id] = page
 
-                    if page_created:
-                        stats["pages_created"] += 1
-                    else:
-                        stats["pages_updated"] += 1
+                pages = list(by_id.values())
+                if not pages:
+                    continue
+
+                # One lookup per document to count creates vs updates, instead of
+                # a SELECT + INSERT/UPDATE per page.
+                page_ids = [page.id for page in pages]
+                existing_ids = set(
+                    MeetingPage.objects.filter(id__in=page_ids).values_list(
+                        "id", flat=True
+                    )
+                )
+                stats["pages_created"] += sum(
+                    1 for page in pages if page.id not in existing_ids
+                )
+                stats["pages_updated"] += sum(
+                    1 for page in pages if page.id in existing_ids
+                )
+
+                # Single upsert per document instead of one query per page.
+                # `created` is intentionally not updated on conflict so original
+                # ingestion time is preserved.
+                MeetingPage.objects.bulk_create(
+                    pages,
+                    update_conflicts=True,
+                    unique_fields=["id"],
+                    update_fields=[
+                        "document",
+                        "page_number",
+                        "text",
+                        "page_image",
+                        "municipality",
+                        "municipality_subdomain",
+                        "municipality_name",
+                        "state",
+                        "meeting_name",
+                        "meeting_date",
+                        "document_type",
+                        "modified",
+                    ],
+                )
 
         except Exception as e:
             logger.error(
