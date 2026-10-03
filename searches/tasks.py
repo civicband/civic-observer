@@ -6,6 +6,7 @@ new matching pages are found.
 """
 
 import logging
+from datetime import UTC, datetime
 
 from django.db import transaction
 from django.db.models import Q
@@ -15,13 +16,23 @@ from .models import SavedSearch
 
 logger = logging.getLogger(__name__)
 
+# Explicit cutoff for a Search that has never been checked. Passing this (rather
+# than None) keeps the cutoff authoritative for every saved search sharing the
+# Search: None would mean "not provided" and fall back to the shared
+# last_checked_for_new_pages value that the first check already advanced.
+_EARLIEST_CUTOFF = datetime.min.replace(tzinfo=UTC)
 
-def check_saved_search_for_updates(saved_search_id) -> dict[str, str | int]:
+
+def check_saved_search_for_updates(saved_search_id, since=None) -> dict[str, str | int]:
     """
     Check a single saved search for new results and send notification if needed.
 
     Args:
         saved_search_id: ID of the SavedSearch to check
+        since: Optional cutoff timestamp. When provided, new pages are computed
+            against it rather than the shared Search.last_checked_for_new_pages,
+            so several saved searches sharing one Search can be checked against
+            the same pre-batch cutoff.
 
     Returns:
         Dict with status information:
@@ -31,7 +42,7 @@ def check_saved_search_for_updates(saved_search_id) -> dict[str, str | int]:
         - action: Description of action taken
 
     This function:
-    1. Gets new pages matching the search (created since last_checked_for_new_pages)
+    1. Gets new pages matching the search (created since the cutoff)
     2. If notification_frequency is "immediate" and there are new results, sends email
     3. If notification_frequency is "daily" or "weekly", flags has_pending_results
     4. Updates the Search object's tracking fields
@@ -49,7 +60,7 @@ def check_saved_search_for_updates(saved_search_id) -> dict[str, str | int]:
         }
 
     # Get new pages for this search
-    new_pages = saved_search.search.update_search()
+    new_pages = saved_search.search.update_search(since=since)
 
     # If no new results, nothing to do
     if not new_pages.exists():
@@ -130,11 +141,24 @@ def check_all_immediate_searches(municipality_id=None) -> dict[str, int]:
     total_count = immediate_searches.count()
     logger.info(f"Checking {total_count} saved searches with immediate notification")
 
+    # Snapshot each Search's cutoff before any check advances it, so every saved
+    # search sharing a Search sees the same set of new pages. Without this, the
+    # first check to run would move last_checked_for_new_pages forward and the
+    # others would silently see no new results.
+    search_cutoffs = {
+        saved_search.search_id: (
+            saved_search.search.last_checked_for_new_pages or _EARLIEST_CUTOFF
+        )
+        for saved_search in immediate_searches
+    }
+
     emails_sent = 0
     errors = 0
 
     for saved_search in immediate_searches:
-        result = check_saved_search_for_updates(saved_search.id)
+        result = check_saved_search_for_updates(
+            saved_search.id, since=search_cutoffs[saved_search.search_id]
+        )
         if result["status"] == "notified":
             emails_sent += 1
         elif result["status"] == "not_found":

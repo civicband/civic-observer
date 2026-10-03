@@ -435,3 +435,40 @@ class TestCheckAllSavedSearches:
 
         check_all_immediate_searches(municipality_id=doc.municipality_id)
         assert len(mail.outbox) == 1
+
+    def test_shared_search_notifies_each_saved_search(self):
+        """
+        Two users whose saved searches share one Search row must each receive a
+        notification for the same batch of new pages.
+        """
+        from searches.tasks import check_all_immediate_searches
+
+        doc = MeetingDocumentFactory()
+        search = SearchFactory(search_term="budget")
+        search.municipalities.add(doc.municipality)
+        SavedSearchFactory(search=search, notification_frequency="immediate")
+        SavedSearchFactory(search=search, notification_frequency="immediate")
+        MeetingPageFactory(document=doc, text="budget hearing")
+
+        check_all_immediate_searches()
+
+        assert len(mail.outbox) == 2
+
+    def test_shared_search_notifications_are_idempotent(self):
+        """
+        Re-running the batch check must not re-notify either saved search that
+        shares a Search.
+        """
+        from searches.tasks import check_all_immediate_searches
+
+        doc = MeetingDocumentFactory()
+        search = SearchFactory(search_term="budget")
+        search.municipalities.add(doc.municipality)
+        SavedSearchFactory(search=search, notification_frequency="immediate")
+        SavedSearchFactory(search=search, notification_frequency="immediate")
+        MeetingPageFactory(document=doc, text="budget hearing")
+
+        check_all_immediate_searches()
+        check_all_immediate_searches()
+
+        assert len(mail.outbox) == 2

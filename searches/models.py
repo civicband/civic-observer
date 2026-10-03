@@ -154,18 +154,25 @@ class Search(TimeStampedModel):
             return f"Search for '{self.search_term}' in {muni_names or 'all municipalities'}"
         return f"All updates search ({self.municipalities.count()} municipalities)"
 
-    def update_search(self):
+    def update_search(self, since=None):
         """
         Execute search against local MeetingPage database and return new pages.
         Updates last_checked_for_new_pages timestamp and last_result_count.
+
+        Args:
+            since: Optional cutoff timestamp used to compute new pages. Passed
+                through to ``get_new_pages`` so callers checking several saved
+                searches that share this Search can use one pre-batch cutoff
+                instead of the shared ``last_checked_for_new_pages`` value that
+                the first check has already advanced.
 
         Returns:
             QuerySet of MeetingPage objects that are new since last check.
         """
         from .services import execute_search, get_new_pages
 
-        # Get only new pages (created since last check)
-        new_pages = get_new_pages(self)
+        # Get only new pages (created since the cutoff)
+        new_pages = get_new_pages(self, since=since)
 
         # Update tracking fields with current timestamp and count
         all_current_results = execute_search(self)
