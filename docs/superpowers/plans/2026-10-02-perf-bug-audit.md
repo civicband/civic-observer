@@ -45,31 +45,37 @@
 - **Evidence:** `municipalities/views.py:178` calls `muni.update_searches()` unconditionally, before the `should_backfill` check. `Muni.update_searches` (`municipalities/models.py:38-41`) iterates every Search and calls `update_search`, which executes two full search/count passes (`searches/models.py:157-177`).
 - **Impact:** Every webhook (even with unchanged pages) blocks the request thread for 2×N searches across 15.5M rows. With many saved searches this is a request timeout / worker exhaustion vector.
 - **Mitigation:** Only run when `should_backfill` is true, and enqueue it as an RQ job. Consider decoupling "recompute tracking" from notification detection, and adding a per-Search dirty/`last_checked` guard.
+- **Status (fixed, variant):** Moved inside the `should_backfill` branch, so page-unchanged webhooks (the common case) do zero search work. Kept synchronous rather than enqueued: `update_search` advances `last_checked_for_new_pages`, and the completion-time notification check depends on that cutoff predating the pages the backfill will create — enqueueing it would race the backfill and silently drop notifications. Enqueueing is only safe if the tracking/cutoff update is decoupled from notification detection first.
 
 ### H2. `execute_search` loads 10k IDs, then re-queries by `id__in`, twice per update
 - **Evidence:** `searches/services.py:37-58` (`limit=10000`, then `MeetingPage.objects.filter(id__in=page_ids)`); `Search.update_search` calls both `get_new_pages` and `execute_search` again and `.count()` (`searches/models.py:168-172`).
 - **Impact:** Up to 10k-element `IN` clause plus a full count per saved search, duplicated. Major DB cost in the digest/notification path.
 - **Mitigation:** Collapse to one backend query; filter new pages on denormalized columns (`created__gte`, `municipality_id`, `state`, `document_type`, `meeting_date`) instead of `id__in`; reuse a single result set for the count.
+- **Status (fixed, partial):** `Search.update_search` now issues one backend query via `search_result_ids` (was two) and sets `last_result_count` from the returned id count instead of a separate ORM `COUNT` over the id list. The `id__in` remains (needed to return `MeetingPage` objects for notifications), but it is now issued once instead of twice plus a count. Fully removing the `id__in` needs the backend to return `created` so new pages can be filtered in Python.
 
 ### H3. Cache invalidation uses Redis `KEYS` (blocking O(N))
 - **Evidence:** `searches/cache.py:194` and `:225` call `redis_conn.keys("civicobs:*:search:v1:*")` then delete.
 - **Impact:** Run on every backfill completion; `KEYS` blocks Redis and scales poorly with cache size.
 - **Mitigation:** Use `scan_iter` with a pipeline/batched `delete`, or version the cache namespace and bump a version key instead of scanning.
+- **Status (fixed):** Both invalidation helpers now use a shared `_delete_cache_keys` that `SCAN`s incrementally and deletes in batches of 500, instead of `KEYS`.
 
 ### H4. `rebackfill_failed_municipalities` aggregates the full 15.5M-row page table
 - **Evidence:** `municipalities/management/commands/rebackfill_failed_municipalities.py:53-65` 3-table `LEFT JOIN` + `GROUP BY` counting `mp.id` for all municipalities.
 - **Impact:** Multi-minute table scan/aggregation; run ad-hoc by operators.
 - **Mitigation:** Count via the denormalized `meetingpage.municipality_id` (single indexed table) or use `Muni.pages`, or add a maintained counter. Avoid the join to `meetingdocument`.
+- **Status (fixed):** Query now aggregates `meetings_meetingpage` by the denormalized `municipality_id` in one pass and `LEFT JOIN`s that onto `municipalities_muni`, dropping the join to the 15.5M-row `meetings_meetingdocument` table. Covered by `tests/municipalities/test_rebackfill_command.py`.
 
 ### H5. Search filter columns have no btree indexes
 - **Evidence:** `searches/search_backends.py:194-211` filters on `municipality_id`, `state`, `meeting_date`, `document_type`; `meetings/migrations/0010_...` removed the old indexes and the model comments (`meetings/models.py:110-117`) say the BM25 index covers them. No in-repo BM25 index definition exists to confirm.
 - **Impact:** Filtered searches may fall back to scanning 15.5M rows; worst case every search is slow.
 - **Mitigation:** Verify the out-of-band ParadeDB index definition; if filter columns aren't indexed, add `CREATE INDEX CONCURRENTLY` btree indexes (or include them in the BM25 index config). Add a query-plan test/benchmark.
+- **Status (needs verification — no change made):** The ParadeDB index is created out-of-band; the repo contains no `USING bm25` definition (only an obsolete pre-ParadeDB plan sketch on other branches). `meetings/models.py:110-117` explicitly documents that the BM25 index covers these columns and that a separate btree is "dead weight on 15.5M rows." Adding speculative indexes on a 15M-row table would contradict that design and spend real disk/write cost without evidence. Needs an `EXPLAIN (ANALYZE, BUFFERS)` on a filtered search in production, or the actual index DDL, before deciding. Not attempted.
 
 ### H6. Per-page `update_or_create` in backfill (no bulk)
 - **Evidence:** `meetings/services.py:255-263`, `meetings/resilient_backfill.py:337-345`, and `clip/services.py:125-133`.
 - **Impact:** 1–2 queries per page; millions of round trips for large backfills, contributing to RQ timeouts.
 - **Mitigation:** Batch upsert (`bulk_create(..., update_conflicts=True)`) per document/batch; denormalize fields in bulk. Keep per-row error handling where needed.
+- **Status (fixed):** `meetings.services._process_rows_batch` and `ResilientBackfillService._process_batch` now build page objects (denormalizing explicitly, since `bulk_create` bypasses `MeetingPage.save()`), do one lookup per document for create/update counts, and upsert with `bulk_create(update_conflicts=True, unique_fields=["id"])` — one statement per document instead of one query per page. `clip/services.py` fetches a single page, so per-page `update_or_create` there is left as-is.
 
 ---
 
