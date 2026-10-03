@@ -20,8 +20,8 @@ from django.core import mail
 from meetings.models import MeetingPage
 from searches.models import SavedSearch, Search
 from searches.tasks import (
-    check_all_immediate_searches,
     check_saved_search_for_updates,
+    check_saved_searches,
     send_daily_digests,
     send_weekly_digests,
 )
@@ -231,7 +231,7 @@ class TestEndToEndWorkflow:
             text="New light rail transportation project proposal for downtown",
         )
 
-        check_all_immediate_searches()
+        check_saved_searches()
 
         assert len(mail.outbox) == 2
         recipients = {email.to[0] for email in mail.outbox}

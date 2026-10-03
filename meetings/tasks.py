@@ -28,15 +28,15 @@ from municipalities.models import Muni
 logger = logging.getLogger(__name__)
 
 
-def _enqueue_immediate_search_checks(municipality_id) -> None:
-    """Kick off immediate saved-search notifications for one municipality."""
-    from searches.tasks import check_all_immediate_searches
+def _enqueue_saved_search_checks(municipality_id) -> None:
+    """Kick off saved-search notification/digest checks for one municipality."""
+    from searches.tasks import check_saved_searches
 
     try:
         queue = django_rq.get_queue("default")
-        queue.enqueue(check_all_immediate_searches, municipality_id)
+        queue.enqueue(check_saved_searches, municipality_id)
     except Exception as e:
-        logger.error(f"Failed to enqueue immediate search checks: {e}", exc_info=True)
+        logger.error(f"Failed to enqueue saved search checks: {e}", exc_info=True)
 
 
 def backfill_municipality_meetings_task(muni_id: UUID | str) -> dict[str, str]:
@@ -254,7 +254,7 @@ def backfill_incremental_task(
 
         invalidate_search_cache_for_municipality(int(muni.id))
 
-        _enqueue_immediate_search_checks(int(muni.id))
+        _enqueue_saved_search_checks(int(muni.id))
 
         logger.info(
             f"Incremental backfill completed for {muni.subdomain} {document_type}: {stats}"
@@ -370,7 +370,7 @@ def backfill_batch_task(
 
             invalidate_search_cache_for_municipality(int(muni.id))
 
-            _enqueue_immediate_search_checks(int(muni.id))
+            _enqueue_saved_search_checks(int(muni.id))
 
             logger.info(
                 f"Batch backfill completed for {muni.subdomain} {document_type}"

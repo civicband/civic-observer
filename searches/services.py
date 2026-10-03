@@ -96,19 +96,25 @@ def execute_search_with_backend(search, limit=100, offset=0):
     return results, total
 
 
-def get_new_pages(search):
+def get_new_pages(search, since=None):
     """
-    Get pages that are new since last check (created after last_checked_for_new_pages).
+    Get pages that are new since last check (created after the cutoff).
 
     Args:
         search: Search model instance
+        since: Optional cutoff timestamp. When provided it is used instead of
+            ``search.last_checked_for_new_pages``. This lets callers that check
+            several saved searches sharing one Search compute new pages against
+            a single pre-batch cutoff, rather than the shared value that the
+            first check has already advanced.
 
     Returns:
-        QuerySet of MeetingPage objects created since last check timestamp.
+        QuerySet of MeetingPage objects created since the cutoff timestamp.
     """
     all_results = execute_search(search)
 
-    if search.last_checked_for_new_pages:
-        all_results = all_results.filter(created__gte=search.last_checked_for_new_pages)
+    cutoff = since if since is not None else search.last_checked_for_new_pages
+    if cutoff:
+        all_results = all_results.filter(created__gte=cutoff)
 
     return all_results
