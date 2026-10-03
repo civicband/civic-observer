@@ -151,7 +151,13 @@ def _backfill_document_type(
                 response = client.get(base_url, params=params)
                 response.raise_for_status()
 
-                data = response.json()
+                try:
+                    data = response.json()
+                except ValueError as e:
+                    raise BackfillError(
+                        f"Non-JSON response fetching {table_name} "
+                        f"for {muni.subdomain}: {e}"
+                    ) from e
 
                 # Get rows from the response
                 rows = data.get("rows", [])
@@ -181,7 +187,9 @@ def _backfill_document_type(
             f"HTTP error fetching {table_name} for {muni.subdomain}: {e}",
             exc_info=True,
         )
-        stats["errors"] += 1
+        raise BackfillError(
+            f"HTTP error fetching {table_name} for {muni.subdomain}: {e}"
+        ) from e
 
     return stats, next_cursor
 

@@ -3,9 +3,10 @@
 from datetime import date
 from unittest.mock import Mock, patch
 
+import httpx
 import pytest
 
-from meetings.services import _backfill_document_type
+from meetings.services import BackfillError, _backfill_document_type
 from municipalities.models import Muni
 
 
@@ -258,3 +259,25 @@ class TestBackfillDocumentType:
         # Verify stopped at max_pages and returned next cursor
         assert mock_client.get.call_count == 2
         assert next_cursor == "cursor_3"
+
+
+@pytest.mark.django_db
+class TestBackfillErrorHandling:
+    def test_raises_on_http_error(self):
+        muni = Muni.objects.create(subdomain="httpfail", name="HTTP Fail", state="CA")
+        with patch.object(httpx.Client, "get", side_effect=httpx.ConnectError("boom")):
+            with pytest.raises(BackfillError):
+                _backfill_document_type(muni, "agendas", "agenda")
+
+    def test_raises_on_non_json_body(self):
+        muni = Muni.objects.create(subdomain="badjson", name="Bad JSON", state="CA")
+
+        def _raise_value_error():
+            raise ValueError("no json")
+
+        resp = Mock()
+        resp.raise_for_status = Mock()
+        resp.json.side_effect = _raise_value_error
+        with patch.object(httpx.Client, "get", return_value=resp):
+            with pytest.raises(BackfillError):
+                _backfill_document_type(muni, "agendas", "agenda")

@@ -13,8 +13,9 @@ from municipalities.models import Muni
 
 @pytest.mark.django_db
 class TestBackfillIncrementalTask:
+    @patch("meetings.tasks.django_rq.get_queue")
     @patch("meetings.services._backfill_document_type")
-    def test_incremental_backfill_uses_date_range(self, mock_backfill):
+    def test_incremental_backfill_uses_date_range(self, mock_backfill, mock_get_queue):
         """Test that incremental backfill passes ±6 months date range."""
         muni = Muni.objects.create(
             subdomain="test-city",
@@ -53,6 +54,11 @@ class TestBackfillIncrementalTask:
         # Verify progress was marked complete
         progress.refresh_from_db()
         assert progress.status == "completed"
+
+        # Verify immediate notification check was enqueued
+        mock_get_queue.return_value.enqueue.assert_called_once()
+        enqueued = mock_get_queue.return_value.enqueue.call_args[0][0]
+        assert enqueued.__name__ == "check_all_immediate_searches"
 
     @patch("meetings.services._backfill_document_type")
     def test_incremental_backfill_handles_errors(self, mock_backfill):
@@ -174,8 +180,10 @@ class TestBackfillBatchTask:
         assert progress.next_cursor is None
         assert progress.force_full_backfill is False  # Flag cleared
 
-        # Verify NO next batch was enqueued
-        mock_queue.enqueue.assert_not_called()
+        # Verify immediate notification check was enqueued (and no next batch)
+        mock_queue.enqueue.assert_called_once()
+        enqueued = mock_queue.enqueue.call_args[0][0]
+        assert enqueued.__name__ == "check_all_immediate_searches"
 
     @patch("meetings.services._backfill_document_type")
     def test_batch_task_resumes_from_cursor(self, mock_backfill):
@@ -267,6 +275,35 @@ class TestBackfillBatchTask:
         progress.refresh_from_db()
         assert progress.status == "completed"
         assert progress.error_message is None
+
+    @patch("meetings.tasks.django_rq.get_queue")
+    def test_batch_task_marks_failed_on_http_error(self, mock_get_queue):
+        """An HTTP error during backfill must fail the job, not complete it."""
+        from meetings.services import BackfillError
+        from meetings.tasks import backfill_batch_task
+
+        mock_get_queue.return_value = Mock()
+        muni = Muni.objects.create(subdomain="failcity", name="Fail City", state="CA")
+        progress = BackfillProgress.objects.create(
+            municipality=muni,
+            document_type="agenda",
+            mode="full",
+            status="in_progress",
+            force_full_backfill=True,
+        )
+
+        with patch(
+            "meetings.services._backfill_document_type",
+            side_effect=BackfillError("HTTP 500"),
+        ):
+            with pytest.raises(BackfillError):
+                backfill_batch_task(muni.id, "agenda", progress.id)
+
+        progress.refresh_from_db()
+        assert progress.status == "failed"
+        assert progress.force_full_backfill is True  # not cleared
+        assert progress.error_message is not None
+        assert "HTTP 500" in progress.error_message
 
 
 @pytest.mark.django_db

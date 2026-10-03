@@ -8,6 +8,7 @@ new matching pages are found.
 import logging
 
 from django.db import transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from .models import SavedSearch
@@ -99,12 +100,16 @@ def check_saved_search_for_updates(saved_search_id) -> dict[str, str | int]:
         }
 
 
-def check_all_immediate_searches() -> dict[str, int]:
+def check_all_immediate_searches(municipality_id=None) -> dict[str, int]:
     """
-    Check all saved searches with immediate notification frequency.
+    Check saved searches with immediate notification frequency.
 
     This should be called after new pages are ingested (e.g., from webhook or backfill).
     It checks each saved search and sends notifications for any new matches.
+
+    Args:
+        municipality_id: If provided, only checks saved searches scoped to this
+            municipality. If None, checks all immediate saved searches.
 
     Returns:
         Dict with statistics:
@@ -116,6 +121,11 @@ def check_all_immediate_searches() -> dict[str, int]:
     immediate_searches = SavedSearch.objects.filter(
         notification_frequency="immediate"
     ).select_related("search", "user")
+    if municipality_id is not None:
+        immediate_searches = immediate_searches.filter(
+            Q(search__municipalities__id=municipality_id)
+            | Q(search__municipalities__isnull=True)
+        ).distinct()
 
     total_count = immediate_searches.count()
     logger.info(f"Checking {total_count} saved searches with immediate notification")
