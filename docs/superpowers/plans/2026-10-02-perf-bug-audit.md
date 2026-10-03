@@ -27,10 +27,10 @@
 - **Impact:** A transient 5xx/timeout ends a full backfill as successful with missing data; the municipality is never re-queued.
 - **Mitigation:** Re-raise (or return a distinct failure sentinel) on HTTP error so the task takes the failure path and lands as `failed` with `error_message`; add bounded retry/backoff. Wrap `response.json()` and raise `BackfillError` on decode failure. Test with a mocked 500 response.
 
-### C3. Notification/digest logic is duplicated and diverging
-- **Evidence:** `check_saved_search_for_updates`, `check_all_immediate_searches`, `send_daily_digests`, `send_weekly_digests`, `_send_digest_email`, `_send_to_notification_channels`, `_format_channel_message` exist in both `searches/tasks.py` and `notifications/services.py` with different implementations (e.g. digest bulk_update differs). Management commands import from `searches.tasks`; `notifications.services` copies are dead except internally.
-- **Impact:** Fixes made in one copy won't affect the live path; high regression risk.
-- **Mitigation:** Consolidate into one module (keep `searches/tasks.py` since commands/tests import it, or move to a shared service), update imports, delete the duplicates, delete/redirect their dead tests.
+### C3. Notification/digest logic is duplicated (verbatim)
+- **Evidence:** `check_saved_search_for_updates`, `check_all_immediate_searches`, `send_daily_digests`, `send_weekly_digests`, `_send_digest_email`, `_send_to_notification_channels`, `_format_channel_message` exist in both `searches/tasks.py` and `notifications/services.py`. An AST-level comparison of the two copies at `6c73e71^` shows they were identical except for cosmetic import placement (`from searches.models import SavedSearch` at module level vs locally), a comment, and `SavedSearch = saved_searches[0].__class__` in the notifications copy (which lacked the module-level import) — no behavioral difference. Management commands, admin, and all tests import from `searches.tasks`; a scan of every local and remote branch found zero importers of the `notifications.services` copies, which only referenced each other.
+- **Impact:** Two copies of the same logic; a fix applied to one would silently miss the other. Not currently diverging, but a latent regression risk.
+- **Mitigation:** Consolidate into one module (keep `searches/tasks.py` since commands/tests import it), update imports, delete the duplicates. Done in Task 1. The retained `notifications.services` functions (`dispatch_notification`, `dispatch_to_all_channels`, `send_meeting_digest_email`) are unique to that module and still called.
 
 ---
 
