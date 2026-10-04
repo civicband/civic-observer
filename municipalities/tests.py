@@ -7,12 +7,22 @@ import pytest
 from django.conf import settings
 from django.contrib.auth import get_user_model
 from django.db import IntegrityError
-from django.test import override_settings
 from django.urls import reverse
 
 from .models import Muni
 
 User = get_user_model()
+
+
+@pytest.fixture(autouse=True)
+def _restore_webhook_secret():
+    """Restore WEBHOOK_SECRET around every test so set values don't leak."""
+    original = os.environ.get("WEBHOOK_SECRET")
+    yield
+    if original is None:
+        os.environ.pop("WEBHOOK_SECRET", None)
+    else:
+        os.environ["WEBHOOK_SECRET"] = original
 
 
 @pytest.mark.django_db
@@ -264,7 +274,6 @@ class TestMuniWebhookUpdateView:
 
         assert response.status_code == 401
 
-    @override_settings()
     def test_create_muni_with_valid_webhook_secret(self, client, webhook_data):
         """Test creating municipality with valid webhook secret"""
         os.environ["WEBHOOK_SECRET"] = "test-secret-123"
@@ -287,7 +296,6 @@ class TestMuniWebhookUpdateView:
         if "WEBHOOK_SECRET" in os.environ:
             del os.environ["WEBHOOK_SECRET"]
 
-    @override_settings()
     def test_create_muni_with_invalid_webhook_secret(self, client, webhook_data):
         """Test creating municipality with invalid webhook secret"""
         os.environ["WEBHOOK_SECRET"] = "test-secret-123"
@@ -310,7 +318,6 @@ class TestMuniWebhookUpdateView:
         if "WEBHOOK_SECRET" in os.environ:
             del os.environ["WEBHOOK_SECRET"]
 
-    @override_settings()
     def test_webhook_secret_missing_auth_header(self, client, webhook_data):
         """Test webhook with secret configured but no auth header provided"""
         os.environ["WEBHOOK_SECRET"] = "test-secret-123"
@@ -328,7 +335,6 @@ class TestMuniWebhookUpdateView:
         if "WEBHOOK_SECRET" in os.environ:
             del os.environ["WEBHOOK_SECRET"]
 
-    @override_settings()
     def test_webhook_with_put_method(self, client, webhook_data):
         """Test webhook endpoint accepts PUT requests"""
         os.environ["WEBHOOK_SECRET"] = "test-secret-123"
@@ -347,7 +353,6 @@ class TestMuniWebhookUpdateView:
         assert data["action"] == "created"
         assert Muni.objects.filter(subdomain="putcity").exists()
 
-    @override_settings()
     def test_webhook_auth_direct_token(self, client, webhook_data):
         """Test webhook authentication with direct token (no Bearer prefix)"""
         os.environ["WEBHOOK_SECRET"] = "test-secret-123"
@@ -371,7 +376,6 @@ class TestMuniWebhookUpdateView:
             del os.environ["WEBHOOK_SECRET"]
 
     @pytest.mark.skip
-    @override_settings()
     def test_webhook_handles_exception(self, client):
         """Test webhook handles exceptions gracefully"""
         os.environ["WEBHOOK_SECRET"] = "test-secret-123"
@@ -398,7 +402,6 @@ class TestMuniWebhookUpdateView:
         if "WEBHOOK_SECRET" in os.environ:
             del os.environ["WEBHOOK_SECRET"]
 
-    @override_settings()
     def test_webhook_invalid_json(self, client):
         """Test webhook with invalid JSON data"""
         os.environ["WEBHOOK_SECRET"] = "test-secret-123"
@@ -413,7 +416,6 @@ class TestMuniWebhookUpdateView:
         data = response.json()
         assert data["error"] == "Invalid JSON"
 
-    @override_settings()
     def test_webhook_missing_required_name(self, client):
         """Test webhook with missing required name field"""
         os.environ["WEBHOOK_SECRET"] = "test-secret-123"
@@ -430,7 +432,6 @@ class TestMuniWebhookUpdateView:
         response_data = response.json()
         assert response_data["error"] == "name field is required"
 
-    @override_settings()
     def test_webhook_filters_invalid_fields(self, client):
         """Test webhook filters out invalid model fields"""
         os.environ["WEBHOOK_SECRET"] = "test-secret-123"
@@ -454,7 +455,6 @@ class TestMuniWebhookUpdateView:
         assert "invalid_field" not in data
         assert "another_invalid" not in data
 
-    @override_settings()
     def test_webhook_updates_searches(self, client):
         """Test webhook updates saved searches"""
         os.environ["WEBHOOK_SECRET"] = "test-secret-123"
@@ -493,7 +493,6 @@ class TestMuniWebhookUpdateView:
         data = response.json()
         assert data["action"] == "updated"
 
-    @override_settings()
     @patch("django_rq.get_queue")
     def test_webhook_backfill_on_new_municipality(
         self, mock_get_queue, client, webhook_data
@@ -530,7 +529,6 @@ class TestMuniWebhookUpdateView:
         if "WEBHOOK_SECRET" in os.environ:
             del os.environ["WEBHOOK_SECRET"]
 
-    @override_settings()
     @patch("django_rq.get_queue")
     def test_webhook_no_backfill_when_pages_unchanged(
         self, mock_get_queue, client, webhook_data
@@ -574,7 +572,6 @@ class TestMuniWebhookUpdateView:
         if "WEBHOOK_SECRET" in os.environ:
             del os.environ["WEBHOOK_SECRET"]
 
-    @override_settings()
     @patch("django_rq.get_queue")
     def test_webhook_backfill_when_pages_changed(
         self, mock_get_queue, client, webhook_data
@@ -624,7 +621,6 @@ class TestMuniWebhookUpdateView:
         if "WEBHOOK_SECRET" in os.environ:
             del os.environ["WEBHOOK_SECRET"]
 
-    @override_settings()
     @patch("municipalities.views.Muni.update_searches")
     @patch("django_rq.get_queue")
     def test_webhook_skips_search_updates_when_pages_unchanged(
@@ -659,7 +655,6 @@ class TestMuniWebhookUpdateView:
         if "WEBHOOK_SECRET" in os.environ:
             del os.environ["WEBHOOK_SECRET"]
 
-    @override_settings()
     @patch("municipalities.views.Muni.update_searches")
     @patch("django_rq.get_queue")
     def test_webhook_updates_searches_when_pages_changed(
