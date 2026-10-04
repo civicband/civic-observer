@@ -1,3 +1,4 @@
+import hmac
 import json
 import logging
 import os
@@ -136,7 +137,8 @@ class MuniWebhookUpdateView(View):
         else:
             token = auth_header
 
-        return token == webhook_secret
+        # Constant-time comparison to avoid leaking the secret via timing.
+        return hmac.compare_digest(token.encode(), webhook_secret.encode())
 
     def dispatch(self, request, *args, **kwargs):
         if not self.authenticate_webhook(request):

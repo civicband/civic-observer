@@ -1,6 +1,10 @@
+import logging
+
 from django.db import connections
 from django.http import JsonResponse
 from django.shortcuts import render
+
+logger = logging.getLogger(__name__)
 
 
 def homepage(request):
@@ -13,11 +17,15 @@ def homepage(request):
 
 
 def health_check(request):
-    db_ok = all(conn.cursor().execute("SELECT 1") for conn in connections.all())
-    # TODO: Add cache check if there is ever caching
-    status = db_ok
-    status_code = 200 if status else 503
-    return JsonResponse({"status": "ok" if status else "unhealthy"}, status=status_code)
+    try:
+        for conn in connections.all():
+            with conn.cursor() as cursor:
+                cursor.execute("SELECT 1")
+    except Exception:
+        logger.warning("Health check failed", exc_info=True)
+        return JsonResponse({"status": "unhealthy"}, status=503)
+
+    return JsonResponse({"status": "ok"})
 
 
 def api_page(request):
