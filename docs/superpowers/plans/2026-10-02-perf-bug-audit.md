@@ -120,13 +120,13 @@
 
 ## Low
 
-- **L1. Health check leaks cursors / weak check** — `config/views.py:16`: `all(conn.cursor().execute("SELECT 1") ...)` never closes cursors and the generator truthiness is meaningless. Use `connection.ensure_connection()` / explicit close.
-- **L2. Webhook docs vs code mismatch + non-constant-time compare** — `docs/webhook-api.md:20-21` claims unauthenticated calls are accepted when `WEBHOOK_SECRET` is unset, but `municipalities/views.py:127-128` fails closed (401). `views.py:139` uses `==`; use `hmac.compare_digest` and fix docs.
-- **L3. Notification under-reporting past 10k** — `searches/services.py:48-52` only warns. Stream/paginate if exactness matters.
-- **L4. Dead/stale code** — `searches/indexing.py` describes Meilisearch but models now use ParadeDB; `searches/__pycache__/query_parser.*` has no source. Remove or update.
-- **L5. Test hygiene** — `municipalities/tests.py` `test_webhook_with_put_method` (`:331-348`) never deletes `WEBHOOK_SECRET`, leaking env between tests; several `@override_settings()` calls pass no args. Use a fixture for env cleanup.
-- **L6. Bluesky sender logs in per message** — `notifications/senders/bluesky.py:47-48`; cache the authenticated client.
-- **L7. `Search.update_search` full `save()`** — `searches/models.py:175`; use `update_fields`.
+- **L1. Health check leaks cursors / weak check** — `config/views.py:16`: `all(conn.cursor().execute("SELECT 1") ...)` never closes cursors and the generator truthiness is meaningless. Use `connection.ensure_connection()` / explicit close. **Status (fixed):** loops connections with `with conn.cursor() as cursor` and returns 503 on any exception; covered by `tests/test_health.py`.
+- **L2. Webhook docs vs code mismatch + non-constant-time compare** — `docs/webhook-api.md:20-21` claims unauthenticated calls are accepted when `WEBHOOK_SECRET` is unset, but `municipalities/views.py:127-128` fails closed (401). `views.py:139` uses `==`; use `hmac.compare_digest` and fix docs. **Status (fixed):** uses `hmac.compare_digest` on encoded tokens; docs corrected to state it fails closed.
+- **L3. Notification under-reporting past 10k** — `searches/services.py:48-52` only warns. Stream/paginate if exactness matters. **Status (accepted):** the 10k cap is a deliberate cost tradeoff; exact detection would require paging the entire match set per saved search (hundreds of thousands of rows). The warning is retained; revisit only if a real search is shown to miss notifications.
+- **L4. Dead/stale code** — `searches/indexing.py` describes Meilisearch but models now use ParadeDB; `searches/__pycache__/query_parser.*` has no source. Remove or update. **Status (fixed):** removed the unreferenced `searches/indexing.py`; the stale `query_parser` pycache is a local artifact (not tracked).
+- **L5. Test hygiene** — `municipalities/tests.py` `test_webhook_with_put_method` (`:331-348`) never deletes `WEBHOOK_SECRET`, leaking env between tests; several `@override_settings()` calls pass no args. Use a fixture for env cleanup. **Status (fixed):** module-level autouse `_restore_webhook_secret` fixture restores the variable; removed 15 no-op `@override_settings()` decorators and the unused import.
+- **L6. Bluesky sender logs in per message** — `notifications/senders/bluesky.py:47-48`; cache the authenticated client. **Status (fixed):** `BlueskySender` caches one authenticated `Client` and reuses it across sends; test asserts a single login for two sends.
+- **L7. `Search.update_search` full `save()`** — `searches/models.py:175`; use `update_fields`. **Status (fixed):** `save(update_fields=[...])` limited to the tracking fields.
 
 ---
 
