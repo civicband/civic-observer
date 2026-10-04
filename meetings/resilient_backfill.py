@@ -164,7 +164,9 @@ class ResilientBackfillService:
             return f"{base_url}?_size={self.batch_size}&_next={next_cursor}"
         return None
 
-    def _update_checkpoint(self, cursor: str | None, stats: dict[str, int]) -> None:
+    def _update_checkpoint(
+        self, cursor: str | None, stats: dict[str, int], fetched: int
+    ) -> None:
         """
         Save checkpoint after processing batch.
 
@@ -174,9 +176,11 @@ class ResilientBackfillService:
         Args:
             cursor: Pagination cursor for next batch (None if final batch)
             stats: Statistics from this batch (pages_created, pages_updated, errors)
+            fetched: Number of rows actually fetched in this batch, so
+                ``pages_fetched`` reflects real rows rather than batch_size.
         """
         self.job.last_cursor = cursor or ""
-        self.job.pages_fetched += self.batch_size
+        self.job.pages_fetched += fetched
         self.job.pages_created += stats.get("pages_created", 0)
         self.job.pages_updated += stats.get("pages_updated", 0)
         self.job.errors_encountered += stats.get("errors", 0)
@@ -388,14 +392,17 @@ class ResilientBackfillService:
                 data = self._fetch_with_retry(url, max_retries=3)
 
                 # Process batch
-                batch_stats = self._process_batch(data.get("rows", []))
+                rows = data.get("rows", [])
+                batch_stats = self._process_batch(rows)
 
                 # Accumulate stats
                 for key in total_stats:
                     total_stats[key] += batch_stats[key]
 
                 # Update checkpoint (save progress)
-                self._update_checkpoint(cursor=data.get("next"), stats=batch_stats)
+                self._update_checkpoint(
+                    cursor=data.get("next"), stats=batch_stats, fetched=len(rows)
+                )
 
                 # Get next URL
                 url = self._get_next_url(data)
