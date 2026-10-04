@@ -39,6 +39,14 @@ def _enqueue_saved_search_checks(municipality_id) -> None:
         logger.error(f"Failed to enqueue saved search checks: {e}", exc_info=True)
 
 
+def _mark_municipality_indexed(muni) -> None:
+    """Record that meeting data was successfully indexed for a municipality."""
+    from django.utils import timezone
+
+    muni.last_indexed = timezone.now()
+    muni.save(update_fields=["last_indexed"])
+
+
 def backfill_municipality_meetings_task(muni_id: UUID | str) -> dict[str, str]:
     """
     Main orchestrator task that routes to full or incremental backfill.
@@ -256,6 +264,8 @@ def backfill_incremental_task(
 
         _enqueue_saved_search_checks(int(muni.id))
 
+        _mark_municipality_indexed(muni)
+
         logger.info(
             f"Incremental backfill completed for {muni.subdomain} {document_type}: {stats}"
         )
@@ -371,6 +381,8 @@ def backfill_batch_task(
             invalidate_search_cache_for_municipality(int(muni.id))
 
             _enqueue_saved_search_checks(int(muni.id))
+
+            _mark_municipality_indexed(muni)
 
             logger.info(
                 f"Batch backfill completed for {muni.subdomain} {document_type}"
