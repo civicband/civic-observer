@@ -1,4 +1,5 @@
 import json
+from datetime import timedelta
 
 from django.conf import settings
 from django.http import JsonResponse
@@ -8,6 +9,10 @@ from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 
 from .models import APIKey
+
+# Only touch last_used_at if the key hasn't been validated within this window,
+# so a hot key doesn't cause a DB write on every single request.
+LAST_USED_UPDATE_INTERVAL = timedelta(minutes=5)
 
 
 def is_tailscale_ip(ip: str) -> bool:
@@ -74,9 +79,13 @@ class ValidateKeyView(View):
         if not key_obj.is_valid():
             return JsonResponse({"valid": False})
 
-        # Update last_used_at
-        key_obj.last_used_at = timezone.now()
-        key_obj.save(update_fields=["last_used_at"])
+        # Update last_used_at, but only if it's stale (throttle hot keys).
+        now = timezone.now()
+        if (
+            key_obj.last_used_at is None
+            or now - key_obj.last_used_at >= LAST_USED_UPDATE_INTERVAL
+        ):
+            APIKey.objects.filter(pk=key_obj.pk).update(last_used_at=now)
 
         # Return success with metadata
         response_data = {
