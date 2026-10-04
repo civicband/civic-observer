@@ -6,10 +6,10 @@ import logging
 from datetime import date
 
 import httpx
-from django.conf import settings
 from django.db import transaction
 
 from meetings.models import MeetingDocument, MeetingPage
+from meetings.services import civic_band_headers, civic_band_table_url
 from municipalities.models import Muni
 
 logger = logging.getLogger(__name__)
@@ -47,14 +47,10 @@ def fetch_single_page(page_id: str, subdomain: str, table: str) -> MeetingPage |
 
     # Build API URL to fetch the specific page
     # The civic.band API supports filtering by ID
-    base_url = f"https://{subdomain}.civic.band/meetings/{table}.json"
+    base_url = civic_band_table_url(subdomain, table)
     url = f"{base_url}?id={page_id}"
 
-    # Build headers with service secret for authentication
-    headers = {}
-    service_secret = getattr(settings, "CORKBOARD_SERVICE_SECRET", "")
-    if service_secret:
-        headers["X-Service-Secret"] = service_secret
+    headers = civic_band_headers()
 
     try:
         with httpx.Client(timeout=30, headers=headers) as client:

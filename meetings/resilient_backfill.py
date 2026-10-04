@@ -6,21 +6,23 @@ with automatic retry, progress checkpointing, and verification.
 """
 
 import logging
-import time  # noqa: F401 - Used in Tasks 3-8
-from datetime import date
-from typing import Any  # noqa: F401 - Used in Tasks 3-8
+import time
+from typing import Any
 
 import httpx
-from django.conf import settings
-from django.db import transaction  # noqa: F401 - Used in Tasks 3-8
-from django.utils import timezone  # noqa: F401 - Used in Tasks 3-8
+from django.db import transaction
+from django.utils import timezone
 
-from meetings.models import (  # noqa: F401 - Used in Tasks 3-8
-    BackfillJob,
-    MeetingDocument,
-    MeetingPage,
+from meetings.models import BackfillJob, MeetingPage
+from meetings.services import (
+    BackfillError,
+    build_pages,
+    bulk_upsert_pages,
+    civic_band_headers,
+    civic_band_table_url,
+    get_or_create_document,
+    group_rows_by_document,
 )
-from meetings.services import BackfillError  # noqa: F401 - Used in Tasks 3-8
 
 logger = logging.getLogger(__name__)
 
@@ -61,11 +63,7 @@ class ResilientBackfillService:
 
     def _build_headers(self) -> dict[str, str]:
         """Build HTTP headers including service secret if configured."""
-        headers = {}
-        service_secret = getattr(settings, "CORKBOARD_SERVICE_SECRET", "")
-        if service_secret:
-            headers["X-Service-Secret"] = service_secret
-        return headers
+        return civic_band_headers()
 
     def close(self) -> None:
         """Close the HTTP client connection."""
@@ -131,7 +129,7 @@ class ResilientBackfillService:
         """
         muni = self.job.municipality
         table_name = "agendas" if self.job.document_type == "agenda" else "minutes"
-        return f"https://{muni.subdomain}.civic.band/meetings/{table_name}.json"
+        return civic_band_table_url(muni.subdomain, table_name)
 
     def _build_initial_url(self) -> str:
         """
@@ -202,10 +200,11 @@ class ResilientBackfillService:
 
     def _process_batch(self, rows: list[dict[str, Any]]) -> dict[str, int]:
         """
-        Process batch of rows with per-page error handling.
+        Process a batch of rows into documents and pages.
 
-        Groups rows by document (meeting + date), then processes each page
-        individually so one bad page doesn't fail the entire document.
+        Grouping, validation, denormalization, and the bulk upsert are shared
+        with the simple backfill path in ``meetings.services``. Documents are
+        processed independently so one bad document does not fail the batch.
 
         Args:
             rows: List of row dictionaries from API
@@ -215,163 +214,33 @@ class ResilientBackfillService:
         """
         stats = {"pages_created": 0, "pages_updated": 0, "errors": 0}
 
-        # Group rows by document (meeting, date)
-        documents_map = self._group_rows_by_document(rows, stats)
+        documents_map = group_rows_by_document(rows, stats)
 
-        # Process each document independently
-        for doc_key, pages_data in documents_map.items():
+        for (meeting_name, date_str), pages_data in documents_map.items():
             try:
                 with transaction.atomic():
-                    document = self._get_or_create_document(doc_key)
+                    document, _created = get_or_create_document(
+                        self.job.municipality,
+                        meeting_name,
+                        date_str,
+                        self.job.document_type,
+                    )
 
-                    pages = self._build_pages(document, pages_data, stats)
+                    pages = build_pages(document, pages_data, stats)
                     if not pages:
                         continue
 
-                    # One lookup per document to count creates vs updates.
-                    page_ids = [page.id for page in pages]
-                    existing_ids = set(
-                        MeetingPage.objects.filter(id__in=page_ids).values_list(
-                            "id", flat=True
-                        )
-                    )
-                    stats["pages_created"] += sum(
-                        1 for page in pages if page.id not in existing_ids
-                    )
-                    stats["pages_updated"] += sum(
-                        1 for page in pages if page.id in existing_ids
-                    )
-
-                    # Single upsert per document instead of one query per page.
-                    MeetingPage.objects.bulk_create(
-                        pages,
-                        update_conflicts=True,
-                        unique_fields=["id"],
-                        update_fields=[
-                            "document",
-                            "page_number",
-                            "text",
-                            "page_image",
-                            "municipality",
-                            "municipality_subdomain",
-                            "municipality_name",
-                            "state",
-                            "meeting_name",
-                            "meeting_date",
-                            "document_type",
-                            "modified",
-                        ],
-                    )
+                    bulk_upsert_pages(pages, stats)
 
             except Exception as e:
-                # Document creation failed - log and continue
-                logger.error(f"Failed to create document {doc_key}: {e}", exc_info=True)
+                # Document processing failed - log and continue with the next
+                logger.error(
+                    f"Failed to process document {(meeting_name, date_str)}: {e}",
+                    exc_info=True,
+                )
                 stats["errors"] += 1
 
         return stats
-
-    def _group_rows_by_document(
-        self, rows: list[dict[str, Any]], stats: dict[str, int]
-    ) -> dict[tuple[str, str], list[dict[str, Any]]]:
-        """
-        Group rows by (meeting_name, meeting_date) to create documents.
-
-        Args:
-            rows: List of row dictionaries from API
-            stats: Statistics dictionary to update with errors
-
-        Returns:
-            Dictionary mapping (meeting_name, date_str) to list of page data
-        """
-        documents_map: dict[tuple[str, str], list[dict[str, Any]]] = {}
-
-        for row in rows:
-            try:
-                meeting_name = row.get("meeting", "")
-                date_str = row.get("date", "")
-                page_id = row.get("id", "")
-
-                if not meeting_name or not date_str or not page_id:
-                    logger.warning(f"Skipping row with missing data: {row}")
-                    stats["errors"] += 1
-                    continue
-
-                # Validate date format
-                date.fromisoformat(date_str)
-
-                key = (meeting_name, date_str)
-                if key not in documents_map:
-                    documents_map[key] = []
-                documents_map[key].append(row)
-
-            except (ValueError, TypeError) as e:
-                logger.warning(f"Error processing row {row}: {e}")
-                stats["errors"] += 1
-
-        return documents_map
-
-    def _get_or_create_document(self, doc_key: tuple[str, str]) -> MeetingDocument:
-        """
-        Get or create a MeetingDocument.
-
-        Args:
-            doc_key: Tuple of (meeting_name, date_str)
-
-        Returns:
-            MeetingDocument instance
-        """
-        meeting_name, date_str = doc_key
-        meeting_date = date.fromisoformat(date_str)
-
-        document, created = MeetingDocument.objects.update_or_create(
-            municipality=self.job.municipality,
-            meeting_name=meeting_name,
-            meeting_date=meeting_date,
-            document_type=self.job.document_type,
-        )
-
-        return document
-
-    def _build_pages(
-        self,
-        document: MeetingDocument,
-        pages_data: list[dict[str, Any]],
-        stats: dict[str, int],
-    ) -> list[MeetingPage]:
-        """
-        Build (but do not save) MeetingPage instances for a document's rows.
-
-        bulk_create bypasses MeetingPage.save(), so denormalized columns are
-        populated here explicitly. Rows without an id are skipped and counted as
-        errors.
-
-        Args:
-            document: MeetingDocument the pages belong to
-            pages_data: Raw row dictionaries from the API
-            stats: Statistics dictionary to update with errors
-
-        Returns:
-            De-duplicated list of unsaved MeetingPage instances.
-        """
-        by_id: dict[str, MeetingPage] = {}
-        for page_data in pages_data:
-            page_id = page_data.get("id")
-            if not page_id:
-                logger.warning(f"Skipping page with no ID: {page_data}")
-                stats["errors"] += 1
-                continue
-
-            page = MeetingPage(
-                id=page_id,
-                document=document,
-                page_number=page_data.get("page", 0),
-                text=page_data.get("text", ""),
-                page_image=page_data.get("page_image", ""),
-            )
-            page.denormalize(document)
-            by_id[page_id] = page
-
-        return list(by_id.values())
 
     def _verify_completeness(self) -> None:
         """
