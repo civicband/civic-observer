@@ -17,7 +17,7 @@ Where `<subdomain>` is the unique subdomain identifier for the municipality.
 The endpoint supports optional authentication via webhook secret:
 
 - If the `WEBHOOK_SECRET` environment variable is set, requests must include an Authorization header
-- If no webhook secret is configured, the endpoint accepts all requests
+- If no webhook secret is configured, the endpoint rejects all requests with a 401 (fail closed)
 
 ### Authorization Header Format
 
