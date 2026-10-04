@@ -186,7 +186,14 @@ class Search(TimeStampedModel):
         self.last_result_count = len(page_ids)
         self.last_checked_for_new_pages = timezone.now()
         self.last_fetched = timezone.now()
-        self.save()
+        self.save(
+            update_fields=[
+                "last_result_count",
+                "last_checked_for_new_pages",
+                "last_fetched",
+                "modified",
+            ]
+        )
 
         return new_pages
 
