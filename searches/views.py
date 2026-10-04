@@ -1,6 +1,6 @@
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
-from django.db.models import Q, QuerySet
+from django.db.models import F, Q, QuerySet
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
@@ -360,9 +360,9 @@ def public_search_detail(request, slug):
         is_published=True,
     )
 
-    # Increment view count
-    page.view_count += 1
-    page.save(update_fields=["view_count"])
+    # Increment view count atomically (F() avoids a read-modify-write race and
+    # a full-row save on every page view).
+    PublicSearchPage.objects.filter(pk=page.pk).update(view_count=F("view_count") + 1)
 
     # Build the form, but with scope-limited choices
     form_data = request.GET.copy() if request.GET else {}
