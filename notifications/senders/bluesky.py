@@ -19,6 +19,11 @@ class BlueskySender(NotificationSender):
     # Bluesky handle: domain format without @ prefix
     HANDLE_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9.-]*\.[a-zA-Z]{2,}$")
 
+    def __init__(self) -> None:
+        # Cache the authenticated client so repeated sends reuse one session
+        # instead of logging in (a network round trip) for every message.
+        self._client: Client | None = None
+
     def validate_handle(self, handle: str) -> bool:
         """Validate Bluesky handle format (domain-style, no @ prefix)."""
         if not handle:
@@ -30,6 +35,14 @@ class BlueskySender(NotificationSender):
         identifier = getattr(settings, "BLUESKY_BOT_HANDLE", "")
         password = getattr(settings, "BLUESKY_BOT_PASSWORD", "")
         return identifier, password
+
+    def _get_client(self, identifier: str, password: str) -> "Client":
+        """Return a logged-in client, authenticating only on first use."""
+        if self._client is None:
+            client = Client()
+            client.login(identifier, password)
+            self._client = client
+        return self._client
 
     def send(self, channel: "NotificationChannel", message: str) -> bool:
         """
@@ -43,9 +56,7 @@ class BlueskySender(NotificationSender):
             return False
 
         try:
-            # Create client and login
-            client = Client()
-            client.login(identifier, password)
+            client = self._get_client(identifier, password)
 
             # Resolve recipient handle to DID
             resolver = IdResolver()

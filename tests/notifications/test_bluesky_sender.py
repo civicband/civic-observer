@@ -69,6 +69,40 @@ class TestBlueskySenderSend:
 
     @patch("notifications.senders.bluesky.IdResolver")
     @patch("notifications.senders.bluesky.Client")
+    def test_reuses_authenticated_client_across_sends(
+        self, mock_client_class, mock_resolver_class
+    ):
+        """Repeated sends must not log in again for every message."""
+        from tests.factories import NotificationChannelFactory
+
+        mock_client = MagicMock()
+        mock_client.me.did = "did:plc:sender"
+        mock_client_class.return_value = mock_client
+        mock_dm_client = MagicMock()
+        mock_client.with_bsky_chat_proxy.return_value = mock_dm_client
+        mock_convo = MagicMock()
+        mock_convo.convo.id = "convo123"
+        mock_dm_client.chat.bsky.convo.get_convo_for_members.return_value = mock_convo
+        mock_resolver = MagicMock()
+        mock_resolver.handle.resolve.return_value = "did:plc:recipient"
+        mock_resolver_class.return_value = mock_resolver
+
+        channel = NotificationChannelFactory(
+            platform="bluesky", handle="recipient.bsky.social"
+        )
+        sender = BlueskySender()
+
+        with patch.object(
+            sender, "_get_credentials", return_value=("bot.bsky.social", "password")
+        ):
+            assert sender.send(channel, "one") is True
+            assert sender.send(channel, "two") is True
+
+        assert mock_client_class.call_count == 1
+        assert mock_client.login.call_count == 1
+
+    @patch("notifications.senders.bluesky.IdResolver")
+    @patch("notifications.senders.bluesky.Client")
     def test_send_failure_no_credentials(self, mock_client_class, mock_resolver_class):
         """Test send fails without credentials."""
         from tests.factories import NotificationChannelFactory
