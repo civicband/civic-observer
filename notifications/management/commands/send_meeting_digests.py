@@ -128,44 +128,57 @@ Digest Complete:
         for sub in subscriptions:
             user_groups[sub.user].append(sub)
 
+        # Fetch every meeting for this date across the group once, then filter
+        # per user in memory, instead of one query per user.
+        all_muni_ids = {sub.municipality_id for sub in subscriptions}
+        meetings = self._get_meetings_for_date(local_date, list(all_muni_ids))
+
+        sent_user_ids = []
+
         for user, user_subs in user_groups.items():
-            # Check if user already received digest today (always checked, even with --force)
-            already_sent_today = DigestSubscription.objects.filter(
-                user=user,
-                is_active=True,
-                last_digest_sent=local_date,
-            ).exists()
+            # Already sent today? Checked in memory (subs carry last_digest_sent).
+            already_sent_today = any(
+                sub.last_digest_sent == local_date for sub in user_subs
+            )
 
             if already_sent_today:
                 results["skipped_already_sent"] += len(user_subs)
                 continue
 
-            # Get meetings for today across all user's subscribed municipalities
-            muni_ids = [sub.municipality_id for sub in user_subs]
-            meetings = self._get_meetings_for_date(local_date, muni_ids)
+            user_muni_ids = {sub.municipality_id for sub in user_subs}
+            user_meetings = [
+                meeting
+                for meeting in meetings
+                if meeting.municipality_id in user_muni_ids
+            ]
 
-            if not meetings:
+            if not user_meetings:
                 results["skipped_no_meetings"] += len(user_subs)
                 continue
 
-            results["meetings_found"] += len(meetings)
+            results["meetings_found"] += len(user_meetings)
 
             if not self.dry_run:
                 try:
-                    send_meeting_digest_email(user, meetings, local_date)
-                    DigestSubscription.objects.filter(
-                        user=user,
-                        is_active=True,
-                    ).update(last_digest_sent=local_date)
+                    send_meeting_digest_email(user, user_meetings, local_date)
+                    sent_user_ids.append(user.id)
                     results["sent"] += 1
                     logger.info(f"Sent digest to {user.email} for {local_date}")
                 except Exception as e:
                     logger.error(f"Failed to send digest to {user.email}: {e}")
             else:
                 self.stdout.write(
-                    f"[DRY RUN] Would send digest to {user.email} with {len(meetings)} meetings"
+                    f"[DRY RUN] Would send digest to {user.email} "
+                    f"with {len(user_meetings)} meetings"
                 )
                 results["sent"] += 1
+
+        # One write for the whole group instead of one per user.
+        if sent_user_ids:
+            DigestSubscription.objects.filter(
+                user_id__in=sent_user_ids,
+                is_active=True,
+            ).update(last_digest_sent=local_date)
 
         return results
 

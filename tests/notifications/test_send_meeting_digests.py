@@ -4,7 +4,9 @@ from datetime import date, timedelta
 from io import StringIO
 
 from django.core.management import call_command
+from django.db import connection
 from django.test import TestCase, override_settings
+from django.test.utils import CaptureQueriesContext
 
 from notifications.models import DigestSubscription
 from tests.factories import MeetingDocumentFactory, MuniFactory, UserFactory
@@ -354,3 +356,38 @@ class SendMeetingDigestsCommandTest(TestCase):
 
         output = out.getvalue()
         self.assertIn("Emails sent: 2", output)
+
+
+class DigestQueryScalingTest(TestCase):
+    """Per-user digests must not issue per-user reads."""
+
+    def _queries_for_users(self, command, muni, user_count):
+        subs = []
+        for _ in range(user_count):
+            user = UserFactory(timezone="America/New_York")
+            subs.append(DigestSubscription.objects.create(user=user, municipality=muni))
+        with CaptureQueriesContext(connection) as ctx:
+            command._process_timezone_group("America/New_York", subs)
+        return len(ctx)
+
+    def test_query_count_does_not_scale_with_users(self):
+        from notifications.management.commands.send_meeting_digests import Command
+
+        muni = MuniFactory(subdomain="flat-queries")
+        MeetingDocumentFactory(
+            municipality=muni,
+            meeting_date=date(2024, 1, 15),
+            meeting_name="City Council",
+            document_type="agenda",
+        )
+
+        command = Command()
+        command.dry_run = False
+        command.force = True
+        command.for_date_str = "2024-01-15"
+        command.email_filter = None
+
+        one_user = self._queries_for_users(command, muni, 1)
+        three_users = self._queries_for_users(command, muni, 3)
+
+        self.assertEqual(one_user, three_users)
