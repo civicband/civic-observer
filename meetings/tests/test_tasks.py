@@ -60,6 +60,10 @@ class TestBackfillIncrementalTask:
         enqueued = mock_get_queue.return_value.enqueue.call_args[0][0]
         assert enqueued.__name__ == "check_saved_searches"
 
+        # Verify the municipality is marked indexed
+        muni.refresh_from_db()
+        assert muni.last_indexed is not None
+
     @patch("meetings.services._backfill_document_type")
     def test_incremental_backfill_handles_errors(self, mock_backfill):
         """Test that errors are caught and progress marked as failed."""
@@ -184,6 +188,10 @@ class TestBackfillBatchTask:
         mock_queue.enqueue.assert_called_once()
         enqueued = mock_queue.enqueue.call_args[0][0]
         assert enqueued.__name__ == "check_saved_searches"
+
+        # Verify the municipality is marked indexed
+        muni.refresh_from_db()
+        assert muni.last_indexed is not None
 
     @patch("meetings.services._backfill_document_type")
     def test_batch_task_resumes_from_cursor(self, mock_backfill):
@@ -432,3 +440,27 @@ class TestBackfillMunicipalityMeetingsTask:
         # Verify batch task was enqueued (not incremental)
         first_call = mock_queue.enqueue.call_args_list[0][0]
         assert first_call[0].__name__ == "backfill_batch_task"
+
+
+@pytest.mark.django_db
+class TestOrchestratorConcurrencyGuard:
+    @patch("meetings.tasks.django_rq.get_queue")
+    def test_second_run_while_in_progress_does_not_enqueue(self, mock_get_queue):
+        """A second orchestrator run must not enqueue duplicate backfills."""
+        from meetings.tasks import backfill_municipality_meetings_task
+
+        mock_queue = Mock()
+        mock_get_queue.return_value = mock_queue
+        muni = Muni.objects.create(
+            subdomain="double-city", name="Double City", state="CA"
+        )
+
+        backfill_municipality_meetings_task(muni.id)
+        first_count = mock_queue.enqueue.call_count
+        assert first_count == 2  # agenda + minutes
+
+        result = backfill_municipality_meetings_task(muni.id)
+
+        assert mock_queue.enqueue.call_count == first_count
+        assert result["agenda"].startswith("already_running")
+        assert result["minutes"].startswith("already_running")

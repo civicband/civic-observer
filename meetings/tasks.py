@@ -39,6 +39,14 @@ def _enqueue_saved_search_checks(municipality_id) -> None:
         logger.error(f"Failed to enqueue saved search checks: {e}", exc_info=True)
 
 
+def _mark_municipality_indexed(muni) -> None:
+    """Record that meeting data was successfully indexed for a municipality."""
+    from django.utils import timezone
+
+    muni.last_indexed = timezone.now()
+    muni.save(update_fields=["last_indexed"])
+
+
 def backfill_municipality_meetings_task(muni_id: UUID | str) -> dict[str, str]:
     """
     Main orchestrator task that routes to full or incremental backfill.
@@ -131,21 +139,25 @@ def backfill_municipality_meetings_task(muni_id: UUID | str) -> dict[str, str]:
                 ).exists()
                 needs_full = is_new or progress.force_full_backfill
 
-            if needs_full:
-                # Start full backfill chain
-                progress.mode = "full"
+                # Transition to in_progress *inside* the lock. Doing it after
+                # the transaction released the row lock let two concurrent
+                # orchestrators both pass the guard and enqueue duplicates.
+                progress.mode = "full" if needs_full else "incremental"
                 progress.status = "in_progress"
-                progress.next_cursor = None  # Start from beginning
+                if needs_full:
+                    progress.next_cursor = None  # Start from beginning
                 progress.error_message = None
                 progress.save()
 
+            # Enqueue outside the lock; the committed in_progress status now
+            # blocks a concurrent orchestrator from enqueueing a duplicate.
+            if needs_full:
                 job = queue.enqueue(
                     backfill_batch_task,
                     muni_id,
                     document_type,
                     progress.id,
                 )
-
                 reason = "new municipality" if is_new else "force_full_backfill flag"
                 logger.info(
                     f"Enqueued full backfill for {muni.subdomain} {document_type} "
@@ -153,19 +165,12 @@ def backfill_municipality_meetings_task(muni_id: UUID | str) -> dict[str, str]:
                 )
                 result[document_type] = f"full_backfill_started:{job.id}"
             else:
-                # Run incremental backfill
-                progress.mode = "incremental"
-                progress.status = "in_progress"
-                progress.error_message = None
-                progress.save()
-
                 job = queue.enqueue(
                     backfill_incremental_task,
                     muni_id,
                     document_type,
                     progress.id,
                 )
-
                 logger.info(
                     f"Enqueued incremental backfill for {muni.subdomain} {document_type} "
                     f"(job ID: {job.id})"
@@ -255,6 +260,8 @@ def backfill_incremental_task(
         invalidate_search_cache_for_municipality(int(muni.id))
 
         _enqueue_saved_search_checks(int(muni.id))
+
+        _mark_municipality_indexed(muni)
 
         logger.info(
             f"Incremental backfill completed for {muni.subdomain} {document_type}: {stats}"
@@ -371,6 +378,8 @@ def backfill_batch_task(
             invalidate_search_cache_for_municipality(int(muni.id))
 
             _enqueue_saved_search_checks(int(muni.id))
+
+            _mark_municipality_indexed(muni)
 
             logger.info(
                 f"Batch backfill completed for {muni.subdomain} {document_type}"

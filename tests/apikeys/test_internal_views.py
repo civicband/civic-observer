@@ -224,6 +224,50 @@ class TestValidateKeyView:
         assert api_key.last_used_at is not None
         assert api_key.last_used_at <= timezone.now()
 
+    def test_does_not_rewrite_recent_last_used_at(
+        self, client, tailscale_ip, valid_secret
+    ):
+        """A recently-used key must not be written to on every validation."""
+        _, raw_key = APIKey.create_key(name="Test Key")
+        api_key = APIKey.objects.get(key_hash=APIKey.hash_key(raw_key))
+        recent = timezone.now()
+        APIKey.objects.filter(pk=api_key.pk).update(last_used_at=recent)
+
+        url = reverse("apikeys_internal:validate-key")
+        with override_settings(CORKBOARD_SERVICE_SECRET=valid_secret):
+            response = client.post(
+                url,
+                data=json.dumps({"api_key": raw_key}),
+                content_type="application/json",
+                REMOTE_ADDR=tailscale_ip,
+                HTTP_X_SERVICE_SECRET=valid_secret,
+            )
+
+        assert response.status_code == 200
+        api_key.refresh_from_db()
+        assert api_key.last_used_at == recent
+
+    def test_refreshes_stale_last_used_at(self, client, tailscale_ip, valid_secret):
+        """A key not seen for a while should have last_used_at refreshed."""
+        _, raw_key = APIKey.create_key(name="Test Key")
+        api_key = APIKey.objects.get(key_hash=APIKey.hash_key(raw_key))
+        stale = timezone.now() - timedelta(hours=1)
+        APIKey.objects.filter(pk=api_key.pk).update(last_used_at=stale)
+
+        url = reverse("apikeys_internal:validate-key")
+        with override_settings(CORKBOARD_SERVICE_SECRET=valid_secret):
+            response = client.post(
+                url,
+                data=json.dumps({"api_key": raw_key}),
+                content_type="application/json",
+                REMOTE_ADDR=tailscale_ip,
+                HTTP_X_SERVICE_SECRET=valid_secret,
+            )
+
+        assert response.status_code == 200
+        api_key.refresh_from_db()
+        assert api_key.last_used_at > stale
+
     def test_uses_x_forwarded_for_header(self, client, valid_secret):
         """Test uses X-Forwarded-For header for IP detection."""
         _, raw_key = APIKey.create_key(name="Test Key")

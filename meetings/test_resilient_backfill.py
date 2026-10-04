@@ -189,13 +189,13 @@ class TestResilientBackfillService:
             "errors": 2,
         }
 
-        service._update_checkpoint(cursor="cursor123", stats=stats)
+        service._update_checkpoint(cursor="cursor123", stats=stats, fetched=3)
 
         # Refresh from database
         job.refresh_from_db()
 
         assert job.last_cursor == "cursor123"
-        assert job.pages_fetched == 1000  # batch_size
+        assert job.pages_fetched == 3  # actual rows, not batch_size
         assert job.pages_created == 150
         assert job.pages_updated == 50
         assert job.errors_encountered == 2
@@ -217,12 +217,12 @@ class TestResilientBackfillService:
             "errors": 2,
         }
 
-        service._update_checkpoint(cursor="cursor456", stats=stats)
+        service._update_checkpoint(cursor="cursor456", stats=stats, fetched=250)
 
         job.refresh_from_db()
 
         assert job.last_cursor == "cursor456"
-        assert job.pages_fetched == 2000  # 1000 + 1000
+        assert job.pages_fetched == 1250  # 1000 + 250 actual rows
         assert job.pages_created == 250  # 100 + 150
         assert job.pages_updated == 50  # 20 + 30
         assert job.errors_encountered == 3  # 1 + 2
@@ -233,11 +233,12 @@ class TestResilientBackfillService:
 
         stats = {"pages_created": 50, "pages_updated": 10, "errors": 0}
 
-        service._update_checkpoint(cursor=None, stats=stats)
+        service._update_checkpoint(cursor=None, stats=stats, fetched=1)
 
         job.refresh_from_db()
 
         assert job.last_cursor == ""  # None becomes empty string
+        assert job.pages_fetched == 1
         assert job.pages_created == 50
 
     def test_process_batch_creates_documents_and_pages(self, job):
@@ -568,7 +569,7 @@ class TestResilientBackfillService:
         job.refresh_from_db()
         assert job.status == "completed"
         assert job.pages_created == 3
-        assert job.pages_fetched == 2000  # 2 batches
+        assert job.pages_fetched == 3  # actual rows (2 + 1), not 2 * batch_size
         assert job.expected_count == 3
         assert job.actual_count == 3
         assert job.verified_at is not None

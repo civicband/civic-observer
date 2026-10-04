@@ -347,3 +347,83 @@ class TestDigestEmailContent:
 
         assert len(mail.outbox) == 1
         assert "daily" in mail.outbox[0].subject.lower()
+
+
+@pytest.mark.django_db
+class TestDigestSendAtomicity:
+    """A failed digest send must not duplicate or abort the whole run."""
+
+    def _pending(self, email):
+        user = UserFactory(email=email)
+        search = SearchFactory(search_term="budget")
+        saved_search = SavedSearchFactory(
+            user=user,
+            search=search,
+            notification_frequency="daily",
+            has_pending_results=True,
+        )
+        return user, saved_search
+
+    def test_pending_cleared_on_successful_send(self):
+        from searches.tasks import _send_digest_email
+
+        _user, saved_search = self._pending("ok@example.com")
+
+        sent = _send_digest_email(saved_search.user, [saved_search], frequency="daily")
+
+        assert sent is True
+        saved_search.refresh_from_db()
+        assert saved_search.has_pending_results is False
+        assert saved_search.last_notification_sent is not None
+
+    def test_failed_send_reflags_for_retry_without_raising(self, monkeypatch):
+        from django.core.mail.message import EmailMessage
+
+        from searches.tasks import _send_digest_email
+
+        _user, saved_search = self._pending("fail@example.com")
+
+        def boom(self):
+            raise RuntimeError("smtp down")
+
+        monkeypatch.setattr(EmailMessage, "send", boom)
+
+        sent = _send_digest_email(saved_search.user, [saved_search], frequency="daily")
+
+        assert sent is False
+        saved_search.refresh_from_db()
+        assert saved_search.has_pending_results is True
+
+    def test_one_user_failure_does_not_abort_the_run(self, monkeypatch):
+        from django.core.mail.message import EmailMessage
+
+        from searches.tasks import send_daily_digests
+
+        _u1, _ss1 = self._pending("first@example.com")
+        _u2, _ss2 = self._pending("second@example.com")
+
+        calls = {"n": 0}
+        original_send = EmailMessage.send
+
+        def flaky(self):
+            calls["n"] += 1
+            if calls["n"] == 1:
+                raise RuntimeError("first fails")
+            return original_send(self)
+
+        monkeypatch.setattr(EmailMessage, "send", flaky)
+
+        result = send_daily_digests()
+
+        # The first send failed and the run continued: exactly one delivered,
+        # and the failed one is re-flagged for the next run.
+        assert result["emails_sent"] == 1
+        assert len(mail.outbox) == 1
+        _u1.refresh_from_db()
+        _u2.refresh_from_db()
+        _ss1.refresh_from_db()
+        _ss2.refresh_from_db()
+        assert sorted([_ss1.has_pending_results, _ss2.has_pending_results]) == [
+            False,
+            True,
+        ]

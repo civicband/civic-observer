@@ -85,36 +85,43 @@
 - **Evidence:** `meetings/tasks.py:68-121` sets/checks status inside `select_for_update`, but sets `status="in_progress"` and saves at `:125-129` / `:146-149` *after* the transaction/lock is released.
 - **Impact:** Two concurrent orchestrator calls can both pass the guard and enqueue duplicate backfills.
 - **Mitigation:** Perform the status transition and enqueue decision inside the locked transaction, or use a unique constraint / advisory lock on `(municipality, document_type)` for in-progress.
+- **Status (fixed):** The `mode`/`status`/`next_cursor` transition and `save()` now happen inside the `select_for_update()` block, so a concurrent orchestrator blocks, then sees `in_progress` and skips; enqueue stays outside the lock. Added a sequential in-progress guard test. The true interleaving requires threads and is not deterministically unit-tested.
 
 ### M2. `last_indexed` never updated on the live backfill path
 - **Evidence:** Only `meetings/services.py:73` sets it, and `backfill_municipality_meetings` has no callers; tasks never set it.
 - **Impact:** `last_indexed` stays NULL, so `rebackfill_failed_municipalities --only-never-indexed` and dashboards treat everything as never indexed → repeated re-backfill.
 - **Mitigation:** Update `muni.last_indexed` on successful completion in both task paths; remove or wire up the legacy function.
+- **Status (fixed):** `meetings.tasks._mark_municipality_indexed` is called on successful completion of both `backfill_batch_task` (final batch) and `backfill_incremental_task`; covered by assertions in `meetings/tests/test_tasks.py`.
 
 ### M3. Email sent inside `transaction.atomic` gives false atomicity
 - **Evidence:** `searches/tasks.py:271-285` and `notifications/services.py:381-396` call `msg.send()` then `bulk_update` inside `with transaction.atomic()`.
 - **Impact:** External email can't roll back; if the DB update fails, the next run resends (duplicate digests). Conversely a send failure rolls back flags silently.
 - **Mitigation:** Mark state with `update_fields` (e.g. `has_pending_results=False` + a sent-log idempotency key) before/independent of sending; send after commit; record failures for retry.
+- **Status (fixed):** `_send_digest_email` clears `has_pending_results`/`last_notification_sent` in a single committed `UPDATE` *before* sending (a crash can at worst drop one digest, never duplicate it). On send failure it re-flags the searches and returns `False`; the daily/weekly loops count only successful sends and continue past failures. Removed the misleading `transaction.atomic`.
 
 ### M4. `_update_checkpoint` overcounts `pages_fetched`
 - **Evidence:** `meetings/resilient_backfill.py:181` does `pages_fetched += self.batch_size` even for the final partial batch.
 - **Impact:** Inflated stats/misleading verification.
 - **Mitigation:** Accumulate `len(rows)`.
+- **Status (fixed):** `_update_checkpoint` takes the actual fetched row count from `run` and accumulates it instead of `batch_size`.
 
 ### M5. Meeting-digest N+1 queries
 - **Evidence:** `notifications/management/commands/send_meeting_digests.py:133-145` queries `already_sent_today` and meetings per user.
 - **Impact:** O(users) extra queries; grows with subscribers.
 - **Mitigation:** Prefetch `last_digest_sent` state and batch meetings by `(user, date)` in one query.
+- **Status (fixed):** `_process_timezone_group` fetches all meetings for the date across the group once, checks `last_digest_sent` in memory, filters per user in memory, and writes `last_digest_sent` in one batched update. Per-user reads removed; a query-count test asserts the count is flat in the number of users.
 
 ### M6. API-key validation writes on every request
 - **Evidence:** `apikeys/internal_views.py:78-79` saves `last_used_at` per validation.
 - **Impact:** DB write per validation call; hot path under load.
 - **Mitigation:** Throttle (update only if older than N seconds) or enqueue.
+- **Status (fixed):** `last_used_at` is written only when it is `None` or older than `LAST_USED_UPDATE_INTERVAL` (5 minutes), via a single `UPDATE`.
 
 ### M7. Public search page view counter write per request
 - **Evidence:** `searches/views.py:364-365` increments and saves.
 - **Impact:** Write per page view; lost updates under concurrency.
 - **Mitigation:** `update(view_count=F("view_count") + 1)` or an async/batched counter.
+- **Status (fixed):** Detail view uses `PublicSearchPage.objects.filter(pk=...).update(view_count=F("view_count") + 1)`, avoiding the read-modify-write race and full-row save.
 
 ---
 

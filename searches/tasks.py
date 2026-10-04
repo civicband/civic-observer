@@ -8,7 +8,6 @@ new matching pages are found.
 import logging
 from datetime import UTC, datetime
 
-from django.db import transaction
 from django.db.models import Q
 from django.utils import timezone
 
@@ -212,11 +211,11 @@ def send_daily_digests() -> dict[str, int]:
     # Send one email per user
     emails_sent = 0
     for user, user_searches in searches_by_user.items():
-        _send_digest_email(user, user_searches, frequency="daily")
-        emails_sent += 1
-        logger.info(
-            f"Sent daily digest to {user.email} with {len(user_searches)} saved searches"
-        )
+        if _send_digest_email(user, user_searches, frequency="daily"):
+            emails_sent += 1
+            logger.info(
+                f"Sent daily digest to {user.email} with {len(user_searches)} saved searches"
+            )
 
     logger.info(
         f"Daily digest complete: {emails_sent} emails sent for {total_searches} searches"
@@ -256,11 +255,11 @@ def send_weekly_digests() -> dict[str, int]:
     # Send one email per user
     emails_sent = 0
     for user, user_searches in searches_by_user.items():
-        _send_digest_email(user, user_searches, frequency="weekly")
-        emails_sent += 1
-        logger.info(
-            f"Sent weekly digest to {user.email} with {len(user_searches)} saved searches"
-        )
+        if _send_digest_email(user, user_searches, frequency="weekly"):
+            emails_sent += 1
+            logger.info(
+                f"Sent weekly digest to {user.email} with {len(user_searches)} saved searches"
+            )
 
     logger.info(
         f"Weekly digest complete: {emails_sent} emails sent for {total_searches} searches"
@@ -269,20 +268,22 @@ def send_weekly_digests() -> dict[str, int]:
     return {"emails_sent": emails_sent, "searches_notified": total_searches}
 
 
-def _send_digest_email(user, saved_searches, frequency="daily"):
+def _send_digest_email(user, saved_searches, frequency="daily") -> bool:
     """
-    Helper function to send a digest email for multiple saved searches.
+    Send a digest email for multiple saved searches.
 
     Args:
         user: User to send email to
         saved_searches: List of SavedSearch objects with pending results
         frequency: "daily" or "weekly"
 
-    Raises:
-        EmailError: If email sending fails
-        DatabaseError: If database update fails
+    Returns:
+        True if the email was sent, False if sending failed (the searches are
+        re-flagged as pending so the next run retries them).
 
-    Uses atomic transaction to ensure email send and database updates happen together.
+    The pending flag is cleared *before* sending: an SMTP send can't be rolled
+    back, so committing the state first means a crash can at worst drop one
+    digest, never resend it. If the send fails, the searches are re-flagged.
     """
     from django.core.mail import EmailMultiAlternatives
     from django.template.loader import get_template, render_to_string
@@ -298,7 +299,6 @@ def _send_digest_email(user, saved_searches, frequency="daily"):
     txt_content = render_to_string("email/digest_update.txt", context=context)
     html_content = get_template("email/digest_update.html").render(context=context)
 
-    # Send email
     msg = EmailMultiAlternatives(
         subject=f"Your {frequency.capitalize()} Civic Observer Digest",
         to=[user.email],
@@ -308,22 +308,28 @@ def _send_digest_email(user, saved_searches, frequency="daily"):
     msg.attach_alternative(html_content, "text/html")
     msg.esp_extra = {"MessageStream": "outbound"}  # type: ignore
 
-    # Use transaction to ensure email and DB updates are atomic
-    with transaction.atomic():
-        # Send email first - if this fails, transaction rolls back
+    saved_search_ids = [saved_search.id for saved_search in saved_searches]
+
+    # Clear pending first (single statement, committed independently of the send).
+    SavedSearch.objects.filter(id__in=saved_search_ids).update(
+        has_pending_results=False,
+        last_notification_sent=timezone.now(),
+    )
+
+    try:
         msg.send()
-
-        # Update all saved searches: clear pending flag and update last_notification_sent
-        # Use bulk_update for better performance
-        now = timezone.now()
-        for saved_search in saved_searches:
-            saved_search.has_pending_results = False
-            saved_search.last_notification_sent = now
-
-        SavedSearch.objects.bulk_update(
-            saved_searches,
-            ["has_pending_results", "last_notification_sent"],
+    except Exception:
+        logger.exception(
+            "Failed to send %s digest to %s; re-flagging for retry",
+            frequency,
+            user.email,
         )
+        SavedSearch.objects.filter(id__in=saved_search_ids).update(
+            has_pending_results=True
+        )
+        return False
+
+    return True
 
 
 def _send_to_notification_channels(saved_search, new_pages) -> None:

@@ -61,6 +61,21 @@ class TestSearchResultsPushUrl:
         assert response["HX-Push-Url"] == expected
 
 
+class TestPublicSearchViewCount:
+    def test_detail_increments_view_count(self, client):
+        search = SearchFactory(search_term="rent control")
+        page = PublicSearchPage.objects.create(
+            slug="rent-count", title="Rent Count", is_published=True, search=search
+        )
+        url = reverse("public-search-detail", kwargs={"slug": "rent-count"})
+
+        client.get(url)
+        client.get(url)
+
+        page.refresh_from_db()
+        assert page.view_count == 2
+
+
 class TestSearchResultsPaginationSwap:
     def test_pagination_links_use_window_top_swap(self, authenticated_client):
         MeetingPageFactory.create_batch(21, text="housing policy discussion")
