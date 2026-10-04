@@ -48,7 +48,13 @@ class Command(BaseCommand):
         )
 
     def _get_municipalities_with_page_counts(self):
-        """Get all municipalities with their page counts using efficient SQL."""
+        """Get all municipalities with their page counts using efficient SQL.
+
+        Counts via the denormalized ``meetings_meetingpage.municipality_id``
+        column so the page table is aggregated in a single pass, instead of
+        joining it to ``meetings_meetingdocument`` and grouping the combined
+        15M+ rows.
+        """
         with connection.cursor() as cursor:
             cursor.execute("""
                 SELECT
@@ -56,11 +62,14 @@ class Command(BaseCommand):
                     m.subdomain,
                     m.name,
                     m.last_indexed,
-                    COALESCE(COUNT(mp.id), 0) as page_count
+                    COALESCE(p.page_count, 0) as page_count
                 FROM municipalities_muni m
-                LEFT JOIN meetings_meetingdocument md ON md.municipality_id = m.id
-                LEFT JOIN meetings_meetingpage mp ON mp.document_id = md.id
-                GROUP BY m.id, m.subdomain, m.name, m.last_indexed
+                LEFT JOIN (
+                    SELECT municipality_id, COUNT(*) AS page_count
+                    FROM meetings_meetingpage
+                    WHERE municipality_id IS NOT NULL
+                    GROUP BY municipality_id
+                ) p ON p.municipality_id = m.id
                 ORDER BY m.subdomain
             """)
             rows = cursor.fetchall()

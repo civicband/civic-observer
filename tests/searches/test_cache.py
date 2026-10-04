@@ -454,6 +454,19 @@ class TestCacheInvalidation:
         invalidate_search_cache_for_municipality(999)
         invalidate_all_search_caches()
 
+    def test_delete_cache_keys_deletes_in_batches(self):
+        """SCAN-based deletion must clear every match across multiple batches."""
+        from searches.cache import _delete_cache_keys
+
+        for i in range(5):
+            cache.set(f"search:v1:batch-{i}", i)
+
+        deleted = _delete_cache_keys("civicobs:*:search:v1:*", batch_size=2)
+
+        assert deleted == 5
+        assert get_cached_search_results(search_term="batch-0") is None
+        assert get_cached_search_results(search_term="batch-4") is None
+
 
 class TestEdgeCases:
     """Tests for edge cases and special characters."""

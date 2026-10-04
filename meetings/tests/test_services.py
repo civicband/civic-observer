@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 import httpx
 import pytest
 
+from meetings.models import MeetingPage
 from meetings.services import BackfillError, _backfill_document_type
 from municipalities.models import Muni
 
@@ -281,3 +282,37 @@ class TestBackfillErrorHandling:
         with patch.object(httpx.Client, "get", return_value=resp):
             with pytest.raises(BackfillError):
                 _backfill_document_type(muni, "agendas", "agenda")
+
+
+@pytest.mark.django_db
+class TestProcessRowsBatchUpdates:
+    @patch("meetings.services.httpx.Client")
+    def test_reingesting_same_page_updates_in_place(self, mock_client_class):
+        """Re-ingesting a page id must update it, not create a duplicate."""
+        muni = Muni.objects.create(
+            subdomain="update-city", name="Update City", state="CA"
+        )
+        mock_client = Mock()
+        mock_client_class.return_value.__enter__.return_value = mock_client
+
+        row = {
+            "id": "p1",
+            "meeting": "Council",
+            "date": "2024-12-01",
+            "page": 1,
+            "text": "v1",
+        }
+        resp_1 = Mock()
+        resp_1.json.return_value = {"rows": [row], "next": "c2"}
+        resp_2 = Mock()
+        resp_2.json.return_value = {"rows": [{**row, "text": "v2"}], "next": None}
+        mock_client.get.side_effect = [resp_1, resp_2]
+
+        stats, _ = _backfill_document_type(
+            muni=muni, table_name="agendas", document_type="agenda"
+        )
+
+        assert stats["pages_created"] == 1
+        assert stats["pages_updated"] == 1
+        assert MeetingPage.objects.filter(id="p1").count() == 1
+        assert MeetingPage.objects.get(id="p1").text == "v2"

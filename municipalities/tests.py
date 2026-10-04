@@ -624,6 +624,76 @@ class TestMuniWebhookUpdateView:
         if "WEBHOOK_SECRET" in os.environ:
             del os.environ["WEBHOOK_SECRET"]
 
+    @override_settings()
+    @patch("municipalities.views.Muni.update_searches")
+    @patch("django_rq.get_queue")
+    def test_webhook_skips_search_updates_when_pages_unchanged(
+        self, mock_get_queue, mock_update_searches, client, webhook_data
+    ):
+        """Page-unchanged webhooks must not run per-search work."""
+        os.environ["WEBHOOK_SECRET"] = "test-secret-123"
+
+        Muni.objects.create(
+            subdomain="unchangedcity",
+            name="Unchanged City",
+            state="CA",
+            kind="city",
+            pages=50,
+        )
+        mock_get_queue.return_value = Mock()
+
+        url = reverse(
+            "munis:muni-webhook-update", kwargs={"subdomain": "unchangedcity"}
+        )
+        headers = {"Authorization": "Bearer test-secret-123"}
+        response = client.post(
+            url,
+            json.dumps(webhook_data),
+            content_type="application/json",
+            **{f"HTTP_{k.upper().replace('-', '_')}": v for k, v in headers.items()},
+        )
+
+        assert response.status_code == 200
+        mock_update_searches.assert_not_called()
+
+        if "WEBHOOK_SECRET" in os.environ:
+            del os.environ["WEBHOOK_SECRET"]
+
+    @override_settings()
+    @patch("municipalities.views.Muni.update_searches")
+    @patch("django_rq.get_queue")
+    def test_webhook_updates_searches_when_pages_changed(
+        self, mock_get_queue, mock_update_searches, client, webhook_data
+    ):
+        """Page-changed webhooks still refresh search tracking before backfill."""
+        os.environ["WEBHOOK_SECRET"] = "test-secret-123"
+
+        Muni.objects.create(
+            subdomain="changedcity",
+            name="Changed City",
+            state="CA",
+            kind="city",
+            pages=25,
+        )
+        mock_queue = Mock()
+        mock_queue.enqueue.return_value = Mock(id="job-1")
+        mock_get_queue.return_value = mock_queue
+
+        url = reverse("munis:muni-webhook-update", kwargs={"subdomain": "changedcity"})
+        headers = {"Authorization": "Bearer test-secret-123"}
+        response = client.post(
+            url,
+            json.dumps(webhook_data),
+            content_type="application/json",
+            **{f"HTTP_{k.upper().replace('-', '_')}": v for k, v in headers.items()},
+        )
+
+        assert response.status_code == 200
+        mock_update_searches.assert_called_once()
+
+        if "WEBHOOK_SECRET" in os.environ:
+            del os.environ["WEBHOOK_SECRET"]
+
 
 @pytest.mark.django_db
 class TestMuniAdminActions:

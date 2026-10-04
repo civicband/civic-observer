@@ -17,6 +17,20 @@ from municipalities.models import Muni
 logger = logging.getLogger(__name__)
 
 
+def civic_band_table_url(subdomain: str, table_name: str) -> str:
+    """Return the civic.band datasette JSON URL for a municipality table."""
+    return f"https://{subdomain}.civic.band/meetings/{table_name}.json"
+
+
+def civic_band_headers() -> dict[str, str]:
+    """Return auth headers for civic.band requests (service secret if set)."""
+    headers: dict[str, str] = {}
+    service_secret = getattr(settings, "CORKBOARD_SERVICE_SECRET", "")
+    if service_secret:
+        headers["X-Service-Secret"] = service_secret
+    return headers
+
+
 class BackfillError(Exception):
     """Exception raised when backfill operation fails."""
 
@@ -120,14 +134,11 @@ def _backfill_document_type(
         "errors": 0,
     }
 
-    base_url = f"https://{muni.subdomain}.civic.band/meetings/{table_name}.json"
+    base_url = civic_band_table_url(muni.subdomain, table_name)
 
     try:
         # Build headers with service secret for authentication
-        headers = {}
-        service_secret = getattr(settings, "CORKBOARD_SERVICE_SECRET", "")
-        if service_secret:
-            headers["X-Service-Secret"] = service_secret
+        headers = civic_band_headers()
 
         with httpx.Client(timeout=timeout, headers=headers) as client:
             # Build query parameters
@@ -194,6 +205,128 @@ def _backfill_document_type(
     return stats, next_cursor
 
 
+# Columns refreshed when a page row already exists. `created` is intentionally
+# omitted so the original ingestion time survives re-ingestion.
+PAGE_UPSERT_UPDATE_FIELDS = [
+    "document",
+    "page_number",
+    "text",
+    "page_image",
+    "municipality",
+    "municipality_subdomain",
+    "municipality_name",
+    "state",
+    "meeting_name",
+    "meeting_date",
+    "document_type",
+    "modified",
+]
+
+
+def group_rows_by_document(
+    rows: list[dict[str, Any]], stats: dict[str, int]
+) -> dict[tuple[str, str], list[dict[str, Any]]]:
+    """
+    Group API rows by (meeting_name, date string).
+
+    Rows missing a meeting, date, or page id — or with an unparseable date — are
+    skipped and counted in ``stats["errors"]``.
+
+    Returns:
+        Mapping of (meeting_name, date_str) to the rows for that document.
+    """
+    documents_map: dict[tuple[str, str], list[dict[str, Any]]] = {}
+
+    for row in rows:
+        try:
+            meeting_name = row.get("meeting", "")
+            date_str = row.get("date", "")
+            page_id = row.get("id", "")
+
+            if not meeting_name or not date_str or not page_id:
+                logger.warning(f"Skipping row with missing data: {row}")
+                stats["errors"] += 1
+                continue
+
+            # Validate date format
+            date.fromisoformat(date_str)
+
+            documents_map.setdefault((meeting_name, date_str), []).append(row)
+
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Error processing row {row}: {e}")
+            stats["errors"] += 1
+
+    return documents_map
+
+
+def get_or_create_document(
+    muni: Muni, meeting_name: str, date_str: str, document_type: str
+) -> tuple[MeetingDocument, bool]:
+    """Get or create the MeetingDocument for a (meeting, date, type) triple."""
+    document, created = MeetingDocument.objects.update_or_create(
+        municipality=muni,
+        meeting_name=meeting_name,
+        meeting_date=date.fromisoformat(date_str),
+        document_type=document_type,
+    )
+    return document, created
+
+
+def build_pages(
+    document: MeetingDocument,
+    pages_data: list[dict[str, Any]],
+    stats: dict[str, int],
+) -> list[MeetingPage]:
+    """
+    Build (but do not save) MeetingPage instances for a document's rows.
+
+    ``bulk_create`` bypasses ``MeetingPage.save()``, so denormalized columns are
+    populated here explicitly. Rows without an id are skipped and counted as
+    errors.
+    """
+    by_id: dict[str, MeetingPage] = {}
+    for page_data in pages_data:
+        page_id = page_data.get("id")
+        if not page_id:
+            logger.warning(f"Skipping page with no ID: {page_data}")
+            stats["errors"] += 1
+            continue
+
+        page = MeetingPage(
+            id=page_id,
+            document=document,
+            page_number=page_data.get("page", 0),
+            text=page_data.get("text", ""),
+            page_image=page_data.get("page_image", ""),
+        )
+        page.denormalize(document)
+        by_id[page_id] = page
+
+    return list(by_id.values())
+
+
+def bulk_upsert_pages(pages: list[MeetingPage], stats: dict[str, int]) -> None:
+    """
+    Upsert pages in one statement and update created/updated counts in ``stats``.
+
+    ``pages`` must be non-empty and already denormalized (see ``build_pages``).
+    """
+    page_ids = [page.id for page in pages]
+    existing_ids = set(
+        MeetingPage.objects.filter(id__in=page_ids).values_list("id", flat=True)
+    )
+    stats["pages_created"] += sum(1 for page in pages if page.id not in existing_ids)
+    stats["pages_updated"] += sum(1 for page in pages if page.id in existing_ids)
+
+    MeetingPage.objects.bulk_create(
+        pages,
+        update_conflicts=True,
+        unique_fields=["id"],
+        update_fields=PAGE_UPSERT_UPDATE_FIELDS,
+    )
+
+
 def _process_rows_batch(
     muni: Muni, rows: list[dict[str, Any]], document_type: str, stats: dict[str, int]
 ) -> None:
@@ -206,41 +339,14 @@ def _process_rows_batch(
         document_type: Type of document ('agenda' or 'minutes')
         stats: Statistics dictionary to update
     """
-    # Group rows by (meeting, date) to create documents
-    documents_map: dict[tuple[str, date], list[dict[str, Any]]] = {}
-
-    for row in rows:
-        try:
-            meeting_name = row.get("meeting", "")
-            date_str = row.get("date", "")
-
-            if not meeting_name or not date_str:
-                logger.warning(f"Skipping row with missing data: {row}")
-                stats["errors"] += 1
-                continue
-
-            # Parse date
-            meeting_date = date.fromisoformat(date_str)
-
-            key = (meeting_name, meeting_date)
-            if key not in documents_map:
-                documents_map[key] = []
-            documents_map[key].append(row)
-
-        except (ValueError, TypeError) as e:
-            logger.warning(f"Error processing row {row}: {e}")
-            stats["errors"] += 1
+    documents_map = group_rows_by_document(rows, stats)
 
     # Create or update documents and their pages
-    for (meeting_name, meeting_date), pages_data in documents_map.items():
+    for (meeting_name, date_str), pages_data in documents_map.items():
         try:
             with transaction.atomic():
-                # Create or get the document
-                document, created = MeetingDocument.objects.update_or_create(
-                    municipality=muni,
-                    meeting_name=meeting_name,
-                    meeting_date=meeting_date,
-                    document_type=document_type,
+                document, created = get_or_create_document(
+                    muni, meeting_name, date_str, document_type
                 )
 
                 if created:
@@ -248,36 +354,15 @@ def _process_rows_batch(
                 else:
                     stats["documents_updated"] += 1
 
-                # Create or update pages
-                for page_data in pages_data:
-                    page_id = page_data.get("id")
-                    page_number = page_data.get("page", 0)
-                    text = page_data.get("text", "")
-                    page_image = page_data.get("page_image", "")
+                pages = build_pages(document, pages_data, stats)
+                if not pages:
+                    continue
 
-                    if not page_id:
-                        logger.warning(f"Skipping page with no ID: {page_data}")
-                        stats["errors"] += 1
-                        continue
-
-                    page, page_created = MeetingPage.objects.update_or_create(
-                        id=page_id,
-                        defaults={
-                            "document": document,
-                            "page_number": page_number,
-                            "text": text,
-                            "page_image": page_image,
-                        },
-                    )
-
-                    if page_created:
-                        stats["pages_created"] += 1
-                    else:
-                        stats["pages_updated"] += 1
+                bulk_upsert_pages(pages, stats)
 
         except Exception as e:
             logger.error(
-                f"Error creating document for {meeting_name} on {meeting_date}: {e}",
+                f"Error creating document for {meeting_name} on {date_str}: {e}",
                 exc_info=True,
             )
             stats["errors"] += 1

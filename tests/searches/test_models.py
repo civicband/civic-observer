@@ -239,6 +239,25 @@ class TestSearchModel:
         assert page2 in new_pages
         assert page3 in new_pages
 
+    @patch("searches.search_backends.get_search_backend")
+    def test_update_search_runs_backend_once(self, mock_get_backend):
+        """update_search should issue a single backend query, not two."""
+        muni = MuniFactory(name="Single Query City")
+        doc = MeetingDocumentFactory(municipality=muni)
+        page = MeetingPageFactory(document=doc, text="Housing policy")
+
+        mock_backend = mock_get_backend.return_value
+        mock_backend.search.return_value = ([{"id": page.id}], 1)
+
+        search = SearchFactory(search_term="housing")
+        search.municipalities.add(muni)
+        search.last_checked_for_new_pages = None
+        search.save()
+
+        search.update_search()
+
+        assert mock_backend.search.call_count == 1
+
 
 @pytest.mark.django_db
 class TestSavedSearchModel:
