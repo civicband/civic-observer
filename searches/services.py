@@ -136,3 +136,21 @@ def get_new_pages(search, since=None):
         all_results = all_results.filter(created__gte=cutoff)
 
     return all_results
+
+
+def search_new_pages(search, cutoff):
+    """
+    Run one backend search and split the results into new pages and a total.
+
+    Args:
+        search: Search model instance
+        cutoff: Only pages created at/after this time count as "new". ``None``
+            means every matching page is new.
+
+    Returns:
+        Tuple of (new_pages QuerySet, total matching count).
+    """
+    page_ids = search_result_ids(search)
+    matching = MeetingPage.objects.filter(id__in=page_ids)
+    new_pages = matching.filter(created__gte=cutoff) if cutoff else matching
+    return new_pages, len(page_ids)

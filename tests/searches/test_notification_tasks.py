@@ -81,11 +81,11 @@ class TestCheckSavedSearchesAfterIngest:
             text="This page discusses the 2025 budget proposal.",
         )
 
-        # Mark the search as having already checked (page created before this timestamp)
+        # Mark this saved search as having already checked (page predates it)
         from django.utils import timezone
 
-        search.last_checked_for_new_pages = timezone.now()
-        search.save()
+        saved_search.last_checked_for_new_pages = timezone.now()
+        saved_search.save()
 
         # Check the saved search
         from searches.tasks import check_saved_search_for_updates
@@ -235,9 +235,9 @@ class TestCheckSavedSearchesAfterIngest:
         # Verify only one email was sent
         assert len(mail.outbox) == 1
 
-        # Verify timestamp was updated
-        search.refresh_from_db()
-        assert search.last_checked_for_new_pages is not None
+        # Verify this saved search's cutoff was updated
+        saved_search.refresh_from_db()
+        assert saved_search.last_checked_for_new_pages is not None
 
     def test_check_saved_searches_scopes_to_one_municipality(self):
         """
@@ -536,3 +536,29 @@ class TestCheckAllSavedSearches:
         assert immediate_ss.has_pending_results is False
         assert daily_ss.has_pending_results is True
         assert result["pending_marked"] == 1
+
+
+@pytest.mark.django_db
+class TestPerSavedSearchTracking:
+    def test_shared_search_users_notified_across_separate_checks(self):
+        """
+        Each user has their own 'last checked' cutoff, so one user's check must
+        not consume new pages on behalf of another user sharing the same Search.
+        """
+        from searches.tasks import check_saved_search_for_updates
+
+        doc = MeetingDocumentFactory()
+        search = SearchFactory(search_term="budget")
+        search.municipalities.add(doc.municipality)
+        saved_search_a = SavedSearchFactory(
+            search=search, notification_frequency="immediate"
+        )
+        saved_search_b = SavedSearchFactory(
+            search=search, notification_frequency="immediate"
+        )
+        MeetingPageFactory(document=doc, text="budget hearing")
+
+        check_saved_search_for_updates(saved_search_a.id)
+        check_saved_search_for_updates(saved_search_b.id)
+
+        assert len(mail.outbox) == 2

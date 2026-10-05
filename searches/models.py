@@ -169,21 +169,16 @@ class Search(TimeStampedModel):
         Returns:
             QuerySet of MeetingPage objects that are new since last check.
         """
-        from meetings.models import MeetingPage
-
-        from .services import search_result_ids
+        from .services import search_new_pages
 
         # One backend query yields both the matching ids and (via their length)
         # the result count, avoiding a second search and a COUNT over a large
         # id__in list.
-        page_ids = search_result_ids(self)
-        matching = MeetingPage.objects.filter(id__in=page_ids)
-
         cutoff = since if since is not None else self.last_checked_for_new_pages
-        new_pages = matching.filter(created__gte=cutoff) if cutoff else matching
+        new_pages, total = search_new_pages(self, cutoff)
 
         # Update tracking fields with current timestamp and count
-        self.last_result_count = len(page_ids)
+        self.last_result_count = total
         self.last_checked_for_new_pages = timezone.now()
         self.last_fetched = timezone.now()
         self.save(
@@ -239,6 +234,14 @@ class SavedSearch(TimeStampedModel):
     last_checked = models.DateTimeField(
         default=timezone.now, help_text="When this saved search was last checked"
     )
+    last_checked_for_new_pages = models.DateTimeField(
+        null=True,
+        blank=True,
+        help_text=(
+            "Per-user cutoff: pages created after this time are 'new' for this "
+            "saved search"
+        ),
+    )
     has_pending_results = models.BooleanField(
         default=False,
         help_text="True if there are new results waiting to be sent in digest",
@@ -249,6 +252,18 @@ class SavedSearch(TimeStampedModel):
         verbose_name_plural = "Saved Searches"
         ordering = ["-created"]
         unique_together = ["user", "search"]
+
+    def save(self, *args, **kwargs):
+        # On creation, seed the per-user cutoff from the Search's current cutoff
+        # (which may be None, meaning "never checked" — the first check then sees
+        # all matching pages, matching prior behavior).
+        if (
+            self._state.adding
+            and self.last_checked_for_new_pages is None
+            and self.search_id
+        ):
+            self.last_checked_for_new_pages = self.search.last_checked_for_new_pages
+        super().save(*args, **kwargs)
 
     def __str__(self) -> str:
         return f"{self.name} - {self.user.email}"
