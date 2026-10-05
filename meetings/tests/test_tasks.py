@@ -464,3 +464,43 @@ class TestOrchestratorConcurrencyGuard:
         assert mock_queue.enqueue.call_count == first_count
         assert result["agenda"].startswith("already_running")
         assert result["minutes"].startswith("already_running")
+
+
+@pytest.mark.django_db
+class TestOrchestratorEnqueueResilience:
+    @patch("meetings.tasks.django_rq.get_queue")
+    def test_enqueue_failure_marks_progress_failed(self, mock_get_queue):
+        """If the queue is unavailable, progress must not stay in_progress."""
+        from meetings.tasks import backfill_municipality_meetings_task
+
+        muni = Muni.objects.create(
+            subdomain="enqueue-fail", name="Enqueue Fail", state="CA"
+        )
+        mock_queue = Mock()
+        mock_queue.enqueue.side_effect = RuntimeError("redis down")
+        mock_get_queue.return_value = mock_queue
+
+        with pytest.raises(RuntimeError):
+            backfill_municipality_meetings_task(muni.id)
+
+        agenda_progress = BackfillProgress.objects.get(
+            municipality=muni, document_type="agenda"
+        )
+        assert agenda_progress.status == "failed"
+        assert "enqueue" in (agenda_progress.error_message or "").lower()
+
+    @patch("meetings.tasks.django_rq.get_queue")
+    def test_backfill_jobs_get_explicit_timeout(self, mock_get_queue):
+        """Backfill jobs must not rely on the short queue default timeout."""
+        from meetings.tasks import backfill_municipality_meetings_task
+
+        muni = Muni.objects.create(
+            subdomain="timeout-city", name="Timeout City", state="CA"
+        )
+        mock_queue = Mock()
+        mock_get_queue.return_value = mock_queue
+
+        backfill_municipality_meetings_task(muni.id)
+
+        kwargs = mock_queue.enqueue.call_args_list[0][1]
+        assert kwargs.get("job_timeout") == settings.BACKFILL_JOB_TIMEOUT

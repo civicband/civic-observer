@@ -47,6 +47,25 @@ def _mark_municipality_indexed(muni) -> None:
     muni.save(update_fields=["last_indexed"])
 
 
+def _enqueue_backfill(queue, progress, task, *args):
+    """Enqueue a backfill job with an explicit timeout.
+
+    If enqueueing fails (e.g. Redis is unavailable), the progress record is
+    marked failed so a later webhook can retry immediately instead of waiting
+    for the stale-job recovery window.
+    """
+    from django.conf import settings
+
+    job_timeout = getattr(settings, "BACKFILL_JOB_TIMEOUT", 900)
+    try:
+        return queue.enqueue(task, *args, job_timeout=job_timeout)
+    except Exception as e:
+        progress.status = "failed"
+        progress.error_message = f"Failed to enqueue backfill job: {e}"
+        progress.save()
+        raise
+
+
 def backfill_municipality_meetings_task(muni_id: UUID | str) -> dict[str, str]:
     """
     Main orchestrator task that routes to full or incremental backfill.
@@ -152,7 +171,9 @@ def backfill_municipality_meetings_task(muni_id: UUID | str) -> dict[str, str]:
             # Enqueue outside the lock; the committed in_progress status now
             # blocks a concurrent orchestrator from enqueueing a duplicate.
             if needs_full:
-                job = queue.enqueue(
+                job = _enqueue_backfill(
+                    queue,
+                    progress,
                     backfill_batch_task,
                     muni_id,
                     document_type,
@@ -165,7 +186,9 @@ def backfill_municipality_meetings_task(muni_id: UUID | str) -> dict[str, str]:
                 )
                 result[document_type] = f"full_backfill_started:{job.id}"
             else:
-                job = queue.enqueue(
+                job = _enqueue_backfill(
+                    queue,
+                    progress,
                     backfill_incremental_task,
                     muni_id,
                     document_type,
@@ -355,7 +378,9 @@ def backfill_batch_task(
             progress.save()
 
             queue = django_rq.get_queue("default")
-            job = queue.enqueue(
+            job = _enqueue_backfill(
+                queue,
+                progress,
                 backfill_batch_task,
                 muni_id,
                 document_type,

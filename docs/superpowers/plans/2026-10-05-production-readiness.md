@@ -96,31 +96,34 @@ Behaviors most likely to bite a user that tests must pin:
 
 ---
 
-## Phase 2 — Authorization & output escaping (outline)
+## Phase 2 — Authorization & output escaping (DONE, PR #113)
 
-- Gate municipal create/update/delete on `is_staff`/permission, not just `is_authenticated` (`municipalities/views.py:106-114`).
-- Escape search snippet; stop using `|safe` over OCR text (`templates/meetings/partials/search_results.html:113`).
-- Replace `innerHTML` DOM-XSS in `templates/meetings/meeting_search.html:590,677` with `textContent`/DOM APIs.
-- Fix reflected XSS in `notebooks/views.py:187`.
-- Pass municipality names via `json_script` instead of inline Alpine `x-data` (`templates/searches/partials/municipality_searchable_field.html:2`).
-- Enforce public-page scope/search term in `meetings/views.py:90-176`.
-- Constant-time secret comparisons; stop trusting `X-Forwarded-For` for the Tailscale check (`apikeys/internal_views.py:28-49`, `municipalities/views.py:139`).
+- Gate municipal create/update/delete on `is_staff` (`municipalities/views.py`). ✅
+- Escape search snippet; stop rendering OCR text raw. ✅
+- Replace `innerHTML` DOM-XSS in `templates/meetings/meeting_search.html`. ✅
+- Fix reflected XSS in `notebooks/views.py`. ✅
+- Escape Alpine `x-data` values in `municipality_searchable_field.html`. ✅
+- Enforce public-page scope/search term in `meetings/views.py`. ✅
+- Constant-time secret comparisons; trust only the proxy-appended `X-Forwarded-For` hop. ✅
 
-## Phase 3 — Ingestion data integrity (outline)
+## Phase 3 — Ingestion data integrity (DONE)
 
-- Re-raise HTTP errors and only mark backfills `completed` on normal termination (`meetings/services.py:179-186`, `meetings/tasks.py:236-353`).
-- Make backfill status + enqueue atomic/idempotent; add per-job timeouts and RQ retry/failure callbacks.
-- Reconnect immediate notifications to ingestion; move watermark off shared `Search` (`searches/models.py:173`).
-- Failure-isolate digest sends; never send inside a DB transaction; guard with locking.
+Earlier PRs (#107–#111) already fixed HTTP-error re-raising, backfill lock/enqueue
+ordering, immediate notifications, and digest failure isolation. This phase added:
 
-## Phase 4 — Operational reliability (outline)
+- Recover `BackfillProgress` when enqueueing a job fails (mark failed, not stuck).
+- Explicit `BACKFILL_JOB_TIMEOUT` (900s) on orchestrator and chained batch enqueues.
+- Queue-safe Redis eviction policy (`volatile-lru`) so RQ keys survive memory pressure.
+- Sentry `RqIntegration` so failed background jobs are reported. ✅
 
-- Queue-safe Redis eviction policy / separate Redis DB for RQ; add dead-letter alerting.
-- Make `/health/` return 503 on DB error and check Redis (`config/views.py:15-20`).
+## Phase 4 — Operational reliability (remaining)
+
 - Run migrations once in deploy, not on every container start (`compose-entrypoint.sh`).
 - Pin dependency install to `uv.lock` in the Docker build.
 - Harden CI SSH host-key verification; make `safety` blocking or replace with `pip-audit`.
 - Stream logs to stdout (Vector consumes container logs).
+
+(Done elsewhere: `/health/` returns 503 on DB error, Redis eviction policy.)
 
 ## Phase 5 — Medium hardening (outline)
 

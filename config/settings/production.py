@@ -3,6 +3,7 @@ from typing import Any
 import sentry_sdk
 from django.core.exceptions import ImproperlyConfigured
 from environs import env
+from sentry_sdk.integrations.rq import RqIntegration
 from sentry_sdk.types import Event, Hint
 
 from .base import *
@@ -110,8 +111,8 @@ sentry_sdk.init(
     traces_sample_rate=0,
     # Custom error grouping via fingerprinting
     before_send=sentry_before_send,
-    # Django-specific integrations (auto-enabled but explicit for clarity)
-    integrations=[],  # Let sentry auto-detect Django
+    # Report failed django-rq jobs; Django itself is still auto-detected.
+    integrations=[RqIntegration()],
     # Do not attach stack locals, which can contain secrets.
     include_local_variables=False,
     # Environment tag for filtering

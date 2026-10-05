@@ -58,10 +58,13 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
+    # volatile-lru evicts only keys with a TTL (the django-redis cache). RQ
+    # queue/job keys have no TTL, so they survive memory pressure instead of
+    # being silently dropped the way allkeys-lru would allow.
     command: >
       redis-server
       --maxmemory 256mb
-      --maxmemory-policy allkeys-lru
+      --maxmemory-policy volatile-lru
       --save 60 1
       --loglevel warning
     volumes:
