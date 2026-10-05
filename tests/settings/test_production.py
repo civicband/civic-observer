@@ -101,6 +101,15 @@ def test_production_sentry_minimizes_pii(production_env):
     assert kwargs["include_local_variables"] is False
 
 
+def test_production_reports_failed_rq_jobs(production_env):
+    production_env.setenv("SECRET_KEY", VALID_SECRET_KEY)
+    with patch("sentry_sdk.init") as init:
+        _load_production()
+
+    integrations = init.call_args.kwargs["integrations"]
+    assert any(type(i).__name__ == "RqIntegration" for i in integrations)
+
+
 def test_sentry_before_send_scrubs_request_credentials(production_env):
     production_env.setenv("SECRET_KEY", VALID_SECRET_KEY)
     with patch("sentry_sdk.init"):

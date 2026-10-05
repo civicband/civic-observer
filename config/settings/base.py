@@ -190,6 +190,9 @@ RQ_SHOW_ADMIN_LINK = True
 INCREMENTAL_BACKFILL_MONTHS = 6  # ±6 months from today
 FULL_BACKFILL_BATCH_SIZE = 10  # API pages per job (10 pages = ~10k records)
 BACKFILL_API_PAGE_SIZE = 1000  # Records per API request
+# A batch may process ~10k rows with per-row upserts, so give it more than the
+# queue's short default timeout.
+BACKFILL_JOB_TIMEOUT = 900  # seconds
 
 # API Key Validation
 CORKBOARD_SERVICE_SECRET = env.str("CORKBOARD_SERVICE_SECRET", "")
