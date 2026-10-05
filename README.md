@@ -135,6 +135,9 @@ The project uses environment-based settings:
 - `config.settings.production` - Production
 
 Set the `DJANGO_SETTINGS_MODULE` environment variable to switch between configurations.
+Copy `.env.example` to `.env` (development) or `.env.production` (deployment)
+and fill in the values. Production requires an explicit `SECRET_KEY` and
+refuses to start if it is missing or left at the development default.
 
 ## Data Backfill
 

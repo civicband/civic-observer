@@ -33,9 +33,8 @@ Internet → Caddy → Blue (8888) or Green (8889) → Django/Uvicorn
 ## Files
 
 ### Docker Compose (in repo root)
-- `docker-compose.production-base.yml` - Shared services (DB, Redis, PgBouncer)
-- `docker-compose.blue.yml` - Blue stack (port 8888)
-- `docker-compose.green.yml` - Green stack (port 8889)
+- `docker-compose.production.yml` - CivicObserver stack: shared Redis plus the blue (8888) and green (8889) web/worker pairs
+- PostgreSQL and PgBouncer are external to this repo; the app connects via `DATABASE_URL`
 
 ### Scripts (in this directory)
 - `status.sh` - Check deployment status on VPS
@@ -100,14 +99,19 @@ git clone https://github.com/civicband/civic-observer.git
 
 # Create production env
 cp civic-observer/.env.example civic-observer/.env.production
-# Edit with production values
+# Edit with production values. Required:
+#   DJANGO_SETTINGS_MODULE=config.settings.production
+#   SECRET_KEY=<unique random value> (production refuses to start without one)
+#   DATABASE_URL, ALLOWED_HOSTS, REDIS_URL, POSTMARK_SERVER_TOKEN, SENTRY_DSN, ...
+# Never commit this file.
 
 # Create Docker network
 docker network create civic-network
 
-# Start shared services
+# Start the stack (shared Redis plus blue/green web+worker pairs).
+# PostgreSQL/PgBouncer are external and reached via DATABASE_URL.
 cd civic-observer
-docker-compose -f docker-compose.production-base.yml up -d
+docker-compose -f docker-compose.production.yml up -d
 ```
 
 ### GitHub Secrets Required
@@ -124,7 +128,7 @@ docker logs civic-web-blue   # or civic-web-green
 docker logs civic-worker-blue
 
 # Check shared services
-docker-compose -f docker-compose.production-base.yml ps
+docker-compose -f docker-compose.production.yml ps
 ```
 
 ### Health Check Fails
@@ -137,12 +141,11 @@ docker logs civic-web-blue --tail 100
 ```
 
 ### Database Issues
-```bash
-# Check DB container
-docker logs civic-observer-db
+PostgreSQL and PgBouncer run outside this compose stack; check them at their
+host (see `DATABASE_URL`). For app-side connectivity:
 
-# Run migrations manually
-docker-compose -f docker-compose.production-base.yml \
-  -f docker-compose.blue.yml \
+```bash
+# Run migrations manually against the configured DATABASE_URL
+docker-compose -f docker-compose.production.yml \
   run --rm web-blue python manage.py migrate
 ```

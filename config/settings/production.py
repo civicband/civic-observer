@@ -1,10 +1,20 @@
 from typing import Any
 
 import sentry_sdk
+from django.core.exceptions import ImproperlyConfigured
 from environs import env
 from sentry_sdk.types import Event, Hint
 
 from .base import *
+
+# Production must never fall back to the development default. Re-reading
+# without a default makes a missing SECRET_KEY a hard startup error, and the
+# equality check catches an explicit misconfiguration.
+SECRET_KEY: str = env.str("SECRET_KEY")  # type: ignore[no-redef]
+if SECRET_KEY == INSECURE_SECRET_KEY:
+    raise ImproperlyConfigured(
+        "SECRET_KEY must be set to a unique, secret value in production."
+    )
 
 
 def _get_exception_name(exc: BaseException | None) -> str:
@@ -19,6 +29,30 @@ def _get_exception_name(exc: BaseException | None) -> str:
     return name
 
 
+_SENSITIVE_HEADERS = frozenset(
+    {
+        "authorization",
+        "cookie",
+        "set-cookie",
+        "x-service-secret",
+        "x-csrf-token",
+    }
+)
+
+
+def _scrub_event(event: Event) -> Event:
+    """Remove credentials from event data before it leaves the process."""
+    request = event.get("request")
+    if isinstance(request, dict):
+        request.pop("data", None)
+        headers = request.get("headers")
+        if isinstance(headers, dict):
+            for header in list(headers):
+                if header.lower() in _SENSITIVE_HEADERS:
+                    del headers[header]
+    return event
+
+
 def sentry_before_send(event: Event, hint: Hint) -> Event | None:
     """
     Custom fingerprinting to group related errors together.
@@ -26,6 +60,8 @@ def sentry_before_send(event: Event, hint: Hint) -> Event | None:
     Groups infrastructure errors (database, redis, HTTP) by type rather than
     by stack trace location, preventing alert fatigue from infrastructure issues.
     """
+    event = _scrub_event(event)
+
     if "exc_info" not in hint:
         return event
 
@@ -68,17 +104,16 @@ def sentry_before_send(event: Event, hint: Hint) -> Event | None:
 
 sentry_sdk.init(
     dsn=env.str("SENTRY_DSN", default=""),
-    # Add data like request headers and IP for users;
-    # see https://docs.sentry.io/platforms/python/data-management/data-collected/ for more info
-    send_default_pii=True,
-    max_request_body_size="always",
+    # Keep credentials and user PII out of Sentry; scrub_event is defense in depth.
+    send_default_pii=False,
+    max_request_body_size="never",
     traces_sample_rate=0,
     # Custom error grouping via fingerprinting
     before_send=sentry_before_send,
     # Django-specific integrations (auto-enabled but explicit for clarity)
     integrations=[],  # Let sentry auto-detect Django
-    # Attach stack locals for better debugging
-    include_local_variables=True,
+    # Do not attach stack locals, which can contain secrets.
+    include_local_variables=False,
     # Environment tag for filtering
     environment=env.str("SENTRY_ENVIRONMENT", default="production"),
     # Release tracking (use VERSION env var if set)
@@ -108,19 +143,21 @@ DATABASES: dict[str, dict[str, Any]] = {  # type: ignore[no-redef]
 # CSRF_COOKIE_DOMAIN: str | None = ".civic.observer"
 CSRF_TRUSTED_ORIGINS: list[str] = [
     "https://civic.observer",
-    "http://civic.observer",
     "https://*.civic.observer",
 ]  # type: ignore[no-redef]
 
-# SECURE_BROWSER_XSS_FILTER: bool = True
-# SECURE_CONTENT_TYPE_NOSNIFF: bool = True
-# SECURE_HSTS_INCLUDE_SUBDOMAINS: bool = True
-# SECURE_HSTS_SECONDS: int = 31536000
-# SECURE_REDIRECT_EXEMPT: list[str] = []
-# SECURE_SSL_REDIRECT: bool = True
-# SESSION_COOKIE_SECURE: bool = True
+# Transport and session hardening. Caddy terminates TLS and forwards the
+# original scheme, so SECURE_PROXY_SSL_HEADER lets Django detect HTTPS and
+# redirect plaintext requests. /health/ is exempted so the in-network Docker
+# healthcheck (plain HTTP on localhost) keeps working.
+SECURE_PROXY_SSL_HEADER: tuple[str, str] = ("HTTP_X_FORWARDED_PROTO", "https")
+SECURE_SSL_REDIRECT: bool = True
+SECURE_REDIRECT_EXEMPT: list[str] = [r"^health/$"]
+SESSION_COOKIE_SECURE: bool = True
 CSRF_COOKIE_SECURE: bool = True
-# X_FRAME_OPTIONS: str = "DENY"
+SECURE_HSTS_SECONDS: int = 31536000
+SECURE_HSTS_INCLUDE_SUBDOMAINS: bool = True
+SECURE_HSTS_PRELOAD: bool = True
 
 ANYMAIL = {
     "POSTMARK_SERVER_TOKEN": env.str("POSTMARK_SERVER_TOKEN", ""),
