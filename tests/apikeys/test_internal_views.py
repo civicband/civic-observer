@@ -287,6 +287,43 @@ class TestValidateKeyView:
         assert response.status_code == 200
         assert response.json()["valid"] is True
 
+    def test_uses_last_forwarded_hop_not_client_supplied(self, client, valid_secret):
+        """Only the proxy-appended (last) hop is trusted for the IP check."""
+        _, raw_key = APIKey.create_key(name="Test Key")
+
+        url = reverse("apikeys_internal:validate-key")
+
+        with override_settings(CORKBOARD_SERVICE_SECRET=valid_secret):
+            response = client.post(
+                url,
+                data=json.dumps({"api_key": raw_key}),
+                content_type="application/json",
+                REMOTE_ADDR="10.0.0.1",
+                # Spoofed Tailscale value first; the real client (last) is not.
+                HTTP_X_FORWARDED_FOR="100.64.1.1, 203.0.113.7",
+                HTTP_X_SERVICE_SECRET=valid_secret,
+            )
+
+        assert response.status_code == 403
+
+    def test_accepts_tailscale_last_forwarded_hop(self, client, valid_secret):
+        """A real Tailscale client behind the proxy is accepted."""
+        _, raw_key = APIKey.create_key(name="Test Key")
+
+        url = reverse("apikeys_internal:validate-key")
+
+        with override_settings(CORKBOARD_SERVICE_SECRET=valid_secret):
+            response = client.post(
+                url,
+                data=json.dumps({"api_key": raw_key}),
+                content_type="application/json",
+                REMOTE_ADDR="10.0.0.1",
+                HTTP_X_FORWARDED_FOR="203.0.113.7, 100.64.1.1",
+                HTTP_X_SERVICE_SECRET=valid_secret,
+            )
+
+        assert response.status_code == 200
+
     def test_rejects_empty_api_key(self, client, tailscale_ip, valid_secret):
         """Test rejects request with empty api_key."""
         url = reverse("apikeys_internal:validate-key")

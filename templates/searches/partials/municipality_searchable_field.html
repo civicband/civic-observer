@@ -1,5 +1,5 @@
 <!-- Searchable Municipality Field Component -->
-<div x-data="municipalitySearch({% if field_value %}'{{ field_value }}'{% else %}null{% endif %}, '{{ field_display|default:'' }}')"
+<div x-data="municipalitySearch({% if field_value %}'{{ field_value|escapejs }}'{% else %}null{% endif %}, '{{ field_display|default:''|escapejs }}')"
      @municipality-selected="selectMunicipality($event.detail.id, $event.detail.name)"
      class="relative">
 

@@ -105,8 +105,12 @@ class TestMuniCRUDViews:
 
     @pytest.fixture
     def user(self):
+        # Municipality create/update/delete is staff-only.
         return User.objects.create_user(  # type: ignore
-            username="testuser", email="test@example.com", password="testpass123"
+            username="testuser",
+            email="test@example.com",
+            password="testpass123",
+            is_staff=True,
         )
 
     def test_list_view_public_access(self, client, muni):
@@ -176,14 +180,14 @@ class TestMuniCRUDViews:
         assert settings.LOGIN_URL in response.url
 
     def test_create_view_authenticated_access(self, client, user):
-        """Test that authenticated users can access create view"""
+        """Test that staff users can access create view"""
         client.force_login(user)
         url = reverse("munis:muni-create")
         response = client.get(url)
         assert response.status_code == 200
 
     def test_create_post_authenticated_success(self, client, user):
-        """Test that authenticated users can create municipalities"""
+        """Test that staff users can create municipalities"""
         client.force_login(user)
         url = reverse("munis:muni-create")
         data = {
@@ -199,14 +203,14 @@ class TestMuniCRUDViews:
         assert Muni.objects.filter(subdomain="authcity").exists()
 
     def test_update_view_authenticated_access(self, client, user, muni):
-        """Test that authenticated users can access update view"""
+        """Test that staff users can access update view"""
         client.force_login(user)
         url = reverse("munis:muni-update", kwargs={"pk": muni.pk})
         response = client.get(url)
         assert response.status_code == 200
 
     def test_update_post_authenticated_success(self, client, user, muni):
-        """Test that authenticated users can update municipalities"""
+        """Test that staff users can update municipalities"""
         client.force_login(user)
         url = reverse("munis:muni-update", kwargs={"pk": muni.pk})
         data = {
@@ -223,14 +227,14 @@ class TestMuniCRUDViews:
         assert muni.name == "Updated Test City"
 
     def test_delete_view_authenticated_access(self, client, user, muni):
-        """Test that authenticated users can access delete view"""
+        """Test that staff users can access delete view"""
         client.force_login(user)
         url = reverse("munis:muni-delete", kwargs={"pk": muni.pk})
         response = client.get(url)
         assert response.status_code == 200
 
     def test_delete_post_authenticated_success(self, client, user, muni):
-        """Test that authenticated users can delete municipalities"""
+        """Test that staff users can delete municipalities"""
         client.force_login(user)
         muni_pk = muni.pk
         url = reverse("munis:muni-delete", kwargs={"pk": muni.pk})

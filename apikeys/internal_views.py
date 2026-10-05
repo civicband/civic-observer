@@ -1,3 +1,4 @@
+import hmac
 import json
 from datetime import timedelta
 
@@ -31,10 +32,15 @@ def is_tailscale_ip(ip: str) -> bool:
 
 
 def get_client_ip(request) -> str:
-    """Get client IP from request, checking X-Forwarded-For."""
+    """Return the client IP, trusting only the proxy-appended hop.
+
+    A reverse proxy appends the real peer address to ``X-Forwarded-For``, so
+    the *last* entry is the only one we can trust. Taking the first entry would
+    let a caller spoof the Tailscale allowlist by sending their own header.
+    """
     xff = request.headers.get("x-forwarded-for")
     if xff:
-        return xff.split(",")[0].strip()
+        return xff.split(",")[-1].strip()
     return request.META.get("REMOTE_ADDR", "")
 
 
@@ -48,10 +54,12 @@ class ValidateKeyView(View):
         if not is_tailscale_ip(client_ip):
             return JsonResponse({"error": "Forbidden"}, status=403)
 
-        # Check shared secret
+        # Check shared secret (constant-time to avoid timing leaks)
         expected_secret = getattr(settings, "CORKBOARD_SERVICE_SECRET", None)
-        provided_secret = request.headers.get("X-Service-Secret")
-        if not expected_secret or provided_secret != expected_secret:
+        provided_secret = request.headers.get("X-Service-Secret") or ""
+        if not expected_secret or not hmac.compare_digest(
+            provided_secret, expected_secret
+        ):
             return JsonResponse({"error": "Unauthorized"}, status=401)
 
         # Parse request body

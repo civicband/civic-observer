@@ -105,13 +105,19 @@ class MuniCRUDView(CRUDView):
         return super().list(request, *args, **kwargs)
 
     def dispatch(self, request, *args, **kwargs):
-        # Check if this is a protected operation (create, update, delete)
-        # Based on the role passed in the view configuration
+        # Creating, updating, and deleting municipalities is staff-only.
+        # Listing and detail remain public.
         if hasattr(self, "role") and self.role.name in ["CREATE", "UPDATE", "DELETE"]:
             if not request.user.is_authenticated:
                 from django.contrib.auth.views import redirect_to_login
 
                 return redirect_to_login(request.get_full_path())
+            if not request.user.is_staff:
+                from django.http import HttpResponseForbidden
+
+                return HttpResponseForbidden(
+                    "You do not have permission to modify municipalities."
+                )
         return super().dispatch(request, *args, **kwargs)
 
 
