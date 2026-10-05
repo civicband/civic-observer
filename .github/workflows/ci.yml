@@ -161,6 +161,9 @@ jobs:
           uv sync --group dev
 
 
-      - name: Run safety check
+      - name: Run dependency audit
+        # Advisory while the existing dependency backlog is worked down; flip to
+        # blocking (remove continue-on-error) once it is clean.
+        continue-on-error: true
         run: |
-          uv run safety check || true
+          uv run --group dev pip-audit

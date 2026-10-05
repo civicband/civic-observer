@@ -25,19 +25,24 @@ jobs:
     runs-on: ubuntu-latest
     if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     steps:
-      - name: Setup Tailscale
+      - name: Set up Tailscale
         uses: tailscale/github-action@v2
         with:
           oauth-client-id: ${{ secrets.TS_OAUTH_CLIENT_ID }}
           oauth-secret: ${{ secrets.TS_OAUTH_SECRET }}
           tags: tag:ci
 
+      - name: Configure SSH known hosts
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.VPS_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
       - name: Build and deploy on VPS
         env:
           CANARY_PERIOD: ${{ inputs.canary_period || '600' }}
         run: |
-          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-            deploy@${{ env.VPS_HOSTNAME }} "
+          ssh -o StrictHostKeyChecking=yes deploy@${{ env.VPS_HOSTNAME }} "
             cd /home/deploy/civic-observer &&
             git fetch origin main &&
             git checkout main &&
@@ -49,7 +54,7 @@ jobs:
       - name: Verify deployment
         run: |
           sleep 30  # Wait for deployment to complete
-          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+          ssh -o StrictHostKeyChecking=yes \
             deploy@${{ env.VPS_HOSTNAME }} "curl -f -s http://localhost:8888/health/ || curl -f -s http://localhost:8889/health/"
 
       - name: Notify Slack on failure

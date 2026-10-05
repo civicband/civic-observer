@@ -168,19 +168,24 @@ EMAIL_USE_TLS = True
 LOGGING: dict[str, Any] = {
     "version": 1,
     "disable_existing_loggers": False,
-    "handlers": {
-        "file": {
-            "level": "INFO",
-            "class": "logging.FileHandler",
-            "filename": BASE_DIR / "django.log",
+    "formatters": {
+        "standard": {
+            "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
         },
     },
-    "loggers": {
-        "django": {
-            "handlers": ["file"],
+    "handlers": {
+        "console": {
             "level": "INFO",
-            "propagate": True,
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stdout",
+            "formatter": "standard",
         },
+    },
+    # Send everything to stdout so the container log shipper can collect app
+    # logs; a file inside the container is invisible to Vector.
+    "root": {
+        "handlers": ["console"],
+        "level": "INFO",
     },
 }
 

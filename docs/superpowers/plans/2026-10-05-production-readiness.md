@@ -116,12 +116,16 @@ ordering, immediate notifications, and digest failure isolation. This phase adde
 - Queue-safe Redis eviction policy (`volatile-lru`) so RQ keys survive memory pressure.
 - Sentry `RqIntegration` so failed background jobs are reported. ✅
 
-## Phase 4 — Operational reliability (remaining)
+## Phase 4 — Operational reliability (DONE)
 
-- Run migrations once in deploy, not on every container start (`compose-entrypoint.sh`).
-- Pin dependency install to `uv.lock` in the Docker build.
-- Harden CI SSH host-key verification; make `safety` blocking or replace with `pip-audit`.
-- Stream logs to stdout (Vector consumes container logs).
+- Serialize migrations with a Postgres advisory lock (`migrate_locked`) instead
+  of racing on every container start. ✅
+- Pin dependency install to `uv.lock` in the Docker build (`uv export --frozen`). ✅
+- CI: replace the no-op `safety || true` with `pip-audit`; pin the deploy SSH
+  host key via `VPS_KNOWN_HOSTS` and `StrictHostKeyChecking=yes`. ✅
+  - Follow-up: make `pip-audit` blocking once the dependency backlog is cleared.
+- Stream production logs to stdout with a root handler (Vector consumes
+  container logs). ✅
 
 (Done elsewhere: `/health/` returns 503 on DB error, Redis eviction policy.)
 
