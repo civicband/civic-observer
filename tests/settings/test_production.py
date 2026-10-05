@@ -110,6 +110,18 @@ def test_production_reports_failed_rq_jobs(production_env):
     assert any(type(i).__name__ == "RqIntegration" for i in integrations)
 
 
+def test_production_logs_to_stream_not_file(production_env):
+    """Container logs must reach stdout so the log shipper can collect them."""
+    production_env.setenv("SECRET_KEY", VALID_SECRET_KEY)
+    with patch("sentry_sdk.init"):
+        production = _load_production()
+
+    handlers = production.LOGGING["handlers"]
+    assert all(h["class"] != "logging.FileHandler" for h in handlers.values())
+    assert any(h["class"] == "logging.StreamHandler" for h in handlers.values())
+    assert "console" in production.LOGGING["root"]["handlers"]
+
+
 def test_sentry_before_send_scrubs_request_credentials(production_env):
     production_env.setenv("SECRET_KEY", VALID_SECRET_KEY)
     with patch("sentry_sdk.init"):

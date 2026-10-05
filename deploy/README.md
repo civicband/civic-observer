@@ -118,6 +118,9 @@ docker-compose -f docker-compose.production.yml up -d
 - `TS_OAUTH_CLIENT_ID` - Tailscale OAuth client ID
 - `TS_OAUTH_SECRET` - Tailscale OAuth secret
 - `VPS_HOSTNAME` - VPS Tailscale hostname
+- `VPS_KNOWN_HOSTS` - Pinned SSH host key(s) for the VPS (from a trusted
+  network: `ssh-keyscan -t ed25519 <hostname>`). Required so deploys verify
+  the host instead of disabling host-key checking.
 
 ## Troubleshooting
 

@@ -8,13 +8,17 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-COPY pyproject.toml /tmp/pyproject.toml
+COPY pyproject.toml uv.lock /tmp/
+WORKDIR /tmp
 
 RUN --mount=type=cache,target=/root/.cache,sharing=locked,id=pip \
     python -m pip install --upgrade pip uv
 
+# Export the locked runtime dependencies so builds are reproducible instead of
+# resolving fresh versions at build time.
 RUN --mount=type=cache,target=/root/.cache,sharing=locked,id=pip \
-    python -m uv pip compile /tmp/pyproject.toml -o /tmp/requirements.txt
+    python -m uv export --frozen --no-dev --no-emit-project \
+    --format requirements-txt -o /tmp/requirements.txt
 
 RUN --mount=type=cache,target=/root/.cache,sharing=locked,id=pip \
     python -m uv pip install --system --requirement /tmp/requirements.txt
