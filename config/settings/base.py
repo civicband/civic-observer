@@ -5,9 +5,11 @@ from environs import env
 
 BASE_DIR: Path = Path(__file__).resolve().parent.parent.parent
 
-SECRET_KEY: str = env.str(
-    "SECRET_KEY", "django-insecure-b-epto38!pfzefkm75o8^mi88b*=lu+r$bw^_op6frmhj$zo0m"
+INSECURE_SECRET_KEY: str = (
+    "django-insecure-b-epto38!pfzefkm75o8^mi88b*=lu+r$bw^_op6frmhj$zo0m"
 )
+
+SECRET_KEY: str = env.str("SECRET_KEY", INSECURE_SECRET_KEY)
 
 DEBUG: bool = env.bool("DJANGO_DEBUG", default=False)
 
