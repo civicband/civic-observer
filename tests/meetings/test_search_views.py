@@ -76,6 +76,56 @@ class TestPublicSearchViewCount:
         assert page.view_count == 2
 
 
+class TestPublicSearchScope:
+    """Public pages must enforce their locked term and Search scope."""
+
+    def test_locked_term_overrides_user_query(self, client):
+        search = SearchFactory(search_term="rent control")
+        PublicSearchPage.objects.create(
+            slug="rent",
+            title="Rent",
+            is_published=True,
+            search=search,
+            lock_search_term=True,
+        )
+        MeetingPageFactory(text="rent control ordinance")
+        MeetingPageFactory(text="unrelated secret budget")
+
+        response = client.get(
+            _results_url({"query": "unrelated secret", "public_page_slug": "rent"}),
+            HTTP_HX_REQUEST="true",
+        )
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "rent control ordinance" in content
+        assert "unrelated secret budget" not in content
+
+    def test_search_municipality_scope_is_enforced(self, client):
+        allowed = MuniFactory()
+        disallowed = MuniFactory()
+        search = SearchFactory(search_term="budget", municipalities=[allowed])
+        PublicSearchPage.objects.create(
+            slug="budget",
+            title="Budget",
+            is_published=True,
+            search=search,
+            lock_search_term=True,
+        )
+        MeetingPageFactory(text="budget allowed", document__municipality=allowed)
+        MeetingPageFactory(text="budget disallowed", document__municipality=disallowed)
+
+        response = client.get(
+            _results_url({"query": "budget", "public_page_slug": "budget"}),
+            HTTP_HX_REQUEST="true",
+        )
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "budget allowed" in content
+        assert "budget disallowed" not in content
+
+
 class TestSearchResultsPaginationSwap:
     def test_pagination_links_use_window_top_swap(self, authenticated_client):
         MeetingPageFactory.create_batch(21, text="housing policy discussion")
@@ -95,6 +145,12 @@ class TestSearchShellTemplate:
         content = response.content.decode()
         assert "show:window:top" in content
         assert 'hx-indicator="#search-loading"' not in content
+
+    def test_save_summary_does_not_use_innerhtml(self, authenticated_client):
+        """The save-search summary must not inject form values as HTML."""
+        response = authenticated_client.get(reverse("meetings:meeting-search"))
+        content = response.content.decode()
+        assert "search-summary').innerHTML" not in content
 
 
 class TestSearchShellUrlParams:

@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from municipalities.models import Muni
+from tests.factories import AdminUserFactory, MuniFactory, UserFactory
 
 
 @pytest.fixture
@@ -143,3 +144,34 @@ class TestMuniWebhookUpdateView:
         mock_queue.enqueue.assert_called_once()
         call_args = mock_queue.enqueue.call_args[0]
         assert call_args[0].__name__ == "backfill_municipality_meetings_task"
+
+
+class TestMuniCRUDPermissions:
+    """Creating, updating, and deleting municipalities is staff-only."""
+
+    def test_anonymous_cannot_create(self, client: Client, db):
+        response = client.get(reverse("munis:muni-create"))
+        assert response.status_code == 302
+        assert "login" in response["Location"]
+
+    def test_authenticated_non_staff_cannot_create(self, client: Client, db):
+        client.force_login(UserFactory())
+        response = client.get(reverse("munis:muni-create"))
+        assert response.status_code == 403
+
+    def test_authenticated_non_staff_cannot_update(self, client: Client, db):
+        muni = MuniFactory()
+        client.force_login(UserFactory())
+        response = client.get(reverse("munis:muni-update", kwargs={"pk": muni.pk}))
+        assert response.status_code == 403
+
+    def test_authenticated_non_staff_cannot_delete(self, client: Client, db):
+        muni = MuniFactory()
+        client.force_login(UserFactory())
+        response = client.get(reverse("munis:muni-delete", kwargs={"pk": muni.pk}))
+        assert response.status_code == 403
+
+    def test_staff_can_create(self, client: Client, db):
+        client.force_login(AdminUserFactory())
+        response = client.get(reverse("munis:muni-create"))
+        assert response.status_code == 200

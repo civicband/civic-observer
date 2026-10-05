@@ -7,6 +7,7 @@ from django.urls import reverse
 from django.views.decorators.http import require_GET
 from django.views.generic import TemplateView
 
+from municipalities.models import Muni
 from searches.search_backends import get_search_backend
 
 from .forms import MeetingSearchForm
@@ -147,22 +148,47 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
         from searches.models import PublicSearchPage
 
         try:
-            public_page = PublicSearchPage.objects.prefetch_related(
-                "allowed_municipalities"
-            ).get(slug=public_page_slug, is_published=True)
-
-            # Enforce municipality scope
-            if public_page.allowed_municipalities.exists():
-                allowed_muni_ids = set(
-                    public_page.allowed_municipalities.values_list("id", flat=True)
+            public_page = (
+                PublicSearchPage.objects.select_related("search")
+                .prefetch_related(
+                    "search__municipalities",
+                    "allowed_municipalities",
                 )
-                if municipalities:
-                    # Filter to only allowed municipalities
-                    municipalities = municipalities.filter(id__in=allowed_muni_ids)
+                .get(slug=public_page_slug, is_published=True)
+            )
 
-            # Enforce state scope
-            if public_page.allowed_states and states:
-                states = [s for s in states if s in public_page.allowed_states]
+            locked_search = public_page.search
+
+            # A locked page owns its search term; ignore whatever the client
+            # sent so arbitrary full-corpus queries are impossible.
+            if public_page.lock_search_term and locked_search.search_term:
+                query = locked_search.search_term
+
+            # Intersect the page's base Search municipality scope with the
+            # page's allowed municipalities. If either restricts, the result
+            # set is restricted even when the user supplies no filter.
+            search_muni_ids = set(
+                locked_search.municipalities.values_list("id", flat=True)
+            )
+            allowed_muni_ids = set(
+                public_page.allowed_municipalities.values_list("id", flat=True)
+            )
+            if search_muni_ids and allowed_muni_ids:
+                scoped_muni_ids = search_muni_ids & allowed_muni_ids
+            else:
+                scoped_muni_ids = search_muni_ids or allowed_muni_ids
+            if scoped_muni_ids:
+                if municipalities:
+                    municipalities = municipalities.filter(id__in=scoped_muni_ids)
+                else:
+                    municipalities = Muni.objects.filter(id__in=scoped_muni_ids)
+
+            # Enforce state scope the same way.
+            if public_page.allowed_states:
+                if states:
+                    states = [s for s in states if s in public_page.allowed_states]
+                else:
+                    states = list(public_page.allowed_states)
 
             # Enforce date scope
             if public_page.min_date:

@@ -356,3 +356,44 @@ class TestSearchWithCache:
 
         mock_cursor.execute.assert_called_once()
         mock_set_cache.assert_called_once()
+
+
+class TestSnippetSanitization:
+    """Snippets come from OCR text, so any HTML in them must be escaped.
+
+    We keep only the ``<mark>`` tags that ParadeDB inserts for highlighting.
+    """
+
+    @staticmethod
+    def _row(snippet):
+        return (
+            "page-1",
+            "doc-1",
+            1,
+            "body",
+            "img",
+            "muni-1",
+            "sub",
+            "Name",
+            "CA",
+            "Council",
+            date(2024, 1, 1),
+            "agenda",
+            snippet,
+        )
+
+    def test_escapes_script_but_keeps_mark_tags(self):
+        result = PgSearchBackend._row_to_dict(
+            self._row("<mark>housing</mark><script>alert(1)</script>")
+        )
+        assert "<mark>housing</mark>" in result["snippet"]
+        assert "<script>" not in result["snippet"]
+        assert "&lt;script&gt;" in result["snippet"]
+
+    def test_escapes_attribute_breakout(self):
+        result = PgSearchBackend._row_to_dict(self._row("<img src=x onerror=alert(1)>"))
+        assert "<img" not in result["snippet"]
+        assert "&lt;img" in result["snippet"]
+
+    def test_none_snippet_passes_through(self):
+        assert PgSearchBackend._row_to_dict(self._row(None))["snippet"] is None

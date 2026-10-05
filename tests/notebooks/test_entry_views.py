@@ -220,6 +220,19 @@ class TestSavePanelView:
         assert response.status_code == 200
         assert f'id="save-panel-{page.id}"'.encode() in response.content
 
+    def test_close_escapes_page_id(self, client):
+        """A crafted page_id must not be reflected as raw HTML."""
+        user = UserFactory()
+        client.force_login(user)
+        url = reverse("notebooks:save-panel")
+        response = client.get(
+            url, {"page_id": '"><script>alert(1)</script>', "close": "1"}
+        )
+
+        content = response.content.decode()
+        assert "<script>" not in content
+        assert "&lt;script&gt;" in content
+
 
 @pytest.mark.django_db
 class TestSavePageWithNotesAndTags:

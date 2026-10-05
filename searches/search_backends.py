@@ -15,6 +15,7 @@ from typing import Any
 from django.core.cache import cache
 from django.db import connection
 from django.db.models import QuerySet
+from django.utils.html import escape
 
 from .cache import get_cached_search_results, set_cached_search_results
 
@@ -23,6 +24,22 @@ from .cache import get_cached_search_results, set_cached_search_results
 HEADLINE_START_TAG = "<mark>"
 HEADLINE_STOP_TAG = "</mark>"
 SNIPPET_MAX_CHARS = 150
+
+
+def sanitize_snippet(snippet: str | None) -> str | None:
+    """Escape OCR text in a snippet while preserving ``<mark>`` highlights.
+
+    ParadeDB's ``paradedb.snippet`` inserts our start/end tags into raw meeting
+    text, which may itself contain HTML. Escaping the whole string and then
+    restoring only the known highlight tags lets templates keep rendering the
+    snippet with ``|safe`` without allowing stored XSS.
+    """
+    if not snippet:
+        return snippet
+    escaped = escape(snippet)
+    return escaped.replace(escape(HEADLINE_START_TAG), HEADLINE_START_TAG).replace(
+        escape(HEADLINE_STOP_TAG), HEADLINE_STOP_TAG
+    )
 
 
 class SearchBackend(ABC):
@@ -333,7 +350,7 @@ class PgSearchBackend(SearchBackend):  # noqa: F821 — defined in search_backen
             "meeting_name": r[9],
             "meeting_date": r[10],
             "document_type": r[11],
-            "snippet": r[12],
+            "snippet": sanitize_snippet(r[12]),
             # Templates call result.document.civic_band_table_name to build
             # civic.band URLs. document_type is denormalized now, so derive it
             # here rather than joining back for a two-branch property.

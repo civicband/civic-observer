@@ -545,50 +545,60 @@
                 populateSearchSummary() {
                     const form = document.getElementById('search-form');
                     const formData = new FormData(form);
-                    const summary = [];
+                    const summaryEl = document.getElementById('search-summary');
+                    summaryEl.replaceChildren();
+
+                    const addLine = (label, value) => {
+                        const line = document.createElement('div');
+                        const strong = document.createElement('strong');
+                        strong.textContent = label + ':';
+                        line.appendChild(strong);
+                        line.appendChild(document.createTextNode(' ' + value));
+                        summaryEl.appendChild(line);
+                    };
 
                     // Query
                     const query = formData.get('query');
                     if (query && query.trim()) {
-                        summary.push(`<strong>Search:</strong> "${query}"`);
+                        addLine('Search', `"${query}"`);
                     } else {
-                        summary.push(`<strong>Mode:</strong> All updates`);
+                        addLine('Mode', 'All updates');
                     }
 
                     // Municipalities
                     const municipalities = formData.getAll('municipalities');
                     if (municipalities.length > 0) {
-                        summary.push(`<strong>Municipalities:</strong> ${municipalities.length} selected`);
+                        addLine('Municipalities', `${municipalities.length} selected`);
                     }
 
                     // States
                     const states = formData.getAll('states');
                     if (states.length > 0) {
-                        summary.push(`<strong>States:</strong> ${states.length} selected`);
+                        addLine('States', `${states.length} selected`);
                     }
 
                     // Date range
                     const dateFrom = formData.get('date_from');
                     const dateTo = formData.get('date_to');
                     if (dateFrom || dateTo) {
-                        const range = `${dateFrom || 'start'} to ${dateTo || 'end'}`;
-                        summary.push(`<strong>Date Range:</strong> ${range}`);
+                        addLine('Date Range', `${dateFrom || 'start'} to ${dateTo || 'end'}`);
                     }
 
                     // Document type
                     const docType = formData.get('document_type');
                     if (docType && docType !== 'all') {
-                        summary.push(`<strong>Document Type:</strong> ${docType}`);
+                        addLine('Document Type', docType);
                     }
 
                     // Meeting name
                     const meetingName = formData.get('meeting_name_query');
                     if (meetingName && meetingName.trim()) {
-                        summary.push(`<strong>Meeting Name:</strong> ${meetingName}`);
+                        addLine('Meeting Name', meetingName);
                     }
 
-                    document.getElementById('search-summary').innerHTML =
-                        summary.length > 0 ? summary.join('<br>') : 'No filters applied';
+                    if (summaryEl.childElementCount === 0) {
+                        summaryEl.textContent = 'No filters applied';
+                    }
                 },
 
                 async submitSaveSearch(event) {

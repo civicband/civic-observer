@@ -4,6 +4,7 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
 from django.urls import reverse_lazy
+from django.utils.html import escape
 from django.views import View
 from django.views.generic import (
     CreateView,
@@ -184,7 +185,7 @@ class SavePanelView(LoginRequiredMixin, View):
 
         # Handle close action - return empty placeholder
         if request.GET.get("close"):
-            return HttpResponse(f'<div id="save-panel-{page_id}"></div>')
+            return HttpResponse(f'<div id="save-panel-{escape(page_id)}"></div>')
 
         page = get_object_or_404(MeetingPage, id=page_id)
 

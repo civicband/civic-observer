@@ -1,9 +1,31 @@
 """Tests for saved search views to ensure templates render correctly."""
 
 import pytest
+from django.template.loader import render_to_string
 from django.urls import reverse
 
 from tests.factories import MuniFactory, SavedSearchFactory, UserFactory
+
+
+class TestMunicipalitySearchableFieldEscaping:
+    """The Alpine component receives the municipality name as a JS string."""
+
+    def test_escapes_field_display_for_js(self):
+        html = render_to_string(
+            "searches/partials/municipality_searchable_field.html",
+            {
+                "field_name": "municipality",
+                "field_id": "id_municipality",
+                "field_label": "Municipality",
+                "field_help_text": "",
+                "field_errors": None,
+                "field_value": "",
+                "field_display": "x'); alert(1);//",
+            },
+        )
+
+        assert "'); alert" not in html
+        assert "\\u0027" in html
 
 
 @pytest.mark.django_db
