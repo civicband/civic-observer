@@ -1,3 +1,5 @@
+import logging
+
 from django.contrib.admin.views.decorators import staff_member_required
 from django.contrib.auth.decorators import login_required
 from django.db.models import F, Q, QuerySet
@@ -14,6 +16,8 @@ from municipalities.models import Muni
 
 from .forms import SavedSearchCreateForm, SavedSearchEditForm
 from .models import PublicSearchPage, SavedSearch, Search
+
+logger = logging.getLogger(__name__)
 
 
 class SavedSearchCRUDView(CRUDView):
@@ -325,8 +329,12 @@ def save_search_from_params(request):
             }
         )
 
-    except Exception as e:
-        return JsonResponse({"error": str(e)}, status=500)
+    except Exception:
+        logger.exception("Failed to save search from params")
+        return JsonResponse(
+            {"error": "Something went wrong saving this search. Please try again."},
+            status=500,
+        )
 
 
 @require_GET

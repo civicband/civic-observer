@@ -210,7 +210,7 @@ def invalidate_search_cache_for_municipality(municipality_id: int) -> None:
         municipality_id: ID of municipality that was updated
     """
     try:
-        deleted = _delete_cache_keys("civicobs:*:search:v1:*")
+        deleted = _delete_search_and_count_caches()
         if deleted:
             logger.info(
                 "search_cache_invalidated",
@@ -236,7 +236,7 @@ def invalidate_all_search_caches() -> None:
     Use sparingly - primarily for admin actions or bulk data updates.
     """
     try:
-        deleted = _delete_cache_keys("civicobs:*:search:v1:*")
+        deleted = _delete_search_and_count_caches()
         if deleted:
             logger.info(
                 "search_cache_cleared",
@@ -247,3 +247,16 @@ def invalidate_all_search_caches() -> None:
             "search_cache_clear_failed",
             extra={"error": str(e)},
         )
+
+
+# Result keys and the separate ParadeDB total-count cache must be invalidated
+# together, or pagination totals stay stale after reindexing.
+_SEARCH_CACHE_PATTERNS = (
+    "civicobs:*:search:v1:*",
+    "civicobs:*:pgsearch:count:*",
+)
+
+
+def _delete_search_and_count_caches() -> int:
+    """Delete both the result and total-count caches; return keys deleted."""
+    return sum(_delete_cache_keys(pattern) for pattern in _SEARCH_CACHE_PATTERNS)

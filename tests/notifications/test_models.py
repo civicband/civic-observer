@@ -129,6 +129,27 @@ class TestNotificationChannelModel:
 
         assert channel.failure_count == 1
 
+    def test_record_failure_is_atomic_across_instances(self):
+        """Two workers recording failures must not lose an increment."""
+        from tests.factories import UserFactory
+
+        user = UserFactory()
+        channel = NotificationChannel.objects.create(
+            user=user,
+            platform="discord",
+            handle="user#1234",
+        )
+        # Two separate in-memory instances of the same row, as two workers
+        # would have after fetching the channel concurrently.
+        first = NotificationChannel.objects.get(pk=channel.pk)
+        second = NotificationChannel.objects.get(pk=channel.pk)
+
+        first.record_failure()
+        second.record_failure()
+
+        channel.refresh_from_db()
+        assert channel.failure_count == 2
+
     def test_auto_disable_after_max_failures(self):
         """Test channel is disabled after 3 failures."""
         from tests.factories import UserFactory
