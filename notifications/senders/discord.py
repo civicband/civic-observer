@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import httpx
 from django.conf import settings
 
-from .base import NotificationSender
+from .base import HTTP_TIMEOUT_SECONDS, NotificationSender
 
 if TYPE_CHECKING:
     from notifications.models import NotificationChannel
@@ -38,14 +38,15 @@ class DiscordSender(NotificationSender):
             return False
 
         try:
-            with httpx.Client() as client:
+            with httpx.Client(timeout=HTTP_TIMEOUT_SECONDS) as client:
                 # First, we need to get the user ID from the username
                 # This requires the bot to have access to the user
                 # For now, assume handle contains the user ID for DM channel creation
                 # In production, you'd look up the user ID from username
 
                 # Create DM channel
-                dm_response = client.post(
+                dm_response = self._post_with_retry(
+                    client,
                     "https://discord.com/api/v10/users/@me/channels",
                     headers={"Authorization": f"Bot {bot_token}"},
                     json={
@@ -62,7 +63,8 @@ class DiscordSender(NotificationSender):
                 dm_channel_id = dm_response.json().get("id")
 
                 # Send message to DM channel
-                msg_response = client.post(
+                msg_response = self._post_with_retry(
+                    client,
                     f"https://discord.com/api/v10/channels/{dm_channel_id}/messages",
                     headers={"Authorization": f"Bot {bot_token}"},
                     json={"content": message},

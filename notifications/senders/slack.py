@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING
 
 import httpx
 
-from .base import NotificationSender
+from .base import HTTP_TIMEOUT_SECONDS, NotificationSender
 
 if TYPE_CHECKING:
     from notifications.models import NotificationChannel
@@ -35,8 +35,9 @@ class SlackSender(NotificationSender):
             return False
 
         try:
-            with httpx.Client() as client:
-                response = client.post(
+            with httpx.Client(timeout=HTTP_TIMEOUT_SECONDS) as client:
+                response = self._post_with_retry(
+                    client,
                     webhook_url,
                     json={"text": message},
                     headers={"Content-Type": "application/json"},

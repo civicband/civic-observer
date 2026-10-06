@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 import httpx
 from django.conf import settings
 
-from .base import NotificationSender
+from .base import HTTP_TIMEOUT_SECONDS, NotificationSender
 
 if TYPE_CHECKING:
     from notifications.models import NotificationChannel
@@ -57,9 +57,10 @@ class MastodonSender(NotificationSender):
         mention = f"@{username}@{instance}"
 
         try:
-            with httpx.Client() as client:
+            with httpx.Client(timeout=HTTP_TIMEOUT_SECONDS) as client:
                 # Post a status with direct visibility (DM)
-                response = client.post(
+                response = self._post_with_retry(
+                    client,
                     f"{instance_url}/api/v1/statuses",
                     headers={"Authorization": f"Bearer {access_token}"},
                     json={

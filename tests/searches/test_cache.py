@@ -454,6 +454,17 @@ class TestCacheInvalidation:
         invalidate_search_cache_for_municipality(999)
         invalidate_all_search_caches()
 
+    def test_invalidation_clears_count_cache(self):
+        """The total-count cache must be cleared too, or totals go stale."""
+        from django.core.cache import cache
+
+        cache.set("pgsearch:count:deadbeef", 42, 300)
+        assert cache.get("pgsearch:count:deadbeef") == 42
+
+        invalidate_search_cache_for_municipality(1)
+
+        assert cache.get("pgsearch:count:deadbeef") is None
+
     def test_delete_cache_keys_deletes_in_batches(self):
         """SCAN-based deletion must clear every match across multiple batches."""
         from searches.cache import _delete_cache_keys

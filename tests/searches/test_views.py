@@ -1,5 +1,7 @@
 """Tests for saved search views to ensure templates render correctly."""
 
+from unittest.mock import patch
+
 import pytest
 from django.template.loader import render_to_string
 from django.urls import reverse
@@ -286,3 +288,25 @@ class TestSavedSearchCreatePreFill:
         # Check that the form has municipality pre-selected
         form = response.context["form"]
         assert form.initial.get("municipality") == muni
+
+
+class TestSaveSearchFromParamsHardening:
+    @patch("searches.views.Search")
+    def test_internal_error_is_not_leaked(self, MockSearch, authenticated_client):
+        MockSearch.objects.get_or_create_for_params.side_effect = RuntimeError(
+            "secret-db-detail"
+        )
+        url = reverse("searches:save-search-from-params")
+
+        response = authenticated_client.post(url, {"name": "x", "query": "housing"})
+
+        assert response.status_code == 500
+        assert "secret-db-detail" not in response.content.decode()
+
+    def test_anonymous_post_redirects_to_login(self, client):
+        url = reverse("searches:save-search-from-params")
+
+        response = client.post(url, {"name": "x", "query": "housing"})
+
+        assert response.status_code == 302
+        assert "login" in response["Location"]

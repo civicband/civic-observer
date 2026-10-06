@@ -2,6 +2,7 @@ import uuid
 
 from django.conf import settings
 from django.db import models
+from django.db.models import F
 from django.utils import timezone
 from model_utils.models import TimeStampedModel
 
@@ -49,17 +50,21 @@ class NotificationChannel(TimeStampedModel):
 
     def record_failure(self) -> None:
         """Record a delivery failure. Disables channel after MAX_FAILURES and notifies user."""
-        self.failure_count += 1
-        was_enabled = self.is_enabled
+        # Atomic increment so concurrent senders don't lose a failure.
+        NotificationChannel.objects.filter(pk=self.pk).update(
+            failure_count=F("failure_count") + 1
+        )
+        self.refresh_from_db(fields=["failure_count", "is_enabled"])
 
-        if self.failure_count >= self.MAX_FAILURES:
-            self.is_enabled = False
-
-        self.save(update_fields=["failure_count", "is_enabled"])
-
-        # Send email notification if channel was just disabled
-        if was_enabled and not self.is_enabled:
-            self._send_disabled_notification()
+        if self.failure_count >= self.MAX_FAILURES and self.is_enabled:
+            # Guard the disable with a conditional update so only one worker
+            # sends the "channel disabled" email.
+            disabled = NotificationChannel.objects.filter(
+                pk=self.pk, is_enabled=True
+            ).update(is_enabled=False)
+            if disabled:
+                self.is_enabled = False
+                self._send_disabled_notification()
 
     def _send_disabled_notification(self) -> None:
         """Send email to user that their notification channel was disabled."""
@@ -83,9 +88,10 @@ class NotificationChannel(TimeStampedModel):
 
     def record_success(self) -> None:
         """Record successful delivery. Resets failure count."""
-        self.failure_count = 0
-        self.last_used_at = timezone.now()
-        self.save(update_fields=["failure_count", "last_used_at"])
+        NotificationChannel.objects.filter(pk=self.pk).update(
+            failure_count=0, last_used_at=timezone.now()
+        )
+        self.refresh_from_db(fields=["failure_count", "last_used_at"])
 
 
 class DigestSubscription(TimeStampedModel):
