@@ -14,10 +14,19 @@ Deployment is handled by shared scripts in the [public-works](https://github.com
 ## Architecture
 
 ```
-Internet → Caddy → Blue (8888) or Green (8889) → Django/Uvicorn
+Internet → Caddy → Blue (127.0.0.1:8888) or Green (127.0.0.1:8889) → Django/Uvicorn
                           ↓
                Shared DB + Redis + PgBouncer
 ```
+
+Containers run with **host networking** (`network_mode: host`), so they are not
+on a user-defined bridge network. That means:
+
+- Each web color binds its own loopback port (blue `127.0.0.1:8888`, green
+  `127.0.0.1:8889`); they cannot share `8000`.
+- Redis binds `127.0.0.1:6379` and must be addressed as `127.0.0.1`, **not** the
+  service name `redis` (host networking has no Docker DNS). Set
+  `REDIS_URL=redis://127.0.0.1:6379/0`.
 
 ### Deployment Colors
 - **Blue**: Port 8888
@@ -102,14 +111,13 @@ cp civic-observer/.env.example civic-observer/.env.production
 # Edit with production values. Required:
 #   DJANGO_SETTINGS_MODULE=config.settings.production
 #   SECRET_KEY=<unique random value> (production refuses to start without one)
-#   DATABASE_URL, ALLOWED_HOSTS, REDIS_URL, POSTMARK_SERVER_TOKEN, SENTRY_DSN, ...
+#   DATABASE_URL, ALLOWED_HOSTS, POSTMARK_SERVER_TOKEN, SENTRY_DSN, ...
+#   REDIS_URL=redis://127.0.0.1:6379/0   # host networking, see above
 # Never commit this file.
 
-# Create Docker network
-docker network create civic-network
-
-# Start the stack (shared Redis plus blue/green web+worker pairs).
-# PostgreSQL/PgBouncer are external and reached via DATABASE_URL.
+# Start the stack (Redis plus blue/green web+worker pairs).
+# Containers use host networking, so PostgreSQL/PgBouncer are reached via
+# DATABASE_URL and Redis at 127.0.0.1:6379.
 cd civic-observer
 docker-compose -f docker-compose.production.yml up -d
 ```
