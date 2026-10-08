@@ -12,12 +12,16 @@ import hashlib
 from abc import ABC, abstractmethod
 from typing import Any
 
-from django.core.cache import cache
 from django.db import connection
 from django.db.models import QuerySet
 from django.utils.html import escape
 
-from .cache import get_cached_search_results, set_cached_search_results
+from .cache import (
+    get_cached_search_results,
+    safe_cache_get,
+    safe_cache_set,
+    set_cached_search_results,
+)
 
 # Match the tags meetings/views.py already used for ts_headline so templates
 # and their |safe filters need no change.
@@ -312,7 +316,7 @@ class PgSearchBackend(SearchBackend):  # noqa: F821 — defined in search_backen
             "pgsearch:count:"
             + hashlib.sha1((where_sql + repr(params)).encode()).hexdigest()
         )
-        cached = cache.get(cache_key)
+        cached = safe_cache_get(cache_key)
         if cached is not None:
             return cached
 
@@ -329,7 +333,7 @@ class PgSearchBackend(SearchBackend):  # noqa: F821 — defined in search_backen
             cur.execute(sql, params)
             total = cur.fetchone()[0]
 
-        cache.set(cache_key, total, 300)
+        safe_cache_set(cache_key, total, 300)
         return total
 
     @staticmethod

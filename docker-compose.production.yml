@@ -8,27 +8,21 @@ x-django-settings: &django-settings
   restart: always
   init: true
   entrypoint: ["/src/compose-entrypoint.sh"]
-  networks:
-    - civic-network
-
-x-django-web: &django-web
-  <<: *django-settings
-  command: uvicorn config.asgi:application --host 0.0.0.0 --port 8000
-  healthcheck:
-    test: ["CMD", "curl", "--fail", "http://localhost:8000/health/"]
-    interval: 10s
-    timeout: 5s
-    retries: 3
-    start_period: 30s
+  network_mode: host          # was: networks: [civic-network]
 
 x-django-worker: &django-worker
   <<: *django-settings
   command: python manage.py rqworker default
 
+# NOTE: the old x-django-web anchor (shared --port 8000 + healthcheck on :8000)
+# is gone. Under host networking blue and green can't share a port, so each
+# web service sets its own --port and its own healthcheck port inline.
+
 services:
   redis:
     image: "redis:7-alpine"
     init: true
+    network_mode: host
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -39,6 +33,7 @@ services:
     # being silently dropped the way allkeys-lru would allow.
     command: >
       redis-server
+      --bind 127.0.0.1
       --maxmemory 256mb
       --maxmemory-policy volatile-lru
       --save 60 1
@@ -46,24 +41,32 @@ services:
     volumes:
       - redis-data:/data
     restart: always
-    networks:
-      - civic-network
 
   web-blue:
-    <<: *django-web
+    <<: *django-settings
     container_name: observer-web-blue
-    ports:
-      - "8888:8000"
+    command: uvicorn config.asgi:application --host 127.0.0.1 --port 8888
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8888/health/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   worker-blue:
     <<: *django-worker
     container_name: observer-worker-blue
 
   web-green:
-    <<: *django-web
+    <<: *django-settings
     container_name: observer-web-green
-    ports:
-      - "8889:8000"
+    command: uvicorn config.asgi:application --host 127.0.0.1 --port 8889
+    healthcheck:
+      test: ["CMD", "curl", "--fail", "http://localhost:8889/health/"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
 
   worker-green:
     <<: *django-worker
@@ -72,13 +75,12 @@ services:
   vector:
     image: timberio/vector:nightly-distroless-libc # check for newer tag
     restart: unless-stopped
-    env_file: .env
+    env_file: .env.production
     environment:
       - VECTOR_DANGEROUSLY_ALLOW_ENV_VAR_INTERPOLATION=true
     volumes:
       - ./vector/:/etc/vector/:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
-    # optional: don't collect vector's own logs into a loop
     logging:
       driver: "json-file"
       options: { max-size: "10m", max-file: "3" }
@@ -86,5 +88,5 @@ services:
 volumes:
   redis-data:
 
-networks:
-  civic-network:
+# networks: block removed — nothing uses a user-defined bridge anymore.
+# vector doesn't need the app network (it reads the docker socket).

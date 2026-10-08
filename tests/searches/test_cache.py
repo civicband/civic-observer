@@ -7,8 +7,10 @@ and edge cases to ensure reliable caching performance.
 
 import uuid
 from typing import Any
+from unittest.mock import patch
 
 import pytest
+import redis
 from django.core.cache import cache
 
 from searches.cache import (
@@ -610,3 +612,24 @@ class TestEdgeCases:
         results, total = cached
         assert len(results) == 100
         assert total == 100
+
+
+class TestCacheBackendResilience:
+    """A Redis outage must degrade to a cache miss, not break search."""
+
+    @patch("searches.cache.cache")
+    def test_get_returns_none_when_cache_unavailable(self, mock_cache):
+        mock_cache.get.side_effect = redis.exceptions.ConnectionError("redis down")
+
+        assert get_cached_search_results(search_term="housing") is None
+
+    @patch("searches.cache.cache")
+    def test_set_swallows_cache_errors(self, mock_cache):
+        mock_cache.set.side_effect = redis.exceptions.ConnectionError("redis down")
+
+        # Must not raise even though the backend is unreachable.
+        set_cached_search_results(
+            results=[{"id": 1, "text": "housing"}],
+            total_count=1,
+            search_term="housing",
+        )
