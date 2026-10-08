@@ -9,6 +9,8 @@ mock the database cursor to verify SQL construction and result parsing.
 from datetime import date
 from unittest.mock import MagicMock, patch
 
+import redis
+
 from searches.search_backends import (
     HEADLINE_START_TAG,
     HEADLINE_STOP_TAG,
@@ -356,6 +358,25 @@ class TestSearchWithCache:
 
         mock_cursor.execute.assert_called_once()
         mock_set_cache.assert_called_once()
+
+
+class TestCountCacheResilience:
+    @patch("searches.cache.cache")
+    @patch("searches.search_backends.connection")
+    def test_count_falls_back_when_cache_unavailable(self, mock_conn, mock_cache):
+        """The capped count still runs from Postgres when Redis is down."""
+        mock_cache.get.side_effect = redis.exceptions.ConnectionError("redis down")
+        mock_cache.set.side_effect = redis.exceptions.ConnectionError("redis down")
+
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchone.return_value = (7,)
+
+        backend = PgSearchBackend()
+
+        assert backend._count("TRUE", []) == 7
+        mock_cursor.execute.assert_called_once()
 
 
 class TestSnippetSanitization:

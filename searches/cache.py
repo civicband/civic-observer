@@ -66,6 +66,35 @@ def _make_search_cache_key(
     return f"search:v1:{params_hash}"
 
 
+def safe_cache_get(cache_key: str) -> Any | None:
+    """Return a cached value, degrading to a miss if Redis is unavailable.
+
+    Caching is a performance optimization: a Redis outage must not take search
+    down. Swallow backend errors, log them, and behave as a cache miss.
+    """
+    try:
+        return cache.get(cache_key)
+    except Exception:
+        logger.warning(
+            "search_cache_unavailable",
+            extra={"operation": "get", "cache_key": cache_key},
+            exc_info=True,
+        )
+        return None
+
+
+def safe_cache_set(cache_key: str, value: Any, timeout: int) -> None:
+    """Store a cache value, swallowing backend errors so search still works."""
+    try:
+        cache.set(cache_key, value, timeout=timeout)
+    except Exception:
+        logger.warning(
+            "search_cache_unavailable",
+            extra={"operation": "set", "cache_key": cache_key},
+            exc_info=True,
+        )
+
+
 def get_cached_search_results(
     search_term: str = "",
     municipalities: MunicipalityIds | None = None,
@@ -98,7 +127,7 @@ def get_cached_search_results(
         offset=offset,
     )
 
-    result = cache.get(cache_key)
+    result = safe_cache_get(cache_key)
 
     if result is not None:
         logger.info(
@@ -155,7 +184,7 @@ def set_cached_search_results(
         offset=offset,
     )
 
-    cache.set(cache_key, (results, total_count), timeout=timeout)
+    safe_cache_set(cache_key, (results, total_count), timeout)
 
     logger.debug(
         "search_cache_set",
