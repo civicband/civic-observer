@@ -23,6 +23,11 @@ def check_saved_search_for_updates(saved_search_id) -> dict[str, str | int]:
     multiple users sharing one Search are each notified independently and one
     user's check cannot consume new pages on another user's behalf.
 
+    Delivery is at-most-once: the cutoff is claimed before the send, so a
+    worker that crashes after claiming but before sending does not retry that
+    batch. This mirrors the digest path and is deliberate — sending before the
+    claim reintroduces the duplicate emails this claim exists to prevent.
+
     Args:
         saved_search_id: ID of the SavedSearch to check
 
