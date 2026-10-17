@@ -196,6 +196,10 @@ BACKFILL_JOB_TIMEOUT = 900  # seconds
 
 # API Key Validation
 CORKBOARD_SERVICE_SECRET = env.str("CORKBOARD_SERVICE_SECRET", "")
+CIVIC_BAND_DOMAINS = env.list(
+    "CIVIC_BAND_DOMAINS",
+    ["civic.band", "adversely-star-koala.edgecompute.app"],
+)
 
 # Notification Channel Settings
 DISCORD_BOT_TOKEN = env.str("DISCORD_BOT_TOKEN", "")

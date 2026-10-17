@@ -15,4 +15,5 @@ urlpatterns = [
 # Internal API endpoints
 internal_urlpatterns = [
     path("validate-key", internal_views.ValidateKeyView.as_view(), name="validate-key"),
+    path("authorize", internal_views.AuthorizeView.as_view(), name="authorize"),
 ]
