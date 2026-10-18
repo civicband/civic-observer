@@ -7,7 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apikeys.models import APIKey
-from tests.factories import UserFactory
+from tests.factories import MuniFactory, UserFactory
 
 
 @pytest.fixture
@@ -626,3 +626,79 @@ class TestAuthorizeView:
         )
         key_obj.refresh_from_db()
         assert key_obj.last_used_at is not None
+
+
+@pytest.mark.django_db
+class TestAuthorizeViewSites:
+    def test_all_sites_key_allows_any_subdomain(
+        self, client, tailscale_ip, valid_secret
+    ):
+        _, raw_key = APIKey.create_key(name="All Sites", all_sites=True)
+
+        response = _authorize(
+            client,
+            tailscale_ip,
+            valid_secret,
+            api_key=raw_key,
+            url="https://oakland.ca.civic.band/meetings/agendas.json",
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["allowed"] is True
+        assert body["subdomain"] == "oakland.ca"
+
+    def test_scoped_key_allows_linked_subdomain(
+        self, client, tailscale_ip, valid_secret
+    ):
+        alameda = MuniFactory(subdomain="alameda.ca")
+        _, raw_key = APIKey.create_key(name="Scoped", all_sites=False, sites=[alameda])
+
+        response = _authorize(
+            client, tailscale_ip, valid_secret, api_key=raw_key, url=AUTHORIZE_URL
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["allowed"] is True
+        assert body["subdomain"] == "alameda.ca"
+        assert body["site_id"] == str(alameda.id)
+
+    def test_scoped_key_rejects_unlinked_subdomain(
+        self, client, tailscale_ip, valid_secret
+    ):
+        alameda = MuniFactory(subdomain="alameda.ca")
+        _, raw_key = APIKey.create_key(name="Scoped", all_sites=False, sites=[alameda])
+
+        response = _authorize(
+            client,
+            tailscale_ip,
+            valid_secret,
+            api_key=raw_key,
+            url="https://oakland.ca.civic.band/meetings/agendas.json",
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "allowed": False,
+            "reason": "site_not_allowed",
+        }
+
+    def test_site_denial_does_not_update_last_used(
+        self, client, tailscale_ip, valid_secret
+    ):
+        alameda = MuniFactory(subdomain="alameda.ca")
+        key_obj, raw_key = APIKey.create_key(
+            name="Scoped", all_sites=False, sites=[alameda]
+        )
+
+        _authorize(
+            client,
+            tailscale_ip,
+            valid_secret,
+            api_key=raw_key,
+            url="https://oakland.ca.civic.band/meetings/agendas.json",
+        )
+
+        key_obj.refresh_from_db()
+        assert key_obj.last_used_at is None

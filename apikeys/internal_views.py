@@ -167,12 +167,16 @@ class AuthorizeView(View):
             return JsonResponse({"error": "Invalid request"}, status=400)
 
         valid_url, subdomain = validate_api_url(url)
-        if not valid_url:
+        if not valid_url or subdomain is None:
             return JsonResponse({"allowed": False, "reason": "invalid_url"})
 
         key_obj = _valid_key(api_key)
         if key_obj is None:
             return JsonResponse({"allowed": False, "reason": "invalid_key"})
+
+        site = key_obj.get_site_for_subdomain(subdomain)
+        if not key_obj.all_sites and site is None:
+            return JsonResponse({"allowed": False, "reason": "site_not_allowed"})
 
         _mark_used(key_obj)
 
@@ -182,6 +186,8 @@ class AuthorizeView(View):
             "key_id": str(key_obj.id),
             "subdomain": subdomain,
         }
+        if site:
+            response_data["site_id"] = str(site.id)
         if key_obj.user:
             response_data["user_id"] = str(key_obj.user.id)
             response_data["user_email"] = key_obj.user.email

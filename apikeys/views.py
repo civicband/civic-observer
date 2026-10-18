@@ -15,7 +15,9 @@ class APIKeyListView(LoginRequiredMixin, ListView):
     context_object_name = "api_keys"
 
     def get_queryset(self):
-        return APIKey.objects.filter(user=self.request.user)  # type: ignore[misc]
+        return APIKey.objects.filter(user=self.request.user).prefetch_related(  # type: ignore[misc]
+            "sites"
+        )
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
@@ -33,6 +35,8 @@ class APIKeyCreateView(LoginRequiredMixin, View):
                 name=form.cleaned_data["name"],
                 user=request.user,
                 expires_at=form.cleaned_data.get("expires_at"),
+                all_sites=form.cleaned_data["all_sites"],
+                sites=form.cleaned_data.get("site_objects", []),
             )
             # Store key in session for one-time download
             request.session["new_api_key"] = raw_key

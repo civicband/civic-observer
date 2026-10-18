@@ -2,7 +2,7 @@ import pytest
 from django.urls import reverse
 
 from apikeys.models import APIKey
-from tests.factories import APIKeyFactory, UserFactory
+from tests.factories import APIKeyFactory, MuniFactory, UserFactory
 
 
 @pytest.mark.django_db
@@ -42,6 +42,20 @@ class TestAPIKeyListView:
         assert response.status_code == 200
         assert "form" in response.context
         assert "Create API Key" in response.content.decode()
+
+    def test_shows_site_summary(self, client):
+        """Test that the list shows each key's site scope."""
+        user = UserFactory()
+        muni = MuniFactory(subdomain="alameda.ca")
+        api_key = APIKeyFactory(user=user, name="Scoped Key", all_sites=False)
+        api_key.sites.add(muni)
+
+        client.force_login(user)
+        response = client.get(reverse("apikeys:list"))
+
+        content = response.content.decode()
+        assert "alameda.ca" in content
+        assert "All sites" not in content
 
     def test_empty_state(self, client):
         """Test empty state message when no API keys."""
@@ -110,6 +124,38 @@ class TestAPIKeyCreateView:
 
         assert response.status_code == 400
         assert "Create API Key" in response.content.decode()
+
+    def test_creates_scoped_key_with_sites(self, client):
+        """Test creating a key limited to specific municipality subdomains."""
+        user = UserFactory()
+        muni = MuniFactory(subdomain="alameda.ca")
+        client.force_login(user)
+
+        url = reverse("apikeys:create")
+        response = client.post(
+            url,
+            {
+                "name": "Scoped Key",
+                "all_sites": "false",
+                "sites": muni.subdomain,
+            },
+        )
+
+        assert response.status_code == 200
+        api_key = APIKey.objects.get(user=user, name="Scoped Key")
+        assert api_key.all_sites is False
+        assert list(api_key.sites.all()) == [muni]
+
+    def test_scoped_key_requires_a_site(self, client):
+        """Test a scoped key cannot be created without a site."""
+        user = UserFactory()
+        client.force_login(user)
+
+        url = reverse("apikeys:create")
+        response = client.post(url, {"name": "Scoped Key", "all_sites": "false"})
+
+        assert response.status_code == 400
+        assert not APIKey.objects.filter(user=user, name="Scoped Key").exists()
 
 
 @pytest.mark.django_db

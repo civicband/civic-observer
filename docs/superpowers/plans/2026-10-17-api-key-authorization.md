@@ -594,3 +594,37 @@ cd ../corkboard && uv run ruff check django_plugins config tests
 3. Confirm JSON data and no Anubis challenge.
 4. Repeat with a bogus `cb_live_` key and confirm corkboard's JSON 401.
 5. Request the same URL without a key and confirm Anubis still challenges.
+
+---
+
+## Addendum: API key site linkage
+
+Added on 2026-10-18 to scope keys to specific civic.band municipalities.
+
+**Files:**
+- Modify: `apikeys/models.py`
+- Modify: `apikeys/forms.py`
+- Modify: `apikeys/views.py`
+- Modify: `apikeys/admin.py`
+- Modify: `apikeys/internal_views.py`
+- Modify: `templates/apikeys/apikey_list.html`
+- Modify: `templates/apikeys/partials/create_form.html`
+- Create: `apikeys/migrations/0002_apikey_all_sites_apikeysite_apikey_sites_and_more.py`
+- Test: `tests/apikeys/test_models.py`, `test_forms.py`, `test_views.py`, `test_internal_views.py`
+
+**Behavior:**
+- `APIKey.all_sites` defaults to `True`, preserving access for existing keys.
+- `APIKey.sites` links to `municipalities.Muni` through `APIKeySite`.
+- Site-scoped keys require at least one linked site and are denied with
+  `site_not_allowed` for unlinked subdomains.
+- Allowed responses include the matched `site_id`.
+- The explicit through model is the extension point for per-site throttles.
+
+**Verification:**
+
+```bash
+uv run --group dev ruff check apikeys tests/apikeys
+uv run --group dev mypy apikeys municipalities
+uv run pytest tests/apikeys -q --no-cov
+uv run python manage.py makemigrations --check --dry-run --settings=config.settings.development
+```

@@ -21,8 +21,9 @@ unimplemented `civic.observer/api/v1/search/` endpoint is out of scope.
 
 ## Non-goals
 
-- Per-key URL/domain scopes. The contract accepts a URL so scopes can be
-  added later, but this change only validates key state and URL shape.
+- Per-site throttle enforcement. Keys are linked to municipalities so
+  per-site throttles can be added later, but corkboard does not enforce
+  per-site throttle settings in this change.
 - Per-key rate limits. Valid keys bypass the anonymous IP limiter; a
   key-specific limiter can be added later.
 - Changing how API keys are issued, revoked, or displayed.
@@ -59,9 +60,10 @@ Request:
 Responses:
 
 ```json
-{"allowed": true, "reason": "ok", "key_id": "...", "user_id": "...", "subdomain": "alameda.ca"}
+{"allowed": true, "reason": "ok", "key_id": "...", "subdomain": "alameda.ca", "site_id": "..."}
 {"allowed": false, "reason": "invalid_key"}
 {"allowed": false, "reason": "invalid_url"}
+{"allowed": false, "reason": "site_not_allowed"}
 ```
 
 - Malformed JSON or a missing `url`/`api_key` field: 400 `{"error": "Invalid request"}`.
@@ -87,11 +89,24 @@ Accept `http` and `https` URLs that:
 The observer does not fetch the URL, so this is shape validation only, not
 SSRF.
 
+### Site linkage
+
+Each key has an `all_sites` flag and a many-to-many link to `Muni` records
+through an explicit `APIKeySite` model. Existing keys default to `all_sites=True`
+so they keep working; new keys can either allow every site or select specific
+municipalities by subdomain.
+
+For a site-scoped key, the URL's subdomain must match a linked `Muni`, otherwise
+the judgement is `{"allowed": false, "reason": "site_not_allowed"}`. An allowed
+response includes the matched `site_id`. The explicit through model is the
+extension point for per-site throttle settings later.
+
 ### Key validation
 
 A key is allowed when it exists, is active, is unexpired, and (when it has an
-owner) the owner is active. `last_used_at` is updated only for an allowed
-judgement, using the existing five-minute throttle.
+owner) the owner is active. Site-scoped keys must also be linked to the URL's
+subdomain. `last_used_at` is updated only for an allowed judgement, using the
+existing five-minute throttle.
 
 ### Service authentication
 
@@ -178,6 +193,9 @@ civic-observer:
 
 - valid key + valid URL -> allowed with key/user metadata;
 - invalid, expired, revoked, inactive-owner key -> denied;
+- all-sites key -> any valid subdomain allowed;
+- site-scoped key -> linked subdomain allowed, unlinked subdomain denied;
+- site denial does not update `last_used_at`;
 - bad scheme, credentials, root domain, non-JSON path, oversized URL -> denied;
 - malformed/missing fields -> 400;
 - service secret and IP allowlist behavior (private accepted, public rejected);

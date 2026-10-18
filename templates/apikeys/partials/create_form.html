@@ -25,6 +25,29 @@
                 <p class="mt-1 text-xs text-gray-500">Leave empty for no expiration</p>
             {% endif %}
         </div>
+
+        <div>
+            <div class="flex items-start gap-2">
+                <div class="mt-1">
+                    <input type="hidden" name="all_sites" value="false">
+                    {{ form.all_sites }}
+                </div>
+                <div>
+                    <label for="id_all_sites" class="block text-sm font-medium text-gray-700">{{ form.all_sites.label }}</label>
+                    <p class="text-xs text-gray-500">{{ form.all_sites.help_text }}</p>
+                </div>
+            </div>
+        </div>
+
+        <div>
+            <label for="id_sites" class="block text-sm font-medium text-gray-700">{{ form.sites.label }}</label>
+            <div class="mt-1">{{ form.sites }}</div>
+            {% if form.sites.errors %}
+                <p class="mt-1 text-sm text-red-600">{{ form.sites.errors.0 }}</p>
+            {% else %}
+                <p class="mt-1 text-xs text-gray-500">{{ form.sites.help_text }}</p>
+            {% endif %}
+        </div>
     </div>
 
     <div class="mt-6 flex justify-end gap-3">

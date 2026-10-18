@@ -26,6 +26,7 @@
                         <tr>
                             <th class="py-3.5 pl-4 pr-3 text-left text-sm font-semibold text-gray-900">Name</th>
                             <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Key</th>
+                            <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Sites</th>
                             <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Created</th>
                             <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Last Used</th>
                             <th class="px-3 py-3.5 text-left text-sm font-semibold text-gray-900">Status</th>
@@ -37,6 +38,7 @@
                             <tr>
                                 <td class="whitespace-nowrap py-4 pl-4 pr-3 text-sm font-medium text-gray-900">{{ key.name }}</td>
                                 <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500 font-mono">{{ key.prefix }}...</td>
+                                <td class="px-3 py-4 text-sm text-gray-500">{{ key.site_summary }}</td>
                                 <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">{{ key.created|date:"M d, Y" }}</td>
                                 <td class="whitespace-nowrap px-3 py-4 text-sm text-gray-500">
                                     {% if key.last_used_at %}{{ key.last_used_at|timesince }} ago{% else %}Never{% endif %}
