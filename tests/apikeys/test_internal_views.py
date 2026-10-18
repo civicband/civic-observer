@@ -7,7 +7,7 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apikeys.models import APIKey
-from tests.factories import UserFactory
+from tests.factories import MuniFactory, UserFactory
 
 
 @pytest.fixture
@@ -39,7 +39,7 @@ class TestValidateKeyView:
                 url,
                 data=json.dumps({"api_key": "cb_live_test"}),
                 content_type="application/json",
-                REMOTE_ADDR="192.168.1.1",
+                REMOTE_ADDR="8.8.8.8",
                 HTTP_X_SERVICE_SECRET=valid_secret,
             )
 
@@ -431,9 +431,7 @@ class TestTailscaleIPValidation:
         invalid_ips = [
             "100.63.255.255",  # Just below range
             "100.128.0.0",  # Just above range
-            "192.168.1.1",  # Private IP
             "8.8.8.8",  # Public IP
-            "10.0.0.1",  # Private IP
         ]
 
         for ip in invalid_ips:
@@ -446,3 +444,261 @@ class TestTailscaleIPValidation:
                     HTTP_X_SERVICE_SECRET=valid_secret,
                 )
             assert response.status_code == 403, f"Should reject IP {ip}"
+
+    def test_accepts_private_service_ips(self, client, valid_secret):
+        """Test accepts loopback and RFC1918 IPs for service calls."""
+        _, raw_key = APIKey.create_key(name="Test Key")
+        url = reverse("apikeys_internal:validate-key")
+
+        for ip in ["127.0.0.1", "10.1.2.3", "172.17.0.1", "192.168.1.1"]:
+            with override_settings(CORKBOARD_SERVICE_SECRET=valid_secret):
+                response = client.post(
+                    url,
+                    data=json.dumps({"api_key": raw_key}),
+                    content_type="application/json",
+                    REMOTE_ADDR=ip,
+                    HTTP_X_SERVICE_SECRET=valid_secret,
+                )
+            assert response.status_code == 200, f"Should accept IP {ip}"
+
+
+AUTHORIZE_URL = "https://alameda.ca.civic.band/meetings/agendas.json"
+
+
+def _authorize(client, tailscale_ip, valid_secret, **payload):
+    with override_settings(
+        CORKBOARD_SERVICE_SECRET=valid_secret,
+        CIVIC_BAND_DOMAINS=["civic.band"],
+    ):
+        return client.post(
+            reverse("apikeys_internal:authorize"),
+            data=json.dumps(payload),
+            content_type="application/json",
+            REMOTE_ADDR=tailscale_ip,
+            HTTP_X_SERVICE_SECRET=valid_secret,
+        )
+
+
+@pytest.mark.django_db
+class TestAuthorizeView:
+    def test_allows_valid_key_and_url(self, client, tailscale_ip, valid_secret):
+        user = UserFactory()
+        _, raw_key = APIKey.create_key(name="Test Key", user=user)
+
+        response = _authorize(
+            client, tailscale_ip, valid_secret, api_key=raw_key, url=AUTHORIZE_URL
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["allowed"] is True
+        assert body["reason"] == "ok"
+        assert body["subdomain"] == "alameda.ca"
+        assert body["key_id"]
+        assert body["user_id"] == str(user.id)
+        assert body["user_email"] == user.email
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "ftp://alameda.ca.civic.band/meetings/agendas.json",
+            "https://user:pass@alameda.ca.civic.band/meetings/agendas.json",
+            "https://civic.band/meetings/agendas.json",
+            "https://evil.example.com/meetings/agendas.json",
+            "https://alameda.ca.civic.band/meetings/agendas",
+            "https://alameda.ca.civic.band.evil.com/meetings/agendas.json",
+            "https://alameda.ca.civic.band/meetings/agendas.json " + ("x" * 9000),
+        ],
+    )
+    def test_rejects_bad_urls(self, client, tailscale_ip, valid_secret, url):
+        _, raw_key = APIKey.create_key(name="Test Key")
+
+        response = _authorize(
+            client, tailscale_ip, valid_secret, api_key=raw_key, url=url
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {"allowed": False, "reason": "invalid_url"}
+
+    def test_rejects_invalid_key(self, client, tailscale_ip, valid_secret):
+        response = _authorize(
+            client,
+            tailscale_ip,
+            valid_secret,
+            api_key="cb_live_not_a_real_key",
+            url=AUTHORIZE_URL,
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {"allowed": False, "reason": "invalid_key"}
+
+    def test_rejects_expired_key(self, client, tailscale_ip, valid_secret):
+        _, raw_key = APIKey.create_key(
+            name="Expired", expires_at=timezone.now() - timedelta(minutes=1)
+        )
+
+        response = _authorize(
+            client, tailscale_ip, valid_secret, api_key=raw_key, url=AUTHORIZE_URL
+        )
+
+        assert response.json() == {"allowed": False, "reason": "invalid_key"}
+
+    def test_rejects_revoked_key(self, client, tailscale_ip, valid_secret):
+        key_obj, raw_key = APIKey.create_key(name="Revoked")
+        key_obj.is_active = False
+        key_obj.save(update_fields=["is_active"])
+
+        response = _authorize(
+            client, tailscale_ip, valid_secret, api_key=raw_key, url=AUTHORIZE_URL
+        )
+
+        assert response.json() == {"allowed": False, "reason": "invalid_key"}
+
+    def test_rejects_inactive_owner(self, client, tailscale_ip, valid_secret):
+        user = UserFactory(is_active=False)
+        _, raw_key = APIKey.create_key(name="Inactive owner", user=user)
+
+        response = _authorize(
+            client, tailscale_ip, valid_secret, api_key=raw_key, url=AUTHORIZE_URL
+        )
+
+        assert response.json() == {"allowed": False, "reason": "invalid_key"}
+
+    def test_rejects_missing_fields(self, client, tailscale_ip, valid_secret):
+        response = _authorize(client, tailscale_ip, valid_secret, api_key="cb_live_x")
+        assert response.status_code == 400
+
+        response = _authorize(client, tailscale_ip, valid_secret, url=AUTHORIZE_URL)
+        assert response.status_code == 400
+
+    def test_rejects_bad_json(self, client, tailscale_ip, valid_secret):
+        with override_settings(CORKBOARD_SERVICE_SECRET=valid_secret):
+            response = client.post(
+                reverse("apikeys_internal:authorize"),
+                data="not json",
+                content_type="application/json",
+                REMOTE_ADDR=tailscale_ip,
+                HTTP_X_SERVICE_SECRET=valid_secret,
+            )
+
+        assert response.status_code == 400
+
+    def test_requires_service_secret(self, client, tailscale_ip, valid_secret):
+        with override_settings(CORKBOARD_SERVICE_SECRET=valid_secret):
+            response = client.post(
+                reverse("apikeys_internal:authorize"),
+                data=json.dumps({"api_key": "cb_live_x", "url": AUTHORIZE_URL}),
+                content_type="application/json",
+                REMOTE_ADDR=tailscale_ip,
+            )
+
+        assert response.status_code == 401
+
+    def test_rejects_public_ip(self, client, valid_secret):
+        with override_settings(CORKBOARD_SERVICE_SECRET=valid_secret):
+            response = client.post(
+                reverse("apikeys_internal:authorize"),
+                data=json.dumps({"api_key": "cb_live_x", "url": AUTHORIZE_URL}),
+                content_type="application/json",
+                REMOTE_ADDR="8.8.8.8",
+                HTTP_X_SERVICE_SECRET=valid_secret,
+            )
+
+        assert response.status_code == 403
+
+    def test_updates_last_used_only_when_allowed(
+        self, client, tailscale_ip, valid_secret
+    ):
+        key_obj, raw_key = APIKey.create_key(name="Test Key")
+
+        _authorize(
+            client,
+            tailscale_ip,
+            valid_secret,
+            api_key=raw_key,
+            url="https://bad.example/x.json",
+        )
+        key_obj.refresh_from_db()
+        assert key_obj.last_used_at is None
+
+        _authorize(
+            client, tailscale_ip, valid_secret, api_key=raw_key, url=AUTHORIZE_URL
+        )
+        key_obj.refresh_from_db()
+        assert key_obj.last_used_at is not None
+
+
+@pytest.mark.django_db
+class TestAuthorizeViewSites:
+    def test_all_sites_key_allows_any_subdomain(
+        self, client, tailscale_ip, valid_secret
+    ):
+        _, raw_key = APIKey.create_key(name="All Sites", all_sites=True)
+
+        response = _authorize(
+            client,
+            tailscale_ip,
+            valid_secret,
+            api_key=raw_key,
+            url="https://oakland.ca.civic.band/meetings/agendas.json",
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["allowed"] is True
+        assert body["subdomain"] == "oakland.ca"
+
+    def test_scoped_key_allows_linked_subdomain(
+        self, client, tailscale_ip, valid_secret
+    ):
+        alameda = MuniFactory(subdomain="alameda.ca")
+        _, raw_key = APIKey.create_key(name="Scoped", all_sites=False, sites=[alameda])
+
+        response = _authorize(
+            client, tailscale_ip, valid_secret, api_key=raw_key, url=AUTHORIZE_URL
+        )
+
+        assert response.status_code == 200
+        body = response.json()
+        assert body["allowed"] is True
+        assert body["subdomain"] == "alameda.ca"
+        assert body["site_id"] == str(alameda.id)
+
+    def test_scoped_key_rejects_unlinked_subdomain(
+        self, client, tailscale_ip, valid_secret
+    ):
+        alameda = MuniFactory(subdomain="alameda.ca")
+        _, raw_key = APIKey.create_key(name="Scoped", all_sites=False, sites=[alameda])
+
+        response = _authorize(
+            client,
+            tailscale_ip,
+            valid_secret,
+            api_key=raw_key,
+            url="https://oakland.ca.civic.band/meetings/agendas.json",
+        )
+
+        assert response.status_code == 200
+        assert response.json() == {
+            "allowed": False,
+            "reason": "site_not_allowed",
+        }
+
+    def test_site_denial_does_not_update_last_used(
+        self, client, tailscale_ip, valid_secret
+    ):
+        alameda = MuniFactory(subdomain="alameda.ca")
+        key_obj, raw_key = APIKey.create_key(
+            name="Scoped", all_sites=False, sites=[alameda]
+        )
+
+        _authorize(
+            client,
+            tailscale_ip,
+            valid_secret,
+            api_key=raw_key,
+            url="https://oakland.ca.civic.band/meetings/agendas.json",
+        )
+
+        key_obj.refresh_from_db()
+        assert key_obj.last_used_at is None

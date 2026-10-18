@@ -4,7 +4,7 @@ import pytest
 from django.utils import timezone
 
 from apikeys.models import APIKey
-from tests.factories import APIKeyFactory, UserFactory
+from tests.factories import APIKeyFactory, MuniFactory, UserFactory
 
 
 @pytest.mark.django_db
@@ -181,3 +181,45 @@ class TestAPIKeyModel:
         user.delete()
 
         assert not APIKey.objects.filter(id=key_id).exists()
+
+
+@pytest.mark.django_db
+class TestAPIKeySites:
+    def test_all_sites_defaults_to_true(self):
+        api_key = APIKeyFactory()
+
+        assert api_key.all_sites is True
+        assert api_key.allows_subdomain("anything.civic.band") is True
+        assert api_key.site_summary() == "All sites"
+
+    def test_site_scoped_key_allows_only_linked_subdomain(self):
+        alameda = MuniFactory(subdomain="alameda.ca")
+        oakland = MuniFactory(subdomain="oakland.ca")
+        api_key = APIKeyFactory(all_sites=False)
+        api_key.sites.add(alameda)
+
+        assert api_key.allows_subdomain("alameda.ca") is True
+        assert api_key.allows_subdomain("oakland.ca") is False
+        assert api_key.get_site_for_subdomain("alameda.ca") == alameda
+        assert api_key.get_site_for_subdomain("oakland.ca") is None
+        assert api_key.site_summary() == "alameda.ca"
+        assert oakland not in api_key.sites.all()
+
+    def test_create_key_with_sites(self):
+        alameda = MuniFactory(subdomain="alameda.ca")
+
+        api_key, raw_key = APIKey.create_key(
+            name="Scoped Key",
+            all_sites=False,
+            sites=[alameda],
+        )
+
+        assert raw_key.startswith("cb_live_")
+        assert api_key.all_sites is False
+        assert list(api_key.sites.all()) == [alameda]
+
+    def test_site_scoped_key_with_no_links_allows_nothing(self):
+        api_key = APIKeyFactory(all_sites=False)
+
+        assert api_key.allows_subdomain("alameda.ca") is False
+        assert api_key.site_summary() == "None"
