@@ -64,7 +64,7 @@ RUN groupadd --gid 1000 app && \
     useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash app
 
 # Copy Python packages from builder
-COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+COPY --from=builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code

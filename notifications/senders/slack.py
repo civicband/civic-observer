@@ -22,7 +22,7 @@ class SlackSender(NotificationSender):
             return False
         return handle.startswith(self.WEBHOOK_PREFIX)
 
-    def send(self, channel: "NotificationChannel", message: str) -> bool:
+    def send(self, channel: NotificationChannel, message: str) -> bool:
         """
         Send a message to a Slack webhook.
 

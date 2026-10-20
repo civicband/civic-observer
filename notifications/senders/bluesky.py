@@ -36,7 +36,7 @@ class BlueskySender(NotificationSender):
         password = getattr(settings, "BLUESKY_BOT_PASSWORD", "")
         return identifier, password
 
-    def _get_client(self, identifier: str, password: str) -> "Client":
+    def _get_client(self, identifier: str, password: str) -> Client:
         """Return a logged-in client, authenticating only on first use."""
         if self._client is None:
             client = Client()
@@ -44,7 +44,7 @@ class BlueskySender(NotificationSender):
             self._client = client
         return self._client
 
-    def send(self, channel: "NotificationChannel", message: str) -> bool:
+    def send(self, channel: NotificationChannel, message: str) -> bool:
         """
         Send a DM to a Bluesky user via AT Protocol.
 

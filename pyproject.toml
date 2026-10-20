@@ -29,7 +29,7 @@ dependencies = [
     "atproto>=0.0.63",
     "django-redis>=6.0.0",
     "hiredis>=3.3.0",
-    "certifi>=2025.4.26",
+    "certifi>=2026.10.19",
 ]
 
 
