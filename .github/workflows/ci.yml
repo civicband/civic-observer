@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ["3.15"]
+        python-version: ["3.14"]
 
     services:
       postgres:
@@ -102,7 +102,7 @@ jobs:
           version: "latest"
 
       - name: Set up Python
-        run: uv python install 3.15
+        run: uv python install 3.14
 
       - name: Install dependencies
         run: |
@@ -129,7 +129,7 @@ jobs:
           version: "latest"
 
       - name: Set up Python
-        run: uv python install 3.15
+        run: uv python install 3.14
 
       - name: Install dependencies
         run: |
@@ -152,7 +152,7 @@ jobs:
           version: "latest"
 
       - name: Set up Python
-        run: uv python install 3.15
+        run: uv python install 3.14
 
       - name: Install dependencies
         run: |

@@ -2,7 +2,7 @@
 # Stage 1: Builder - Install dependencies
 # ------------------------------------------------------------
 
-FROM python:3.15-slim-bookworm AS builder
+FROM python:3.14-slim-bookworm AS builder
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -47,7 +47,7 @@ RUN python manage.py collectstatic --noinput --skip-checks
 # Stage 3: Release - Final production image
 # ------------------------------------------------------------
 
-FROM python:3.15-slim-bookworm AS release
+FROM python:3.14-slim-bookworm AS release
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 ENV PYTHONDONTWRITEBYTECODE=1
