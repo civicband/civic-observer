@@ -32,7 +32,7 @@ class MastodonSender(NotificationSender):
             return match.group(1), match.group(2)
         return "", ""
 
-    def send(self, channel: "NotificationChannel", message: str) -> bool:
+    def send(self, channel: NotificationChannel, message: str) -> bool:
         """
         Send a DM to a Mastodon user.
 

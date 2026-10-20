@@ -42,7 +42,7 @@ class NotificationSender(ABC):
         return response
 
     @abstractmethod
-    def send(self, channel: "NotificationChannel", message: str) -> bool:
+    def send(self, channel: NotificationChannel, message: str) -> bool:
         """
         Send a notification message to the channel.
 

@@ -25,7 +25,7 @@ class DiscordSender(NotificationSender):
             return False
         return bool(self.USERNAME_PATTERN.match(handle))
 
-    def send(self, channel: "NotificationChannel", message: str) -> bool:
+    def send(self, channel: NotificationChannel, message: str) -> bool:
         """
         Send a DM to a Discord user.
 

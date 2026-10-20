@@ -66,7 +66,7 @@ class APIKey(TimeStampedModel):
         expires_at=None,
         all_sites: bool = True,
         sites=None,
-    ) -> tuple["APIKey", str]:
+    ) -> tuple[APIKey, str]:
         """Create a new API key. Returns (instance, raw_key)."""
         raw_key = cls.generate_key()
         prefix = raw_key[:16]  # "cb_live_" + first 8 random chars
