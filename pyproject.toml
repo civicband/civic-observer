@@ -6,7 +6,7 @@ readme = "README.md"
 authors = [
     { name = "Philip James", email = "phildini@phildini.net" }
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.14"
 dependencies = [
     "django>=5.2.14,<6.0",
     "whitenoise>=6.7.0",
@@ -17,7 +17,7 @@ dependencies = [
     "django-widget-tweaks>=1.5.0",
     "environs[django]>=14.2.0",
     "uvicorn>=0.34.3",
-    "psycopg[binary]>=3.2.9",
+    "psycopg[binary]>=3.3.6",
     "django-extensions>=4.1",
     "httpx>=0.28.1",
     "django-localflavor>=5.0",
@@ -62,7 +62,7 @@ test = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py312"
+target-version = "py314"
 
 [tool.ruff.lint]
 select = [
