@@ -20,7 +20,7 @@ x-django-worker: &django-worker
 
 services:
   redis:
-    image: "redis:7-alpine"
+    image: "redis:8-alpine"
     init: true
     network_mode: host
     healthcheck:
