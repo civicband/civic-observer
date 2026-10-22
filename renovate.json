@@ -1,0 +1,54 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "schedule": ["before 9am every day"],
+  "timezone": "America/Los_Angeles",
+  "minimumReleaseAge": "3 days",
+  "prHourlyLimit": 2,
+  "prConcurrentLimit": 10,
+  "separateMinorPatch": true,
+  "separateMajorMinor": true,
+  "automerge": false,
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "description": "Python dependencies — batch patch updates together",
+      "matchManagers": ["pep621", "uv"],
+      "groupName": "Python dependencies",
+      "matchUpdateTypes": ["patch"],
+      "groupSlug": "python-patch"
+    },
+    {
+      "description": "Dev dependencies — wait 7 days, batch patches and minors",
+      "matchManagers": ["pep621", "uv"],
+      "matchDepTypes": ["devDependencies"],
+      "minimumReleaseAge": "7 days",
+      "groupName": "Dev dependencies",
+      "matchUpdateTypes": ["patch", "minor"],
+      "groupSlug": "dev-deps"
+    },
+    {
+      "description": "numpy <2 constraint — never auto-update",
+      "matchPackageNames": ["numpy"],
+      "enabled": false
+    },
+    {
+      "description": "Docker images — update weekly on Monday",
+      "matchManagers": ["dockerfile", "docker-compose"],
+      "schedule": ["before 9am on monday"],
+      "groupName": "Docker images"
+    },
+    {
+      "description": "Pre-commit hooks — weekly batch on Monday",
+      "matchManagers": ["pre-commit"],
+      "schedule": ["before 9am on monday"],
+      "groupName": "Pre-commit hooks"
+    },
+    {
+      "description": "GitHub Actions — weekly batch on Monday",
+      "matchManagers": ["github-actions"],
+      "schedule": ["before 9am on monday"],
+      "groupName": "GitHub Actions"
+    }
+  ]
+}
