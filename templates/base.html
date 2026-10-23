@@ -17,7 +17,9 @@
             <script defer src="{{ umami_script_url }}"
                     data-website-id="{{ umami_website_id }}"
                     data-do-not-track="true"
+                    data-performance="true"
                     {% if user.is_authenticated %}data-tag="{{ user.id }}"{% endif %}></script>
+            <script defer src="https://analytics.civic.band/recorder.js" data-website-id="{{ umami_website_id }}"></script>
             <script src="{% static 'js/analytics.js' %}" defer></script>
         {% endif %}
 
