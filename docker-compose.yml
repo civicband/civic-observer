@@ -35,7 +35,7 @@ services:
       interval: 10s
       timeout: 3s
       retries: 3
-    image: "postgres:17-alpine"
+    image: "postgres:18-alpine"
     init: true
     ports:
       - "5433:5432"
@@ -49,7 +49,7 @@ services:
       - civic-network
 
   redis:
-    image: "redis:7-alpine"
+    image: "redis:8-alpine"
     init: true
     ports:
       - "6379:6379"
