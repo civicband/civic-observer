@@ -331,8 +331,7 @@ class TestSearchNewPages:
         assert total == 1
         assert mock_backend.search.call_args.kwargs["modified_after"] == cutoff
 
-    @patch("searches.search_backends.get_search_backend")
-    def test_a_page_modified_after_cutoff_counts_as_new(self, mock_get_backend):
+    def test_a_page_modified_after_cutoff_counts_as_new(self):
         from datetime import timedelta
 
         from django.utils import timezone
@@ -344,10 +343,10 @@ class TestSearchNewPages:
         page = MeetingPageFactory(document=doc, text="housing")
 
         cutoff = timezone.now() - timedelta(days=1)
-        MeetingPage.objects.filter(pk=page.pk).update(modified=timezone.now())
-
-        mock_backend = mock_get_backend.return_value
-        mock_backend.search.return_value = ([{"id": page.id}], 1)
+        MeetingPage.objects.filter(pk=page.pk).update(
+            created=cutoff - timedelta(days=1),
+            modified=timezone.now(),
+        )
 
         search = SearchFactory(search_term="housing")
         search.municipalities.add(muni)
@@ -355,6 +354,18 @@ class TestSearchNewPages:
         new_pages, _ = search_new_pages(search, cutoff)
 
         assert list(new_pages) == [page]
+
+    def test_pages_for_ids_uses_single_array_parameter(self):
+        from searches.services import _pages_for_ids
+
+        muni = MuniFactory()
+        doc = MeetingDocumentFactory(municipality=muni)
+        page = MeetingPageFactory(document=doc, text="housing")
+
+        pages = _pages_for_ids([page.id])
+
+        assert list(pages) == [page]
+        assert "ANY" in str(pages.query)
 
 
 @pytest.mark.django_db

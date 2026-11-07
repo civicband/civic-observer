@@ -159,6 +159,16 @@ def get_new_pages(search, since=None):
     return new_pages
 
 
+def _pages_for_ids(page_ids):
+    if not page_ids:
+        return MeetingPage.objects.none()
+    # One array parameter, not one bind per id: Postgres caps a single
+    # statement at 65,535 parameters, and an uncapped alert scan can exceed it.
+    return MeetingPage.objects.extra(
+        where=["meetings_meetingpage.id = ANY(%s)"], params=[list(page_ids)]
+    )
+
+
 def search_new_pages(search, cutoff):
     """Return pages matching ``search`` whose ``modified`` is at/after ``cutoff``.
 
@@ -166,5 +176,5 @@ def search_new_pages(search, cutoff):
     no second ``created`` filter in Python. ``cutoff=None`` means every match.
     """
     page_ids = search_result_ids(search, limit=None, modified_after=cutoff)
-    new_pages = MeetingPage.objects.filter(id__in=page_ids)
+    new_pages = _pages_for_ids(page_ids)
     return new_pages, len(page_ids)
