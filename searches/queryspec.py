@@ -58,7 +58,9 @@ class QuerySpec:
         return hashlib.sha256(self.canonical_json().encode()).hexdigest()
 
     @classmethod
-    def from_search(cls, search, *, modified_after: datetime | None = None):
+    def from_search(
+        cls, search, *, modified_after: datetime | None = None
+    ) -> QuerySpec:
         return cls(
             text=_clean(search.search_term),
             meeting_name=_clean(search.meeting_name_query),
@@ -78,3 +80,52 @@ class QuerySpec:
 
 def _column(alias: str, name: str) -> str:
     return f"{alias}.{name}" if alias else name
+
+
+def build_where(spec: QuerySpec, alias: str = "mp") -> tuple[str, list]:
+    """Render ``spec`` as a SQL WHERE clause and positional parameters.
+
+    ``alias`` prefixes every column so callers can join or subquery the page
+    table. Pass ``alias=""`` for an unqualified single-table query.
+    """
+    where: list[str] = []
+    params: list = []
+
+    if spec.text:
+        where.append(f"{_column(alias, 'id')} @@@ paradedb.parse(%s)")
+        params.append(f"text:({_clean(spec.text)})")
+
+    if spec.meeting_name:
+        where.append(f"{_column(alias, 'id')} @@@ paradedb.parse(%s)")
+        params.append(f"meeting_name:({_clean(spec.meeting_name)})")
+
+    if spec.municipality_ids:
+        where.append(f"{_column(alias, 'municipality_id')} = ANY(%s)")
+        params.append(list(spec.municipality_ids))
+
+    if spec.states:
+        where.append(f"{_column(alias, 'state')} = ANY(%s)")
+        params.append(list(spec.states))
+
+    if spec.date_from:
+        where.append(f"{_column(alias, 'meeting_date')} >= %s")
+        params.append(spec.date_from)
+
+    if spec.date_to:
+        where.append(f"{_column(alias, 'meeting_date')} <= %s")
+        params.append(spec.date_to)
+
+    if spec.document_type and spec.document_type != "all":
+        where.append(f"{_column(alias, 'document_type')} = %s")
+        params.append(spec.document_type)
+
+    if spec.modified_after:
+        where.append(f"{_column(alias, 'modified')} >= %s")
+        params.append(spec.modified_after)
+
+    if not where:
+        # No query and no filters: a plain recency listing, never a BM25 scan
+        # over the whole corpus.
+        where.append("TRUE")
+
+    return " AND ".join(where), params

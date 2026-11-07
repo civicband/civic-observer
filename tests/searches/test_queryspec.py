@@ -3,7 +3,7 @@ from datetime import UTC, date, datetime
 
 import pytest
 
-from searches.queryspec import QuerySpec
+from searches.queryspec import QuerySpec, build_where
 from tests.factories import MuniFactory, SearchFactory
 
 
@@ -105,3 +105,59 @@ class TestFromSearch:
         assert spec.modified_after is None
         assert updated.modified_after == datetime(2024, 6, 1)
         assert updated.text == "housing"
+
+
+class TestBuildWhere:
+    def test_full_spec(self):
+        muni_id = uuid.UUID(int=7)
+        spec = QuerySpec(
+            text=" housing ",
+            meeting_name=" council ",
+            municipality_ids=(muni_id,),
+            states=("CA",),
+            date_from=date(2024, 1, 1),
+            date_to=date(2024, 12, 31),
+            document_type="agenda",
+            modified_after=datetime(2024, 6, 1),
+        )
+
+        where, params = build_where(spec)
+
+        assert where == (
+            "mp.id @@@ paradedb.parse(%s)"
+            " AND mp.id @@@ paradedb.parse(%s)"
+            " AND mp.municipality_id = ANY(%s)"
+            " AND mp.state = ANY(%s)"
+            " AND mp.meeting_date >= %s"
+            " AND mp.meeting_date <= %s"
+            " AND mp.document_type = %s"
+            " AND mp.modified >= %s"
+        )
+        assert params == [
+            "text:(housing)",
+            "meeting_name:(council)",
+            [muni_id],
+            ["CA"],
+            date(2024, 1, 1),
+            date(2024, 12, 31),
+            "agenda",
+            datetime(2024, 6, 1),
+        ]
+
+    def test_empty_spec_is_true(self):
+        assert build_where(QuerySpec()) == ("TRUE", [])
+
+    def test_empty_municipalities_do_not_filter(self):
+        where, params = build_where(QuerySpec(municipality_ids=()))
+        assert where == "TRUE"
+        assert params == []
+
+    @pytest.mark.parametrize("document_type", ["", "all", None])
+    def test_document_type_all_does_not_filter(self, document_type):
+        where, params = build_where(QuerySpec(document_type=document_type))
+        assert where == "TRUE"
+        assert params == []
+
+    def test_alias_can_be_removed(self):
+        where, _ = build_where(QuerySpec(text="housing"), alias="")
+        assert where == "id @@@ paradedb.parse(%s)"

@@ -22,6 +22,7 @@ from .cache import (
     safe_cache_set,
     set_cached_search_results,
 )
+from .queryspec import QuerySpec, build_where
 
 # Match the tags meetings/views.py already used for ts_headline so templates
 # and their |safe filters need no change.
@@ -60,6 +61,7 @@ class SearchBackend(ABC):
         meeting_name_query: str | None = None,
         limit: int = 100,
         offset: int = 0,
+        modified_after=None,
     ) -> tuple[list[dict[str, Any]], int]:
         """
         Execute a search with Redis caching.
@@ -81,6 +83,7 @@ class SearchBackend(ABC):
         # Convert dates to ISO strings for cache key
         date_from_str = date_from.isoformat() if date_from else None
         date_to_str = date_to.isoformat() if date_to else None
+        modified_after_str = modified_after.isoformat() if modified_after else None
 
         # Try cache first
         cached = get_cached_search_results(
@@ -93,6 +96,7 @@ class SearchBackend(ABC):
             meeting_name_query=meeting_name_query or "",
             limit=limit,
             offset=offset,
+            modified_after=modified_after_str,
         )
 
         if cached is not None:
@@ -109,6 +113,7 @@ class SearchBackend(ABC):
             meeting_name_query=meeting_name_query,
             limit=limit,
             offset=offset,
+            modified_after=modified_after,
         )
 
         # Cache the results (5 minute TTL)
@@ -124,6 +129,7 @@ class SearchBackend(ABC):
             meeting_name_query=meeting_name_query or "",
             limit=limit,
             offset=offset,
+            modified_after=modified_after_str,
             timeout=300,  # 5 minutes
         )
 
@@ -141,6 +147,7 @@ class SearchBackend(ABC):
         meeting_name_query: str | None = None,
         limit: int = 100,
         offset: int = 0,
+        modified_after=None,
     ) -> tuple[list[dict[str, Any]], int]:
         """
         Execute a search with filters.
@@ -184,63 +191,28 @@ class PgSearchBackend(SearchBackend):  # noqa: F821 — defined in search_backen
         meeting_name_query: str | None = None,
         limit: int = 100,
         offset: int = 0,
+        modified_after=None,
     ) -> tuple[list[dict[str, Any]], int]:
-        where: list[str] = []
-        params: list[Any] = []
-
-        # --- full-text predicates ------------------------------------------
-        # Tantivy query-string language via paradedb.parse(): bare terms are
-        # OR'd by default, AND/OR/NOT keywords and `-term` negation are native,
-        # and quoted blocks become positional phrases. `@@@` matches the index
-        # key field (id) against the parsed query.
-        if query_text:
-            where.append("id @@@ paradedb.parse(%s)")
-            params.append(f"text:({query_text.strip()})")
-
-        if meeting_name_query:
-            # Raw meeting_name only. CamelCase splitting lives in a separate
-            # meeting_name_alias lookup table (post-migration) rather than as a
-            # column here — see meetingpage_model_changes.py for why.
-            where.append("id @@@ paradedb.parse(%s)")
-            params.append(f"meeting_name:({meeting_name_query.strip()})")
-
-        # --- filters: all local columns now, no joins ----------------------
-        if municipalities is not None:
-            muni_ids = (
-                list(municipalities.values_list("id", flat=True))
-                if hasattr(municipalities, "values_list")
-                else [m.id if hasattr(m, "id") else m for m in municipalities]
-            )
-            if muni_ids:
-                where.append("municipality_id = ANY(%s)")
-                params.append(muni_ids)
-
-        if states:
-            where.append("state = ANY(%s)")
-            params.append(list(states))
-
-        if date_from:
-            where.append("meeting_date >= %s")
-            params.append(date_from)
-
-        if date_to:
-            where.append("meeting_date <= %s")
-            params.append(date_to)
-
-        if document_type and document_type != "all":
-            where.append("document_type = %s")
-            params.append(document_type)
-
-        if not where:
-            # No query and no filters: fall back to a plain recency listing
-            # rather than asking BM25 to rank the entire corpus.
-            where.append("TRUE")
-
-        where_sql = " AND ".join(where)
+        muni_ids = (
+            list(municipalities.values_list("id", flat=True))
+            if municipalities is not None and hasattr(municipalities, "values_list")
+            else [m.id if hasattr(m, "id") else m for m in (municipalities or [])]
+        )
+        spec = QuerySpec(
+            text=query_text or "",
+            meeting_name=meeting_name_query or "",
+            municipality_ids=tuple(muni_ids),
+            states=tuple(states or ()),
+            date_from=date_from,
+            date_to=date_to,
+            document_type=document_type or "all",
+            modified_after=modified_after,
+        )
+        where_sql, params = build_where(spec)
 
         # Relevance ordering only makes sense when there's a query to score.
         order_sql = (
-            "ORDER BY paradedb.score(id) DESC, meeting_date DESC"
+            "ORDER BY paradedb.score(id) DESC, meeting_date DESC, id"
             if query_text
             else "ORDER BY meeting_date DESC, id"
         )
@@ -268,7 +240,7 @@ class PgSearchBackend(SearchBackend):  # noqa: F821 — defined in search_backen
                    municipality_id, municipality_subdomain, municipality_name,
                    state, meeting_name, meeting_date, document_type,
                    {snippet_sql}
-            FROM meetings_meetingpage
+            FROM meetings_meetingpage mp
             WHERE {where_sql}
             {order_sql}
             LIMIT %s OFFSET %s
@@ -324,7 +296,7 @@ class PgSearchBackend(SearchBackend):  # noqa: F821 — defined in search_backen
         # instead of enumerating all matches. Fast regardless of match-set size.
         sql = f"""
             SELECT count(*) FROM (
-                SELECT 1 FROM meetings_meetingpage
+                SELECT 1 FROM meetings_meetingpage mp
                 WHERE {where_sql}
                 LIMIT {COUNT_CAP + 1}
             ) capped
