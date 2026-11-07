@@ -190,18 +190,13 @@ class TestSearchModel:
         assert search.last_checked_for_new_pages is not None
         assert search.last_result_count == 2
 
-    @patch("searches.search_backends.get_search_backend")
-    def test_search_update_with_no_changes_returns_empty(self, mock_get_backend):
+    def test_search_update_with_no_changes_returns_empty(self):
         """Test that update_search() returns empty QuerySet when no new pages."""
         muni = MuniFactory(name="Oakland")
         doc = MeetingDocumentFactory(municipality=muni)
-        page = MeetingPageFactory(document=doc, text="Budget discussion")
+        _page = MeetingPageFactory(document=doc, text="Budget discussion")
 
         from django.utils import timezone
-
-        # Mock backend returns the page
-        mock_backend = mock_get_backend.return_value
-        mock_backend.search.return_value = ([{"id": page.id}], 1)
 
         search = SearchFactory(search_term="budget")
         search.municipalities.add(muni)

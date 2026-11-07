@@ -24,7 +24,7 @@ x-django-web: &django-web
 x-django-worker: &django-worker
   <<: *django-settings
   entrypoint: ["/src/compose-entrypoint.sh"]
-  command: python manage.py rqworker default
+  command: python manage.py rqworker default research
 
 services:
   db:
