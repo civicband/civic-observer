@@ -72,6 +72,12 @@ class TestProjectDetailView:
         user = UserFactory()
         project = ProjectFactory(owner=user, name="Housing Project")
         ResultSetFactory(project=project, name="First snapshot")
+        ResultSetFactory(
+            project=project,
+            name="Huge snapshot",
+            status=ResultSet.Status.TOO_LARGE,
+            item_count=600_000,
+        )
 
         client.force_login(user)
         response = client.get(reverse("research:project-detail", args=[project.id]))
@@ -80,6 +86,7 @@ class TestProjectDetailView:
         assert response.status_code == 200
         assert "Housing Project" in content
         assert "First snapshot" in content
+        assert "at least 600000 pages" in content
 
 
 @pytest.mark.django_db
@@ -253,12 +260,22 @@ class TestSetDetailView:
         assert "States" in content
         assert "CA" in content
 
-    def test_orphan_page_is_skipped(self, client):
+    def test_orphan_page_is_retained(self, client):
         user, project, result_set = self._ready_set()
-        document = MeetingDocumentFactory(meeting_name="OrphanMeeting")
-        page = MeetingPageFactory(document=document, text="orphan body text")
-        item = SetItemFactory(result_set=result_set, page=page)
-        SetItem.objects.filter(pk=item.pk).update(page_id="missing-page")
+        orphan_document = MeetingDocumentFactory(meeting_name="OrphanMeeting")
+        orphan_page = MeetingPageFactory(
+            document=orphan_document, text="orphan body text"
+        )
+        orphan = SetItemFactory(result_set=result_set, page=orphan_page, rank=2.0)
+        SetItem.objects.filter(pk=orphan.pk).update(
+            page_id="missing-page", state="CA", document_type="agenda"
+        )
+        live_document = MeetingDocumentFactory(meeting_name="LiveMeeting")
+        SetItemFactory(
+            result_set=result_set,
+            page=MeetingPageFactory(document=live_document, text="live body text"),
+            rank=1.0,
+        )
 
         client.force_login(user)
         response = client.get(
@@ -267,8 +284,65 @@ class TestSetDetailView:
 
         content = response.content.decode()
         assert response.status_code == 200
+        assert "Page no longer in corpus" in content
+        assert "LiveMeeting" in content
+        assert "live body text" in content
         assert "OrphanMeeting" not in content
         assert "orphan body text" not in content
+
+    def test_visible_items_and_facets_agree_with_item_count(self, client):
+        user, project, result_set = self._ready_set()
+        muni = MuniFactory(state="CA", name="Springfield")
+        document = MeetingDocumentFactory(municipality=muni, document_type="agenda")
+        SetItemFactory(
+            result_set=result_set,
+            page=MeetingPageFactory(document=document),
+            rank=2.0,
+            state="CA",
+            document_type="agenda",
+        )
+        orphan = SetItemFactory(result_set=result_set, rank=1.0)
+        SetItem.objects.filter(pk=orphan.pk).update(
+            page_id="missing-page", state="OR", document_type="minutes"
+        )
+        result_set.item_count = 2
+        result_set.save(update_fields=["item_count", "modified"])
+
+        client.force_login(user)
+        response = client.get(
+            reverse("research:set-detail", args=[project.id, result_set.id])
+        )
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "Springfield" in content
+        assert "Page no longer in corpus" in content
+
+        items = response.context["items"]
+        facets = response.context["facets"]
+        assert len(items) == result_set.item_count == 2
+        assert any(item.page_obj is None for item in items)
+        assert sum(row["count"] for row in facets["states"]) == result_set.item_count
+        assert (
+            sum(row["count"] for row in facets["document_types"])
+            == result_set.item_count
+        )
+
+    def test_too_large_count_is_approximate(self, client):
+        user, project, result_set = self._ready_set()
+        result_set.status = ResultSet.Status.TOO_LARGE
+        result_set.item_count = 600_000
+        result_set.error = "Too many matches"
+        result_set.save()
+
+        client.force_login(user)
+        response = client.get(
+            reverse("research:set-detail", args=[project.id, result_set.id])
+        )
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "at least 600000 pages" in content
 
     def test_keyset_pagination_with_after(self, client):
         user, project, result_set = self._ready_set()
@@ -376,6 +450,22 @@ class TestSetStatusView:
         assert 'hx-trigger="every 2s"' in content
         assert 'hx-swap="outerHTML"' in content
         assert "Pending" in content
+        assert "HX-Refresh" not in response
+
+    def test_ready_requests_full_page_refresh(self, client):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(
+            project=project, status=ResultSet.Status.READY, item_count=4
+        )
+
+        client.force_login(user)
+        response = client.get(
+            reverse("research:set-status", args=[project.id, result_set.id])
+        )
+
+        assert response.status_code == 200
+        assert response["HX-Refresh"] == "true"
 
     def test_ready_link_preserves_lens(self, client):
         user = UserFactory()

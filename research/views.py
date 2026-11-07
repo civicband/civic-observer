@@ -115,7 +115,7 @@ class SetDetailView(LoginRequiredMixin, DetailView):
             after = self.request.GET.get("after") or None
             try:
                 items, next_cursor = browse_set(result_set, lens, after=after)
-            except (TypeError, ValueError):
+            except ValueError:
                 items, next_cursor = browse_set(result_set, lens, after=None)
             context["items"] = items
             context["next_cursor"] = next_cursor
@@ -152,4 +152,7 @@ class SetStatusView(LoginRequiredMixin, View):
             },
             request=request,
         )
-        return HttpResponse(html)
+        response = HttpResponse(html)
+        if result_set.status == ResultSet.Status.READY:
+            response["HX-Refresh"] = "true"
+        return response

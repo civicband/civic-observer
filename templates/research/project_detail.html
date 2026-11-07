@@ -106,7 +106,13 @@
                                                 {% endif %}
                                             </div>
                                             <div class="mt-2 flex items-center gap-4 text-sm text-gray-500">
-                                                <span>{{ result_set.item_count }} page{{ result_set.item_count|pluralize }}</span>
+                                                <span>
+                                                    {% if result_set.status == "too_large" %}
+                                                        at least {{ result_set.item_count }} page{{ result_set.item_count|pluralize }}
+                                                    {% else %}
+                                                        {{ result_set.item_count }} page{{ result_set.item_count|pluralize }}
+                                                    {% endif %}
+                                                </span>
                                                 <span>Created {{ result_set.created|timesince }} ago</span>
                                             </div>
                                         </div>

@@ -16,7 +16,11 @@
             <div>
                 <h1 class="text-3xl font-bold tracking-tight text-gray-900">{{ result_set.name }}</h1>
                 <p class="mt-2 text-sm text-gray-600">
-                    {{ result_set.item_count }} page{{ result_set.item_count|pluralize }}
+                    {% if result_set.status == "too_large" %}
+                        at least {{ result_set.item_count }} page{{ result_set.item_count|pluralize }}
+                    {% else %}
+                        {{ result_set.item_count }} page{{ result_set.item_count|pluralize }}
+                    {% endif %}
                     · {{ result_set.get_status_display }}
                 </p>
             </div>

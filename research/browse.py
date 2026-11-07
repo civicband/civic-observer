@@ -8,6 +8,7 @@ from datetime import date
 from django.db.models import Count, Exists, F, OuterRef, Q
 from django.db.models.functions import ExtractYear
 
+from meetings.models import MeetingPage
 from searches import search_backends
 from searches.queryspec import QuerySpec
 
@@ -19,7 +20,7 @@ PAGE_SIZE = 1000
 
 
 def _filtered_items(result_set, lens: Lens):
-    items = SetItem.objects.filter(result_set=result_set, page__isnull=False)
+    items = SetItem.objects.filter(result_set=result_set)
 
     if lens.dispositions:
         items = items.filter(disposition__in=lens.dispositions)
@@ -147,9 +148,12 @@ def browse_set(
     if after:
         items = _apply_cursor(items, after, lens.order)
 
-    rows = list(items.select_related("page")[: limit + 1])
+    rows = list(items[: limit + 1])
     has_next = len(rows) > limit
+    pages = MeetingPage.objects.in_bulk([item.page_id for item in rows])
     rows = rows[:limit]
+    for item in rows:
+        item.page_obj = pages.get(item.page_id)
     next_cursor = _encode_cursor(rows[-1], lens.order) if has_next and rows else None
     return rows, next_cursor
 

@@ -42,7 +42,14 @@ def create_result_set(
     )
 
     max_items = settings.RESEARCH_SET_MAX_ITEMS
-    count = search_backends.get_search_backend().count_matches(spec, max_items + 1)
+    try:
+        count = search_backends.get_search_backend().count_matches(spec, max_items + 1)
+    except Exception as exc:
+        result_set.status = ResultSet.Status.FAILED
+        result_set.error = str(exc)
+        result_set.save(update_fields=["status", "error", "modified"])
+        return result_set
+
     if count > max_items:
         result_set.status = ResultSet.Status.TOO_LARGE
         result_set.item_count = count
@@ -55,9 +62,19 @@ def create_result_set(
         return result_set
 
     if count <= settings.RESEARCH_INLINE_SET_MAX_ITEMS:
-        return materialize_result_set(result_set.id)
+        try:
+            return materialize_result_set(result_set.id)
+        except Exception:
+            # materialize_result_set records FAILED before re-raising.
+            result_set.refresh_from_db()
+            return result_set
 
-    enqueue_materialization(result_set.id)
+    try:
+        enqueue_materialization(result_set.id)
+    except Exception as exc:
+        result_set.status = ResultSet.Status.FAILED
+        result_set.error = str(exc)
+        result_set.save(update_fields=["status", "error", "modified"])
     return result_set
 
 
@@ -154,6 +171,10 @@ def _insert_items_sql(result_set: ResultSet, now) -> None:
     ]
 
     with connection.cursor() as cur:
+        cur.execute(
+            "SELECT set_config('statement_timeout', %s, true)",
+            [str(settings.RESEARCH_STATEMENT_TIMEOUT_MS)],
+        )
         cur.execute(sql, params)
 
 

@@ -93,6 +93,54 @@ class TestCreateResultSet:
         assert result_set.status == ResultSet.Status.PENDING
         assert result_set.items.count() == 0
 
+    def test_count_failure_marks_set_failed(self, settings):
+        settings.RESEARCH_SET_MAX_ITEMS = 500_000
+        settings.RESEARCH_INLINE_SET_MAX_ITEMS = 1000
+        project = ProjectFactory()
+
+        with patch(
+            "research.materialize.search_backends.get_search_backend"
+        ) as get_backend:
+            get_backend.return_value.count_matches.side_effect = RuntimeError(
+                "count broke"
+            )
+            result_set = create_result_set(
+                project, "Housing", QuerySpec(text="housing")
+            )
+
+        assert result_set.status == ResultSet.Status.FAILED
+        assert "count broke" in result_set.error
+
+    @patch("research.materialize.enqueue_materialization")
+    def test_enqueue_failure_marks_set_failed(self, mock_enqueue, settings):
+        settings.RESEARCH_SET_MAX_ITEMS = 10
+        settings.RESEARCH_INLINE_SET_MAX_ITEMS = 1
+        mock_enqueue.side_effect = RuntimeError("redis down")
+        muni = MuniFactory()
+        doc = MeetingDocumentFactory(municipality=muni)
+        MeetingPageFactory(document=doc, text="housing")
+        MeetingPageFactory(document=doc, text="housing")
+        project = ProjectFactory()
+
+        result_set = create_result_set(project, "Housing", QuerySpec(text="housing"))
+
+        assert result_set.status == ResultSet.Status.FAILED
+        assert "redis down" in result_set.error
+
+    @patch("research.materialize._insert_items_orm")
+    def test_inline_failure_marks_set_failed_without_raising(
+        self, mock_insert, settings
+    ):
+        settings.RESEARCH_SET_MAX_ITEMS = 500_000
+        settings.RESEARCH_INLINE_SET_MAX_ITEMS = 1000
+        mock_insert.side_effect = RuntimeError("insert broke")
+        project = ProjectFactory()
+
+        result_set = create_result_set(project, "Housing", QuerySpec(text="housing"))
+
+        assert result_set.status == ResultSet.Status.FAILED
+        assert "insert broke" in result_set.error
+
 
 @pytest.mark.django_db
 class TestSqlMaterialization:
@@ -102,6 +150,7 @@ class TestSqlMaterialization:
         mock_settings.RESEARCH_USE_SQL_MATERIALIZATION = True
         mock_settings.RESEARCH_SET_MAX_ITEMS = 500_000
         mock_settings.RESEARCH_INLINE_SET_MAX_ITEMS = 1000
+        mock_settings.RESEARCH_STATEMENT_TIMEOUT_MS = 900_000
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
@@ -117,7 +166,12 @@ class TestSqlMaterialization:
 
         materialize_result_set(result_set.id)
 
-        sql = mock_cursor.execute.call_args[0][0]
+        calls = mock_cursor.execute.call_args_list
+        timeout_sql, timeout_params = calls[0].args
+        assert "set_config('statement_timeout'" in timeout_sql
+        assert timeout_params == [str(mock_settings.RESEARCH_STATEMENT_TIMEOUT_MS)]
+
+        sql = calls[-1].args[0]
         assert "INSERT INTO research_setitem" in sql
         assert "paradedb.score(mp.id)" in sql
         assert "previous_disposition" in sql
