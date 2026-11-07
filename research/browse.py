@@ -86,10 +86,10 @@ def _text_match_page_ids(result_set, text: str) -> list[str]:
 
 def _ordered(items, order: str):
     if order == "date_asc":
-        return items.order_by(F("meeting_date").asc(nulls_last=True), "page")
+        return items.order_by(F("meeting_date").asc(nulls_last=True), "page_id")
     if order == "date_desc":
-        return items.order_by(F("meeting_date").desc(nulls_last=True), "page")
-    return items.order_by(F("rank").desc(nulls_last=True), "page")
+        return items.order_by(F("meeting_date").desc(nulls_last=True), "page_id")
+    return items.order_by(F("rank").desc(nulls_last=True), "page_id")
 
 
 def _cursor_value(item: SetItem, order: str) -> str:

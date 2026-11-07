@@ -1,12 +1,15 @@
 from datetime import date
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from research.browse import browse_set, set_facets
 from research.lens import Lens
 from research.models import SetItem
+from searches.queryspec import QuerySpec
 from tests.factories import (
     CodingFactory,
+    MeetingDocumentFactory,
     MeetingPageFactory,
     ResultSetFactory,
     SetItemFactory,
@@ -81,6 +84,43 @@ class TestBrowseSet:
         assert first_page == [older, newer]
         assert second_page == [undated]
 
+    def test_rank_tail_follows_page_id_not_related_ordering(self):
+        result_set = ResultSetFactory()
+        early_doc = MeetingDocumentFactory(meeting_date=date(2024, 1, 1))
+        late_doc = MeetingDocumentFactory(meeting_date=date(2024, 6, 1))
+        early_page = MeetingPageFactory(id="page-a", document=early_doc)
+        late_page = MeetingPageFactory(id="page-b", document=late_doc)
+        early = SetItemFactory(result_set=result_set, rank=None, page=early_page)
+        late = SetItemFactory(result_set=result_set, rank=None, page=late_page)
+
+        first_page, after = browse_set(result_set, Lens(), limit=1)
+        second_page, after2 = browse_set(result_set, Lens(), limit=1, after=after)
+
+        assert first_page == [early]
+        assert second_page == [late]
+        assert after2 is None
+
+    def test_date_tiebreaker_follows_page_id_not_page_number(self):
+        result_set = ResultSetFactory()
+        doc = MeetingDocumentFactory(meeting_date=date(2024, 3, 1))
+        page_a = MeetingPageFactory(id="page-a", document=doc, page_number=2)
+        page_b = MeetingPageFactory(id="page-b", document=doc, page_number=1)
+        item_a = SetItemFactory(
+            result_set=result_set, meeting_date=date(2024, 3, 1), page=page_a
+        )
+        item_b = SetItemFactory(
+            result_set=result_set, meeting_date=date(2024, 3, 1), page=page_b
+        )
+
+        first_page, after = browse_set(result_set, Lens(order="date_desc"), limit=1)
+        second_page, after2 = browse_set(
+            result_set, Lens(order="date_desc"), limit=1, after=after
+        )
+
+        assert first_page == [item_a]
+        assert second_page == [item_b]
+        assert after2 is None
+
     def test_state_and_disposition_filters(self):
         result_set, items = self._items()
         items[0].state = "CA"
@@ -100,6 +140,28 @@ class TestBrowseSet:
         result_set, items = self._items()
         visible, _ = browse_set(result_set, Lens(text="housing"))
         assert visible == items
+
+    def test_text_subsearch_combines_set_and_lens_text(self):
+        spec = QuerySpec(text="housing")
+        result_set = ResultSetFactory(
+            query=spec.canonical(), query_hash=spec.query_hash()
+        )
+        item = SetItemFactory(
+            result_set=result_set, page=MeetingPageFactory(text="housing zoning")
+        )
+        backend = MagicMock()
+        backend.search.return_value = ([{"id": item.page_id}], 1)
+
+        with patch(
+            "research.browse.search_backends.get_search_backend",
+            return_value=backend,
+        ):
+            visible, _ = browse_set(result_set, Lens(text="zoning"))
+
+        assert visible == [item]
+        assert backend.search.call_args.kwargs["query_text"] == (
+            "(housing) AND (zoning)"
+        )
 
 
 @pytest.mark.django_db

@@ -57,7 +57,7 @@ def test_from_querydict_parses_scalars_and_lists():
 
 
 def test_from_querydict_handles_repeated_keys_and_commas():
-    qd = QueryDict("state=CA,OR&state=WA&disposition=&q=")
+    qd = QueryDict("state=CA,OR&state=WA&q=")
 
     lens = Lens.from_querydict(qd)
 
@@ -77,6 +77,15 @@ def test_to_querystring_emits_only_non_defaults():
     assert Lens().to_querystring() == ""
     assert Lens(order="date_asc").to_querystring() == "order=date_asc"
     assert Lens(dispositions=("i",)).to_querystring() == "disposition=i"
+
+
+def test_empty_dispositions_round_trip():
+    lens = Lens(dispositions=())
+
+    query_string = lens.to_querystring()
+
+    assert query_string == "disposition="
+    assert Lens.from_querydict(QueryDict(query_string)) == lens
 
 
 def test_querystring_round_trip():

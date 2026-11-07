@@ -95,7 +95,10 @@ class Lens:
 
     @classmethod
     def from_querydict(cls, qd) -> Lens:
-        dispositions = _split_values(qd, "disposition") or DEFAULT_DISPOSITIONS
+        if "disposition" in qd:
+            dispositions = _split_values(qd, "disposition")
+        else:
+            dispositions = DEFAULT_DISPOSITIONS
         order = _scalar(qd, "order", "rank")
         return cls(
             text=_scalar(qd, "q"),
