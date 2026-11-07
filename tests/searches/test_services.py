@@ -259,36 +259,110 @@ class TestExecuteSearch:
         assert call_kwargs["document_type"] == "agenda"
         assert call_kwargs["meeting_name_query"] == "council"
         assert call_kwargs["limit"] == 10000
+        assert call_kwargs["modified_after"] is None
 
     @patch("searches.search_backends.get_search_backend")
-    def test_execute_search_logs_warning_at_cap(self, mock_get_backend, caplog):
-        """Test that hitting the 10,000 result cap logs a warning."""
+    def test_search_result_ids_paginates_when_uncapped(
+        self, mock_get_backend, settings
+    ):
+        from searches.services import search_result_ids
+
+        settings.SEARCH_RESULT_PAGE_SIZE = 3
+        mock_backend = mock_get_backend.return_value
+        mock_backend.search.side_effect = [
+            ([{"id": f"page-{i}"} for i in range(3)], 3),
+            ([{"id": "page-3"}], 1),
+        ]
+
+        search = SearchFactory(search_term="housing")
+
+        ids = search_result_ids(search, limit=None)
+
+        assert ids == ["page-0", "page-1", "page-2", "page-3"]
+        assert [
+            call.kwargs["offset"] for call in mock_backend.search.call_args_list
+        ] == [
+            0,
+            3,
+        ]
+
+    @patch("searches.search_backends.get_search_backend")
+    def test_search_result_ids_logs_warning_at_safety_ceiling(
+        self, mock_get_backend, caplog, settings
+    ):
         import logging
 
-        from searches.services import execute_search
+        from searches.services import search_result_ids
 
+        settings.SEARCH_MAX_RESULT_IDS = 2
         mock_backend = mock_get_backend.return_value
-        # Return exactly 10,000 results
-        mock_backend.search.return_value = (
-            [{"id": f"page-{i}"} for i in range(10000)],
-            10000,
-        )
+        mock_backend.search.return_value = ([{"id": "a"}, {"id": "b"}], 2)
 
-        search = SearchFactory(search_term="common")
+        search = SearchFactory(search_term="housing")
 
         with caplog.at_level(logging.WARNING):
-            execute_search(search)
+            search_result_ids(search, limit=None)
 
-        assert "10,000 result cap" in caplog.text
+        assert "result ceiling" in caplog.text
+
+
+@pytest.mark.django_db
+class TestSearchNewPages:
+    @patch("searches.search_backends.get_search_backend")
+    def test_cutoff_is_pushed_into_backend(self, mock_get_backend):
+        from django.utils import timezone
+
+        from searches.services import search_new_pages
+
+        muni = MuniFactory()
+        doc = MeetingDocumentFactory(municipality=muni)
+        page = MeetingPageFactory(document=doc, text="housing")
+        cutoff = timezone.now()
+
+        mock_backend = mock_get_backend.return_value
+        mock_backend.search.return_value = ([{"id": page.id}], 1)
+
+        search = SearchFactory(search_term="housing")
+        search.municipalities.add(muni)
+
+        new_pages, total = search_new_pages(search, cutoff)
+
+        assert list(new_pages) == [page]
+        assert total == 1
+        assert mock_backend.search.call_args.kwargs["modified_after"] == cutoff
+
+    @patch("searches.search_backends.get_search_backend")
+    def test_a_page_modified_after_cutoff_counts_as_new(self, mock_get_backend):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from searches.services import search_new_pages
+
+        muni = MuniFactory()
+        doc = MeetingDocumentFactory(municipality=muni)
+        page = MeetingPageFactory(document=doc, text="housing")
+
+        cutoff = timezone.now() - timedelta(days=1)
+        MeetingPage.objects.filter(pk=page.pk).update(modified=timezone.now())
+
+        mock_backend = mock_get_backend.return_value
+        mock_backend.search.return_value = ([{"id": page.id}], 1)
+
+        search = SearchFactory(search_term="housing")
+        search.municipalities.add(muni)
+
+        new_pages, _ = search_new_pages(search, cutoff)
+
+        assert list(new_pages) == [page]
 
 
 @pytest.mark.django_db
 class TestGetNewPages:
     """Test the get_new_pages() function that returns only new results."""
 
-    @patch("searches.search_backends.get_search_backend")
-    def test_get_new_pages_returns_only_new(self, mock_get_backend):
-        """Test that get_new_pages returns only pages created after last check timestamp."""
+    def test_get_new_pages_returns_only_new(self):
+        """Test that get_new_pages returns only pages modified after last check timestamp."""
         import time
 
         from django.utils import timezone
@@ -310,12 +384,6 @@ class TestGetNewPages:
 
         new_page = MeetingPageFactory(document=doc, text="housing budget")
 
-        # Mock backend returns all three pages
-        mock_backend = mock_get_backend.return_value
-        mock_backend.search.return_value = _mock_search_returning_ids(
-            [old_page1.id, old_page2.id, new_page.id]
-        )
-
         new_pages = get_new_pages(search)
 
         assert new_pages.count() == 1
@@ -323,8 +391,7 @@ class TestGetNewPages:
         assert old_page1 not in new_pages
         assert old_page2 not in new_pages
 
-    @patch("searches.search_backends.get_search_backend")
-    def test_get_new_pages_with_no_last_check(self, mock_get_backend):
+    def test_get_new_pages_with_no_last_check(self):
         """Test get_new_pages when last_checked_for_new_pages is None (first run)."""
         from searches.services import get_new_pages
 
@@ -339,20 +406,14 @@ class TestGetNewPages:
         search.last_checked_for_new_pages = None
         search.save()
 
-        mock_backend = mock_get_backend.return_value
-        mock_backend.search.return_value = _mock_search_returning_ids(
-            [page1.id, page2.id]
-        )
-
         new_pages = get_new_pages(search)
 
         assert new_pages.count() == 2
         assert page1 in new_pages
         assert page2 in new_pages
 
-    @patch("searches.search_backends.get_search_backend")
-    def test_get_new_pages_with_no_new_results(self, mock_get_backend):
-        """Test get_new_pages when all results were created before last check."""
+    def test_get_new_pages_with_no_new_results(self):
+        """Test get_new_pages when all results predate last check."""
         from django.utils import timezone
 
         from searches.services import get_new_pages
@@ -360,32 +421,23 @@ class TestGetNewPages:
         muni = MuniFactory()
         doc = MeetingDocumentFactory(municipality=muni)
 
-        page1 = MeetingPageFactory(document=doc, text="housing")
-        page2 = MeetingPageFactory(document=doc, text="housing")
+        _page1 = MeetingPageFactory(document=doc, text="housing")
+        _page2 = MeetingPageFactory(document=doc, text="housing")
 
         search = SearchFactory(search_term="housing")
         search.municipalities.add(muni)
         search.last_checked_for_new_pages = timezone.now()
         search.save()
 
-        mock_backend = mock_get_backend.return_value
-        mock_backend.search.return_value = _mock_search_returning_ids(
-            [page1.id, page2.id]
-        )
-
         new_pages = get_new_pages(search)
 
         assert new_pages.count() == 0
 
-    @patch("searches.search_backends.get_search_backend")
-    def test_get_new_pages_returns_queryset(self, mock_get_backend):
+    def test_get_new_pages_returns_queryset(self):
         """Test that get_new_pages returns a Django QuerySet."""
         from django.db.models import QuerySet
 
         from searches.services import get_new_pages
-
-        mock_backend = mock_get_backend.return_value
-        mock_backend.search.return_value = ([], 0)
 
         search = SearchFactory(search_term="test")
         search.last_checked_for_new_pages = None
@@ -401,16 +453,15 @@ class TestGetNewPages:
 class TestSearchServiceIntegration:
     """Integration tests for search service functions working together."""
 
-    @patch("searches.search_backends.get_search_backend")
-    def test_search_service_workflow(self, mock_get_backend):
+    def test_search_service_workflow(self):
         """Test complete workflow: execute_search -> track results -> get_new_pages."""
         from searches.services import execute_search, get_new_pages
 
         muni = MuniFactory()
         doc = MeetingDocumentFactory(municipality=muni)
 
-        page1 = MeetingPageFactory(document=doc, text="housing policy")
-        page2 = MeetingPageFactory(document=doc, text="housing budget")
+        _page1 = MeetingPageFactory(document=doc, text="housing policy")
+        _page2 = MeetingPageFactory(document=doc, text="housing budget")
 
         import time
 
@@ -420,12 +471,6 @@ class TestSearchServiceIntegration:
         search.municipalities.add(muni)
         search.last_checked_for_new_pages = None
         search.save()
-
-        # First execution - backend returns both pages
-        mock_backend = mock_get_backend.return_value
-        mock_backend.search.return_value = _mock_search_returning_ids(
-            [page1.id, page2.id]
-        )
 
         initial_results = execute_search(search)
         assert initial_results.count() == 2
@@ -444,11 +489,6 @@ class TestSearchServiceIntegration:
 
         # Add a new page
         page3 = MeetingPageFactory(document=doc, text="housing development")
-
-        # Backend now returns all three
-        mock_backend.search.return_value = _mock_search_returning_ids(
-            [page1.id, page2.id, page3.id]
-        )
 
         new_pages_third = get_new_pages(search)
         assert new_pages_third.count() == 1

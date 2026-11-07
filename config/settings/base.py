@@ -113,6 +113,12 @@ CACHES: dict[str, dict[str, Any]] = {
     }
 }
 
+# Absolute ceiling for an uncapped alert scan. A cutoff usually keeps this far
+# below the ceiling; the ceiling only protects memory on pathological backfills.
+SEARCH_MAX_RESULT_IDS = env.int("SEARCH_MAX_RESULT_IDS", 200_000)
+# How many ids one backend round-trip fetches while paging an uncapped scan.
+SEARCH_RESULT_PAGE_SIZE = env.int("SEARCH_RESULT_PAGE_SIZE", 10_000)
+
 AUTHENTICATION_BACKENDS = (
     "stagedoor.backends.EmailTokenBackend",
     "django.contrib.auth.backends.ModelBackend",

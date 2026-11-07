@@ -64,6 +64,7 @@ def _build_mock_backend():
         date_to = kwargs.get("date_to")
         document_type = kwargs.get("document_type")
         meeting_name_query = kwargs.get("meeting_name_query")
+        modified_after = kwargs.get("modified_after")
         limit = kwargs.get("limit", 100)
         offset = kwargs.get("offset", 0)
 
@@ -86,6 +87,8 @@ def _build_mock_backend():
             qs = qs.filter(meeting_date__lte=date_to)
         if document_type and document_type != "all":
             qs = qs.filter(document_type=document_type)
+        if modified_after:
+            qs = qs.filter(modified__gte=modified_after)
 
         total = qs.count()
         page_slice = qs[offset : offset + limit]
