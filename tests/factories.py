@@ -5,6 +5,7 @@ import factory
 from django.contrib.auth import get_user_model
 from factory.django import DjangoModelFactory
 
+import research.models
 from apikeys.models import APIKey
 from meetings.models import MeetingDocument, MeetingPage
 from municipalities.models import Muni
@@ -176,3 +177,80 @@ class DigestSubscriptionFactory(DjangoModelFactory):
     municipality = factory.SubFactory(MuniFactory)  # type: ignore
     is_active = True
     last_digest_sent = None
+
+
+class ProjectFactory(DjangoModelFactory):
+    class Meta:
+        model = research.models.Project
+
+    owner = factory.SubFactory(UserFactory)  # type: ignore
+    name = factory.Faker("sentence", nb_words=3)  # type: ignore
+    description = ""
+
+
+class ResultSetFactory(DjangoModelFactory):
+    class Meta:
+        model = research.models.ResultSet
+
+    project = factory.SubFactory(ProjectFactory)  # type: ignore
+    name = factory.Faker("sentence", nb_words=3)  # type: ignore
+    origin = "query"
+    query = factory.LazyFunction(dict)  # type: ignore
+    query_hash = ""
+
+
+class SetItemFactory(DjangoModelFactory):
+    class Meta:
+        model = research.models.SetItem
+
+    result_set = factory.SubFactory(ResultSetFactory)  # type: ignore
+    page = factory.SubFactory(MeetingPageFactory)  # type: ignore
+    rank = 1.0
+    meeting_date = factory.LazyAttribute(lambda o: o.page.meeting_date)  # type: ignore
+    municipality_id = factory.LazyAttribute(lambda o: o.page.municipality_id)  # type: ignore
+    state = factory.LazyAttribute(lambda o: o.page.state)  # type: ignore
+    document_type = factory.LazyAttribute(lambda o: o.page.document_type)  # type: ignore
+    added_via = "query"
+
+
+class CodeFactory(DjangoModelFactory):
+    class Meta:
+        model = research.models.Code
+
+    project = factory.SubFactory(ProjectFactory)  # type: ignore
+    name = factory.Sequence(lambda n: f"Code {n}")  # type: ignore
+
+
+class CodingFactory(DjangoModelFactory):
+    class Meta:
+        model = research.models.Coding
+
+    project = factory.LazyAttribute(lambda o: o.code.project)  # type: ignore
+    code = factory.SubFactory(CodeFactory)  # type: ignore
+    page = factory.SubFactory(MeetingPageFactory)  # type: ignore
+
+
+class MemoFactory(DjangoModelFactory):
+    class Meta:
+        model = research.models.Memo
+
+    project = factory.SubFactory(ProjectFactory)  # type: ignore
+    body = factory.Faker("paragraph")  # type: ignore
+
+
+class IgnoreRuleFactory(DjangoModelFactory):
+    class Meta:
+        model = research.models.IgnoreRule
+
+    project = factory.SubFactory(ProjectFactory)  # type: ignore
+    name = factory.Faker("sentence", nb_words=3)  # type: ignore
+    predicate = factory.LazyFunction(dict)  # type: ignore
+
+
+class AuditEventFactory(DjangoModelFactory):
+    class Meta:
+        model = research.models.AuditEvent
+
+    project = factory.SubFactory(ProjectFactory)  # type: ignore
+    verb = "set.materialized"
+    payload = factory.LazyFunction(dict)  # type: ignore
