@@ -110,6 +110,39 @@ class TestCoding:
                     span_end=10,
                 )
 
+    def test_one_sided_span_start_rejected(self):
+        coding = CodingFactory()
+        with pytest.raises(IntegrityError):
+            with transaction.atomic():
+                CodingFactory(
+                    project=coding.project,
+                    code=coding.code,
+                    page=coding.page,
+                    span_start=5,
+                )
+
+    def test_one_sided_span_end_rejected(self):
+        coding = CodingFactory()
+        with pytest.raises(IntegrityError):
+            with transaction.atomic():
+                CodingFactory(
+                    project=coding.project,
+                    code=coding.code,
+                    page=coding.page,
+                    span_end=5,
+                )
+
+    def test_valid_span_accepted(self):
+        coding = CodingFactory(span_start=1, span_end=2)
+        coding.refresh_from_db()
+        assert coding.span_start == 1
+        assert coding.span_end == 2
+
+    def test_factory_code_matches_coding_project(self):
+        project = ProjectFactory()
+        coding = CodingFactory(project=project)
+        assert coding.code.project == project
+
     def test_defaults(self):
         coding = CodingFactory()
         assert coding.span_start is None

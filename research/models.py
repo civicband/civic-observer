@@ -234,13 +234,17 @@ class Coding(TimeStampedModel):
             models.CheckConstraint(
                 condition=(
                     models.Q(span_start__isnull=True, span_end__isnull=True)
-                    | models.Q(span_start__lt=models.F("span_end"))
+                    | models.Q(
+                        span_start__isnull=False,
+                        span_end__isnull=False,
+                        span_start__lt=models.F("span_end"),
+                    )
                 ),
                 name="research_coding_valid_span",
             ),
             models.UniqueConstraint(
                 fields=["code", "page"],
-                condition=models.Q(span_start__isnull=True),
+                condition=models.Q(span_start__isnull=True, span_end__isnull=True),
                 name="research_coding_uniq_page",
             ),
             models.UniqueConstraint(

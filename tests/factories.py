@@ -225,8 +225,10 @@ class CodingFactory(DjangoModelFactory):
     class Meta:
         model = research.models.Coding
 
-    project = factory.LazyAttribute(lambda o: o.code.project)  # type: ignore
-    code = factory.SubFactory(CodeFactory)  # type: ignore
+    code = factory.SubFactory(  # type: ignore
+        CodeFactory, project=factory.SelfAttribute("..project")
+    )
+    project = factory.SubFactory(ProjectFactory)  # type: ignore
     page = factory.SubFactory(MeetingPageFactory)  # type: ignore
 
 
