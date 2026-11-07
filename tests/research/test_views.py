@@ -198,6 +198,36 @@ class TestSetDetailView:
 
         assert response.status_code == 404
 
+    def test_set_with_a_different_owned_project_returns_404(self, client):
+        user, _project, result_set = self._ready_set()
+        other_project = ProjectFactory(owner=user)
+
+        client.force_login(user)
+        response = client.get(
+            reverse("research:set-detail", args=[other_project.id, result_set.id])
+        )
+
+        assert response.status_code == 404
+
+    def test_invalid_after_falls_back_to_first_page(self, client):
+        user, project, result_set = self._ready_set()
+        document = MeetingDocumentFactory(meeting_name="FallbackMeeting")
+        SetItemFactory(
+            result_set=result_set,
+            page=MeetingPageFactory(document=document),
+            rank=1.0,
+        )
+
+        client.force_login(user)
+        response = client.get(
+            reverse("research:set-detail", args=[project.id, result_set.id])
+            + "?after=not-a-cursor"
+        )
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "FallbackMeeting" in content
+
     def test_renders_items_and_facets(self, client):
         user, project, result_set = self._ready_set()
         muni = MuniFactory(state="CA", name="Springfield")
@@ -225,7 +255,9 @@ class TestSetDetailView:
 
     def test_orphan_page_is_skipped(self, client):
         user, project, result_set = self._ready_set()
-        item = SetItemFactory(result_set=result_set)
+        document = MeetingDocumentFactory(meeting_name="OrphanMeeting")
+        page = MeetingPageFactory(document=document, text="orphan body text")
+        item = SetItemFactory(result_set=result_set, page=page)
         SetItem.objects.filter(pk=item.pk).update(page_id="missing-page")
 
         client.force_login(user)
@@ -233,7 +265,10 @@ class TestSetDetailView:
             reverse("research:set-detail", args=[project.id, result_set.id])
         )
 
+        content = response.content.decode()
         assert response.status_code == 200
+        assert "OrphanMeeting" not in content
+        assert "orphan body text" not in content
 
     def test_keyset_pagination_with_after(self, client):
         user, project, result_set = self._ready_set()
@@ -263,6 +298,28 @@ class TestSetDetailView:
         assert "SecondMeeting" in content
         assert "FirstMeeting" not in content
         assert first.page_id not in content
+
+    def test_next_link_preserves_lens_querystring(self, client):
+        user, project, result_set = self._ready_set()
+        muni = MuniFactory(state="CA")
+        document = MeetingDocumentFactory(municipality=muni)
+        for rank in range(51, 0, -1):
+            SetItemFactory(
+                result_set=result_set,
+                page=MeetingPageFactory(document=document),
+                rank=float(rank),
+            )
+
+        client.force_login(user)
+        response = client.get(
+            reverse("research:set-detail", args=[project.id, result_set.id])
+            + "?state=CA"
+        )
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "Next" in content
+        assert "?state=CA&after=" in content
 
     def test_pending_set_renders_polling_status(self, client):
         user = UserFactory()
@@ -319,6 +376,23 @@ class TestSetStatusView:
         assert 'hx-trigger="every 2s"' in content
         assert 'hx-swap="outerHTML"' in content
         assert "Pending" in content
+
+    def test_ready_link_preserves_lens(self, client):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(
+            project=project, status=ResultSet.Status.READY, item_count=4
+        )
+
+        client.force_login(user)
+        response = client.get(
+            reverse("research:set-status", args=[project.id, result_set.id])
+            + "?state=CA"
+        )
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "?state=CA" in content
 
     def test_too_large_shows_error_and_narrowing_hint(self, client):
         user = UserFactory()

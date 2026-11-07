@@ -112,9 +112,11 @@ class SetDetailView(LoginRequiredMixin, DetailView):
         context["facets"] = {}
 
         if result_set.status == ResultSet.Status.READY:
-            items, next_cursor = browse_set(
-                result_set, lens, after=self.request.GET.get("after") or None
-            )
+            after = self.request.GET.get("after") or None
+            try:
+                items, next_cursor = browse_set(result_set, lens, after=after)
+            except (TypeError, ValueError):
+                items, next_cursor = browse_set(result_set, lens, after=None)
             context["items"] = items
             context["next_cursor"] = next_cursor
             context["facets"] = self._municipality_names(set_facets(result_set, lens))
@@ -144,7 +146,10 @@ class SetStatusView(LoginRequiredMixin, View):
         )
         html = render_to_string(
             "research/partials/set_status.html",
-            {"result_set": result_set},
+            {
+                "result_set": result_set,
+                "querystring": Lens.from_querydict(request.GET).to_querystring(),
+            },
             request=request,
         )
         return HttpResponse(html)

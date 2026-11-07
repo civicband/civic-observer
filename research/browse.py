@@ -19,7 +19,7 @@ PAGE_SIZE = 1000
 
 
 def _filtered_items(result_set, lens: Lens):
-    items = SetItem.objects.filter(result_set=result_set)
+    items = SetItem.objects.filter(result_set=result_set, page__isnull=False)
 
     if lens.dispositions:
         items = items.filter(disposition__in=lens.dispositions)

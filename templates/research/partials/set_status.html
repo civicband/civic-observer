@@ -1,7 +1,7 @@
 {% if result_set.status == "ready" %}
     <div id="set-status"
          class="mt-8 bg-white shadow rounded-lg border border-gray-200"
-         hx-get="{% url 'research:set-detail' result_set.project_id result_set.id %}"
+         hx-get="{% url 'research:set-detail' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}{% endif %}"
          hx-trigger="load"
          hx-select="#research-set"
          hx-target="#set-status"
@@ -9,7 +9,7 @@
         <div class="px-4 py-5 sm:p-6">
             <h2 class="text-lg font-medium text-gray-900">{{ result_set.get_status_display }}</h2>
             <p class="mt-1 text-sm text-gray-600">This set is ready. Loading the results now.</p>
-            <a href="{% url 'research:set-detail' result_set.project_id result_set.id %}"
+            <a href="{% url 'research:set-detail' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}{% endif %}"
                class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
                 View results
             </a>
@@ -35,7 +35,7 @@
 {% else %}
     <div id="set-status"
          class="mt-8 bg-white shadow rounded-lg border border-gray-200"
-         hx-get="{% url 'research:set-status' result_set.project_id result_set.id %}"
+         hx-get="{% url 'research:set-status' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}{% endif %}"
          hx-trigger="every 2s"
          hx-swap="outerHTML">
         <div class="px-4 py-5 sm:p-6">
