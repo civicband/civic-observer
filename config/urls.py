@@ -40,6 +40,7 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("munis/", include("municipalities.urls")),
     path("notebooks/", include("notebooks.urls")),
     path("notifications/", include("notifications.urls")),
+    path("research/", include("research.urls")),
     path("searches/", include("searches.urls")),
     # Public topics - moved to root level
     path("topics/", public_search_list, name="public-search-list"),

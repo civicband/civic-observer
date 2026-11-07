@@ -1,0 +1,56 @@
+{% if items %}
+    <div class="space-y-4">
+        {% for item in items %}
+            {% if item.page %}
+                <div class="bg-white shadow rounded-lg border border-gray-200 p-6">
+                    <div class="flex items-start justify-between gap-4">
+                        <div class="flex-1 min-w-0">
+                            <h3 class="text-lg font-semibold text-gray-900">
+                                {{ item.page.meeting_name|default:item.page.document.meeting_name }}
+                            </h3>
+                            <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-500">
+                                {% if item.page.municipality_name %}
+                                    <span>{{ item.page.municipality_name }}{% if item.state %}, {{ item.state }}{% endif %}</span>
+                                    <span>·</span>
+                                {% endif %}
+                                {% if item.meeting_date %}
+                                    <span>{{ item.meeting_date|date:"F j, Y" }}</span>
+                                    <span>·</span>
+                                {% endif %}
+                                <span>{{ item.document_type|default:item.page.document_type|capfirst }}</span>
+                                <span>·</span>
+                                <span>Page {{ item.page.page_number }}</span>
+                            </div>
+                        </div>
+                        <div class="flex-shrink-0">
+                            {% if item.disposition == "r" %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">{{ item.get_disposition_display }}</span>
+                            {% elif item.disposition == "i" %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">{{ item.get_disposition_display }}</span>
+                            {% else %}
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">{{ item.get_disposition_display }}</span>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% if item.page.text %}
+                        <p class="mt-3 text-sm text-gray-700 leading-relaxed">{{ item.page.text|truncatewords:50 }}</p>
+                    {% endif %}
+                </div>
+            {% endif %}
+        {% endfor %}
+    </div>
+
+    {% if next_cursor %}
+        <div class="mt-6 flex justify-end">
+            <a href="{% url 'research:set-detail' result_set.project_id result_set.id %}?{% if querystring %}{{ querystring }}&{% endif %}after={{ next_cursor|urlencode }}"
+               class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                Next
+            </a>
+        </div>
+    {% endif %}
+{% else %}
+    <div class="text-center py-12 bg-white rounded-lg border border-gray-200">
+        <h3 class="text-lg font-medium text-gray-900">No pages in this view</h3>
+        <p class="mt-2 text-gray-500">Try clearing filters or creating a set with a broader query.</p>
+    </div>
+{% endif %}
