@@ -161,3 +161,20 @@ class TestBuildWhere:
     def test_alias_can_be_removed(self):
         where, _ = build_where(QuerySpec(text="housing"), alias="")
         assert where == "id @@@ paradedb.parse(%s)"
+
+
+class TestFromCanonical:
+    def test_round_trips_canonical_json(self):
+        spec = QuerySpec(
+            text=" housing ",
+            meeting_name=" council ",
+            municipality_ids=(uuid.UUID(int=3),),
+            states=("OR", "CA"),
+            date_from=date(2024, 1, 2),
+            date_to=date(2024, 3, 4),
+            document_type="agenda",
+            modified_after=datetime(2024, 6, 1, tzinfo=UTC),
+        )
+        rebuilt = QuerySpec.from_canonical(spec.canonical())
+        assert rebuilt.canonical() == spec.canonical()
+        assert rebuilt.query_hash() == spec.query_hash()

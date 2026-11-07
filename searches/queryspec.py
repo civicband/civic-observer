@@ -58,6 +58,29 @@ class QuerySpec:
         return hashlib.sha256(self.canonical_json().encode()).hexdigest()
 
     @classmethod
+    def from_canonical(cls, data: dict) -> QuerySpec:
+        return cls(
+            text=data.get("text", ""),
+            meeting_name=data.get("meeting_name", ""),
+            municipality_ids=tuple(
+                uuid.UUID(value) for value in data.get("municipality_ids", [])
+            ),
+            states=tuple(data.get("states", [])),
+            date_from=(
+                date.fromisoformat(data["date_from"]) if data.get("date_from") else None
+            ),
+            date_to=date.fromisoformat(data["date_to"])
+            if data.get("date_to")
+            else None,
+            document_type=data.get("document_type", "all"),
+            modified_after=(
+                datetime.fromisoformat(data["modified_after"])
+                if data.get("modified_after")
+                else None
+            ),
+        )
+
+    @classmethod
     def from_search(
         cls, search, *, modified_after: datetime | None = None
     ) -> QuerySpec:
