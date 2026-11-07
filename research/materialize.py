@@ -47,8 +47,9 @@ def create_result_set(
         result_set.status = ResultSet.Status.TOO_LARGE
         result_set.item_count = count
         result_set.error = (
-            f"This query matches {count} pages, more than the {max_items:,}-page "
-            "set limit. Narrow the query by state, body, or date."
+            f"This query matches at least {count} pages, more than the "
+            f"{max_items:,}-page set limit. Narrow the query by state, body, "
+            "or date."
         )
         result_set.save(update_fields=["status", "item_count", "error", "modified"])
         return result_set
@@ -136,9 +137,10 @@ def _insert_items_sql(result_set: ResultSet, now) -> None:
     sql = f"""
         INSERT INTO research_setitem
             (result_set_id, page_id, rank, meeting_date, municipality_id,
-             state, document_type, disposition, added_via, added_at)
+             state, document_type, disposition, previous_disposition,
+             ignore_reason, added_via, added_at)
         SELECT %s, mp.id, {rank_sql}, mp.meeting_date, mp.municipality_id,
-               mp.state, mp.document_type, %s, %s, %s
+               mp.state, mp.document_type, %s, '', '', %s, %s
         FROM meetings_meetingpage mp
         WHERE {where_sql}
         ON CONFLICT (result_set_id, page_id) DO NOTHING

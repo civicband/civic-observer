@@ -5,6 +5,7 @@ import pytest
 
 from research.materialize import create_result_set, materialize_result_set
 from research.models import AuditEvent, ResultSet
+from research.tasks import materialize_result_set_task
 from searches.queryspec import QuerySpec
 from tests.factories import (
     MeetingDocumentFactory,
@@ -70,6 +71,28 @@ class TestCreateResultSet:
         assert result_set.items.count() == 1
         assert result_set.items.get().page_id == page.id
 
+    @patch("django_rq.get_queue")
+    def test_large_set_enqueues_without_materializing(self, mock_get_queue, settings):
+        settings.RESEARCH_SET_MAX_ITEMS = 10
+        settings.RESEARCH_INLINE_SET_MAX_ITEMS = 1
+        muni = MuniFactory()
+        doc = MeetingDocumentFactory(municipality=muni)
+        MeetingPageFactory(document=doc, text="housing")
+        MeetingPageFactory(document=doc, text="housing")
+        MeetingPageFactory(document=doc, text="housing")
+        project = ProjectFactory()
+
+        result_set = create_result_set(project, "Housing", QuerySpec(text="housing"))
+
+        mock_get_queue.assert_called_once_with(settings.RESEARCH_QUEUE)
+        mock_get_queue.return_value.enqueue.assert_called_once_with(
+            materialize_result_set_task,
+            result_set.id,
+            job_timeout=settings.RESEARCH_JOB_TIMEOUT,
+        )
+        assert result_set.status == ResultSet.Status.PENDING
+        assert result_set.items.count() == 0
+
 
 @pytest.mark.django_db
 class TestSqlMaterialization:
@@ -82,7 +105,6 @@ class TestSqlMaterialization:
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
         mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
-        mock_cursor.rowcount = 3
 
         project = ProjectFactory()
         result_set = ResultSet.objects.create(
@@ -98,5 +120,45 @@ class TestSqlMaterialization:
         sql = mock_cursor.execute.call_args[0][0]
         assert "INSERT INTO research_setitem" in sql
         assert "paradedb.score(mp.id)" in sql
+        assert "previous_disposition" in sql
+        assert "ignore_reason" in sql
         assert "ON CONFLICT (result_set_id, page_id) DO NOTHING" in sql
         assert "mp.id @@@ paradedb.parse(%s)" in sql
+
+
+@pytest.mark.django_db
+class TestSqlMaterializationAgainstPostgres:
+    def test_state_filtered_set_materializes_and_is_idempotent(self, settings):
+        settings.RESEARCH_USE_SQL_MATERIALIZATION = True
+
+        ca = MuniFactory(state="CA")
+        ca_doc = MeetingDocumentFactory(municipality=ca)
+        first = MeetingPageFactory(document=ca_doc, text="first")
+        second = MeetingPageFactory(document=ca_doc, text="second")
+        or_ = MuniFactory(state="OR")
+        or_doc = MeetingDocumentFactory(municipality=or_)
+        MeetingPageFactory(document=or_doc, text="third")
+        project = ProjectFactory()
+
+        spec = QuerySpec(states=("CA",))
+        result_set = ResultSet.objects.create(
+            project=project,
+            name="California pages",
+            origin=ResultSet.Origin.QUERY,
+            query=spec.canonical(),
+            query_hash=spec.query_hash(),
+        )
+
+        result_set = materialize_result_set(result_set.id)
+
+        assert result_set.status == ResultSet.Status.READY
+        assert result_set.item_count == 2
+        items = list(result_set.items.all())
+        assert {item.page_id for item in items} == {first.id, second.id}
+        assert all(item.rank is None for item in items)
+        assert all(item.previous_disposition == "" for item in items)
+        assert all(item.ignore_reason == "" for item in items)
+
+        materialize_result_set(result_set.id)
+
+        assert result_set.items.count() == 2
