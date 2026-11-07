@@ -6,7 +6,7 @@ aren't available in test databases without the ParadeDB extension, these tests
 mock the database cursor to verify SQL construction and result parsing.
 """
 
-from datetime import date
+from datetime import UTC, date, datetime
 from unittest.mock import MagicMock, patch
 
 import redis
@@ -418,3 +418,35 @@ class TestSnippetSanitization:
 
     def test_none_snippet_passes_through(self):
         assert PgSearchBackend._row_to_dict(self._row(None))["snippet"] is None
+
+
+class TestModifiedAfter:
+    @patch("searches.search_backends.connection")
+    def test_search_filters_on_modified(self, mock_conn):
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchall.return_value = []
+
+        cutoff = datetime(2024, 6, 1, tzinfo=UTC)
+
+        backend = PgSearchBackend()
+        backend.search(query_text="housing", modified_after=cutoff)
+
+        sql = mock_cursor.execute.call_args[0][0]
+        params = mock_cursor.execute.call_args[0][1]
+
+        assert "mp.modified >= %s" in sql
+        assert cutoff in params
+
+    @patch("searches.search_backends.connection")
+    def test_order_has_unique_id_tiebreaker(self, mock_conn):
+        mock_cursor = MagicMock()
+        mock_conn.cursor.return_value.__enter__ = MagicMock(return_value=mock_cursor)
+        mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
+        mock_cursor.fetchall.return_value = []
+
+        PgSearchBackend().search(query_text="housing")
+
+        sql = mock_cursor.execute.call_args[0][0]
+        assert "ORDER BY paradedb.score(id) DESC, meeting_date DESC, id" in sql

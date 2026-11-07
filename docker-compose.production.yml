@@ -12,7 +12,7 @@ x-django-settings: &django-settings
 
 x-django-worker: &django-worker
   <<: *django-settings
-  command: python manage.py rqworker default
+  command: python manage.py rqworker default research
 
 # NOTE: the old x-django-web anchor (shared --port 8000 + healthcheck on :8000)
 # is gone. Under host networking blue and green can't share a port, so each

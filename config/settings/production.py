@@ -197,6 +197,11 @@ RQ_QUEUES: dict[str, dict[str, Any]] = {  # type: ignore[no-redef]
         "DEFAULT_TIMEOUT": 360,
         "ASYNC": True,
     },
+    "research": {
+        "URL": REDIS_URL,
+        "DEFAULT_TIMEOUT": 1800,
+        "ASYNC": True,
+    },
 }
 
 # Umami Analytics - enabled in production

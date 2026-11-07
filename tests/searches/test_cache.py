@@ -14,6 +14,7 @@ import redis
 from django.core.cache import cache
 
 from searches.cache import (
+    _make_search_cache_key,
     get_cached_search_results,
     invalidate_all_search_caches,
     invalidate_search_cache_for_municipality,
@@ -633,3 +634,25 @@ class TestCacheBackendResilience:
             total_count=1,
             search_term="housing",
         )
+
+
+class TestModifiedAfterCacheKey:
+    def test_modified_after_changes_cache_key(self):
+        base = {
+            "search_term": "housing",
+            "municipalities": [],
+            "states": [],
+            "date_from": None,
+            "date_to": None,
+            "document_type": "all",
+            "meeting_name_query": "",
+            "limit": 100,
+            "offset": 0,
+        }
+
+        without = _make_search_cache_key(**base, modified_after=None)
+        with_cutoff = _make_search_cache_key(
+            **base, modified_after="2024-06-01T00:00:00+00:00"
+        )
+
+        assert without != with_cutoff

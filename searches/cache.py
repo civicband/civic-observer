@@ -33,6 +33,7 @@ def _make_search_cache_key(
     meeting_name_query: str,
     limit: int,
     offset: int,
+    modified_after: str | None = None,
 ) -> str:
     """
     Generate a unique cache key for a search query.
@@ -57,6 +58,7 @@ def _make_search_cache_key(
         "meeting": meeting_name_query.strip().lower() if meeting_name_query else "",
         "limit": limit,
         "offset": offset,
+        "modified_after": modified_after or "",
     }
 
     # Create stable JSON representation
@@ -105,6 +107,7 @@ def get_cached_search_results(
     meeting_name_query: str = "",
     limit: int = 100,
     offset: int = 0,
+    modified_after: str | None = None,
 ) -> tuple[list[dict[str, Any]], int] | None:
     """
     Get cached search results if available.
@@ -125,6 +128,7 @@ def get_cached_search_results(
         meeting_name_query=meeting_name_query,
         limit=limit,
         offset=offset,
+        modified_after=modified_after,
     )
 
     result = safe_cache_get(cache_key)
@@ -161,6 +165,7 @@ def set_cached_search_results(
     meeting_name_query: str = "",
     limit: int = 100,
     offset: int = 0,
+    modified_after: str | None = None,
     timeout: int = 300,  # 5 minutes default
 ) -> None:
     """
@@ -182,6 +187,7 @@ def set_cached_search_results(
         meeting_name_query=meeting_name_query,
         limit=limit,
         offset=offset,
+        modified_after=modified_after,
     )
 
     safe_cache_set(cache_key, (results, total_count), timeout)

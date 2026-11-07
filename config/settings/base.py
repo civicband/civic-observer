@@ -113,6 +113,12 @@ CACHES: dict[str, dict[str, Any]] = {
     }
 }
 
+# Absolute ceiling for an uncapped alert scan. A cutoff usually keeps this far
+# below the ceiling; the ceiling only protects memory on pathological backfills.
+SEARCH_MAX_RESULT_IDS = env.int("SEARCH_MAX_RESULT_IDS", 200_000)
+# How many ids one backend round-trip fetches while paging an uncapped scan.
+SEARCH_RESULT_PAGE_SIZE = env.int("SEARCH_RESULT_PAGE_SIZE", 10_000)
+
 AUTHENTICATION_BACKENDS = (
     "stagedoor.backends.EmailTokenBackend",
     "django.contrib.auth.backends.ModelBackend",
@@ -185,6 +191,19 @@ RQ_QUEUES: dict[str, dict[str, Any]] = {
     },
 }
 RQ_SHOW_ADMIN_LINK = True
+
+# Research set materialization runs on its own queue so a 500k-row snapshot
+# never delays alert delivery on ``default``.
+RESEARCH_QUEUE = "research"
+RQ_QUEUES["research"] = {
+    "URL": REDIS_URL,
+    "DEFAULT_TIMEOUT": 1800,
+}
+
+# Initial ceiling from the design; tune after research_benchmark results.
+RESEARCH_SET_MAX_ITEMS = env.int("RESEARCH_SET_MAX_ITEMS", 500_000)
+RESEARCH_INLINE_SET_MAX_ITEMS = env.int("RESEARCH_INLINE_SET_MAX_ITEMS", 1_000)
+RESEARCH_JOB_TIMEOUT = env.int("RESEARCH_JOB_TIMEOUT", 1800)
 
 # Backfill Configuration
 INCREMENTAL_BACKFILL_MONTHS = 6  # ±6 months from today
