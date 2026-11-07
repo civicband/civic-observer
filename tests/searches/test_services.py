@@ -329,7 +329,43 @@ class TestSearchNewPages:
 
         assert list(new_pages) == [page]
         assert total == 1
-        assert mock_backend.search.call_args.kwargs["modified_after"] == cutoff
+        assert any(
+            call.kwargs["modified_after"] == cutoff
+            for call in mock_backend.search.call_args_list
+        )
+
+    def test_total_counts_all_matching_pages_not_just_new(self):
+        from datetime import timedelta
+
+        from django.utils import timezone
+
+        from searches.services import search_new_pages
+
+        muni = MuniFactory()
+        doc = MeetingDocumentFactory(municipality=muni)
+        old_page1 = MeetingPageFactory(document=doc, text="housing one")
+        old_page2 = MeetingPageFactory(document=doc, text="housing two")
+        new_page = MeetingPageFactory(document=doc, text="housing three")
+
+        cutoff = timezone.now() - timedelta(days=1)
+        MeetingPage.objects.filter(pk__in=[old_page1.pk, old_page2.pk]).update(
+            modified=cutoff - timedelta(days=1)
+        )
+        MeetingPage.objects.filter(pk=new_page.pk).update(
+            modified=cutoff + timedelta(days=1)
+        )
+
+        search = SearchFactory(search_term="housing")
+        search.municipalities.add(muni)
+
+        new_pages, total = search_new_pages(search, cutoff)
+
+        assert list(new_pages) == [new_page]
+        assert total == 3
+
+        search.update_search(since=cutoff)
+        search.refresh_from_db()
+        assert search.last_result_count == 3
 
     def test_a_page_modified_after_cutoff_counts_as_new(self):
         from datetime import timedelta

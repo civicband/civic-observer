@@ -174,7 +174,21 @@ def search_new_pages(search, cutoff):
 
     The cutoff is pushed into the BM25 query, so there is no 10,000-id cap and
     no second ``created`` filter in Python. ``cutoff=None`` means every match.
+
+    Returns ``(new_pages, total)`` where ``total`` is the number of pages
+    matching the search, capped at 10,000 and deliberately computed without the
+    cutoff so ``Search.last_result_count`` keeps meaning "pages matching this
+    search", not "pages new since the last check". On the first run
+    (``cutoff is None``) the same capped query supplies both values.
+
+    Note: ``modified`` advances on every backfill re-upsert, so a backfill may
+    re-report unchanged pages as new. Research sets dedupe with ``ON CONFLICT``;
+    saved searches do not yet.
     """
-    page_ids = search_result_ids(search, limit=None, modified_after=cutoff)
-    new_pages = _pages_for_ids(page_ids)
-    return new_pages, len(page_ids)
+    if cutoff is None:
+        page_ids = search_result_ids(search, limit=10000)
+        return _pages_for_ids(page_ids), len(page_ids)
+
+    new_ids = search_result_ids(search, limit=None, modified_after=cutoff)
+    total_ids = search_result_ids(search, limit=10000)
+    return _pages_for_ids(new_ids), len(total_ids)
