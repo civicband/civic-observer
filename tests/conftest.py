@@ -97,6 +97,28 @@ def _build_mock_backend():
 
     mock_backend.search.side_effect = search_side_effect
     mock_backend.search_with_cache.side_effect = search_side_effect
+
+    def count_side_effect(spec, cap):
+        qs = MeetingPage.objects.all()
+        if spec.text:
+            qs = qs.filter(text__icontains=spec.text)
+        if spec.meeting_name:
+            qs = qs.filter(meeting_name__icontains=spec.meeting_name)
+        if spec.municipality_ids:
+            qs = qs.filter(municipality_id__in=spec.municipality_ids)
+        if spec.states:
+            qs = qs.filter(state__in=spec.states)
+        if spec.date_from:
+            qs = qs.filter(meeting_date__gte=spec.date_from)
+        if spec.date_to:
+            qs = qs.filter(meeting_date__lte=spec.date_to)
+        if spec.document_type and spec.document_type != "all":
+            qs = qs.filter(document_type=spec.document_type)
+        if spec.modified_after:
+            qs = qs.filter(modified__gte=spec.modified_after)
+        return min(qs.count(), cap)
+
+    mock_backend.count_matches.side_effect = count_side_effect
     return mock_backend
 
 

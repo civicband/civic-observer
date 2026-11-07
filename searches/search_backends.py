@@ -167,6 +167,10 @@ class SearchBackend(ABC):
         """Return the name of this backend."""
         pass
 
+    def count_matches(self, spec: QuerySpec, cap: int) -> int:
+        """Return the number of matches, counting no more than ``cap``."""
+        raise NotImplementedError
+
 
 # Above this many matches the UI shows "{COUNT_CAP}+" instead of an exact total.
 # An exact count means enumerating the whole match set (~1.9s for a 380k-hit
@@ -179,6 +183,20 @@ class PgSearchBackend(SearchBackend):  # noqa: F821 — defined in search_backen
 
     def get_backend_name(self) -> str:
         return "pg_search"
+
+    def count_matches(self, spec: QuerySpec, cap: int) -> int:
+        """Return the number of matches, counting no more than ``cap``."""
+        where_sql, params = build_where(spec)
+        sql = f"""
+            SELECT count(*) FROM (
+                SELECT 1 FROM meetings_meetingpage mp
+                WHERE {where_sql}
+                LIMIT %s
+            ) capped
+        """
+        with connection.cursor() as cur:
+            cur.execute(sql, params + [cap])
+            return cur.fetchone()[0]
 
     def search(
         self,

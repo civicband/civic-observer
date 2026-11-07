@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+
+{% block title %}{{ result_set.name }} - Research - CivicObserver{% endblock %}
+
+{% block content %}
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <nav class="text-sm text-gray-500 mb-2">
+            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600">Research</a>
+            <span class="mx-2">/</span>
+            <a href="{% url 'research:project-detail' result_set.project_id %}" class="hover:text-indigo-600">{{ result_set.project.name }}</a>
+            <span class="mx-2">/</span>
+            <span class="text-gray-900">{{ result_set.name }}</span>
+        </nav>
+
+        <div class="sm:flex sm:items-center sm:justify-between">
+            <div>
+                <h1 class="text-3xl font-bold tracking-tight text-gray-900">{{ result_set.name }}</h1>
+                <p class="mt-2 text-sm text-gray-600">
+                    {% if result_set.status == "too_large" %}
+                        at least {{ result_set.item_count }} page{{ result_set.item_count|pluralize }}
+                    {% else %}
+                        {{ result_set.item_count }} page{{ result_set.item_count|pluralize }}
+                    {% endif %}
+                    · {{ result_set.get_status_display }}
+                </p>
+            </div>
+        </div>
+
+        {% if result_set.status == "ready" %}
+            <div id="research-set" class="mt-8 grid grid-cols-1 gap-8 lg:grid-cols-4">
+                <aside class="lg:col-span-1">
+                    {% include "research/partials/facets.html" %}
+                </aside>
+                <div class="lg:col-span-3">
+                    {% include "research/partials/set_items.html" %}
+                </div>
+            </div>
+        {% else %}
+            {% include "research/partials/set_status.html" %}
+        {% endif %}
+    </div>
+{% endblock content %}

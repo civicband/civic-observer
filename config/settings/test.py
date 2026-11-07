@@ -49,3 +49,7 @@ CACHES: dict[str, dict[str, Any]] = {  # type: ignore[no-redef]
         "TIMEOUT": 300,
     }
 }
+
+# Materialization runs as SQL in production; tests exercise the ORM fallback
+# against the mocked search backend instead of requiring ParadeDB.
+RESEARCH_USE_SQL_MATERIALIZATION = False

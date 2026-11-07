@@ -1,0 +1,85 @@
+{% if facets.disposition or facets.states or facets.municipalities or facets.years or facets.document_types %}
+    <div class="bg-white shadow rounded-lg border border-gray-200">
+        <div class="px-4 py-5 sm:p-6">
+            <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500">Facets</h2>
+
+            {% if facets.disposition %}
+                <div class="mt-4">
+                    <h3 class="text-sm font-medium text-gray-900">Disposition</h3>
+                    <ul class="mt-2 space-y-1 text-sm text-gray-600">
+                        {% for row in facets.disposition %}
+                            <li class="flex items-center justify-between">
+                                <span>
+                                    {% if row.disposition == "r" %}
+                                        Relevant
+                                    {% elif row.disposition == "i" %}
+                                        Ignored
+                                    {% else %}
+                                        Unreviewed
+                                    {% endif %}
+                                </span>
+                                <span class="text-gray-400">{{ row.count }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+
+            {% if facets.states %}
+                <div class="mt-4">
+                    <h3 class="text-sm font-medium text-gray-900">States</h3>
+                    <ul class="mt-2 space-y-1 text-sm text-gray-600">
+                        {% for row in facets.states %}
+                            <li class="flex items-center justify-between">
+                                <span>{{ row.state }}</span>
+                                <span class="text-gray-400">{{ row.count }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+
+            {% if facets.municipalities %}
+                <div class="mt-4">
+                    <h3 class="text-sm font-medium text-gray-900">Municipalities</h3>
+                    <ul class="mt-2 space-y-1 text-sm text-gray-600">
+                        {% for row in facets.municipalities %}
+                            <li class="flex items-center justify-between gap-2">
+                                <span class="truncate">{{ row.name|default:row.municipality_id }}</span>
+                                <span class="text-gray-400">{{ row.count }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+
+            {% if facets.years %}
+                <div class="mt-4">
+                    <h3 class="text-sm font-medium text-gray-900">Years</h3>
+                    <ul class="mt-2 space-y-1 text-sm text-gray-600">
+                        {% for row in facets.years %}
+                            <li class="flex items-center justify-between">
+                                <span>{{ row.year }}</span>
+                                <span class="text-gray-400">{{ row.count }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+
+            {% if facets.document_types %}
+                <div class="mt-4">
+                    <h3 class="text-sm font-medium text-gray-900">Document types</h3>
+                    <ul class="mt-2 space-y-1 text-sm text-gray-600">
+                        {% for row in facets.document_types %}
+                            <li class="flex items-center justify-between">
+                                <span>{{ row.document_type|capfirst }}</span>
+                                <span class="text-gray-400">{{ row.count }}</span>
+                            </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+{% endif %}
