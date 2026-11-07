@@ -22,6 +22,11 @@ RQ_QUEUES: dict[str, dict[str, Any]] = {  # type: ignore[no-redef]
         "DEFAULT_TIMEOUT": 360,
         "ASYNC": False,  # Run tasks synchronously in tests
     },
+    "research": {
+        "URL": REDIS_URL,
+        "DEFAULT_TIMEOUT": 1800,
+        "ASYNC": False,
+    },
 }
 
 # Override cache configuration for tests
