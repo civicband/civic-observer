@@ -9,6 +9,8 @@ x-django-settings: &django-settings
   init: true
   entrypoint: ["/src/compose-entrypoint.sh"]
   network_mode: host          # was: networks: [civic-network]
+  volumes:
+    - media-data:/src/media
 
 x-django-worker: &django-worker
   <<: *django-settings
@@ -87,6 +89,7 @@ services:
 
 volumes:
   redis-data:
+  media-data:
 
 # networks: block removed — nothing uses a user-defined bridge anymore.
 # vector doesn't need the app network (it reads the docker socket).

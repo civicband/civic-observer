@@ -310,11 +310,15 @@ class ExportView(LoginRequiredMixin, View):
         )
 
     def _job_response(self, request, result_set, job_id):
+        from pathlib import Path
+
         import django_rq
 
         queue = django_rq.get_queue(settings.RESEARCH_QUEUE)
         job = queue.fetch_job(job_id)
         if job is None:
+            raise Http404("Export job not found")
+        if job.func_name != "research.tasks.export_lens_task":
             raise Http404("Export job not found")
         if not job.args or str(job.args[0]) != str(result_set.id):
             raise Http404("Export job not found")
@@ -332,8 +336,16 @@ class ExportView(LoginRequiredMixin, View):
                 },
                 status=202,
             )
+
+        if not job.result:
+            return HttpResponse("Export result not available", status=500)
+        export_dir = (Path(settings.MEDIA_ROOT) / "research_exports").resolve()
+        result_path = Path(job.result).resolve()
+        if not result_path.is_relative_to(export_dir):
+            raise Http404("Export result not found")
+
         return FileResponse(
-            open(job.result, "rb"),
+            open(result_path, "rb"),
             as_attachment=True,
             filename=_export_filename(result_set),
         )

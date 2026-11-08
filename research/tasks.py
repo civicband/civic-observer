@@ -67,11 +67,12 @@ def export_lens_task(result_set_id, lens_canonical, user_id=None) -> str:
     job_id = str(uuid.uuid4())
     try:
         import rq
+        from rq.exceptions import NoSuchJobError
 
         job = rq.get_current_job()
         if job is not None:
             job_id = job.id
-    except Exception:
+    except (ImportError, NoSuchJobError):
         pass
 
     directory = Path(settings.MEDIA_ROOT) / "research_exports"

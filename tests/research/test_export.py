@@ -1,5 +1,6 @@
 import csv
 import io
+import re
 import zipfile
 
 import pytest
@@ -191,8 +192,9 @@ class TestExportView:
         with zipfile.ZipFile(io.BytesIO(payload)) as archive:
             assert "export.csv" in archive.namelist()
 
-    def test_queues_a_job_for_large_lenses(self, client, settings):
+    def test_queues_a_job_for_large_lenses(self, client, settings, tmp_path):
         settings.RESEARCH_INLINE_EXPORT_MAX_ROWS = 1
+        settings.MEDIA_ROOT = tmp_path
         user = UserFactory()
         client.force_login(user)
         project = ProjectFactory(owner=user)
@@ -207,3 +209,63 @@ class TestExportView:
         assert response.status_code == 202
         assert "Export queued" in response.content.decode()
         assert "job=" in response.content.decode()
+
+    def test_job_download_returns_the_zip(self, client, settings, tmp_path):
+        settings.RESEARCH_INLINE_EXPORT_MAX_ROWS = 1
+        settings.MEDIA_ROOT = tmp_path
+        user = UserFactory()
+        client.force_login(user)
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project)
+        SetItemFactory(result_set=result_set, page=MeetingPageFactory())
+        SetItemFactory(result_set=result_set, page=MeetingPageFactory())
+        url = reverse("research:set-export", args=[project.id, result_set.id])
+
+        queued = client.get(url)
+        assert queued.status_code == 202
+        match = re.search(r"\?job=([^\"&]+)", queued.content.decode())
+        assert match is not None
+
+        download = client.get(f"{url}?job={match.group(1)}")
+
+        assert download.status_code == 200
+        payload = b"".join(download.streaming_content)
+        with zipfile.ZipFile(io.BytesIO(payload)) as archive:
+            assert {"export.csv", "codebook.csv", "methods.md"} <= set(
+                archive.namelist()
+            )
+
+    def test_unknown_job_id_returns_404(self, client, settings):
+        user = UserFactory()
+        client.force_login(user)
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project)
+        url = reverse("research:set-export", args=[project.id, result_set.id])
+
+        response = client.get(f"{url}?job=does-not-exist")
+
+        assert response.status_code == 404
+
+    def test_job_for_another_set_returns_404(self, client, settings, tmp_path):
+        settings.RESEARCH_INLINE_EXPORT_MAX_ROWS = 1
+        settings.MEDIA_ROOT = tmp_path
+        user = UserFactory()
+        client.force_login(user)
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project)
+        SetItemFactory(result_set=result_set, page=MeetingPageFactory())
+        SetItemFactory(result_set=result_set, page=MeetingPageFactory())
+        other_set = ResultSetFactory(project=project)
+        SetItemFactory(result_set=other_set, page=MeetingPageFactory())
+        SetItemFactory(result_set=other_set, page=MeetingPageFactory())
+        url = reverse("research:set-export", args=[project.id, result_set.id])
+
+        other_response = client.get(
+            reverse("research:set-export", args=[project.id, other_set.id])
+        )
+        match = re.search(r"\?job=([^\"&]+)", other_response.content.decode())
+        assert match is not None
+
+        response = client.get(f"{url}?job={match.group(1)}")
+
+        assert response.status_code == 404
