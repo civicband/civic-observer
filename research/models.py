@@ -237,6 +237,10 @@ class Coding(TimeStampedModel):
         settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True
     )
 
+    # Set transiently by the page-coding view when the page text no longer
+    # matches the text captured at coding time; not persisted.
+    changed: bool = False
+
     class Meta:
         constraints = [
             models.CheckConstraint(
