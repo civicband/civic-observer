@@ -649,14 +649,14 @@ git commit -m "feat: redirect notebook URLs to research projects"
 
 **Files:**
 - Create: `research/add_to_set.py`
-- Create: `research/views.py` (`AddToSetPanelView`, `AddToSetView`)
+- Create: `research/views.py` (`AddToSetView`, GET/POST)
 - Create: `templates/research/partials/add_to_set_button.html`
 - Create: `templates/research/partials/add_to_set_panel.html`
 - Modify: `research/urls.py`
 - Modify: `templates/meetings/partials/search_results.html`
 - Modify: `meetings/views.py`
 - Test: `tests/research/test_add_to_set.py`
-- Modify: `tests/notebooks/test_search_integration.py` (new control)
+- Delete: `tests/notebooks/test_search_integration.py` (moved to `tests/research/test_search_integration.py`)
 
 **Interfaces:**
 - Consumes: `Project`, `ResultSet`, `SetItem`, `Memo`, `Code`, `Coding`, `record_event`, `MeetingPage`, `timezone`.
@@ -664,7 +664,7 @@ git commit -m "feat: redirect notebook URLs to research projects"
   - `default_set_for_user(user) -> ResultSet`
   - `add_page_to_set(project, result_set, page, *, actor, note="", code_names=None) -> SetItem`
   - `add_page_to_default_set(user, page, *, actor, note="", code_names=None) -> SetItem`
-  - `AddToSetView` (GET and POST `/research/add-to-set/`) — GET renders the panel for `?page=`; POST adds the page and returns the panel/confirmation.
+  - `AddToSetView` (GET/POST `/research/add-to-set/`) — GET renders the panel for `?page=`; POST adds the page and returns the confirmation.
   - Template partial `add_to_set_button.html` replaces the notebook save button in search results.
 
 - [ ] **Step 1: Write the failing service tests**
@@ -944,13 +944,13 @@ Add to `research/urls.py`:
 path("add-to-set/", views.AddToSetView.as_view(), name="add-to-set"),
 ```
 
-(Use one path per method via a single view? Django needs distinct names; put the GET and POST on the same URL with two names is fine.)
+Both GET (panel) and POST (add) use the same URL and name; the view branches on the method.
 
 Create `templates/research/partials/add_to_set_button.html`:
 
 ```html
 <button id="add-to-set-btn-{{ page_id }}"
-        hx-get="{% url 'research:add-to-set-panel' %}?page={{ page_id }}"
+        hx-get="{% url 'research:add-to-set' %}?page={{ page_id }}"
         hx-target="#add-to-set-panel-{{ page_id }}"
         hx-swap="outerHTML"
         class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md {% if is_saved %}text-indigo-600 bg-indigo-50 hover:bg-indigo-100{% else %}text-gray-600 bg-gray-100 hover:bg-gray-200{% endif %} transition-colors"
@@ -1051,7 +1051,7 @@ from tests.factories import (
 class TestAddToSetViews:
     def test_panel_requires_login(self, client):
         page = MeetingPageFactory(document=MeetingDocumentFactory())
-        response = client.get(reverse("research:add-to-set-panel"), {"page": page.id})
+        response = client.get(reverse("research:add-to-set"), {"page": page.id})
         assert response.status_code == 302
 
     def test_panel_lists_projects_and_sets(self, client):
@@ -1061,7 +1061,7 @@ class TestAddToSetViews:
         page = MeetingPageFactory(document=MeetingDocumentFactory())
         client.force_login(user)
 
-        response = client.get(reverse("research:add-to-set-panel"), {"page": page.id})
+        response = client.get(reverse("research:add-to-set"), {"page": page.id})
 
         content = response.content.decode()
         assert response.status_code == 200
@@ -1099,7 +1099,7 @@ class TestAddToSetViews:
 
 - [ ] **Step 6: Update the search integration test**
 
-Modify `tests/notebooks/test_search_integration.py` (or add `tests/research/test_search_integration.py`) to assert the new "Add to set" control and that `saved_page_ids` comes from `SetItem`:
+Replace `tests/notebooks/test_search_integration.py` with `tests/research/test_search_integration.py` to assert the new "Add to set" control and that `saved_page_ids` comes from `SetItem`:
 
 ```python
 import pytest

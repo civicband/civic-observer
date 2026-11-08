@@ -3,7 +3,7 @@ from datetime import date
 
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Count, QuerySet
+from django.db.models import Count, Prefetch, QuerySet
 from django.http import (
     FileResponse,
     Http404,
@@ -25,6 +25,7 @@ from municipalities.models import Muni
 from searches import search_backends
 from searches.queryspec import QuerySpec
 
+from .add_to_set import add_page_to_set, default_set_for_user
 from .audit import record_event
 from .browse import _encode_cursor, browse_set, filter_items, review_item, set_facets
 from .codebook import (
@@ -229,6 +230,63 @@ class SaveAsSetView(LoginRequiredMixin, View):
 
         result_set = create_result_set(project, name, spec)
         return redirect("research:set-detail", project=project.id, set=result_set.id)
+
+
+class AddToSetView(LoginRequiredMixin, View):
+    template_name = "research/partials/add_to_set_panel.html"
+
+    def _context(self, request, page, **extra):
+        default_set = default_set_for_user(request.user)
+        projects = (
+            Project.objects.filter(owner=request.user, is_archived=False)
+            .prefetch_related(
+                "sets",
+                Prefetch(
+                    "codes",
+                    queryset=Code.objects.filter(is_archived=False),
+                    to_attr="active_codes",
+                ),
+            )
+            .order_by("-modified")
+        )
+        return {
+            "page": page,
+            "default_set": default_set,
+            "projects": projects,
+            "saved": SetItem.objects.filter(
+                result_set__project__owner=request.user,
+                result_set__project__is_archived=False,
+                page=page,
+            ).exists(),
+            **extra,
+        }
+
+    def get(self, request):
+        page = get_object_or_404(MeetingPage, id=request.GET.get("page"))
+        return render(request, self.template_name, self._context(request, page))
+
+    def post(self, request):
+        page = get_object_or_404(MeetingPage, id=request.POST.get("page"))
+        set_id = request.POST.get("set")
+        if set_id:
+            result_set = get_object_or_404(
+                ResultSet, id=set_id, project__owner=request.user
+            )
+        else:
+            result_set = default_set_for_user(request.user)
+        add_page_to_set(
+            result_set.project,
+            result_set,
+            page,
+            actor=request.user,
+            note=request.POST.get("note", ""),
+            code_names=request.POST.getlist("codes"),
+        )
+        return render(
+            request,
+            self.template_name,
+            self._context(request, page, saved=True, added_to=result_set),
+        )
 
 
 class ProjectListView(LoginRequiredMixin, ListView):

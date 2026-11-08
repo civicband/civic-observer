@@ -8,6 +8,7 @@ urlpatterns = [
     path("", views.ProjectListView.as_view(), name="project-list"),
     path("projects/new/", views.ProjectCreateView.as_view(), name="project-create"),
     path("save-as-set/", views.SaveAsSetView.as_view(), name="save-as-set"),
+    path("add-to-set/", views.AddToSetView.as_view(), name="add-to-set"),
     path("<uuid:project>/", views.ProjectDetailView.as_view(), name="project-detail"),
     path(
         "<uuid:project>/methods/",
