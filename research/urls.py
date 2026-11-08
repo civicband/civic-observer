@@ -23,6 +23,11 @@ urlpatterns = [
         name="set-status",
     ),
     path(
+        "<uuid:project>/sets/<uuid:set>/freeze/",
+        views.FreezeLensView.as_view(),
+        name="set-freeze",
+    ),
+    path(
         "<uuid:project>/sets/<uuid:set>/items/<int:item>/disposition/",
         views.DispositionView.as_view(),
         name="item-disposition",

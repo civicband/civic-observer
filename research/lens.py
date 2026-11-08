@@ -116,6 +116,47 @@ class Lens:
             order=order,
         )
 
+    def canonical(self) -> dict:
+        return {
+            "text": self.text,
+            "dispositions": list(self.dispositions),
+            "codes_all": [str(value) for value in self.codes_all],
+            "codes_any": [str(value) for value in self.codes_any],
+            "codes_none": [str(value) for value in self.codes_none],
+            "uncoded": self.uncoded,
+            "municipality_ids": [str(value) for value in self.municipality_ids],
+            "states": list(self.states),
+            "date_from": self.date_from.isoformat() if self.date_from else None,
+            "date_to": self.date_to.isoformat() if self.date_to else None,
+            "document_type": self.document_type,
+            "added_via": list(self.added_via),
+            "order": self.order,
+        }
+
+    @classmethod
+    def from_canonical(cls, data: dict) -> Lens:
+        return cls(
+            text=data.get("text", ""),
+            dispositions=tuple(data.get("dispositions", DEFAULT_DISPOSITIONS)),
+            codes_all=tuple(uuid.UUID(value) for value in data.get("codes_all", [])),
+            codes_any=tuple(uuid.UUID(value) for value in data.get("codes_any", [])),
+            codes_none=tuple(uuid.UUID(value) for value in data.get("codes_none", [])),
+            uncoded=bool(data.get("uncoded", False)),
+            municipality_ids=tuple(
+                uuid.UUID(value) for value in data.get("municipality_ids", [])
+            ),
+            states=tuple(data.get("states", [])),
+            date_from=(
+                date.fromisoformat(data["date_from"]) if data.get("date_from") else None
+            ),
+            date_to=date.fromisoformat(data["date_to"])
+            if data.get("date_to")
+            else None,
+            document_type=data.get("document_type", "all"),
+            added_via=tuple(data.get("added_via", [])),
+            order=data.get("order", "rank"),
+        )
+
     def to_querystring(self) -> str:
         pairs: list[tuple[str, str]] = []
         if self.text:

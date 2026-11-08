@@ -24,10 +24,23 @@
                     · {{ result_set.get_status_display }}
                 </p>
             </div>
-            <a href="{% url 'research:set-review' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}{% endif %}"
-               class="mt-4 sm:mt-0 inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
-                Review
-            </a>
+            <div class="mt-4 sm:mt-0 flex flex-wrap items-center gap-2">
+                <a href="{% url 'research:set-review' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}{% endif %}"
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                    Review
+                </a>
+                <form method="post" action="{% url 'research:set-freeze' result_set.project_id result_set.id %}" class="flex items-center gap-2">
+                    {% csrf_token %}
+                    <input type="hidden" name="lens" value="{{ querystring }}">
+                    <input type="text" name="name" required placeholder="Child set name"
+                           class="rounded-md border-gray-300 text-sm shadow-sm">
+                    <label class="flex items-center gap-1 text-xs text-gray-600">
+                        <input type="checkbox" name="copy_dispositions" value="1" checked>
+                        Copy dispositions
+                    </label>
+                    <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Save lens as set</button>
+                </form>
+            </div>
         </div>
 
         {% if result_set.status == "ready" %}

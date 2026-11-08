@@ -112,3 +112,25 @@ def test_querystring_round_trip():
     round_tripped = Lens.from_querydict(parse_qs(lens.to_querystring()))
 
     assert round_tripped == lens
+
+
+def test_canonical_round_trip():
+    municipality = uuid.uuid4()
+    code = uuid.uuid4()
+    lens = Lens(
+        text="housing",
+        dispositions=("i",),
+        codes_all=(code,),
+        uncoded=True,
+        municipality_ids=(municipality,),
+        states=("CA",),
+        date_from=date(2024, 1, 1),
+        date_to=date(2024, 12, 31),
+        document_type="agenda",
+        added_via=("new_matches",),
+        order="date_desc",
+    )
+
+    rebuilt = Lens.from_canonical(lens.canonical())
+
+    assert rebuilt == lens

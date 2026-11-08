@@ -171,6 +171,22 @@ class SetStatusView(LoginRequiredMixin, View):
         return response
 
 
+class FreezeLensView(LoginRequiredMixin, View):
+    def post(self, request, project, set):
+        parent = get_object_or_404(
+            ResultSet, id=set, project_id=project, project__owner=request.user
+        )
+        lens = Lens.from_querydict(QueryDict(request.POST.get("lens", "")))
+        name = (request.POST.get("name") or "").strip()
+        if not name:
+            return HttpResponseBadRequest("A name is required")
+        copy_dispositions = request.POST.get("copy_dispositions") == "1"
+        from .freeze import freeze_lens
+
+        child = freeze_lens(parent, name, lens, copy_dispositions=copy_dispositions)
+        return redirect("research:set-detail", project=parent.project_id, set=child.id)
+
+
 class DispositionView(LoginRequiredMixin, View):
     def post(self, request, project, set, item):
         result_set = get_object_or_404(

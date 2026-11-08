@@ -982,3 +982,39 @@ class TestReviewView:
         content = response.content.decode()
         assert "review-card" in content
         assert "first page text" in content
+
+
+@pytest.mark.django_db
+class TestFreezeLensView:
+    def _url(self, result_set):
+        return reverse(
+            "research:set-freeze", args=[result_set.project_id, result_set.id]
+        )
+
+    def test_requires_login(self, client):
+        result_set = ResultSetFactory()
+        assert client.post(self._url(result_set)).status_code == 302
+
+    def test_cannot_freeze_another_users_set(self, client):
+        result_set = ResultSetFactory()
+        client.force_login(UserFactory())
+        assert client.post(self._url(result_set)).status_code == 404
+
+    def test_creates_child_set(self, client, settings):
+        settings.RESEARCH_SET_MAX_ITEMS = 500_000
+        settings.RESEARCH_INLINE_SET_MAX_ITEMS = 1000
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        parent = ResultSetFactory(project=project)
+        item = SetItemFactory(result_set=parent, disposition="u")
+        client.force_login(user)
+
+        response = client.post(
+            self._url(parent),
+            {"name": "Child", "lens": "", "copy_dispositions": "1"},
+        )
+
+        assert response.status_code == 302
+        child = ResultSet.objects.get(project=project, name="Child")
+        assert child.parent == parent
+        assert child.items.get(page_id=item.page_id)
