@@ -29,6 +29,9 @@
         function reviewKeyboard() {
             return {
                 handle(event) {
+                    if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) {
+                        return;
+                    }
                     if (event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA") {
                         return;
                     }

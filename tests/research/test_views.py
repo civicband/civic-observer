@@ -642,6 +642,7 @@ class TestBulkActionView:
         content = response.content.decode()
         assert "1 item" in content
         assert 'Change all 1 item in this view to "Relevant"?' in content
+        assert 'hx-disabled-elt="this"' in content
         unreviewed.refresh_from_db()
         relevant.refresh_from_db()
         assert unreviewed.disposition == "u"
@@ -879,6 +880,27 @@ class TestReviewView:
 
         assert response.status_code == 200
         assert "review-card" in response.content.decode()
+
+    def test_keyboard_shortcuts_ignore_modifier_keys(self, client):
+        user, result_set, _, _ = self._set_with_items()
+        client.force_login(user)
+
+        response = client.get(self._url(result_set))
+
+        content = response.content.decode()
+        assert (
+            "event.ctrlKey || event.metaKey || event.altKey || event.repeat" in content
+        )
+
+    def test_reason_field_is_prefilled_from_item(self, client):
+        user, result_set, first, _ = self._set_with_items()
+        dispose_item(first, "i", reason="Boilerplate")
+        client.force_login(user)
+
+        response = client.get(self._url(result_set), {"disposition": "i"})
+
+        content = response.content.decode()
+        assert 'name="reason" value="Boilerplate"' in content
 
     def test_after_moves_to_next_item(self, client):
         user, result_set, first, second = self._set_with_items()
