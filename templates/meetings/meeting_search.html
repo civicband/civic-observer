@@ -236,6 +236,18 @@
                                 </svg>
                                 Save This Search
                             </button>
+                        <!-- Save As Set Button (Authenticated Users Only) -->
+                            <button type="button"
+                                    hx-get="{% url 'research:save-as-set' %}"
+                                    hx-include="#search-form"
+                                    hx-target="#save-as-set-modal"
+                                    hx-swap="innerHTML"
+                                    class="mt-2 w-full inline-flex justify-center items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+                                </svg>
+                                Save as set
+                            </button>
                         {% endif %}
 
                         <div class="border-t border-gray-200 my-3"></div>
@@ -448,6 +460,10 @@
                 </div>
             </div>
         </div>
+    {% endif %}
+
+    {% if user.is_authenticated %}
+        <div id="save-as-set-modal"></div>
     {% endif %}
 
     <script>

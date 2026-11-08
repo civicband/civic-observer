@@ -1,0 +1,89 @@
+<div id="add-to-set-panel-{{ page.id }}" class="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4">
+    {% if saved %}
+        <div class="flex items-center gap-2 text-sm text-gray-600">
+            <svg class="w-5 h-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+                <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z"></path>
+            </svg>
+            <span>
+                This page is in a research set{% if added_to %} (<strong>{{ added_to.name }}</strong>){% endif %}.
+            </span>
+        </div>
+        <button type="button"
+                onclick="document.getElementById('add-to-set-panel-{{ page.id|escapejs }}').innerHTML = ''"
+                class="mt-2 text-sm text-gray-500 hover:text-gray-700">
+            Close
+        </button>
+    {% else %}
+        {% if error %}
+            <p class="mb-2 text-sm text-red-700">{{ error }}</p>
+        {% endif %}
+        <form hx-post="{% url 'research:add-to-set' %}"
+              hx-target="#add-to-set-panel-{{ page.id }}"
+              hx-swap="outerHTML">
+            {% csrf_token %}
+            <input type="hidden" name="page" value="{{ page.id }}">
+
+            <div class="space-y-3">
+                <div>
+                    <label for="add-set-{{ page.id }}" class="block text-sm font-medium text-gray-700 mb-1">
+                        Add to set
+                    </label>
+                    <select name="set"
+                            id="add-set-{{ page.id }}"
+                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                        <option value="{% if default_set %}{{ default_set.id }}{% endif %}">
+                            {% if default_set %}{{ default_set.project.name }} / {{ default_set.name }}{% else %}My research / Saved pages (will be created){% endif %}
+                        </option>
+                        {% for project in projects %}
+                            {% for result_set in project.sets.all %}
+                                {% if not default_set or result_set.id != default_set.id %}
+                                    <option value="{{ result_set.id }}">{{ project.name }} / {{ result_set.name }}</option>
+                                {% endif %}
+                            {% endfor %}
+                        {% endfor %}
+                    </select>
+                </div>
+
+                <div>
+                    <label for="add-note-{{ page.id }}" class="block text-sm font-medium text-gray-700 mb-1">
+                        Note <span class="text-gray-400 font-normal">(optional)</span>
+                    </label>
+                    <textarea name="note"
+                              id="add-note-{{ page.id }}"
+                              rows="2"
+                              placeholder="Add a note about why you're adding this page..."
+                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"></textarea>
+                </div>
+
+                <div>
+                    <label for="add-codes-{{ page.id }}" class="block text-sm font-medium text-gray-700 mb-1">
+                        Codes <span class="text-gray-400 font-normal">(optional, Ctrl/Cmd-click for several)</span>
+                    </label>
+                    <select name="codes"
+                            id="add-codes-{{ page.id }}"
+                            multiple
+                            size="3"
+                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                        {% for project in projects %}
+                            {% for code in project.active_codes %}
+                                <option value="{{ code.name }}">{{ project.name }} / {{ code.name }}</option>
+                            {% endfor %}
+                        {% endfor %}
+                    </select>
+                </div>
+            </div>
+
+            <div class="mt-3 flex items-center justify-end gap-2">
+                <button type="button"
+                        onclick="document.getElementById('add-to-set-panel-{{ page.id|escapejs }}').innerHTML = ''"
+                        class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button type="submit"
+                        class="px-3 py-1.5 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700">
+                    Add to set
+                </button>
+            </div>
+        </form>
+    {% endif %}
+</div>

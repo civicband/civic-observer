@@ -3,7 +3,7 @@ from datetime import date
 
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Count, QuerySet
+from django.db.models import Count, Prefetch, QuerySet
 from django.http import (
     FileResponse,
     Http404,
@@ -22,8 +22,10 @@ from django.views.generic import DetailView, ListView
 
 from meetings.models import MeetingPage
 from municipalities.models import Muni
+from searches import search_backends
 from searches.queryspec import QuerySpec
 
+from .add_to_set import add_page_to_set, default_set_for_user
 from .audit import record_event
 from .browse import _encode_cursor, browse_set, filter_items, review_item, set_facets
 from .codebook import (
@@ -53,6 +55,7 @@ from .models import (
     ResultSet,
     SetItem,
 )
+from .projects import create_project, project_list_for_user
 from .rules import is_empty, preview_rule, revert_rule, validate_rule_predicate
 from .tasks import apply_rule_to_project_task, export_lens_task, revert_rule_task
 
@@ -67,6 +70,27 @@ def _split_csv(value: str | None) -> tuple[str, ...]:
 def _uuid_values(value: str | None) -> tuple[uuid.UUID, ...]:
     values: list[uuid.UUID] = []
     for part in _split_csv(value):
+        try:
+            values.append(uuid.UUID(part))
+        except ValueError:
+            continue
+    return tuple(values)
+
+
+def _list_values(params, key: str) -> tuple[str, ...]:
+    """Read a repeated/CSV parameter, preserving every submitted value."""
+    values: list[str] = []
+    for raw in params.getlist(key):
+        for part in str(raw).split(","):
+            part = part.strip()
+            if part and part not in values:
+                values.append(part)
+    return tuple(values)
+
+
+def _list_uuid_values(params, key: str) -> tuple[uuid.UUID, ...]:
+    values: list[uuid.UUID] = []
+    for part in _list_values(params, key):
         try:
             values.append(uuid.UUID(part))
         except ValueError:
@@ -155,6 +179,176 @@ def _undo_single_item_id(event: AuditEvent) -> int | None:
     if not item_ids:
         return None
     return int(item_ids[0])
+
+
+def _spec_from_search(params) -> QuerySpec:
+    document_type = (params.get("document_type") or "all").strip()
+    if document_type not in {"agenda", "minutes"}:
+        document_type = "all"
+    return QuerySpec(
+        text=(params.get("query") or "").strip(),
+        meeting_name=(params.get("meeting_name_query") or "").strip(),
+        municipality_ids=_list_uuid_values(params, "municipalities"),
+        states=_list_values(params, "states"),
+        date_from=_date_value(params.get("date_from")),
+        date_to=_date_value(params.get("date_to")),
+        document_type=document_type,
+    )
+
+
+class ProjectCreateView(LoginRequiredMixin, View):
+    def post(self, request):
+        try:
+            project = create_project(
+                request.user,
+                request.POST.get("name", ""),
+                request.POST.get("description", ""),
+            )
+        except ValueError:
+            return HttpResponseBadRequest(
+                "A project needs a name of 200 characters or fewer."
+            )
+        return redirect("research:project-detail", project=project.id)
+
+
+class SaveAsSetView(LoginRequiredMixin, View):
+    template_name = "research/partials/save_as_set_panel.html"
+
+    def get(self, request):
+        spec = _spec_from_search(request.GET)
+        backend = search_backends.get_search_backend()
+        count = backend.count_matches(spec, settings.RESEARCH_SET_MAX_ITEMS + 1)
+        over_ceiling = count > settings.RESEARCH_SET_MAX_ITEMS
+        hidden_params = [
+            {"name": key, "value": value}
+            for key, values in request.GET.lists()
+            for value in values
+        ]
+        return render(
+            request,
+            self.template_name,
+            {
+                "spec": spec,
+                "count": count,
+                "over_ceiling": over_ceiling,
+                "projects": project_list_for_user(request.user),
+                "max_items": settings.RESEARCH_SET_MAX_ITEMS,
+                "hidden_params": hidden_params,
+            },
+        )
+
+    def post(self, request):
+        spec = _spec_from_search(request.POST)
+        project_id = request.POST.get("project")
+        new_project = (request.POST.get("new_project") or "").strip()
+        name = (request.POST.get("name") or "").strip() or "Untitled set"
+
+        if len(name) > MAX_NAME_LENGTH:
+            return HttpResponseBadRequest("Set name is too long")
+
+        count = search_backends.get_search_backend().count_matches(
+            spec, settings.RESEARCH_SET_MAX_ITEMS + 1
+        )
+        if count > settings.RESEARCH_SET_MAX_ITEMS:
+            return HttpResponseBadRequest(
+                f"This search matches more than the "
+                f"{settings.RESEARCH_SET_MAX_ITEMS:,}-page set limit. "
+                "Narrow the search by state, body, or date."
+            )
+
+        if new_project:
+            try:
+                project = create_project(request.user, new_project)
+            except ValueError:
+                return HttpResponseBadRequest(
+                    "A project needs a name of 200 characters or fewer."
+                )
+        elif project_id:
+            try:
+                project_uuid = uuid.UUID(project_id)
+            except ValueError:
+                return HttpResponseBadRequest("Invalid project")
+            project = get_object_or_404(Project, id=project_uuid, owner=request.user)
+        else:
+            project = create_project(request.user, "My research")
+
+        result_set = create_result_set(project, name, spec)
+        return redirect("research:set-detail", project=project.id, set=result_set.id)
+
+
+class AddToSetView(LoginRequiredMixin, View):
+    template_name = "research/partials/add_to_set_panel.html"
+
+    def _context(self, request, page, **extra):
+        default_set = default_set_for_user(request.user, create=False)
+        projects = (
+            Project.objects.filter(owner=request.user, is_archived=False)
+            .prefetch_related(
+                "sets",
+                Prefetch(
+                    "codes",
+                    queryset=Code.objects.filter(is_archived=False),
+                    to_attr="active_codes",
+                ),
+            )
+            .order_by("-modified")
+        )
+        return {
+            "page": page,
+            "default_set": default_set,
+            "projects": projects,
+            "saved": SetItem.objects.filter(
+                result_set__project__owner=request.user,
+                result_set__project__is_archived=False,
+                page=page,
+            ).exists(),
+            **extra,
+        }
+
+    def get(self, request):
+        page = get_object_or_404(MeetingPage, id=request.GET.get("page"))
+        return render(request, self.template_name, self._context(request, page))
+
+    def post(self, request):
+        page = get_object_or_404(MeetingPage, id=request.POST.get("page"))
+        set_id = request.POST.get("set")
+        if set_id:
+            try:
+                set_uuid = uuid.UUID(set_id)
+            except ValueError:
+                return HttpResponseBadRequest("Invalid set")
+            result_set = get_object_or_404(
+                ResultSet, id=set_uuid, project__owner=request.user
+            )
+        else:
+            default_result_set = default_set_for_user(request.user)
+            assert default_result_set is not None
+            result_set = default_result_set
+        try:
+            add_page_to_set(
+                result_set.project,
+                result_set,
+                page,
+                actor=request.user,
+                note=request.POST.get("note", ""),
+                code_names=request.POST.getlist("codes"),
+            )
+        except ValueError:
+            return render(
+                request,
+                self.template_name,
+                self._context(
+                    request,
+                    page,
+                    error="The page could not be added. Check the selected set and code names.",
+                ),
+                status=400,
+            )
+        return render(
+            request,
+            self.template_name,
+            self._context(request, page, saved=True, added_to=result_set),
+        )
 
 
 class ProjectListView(LoginRequiredMixin, ListView):
@@ -843,8 +1037,21 @@ class CodeCreateView(LoginRequiredMixin, View):
                 exclusion=request.POST.get("exclusion", ""),
                 actor=request.user,
             )
-        except ValueError as exc:
-            return self._render_error(request, project_obj, str(exc))
+        except ValueError:
+            name = request.POST.get("name", "").strip()
+            duplicate = (
+                bool(name)
+                and Code.objects.filter(
+                    project=project_obj, parent=parent, name=name
+                ).exists()
+            )
+            return self._render_error(
+                request,
+                project_obj,
+                "A code with that name already exists."
+                if duplicate
+                else "The code could not be created. Check the name, parent, and length.",
+            )
         return redirect("research:codebook", project=project_obj.id)
 
 
@@ -870,8 +1077,12 @@ class CodeRenameView(LoginRequiredMixin, View):
                 exclusion=request.POST.get("exclusion"),
                 actor=request.user,
             )
-        except ValueError as exc:
-            return self._render_error(request, code_obj.project, str(exc))
+        except ValueError:
+            return self._render_error(
+                request,
+                code_obj.project,
+                "The code could not be renamed. Check the name and length.",
+            )
         return redirect("research:codebook", project=project)
 
 
@@ -896,9 +1107,12 @@ class CodeMergeView(LoginRequiredMixin, View):
         )
         try:
             merge_codes(source, target, actor=request.user)
-        except ValueError as exc:
+        except ValueError:
             context = _codebook_context(source.project)
-            context["error"] = str(exc)
+            context["error"] = (
+                "The codes could not be merged. Check the source has no "
+                "children and both codes belong to the same project."
+            )
             return render(request, self.template_name, context, status=400)
         return redirect("research:codebook", project=project)
 
@@ -1033,8 +1247,8 @@ class MemoCreateView(LoginRequiredMixin, View):
                 code=code,
                 page=page,
             )
-        except ValueError as exc:
-            return HttpResponseBadRequest(str(exc))
+        except ValueError:
+            return HttpResponseBadRequest("A memo needs a body and at most one target.")
         if result_set is not None:
             return redirect(
                 "research:set-detail", project=project_obj.id, set=result_set.id
@@ -1056,8 +1270,8 @@ class MemoUpdateView(LoginRequiredMixin, View):
         )
         try:
             update_memo(memo_obj, body=request.POST.get("body", ""))
-        except ValueError as exc:
-            return HttpResponseBadRequest(str(exc))
+        except ValueError:
+            return HttpResponseBadRequest("A memo needs a body.")
         return redirect("research:project-detail", project=project)
 
 

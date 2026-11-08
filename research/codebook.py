@@ -76,6 +76,8 @@ def create_code(
     name = name.strip()
     if not name:
         raise ValueError("A code name is required")
+    if len(name) > 100:
+        raise ValueError("A code name must be 100 characters or fewer")
 
     if parent is not None:
         parent = Code.objects.get(pk=parent.pk)

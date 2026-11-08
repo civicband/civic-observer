@@ -274,15 +274,17 @@ def meeting_page_search_results(request: HttpRequest) -> HttpResponse:
         "document_type": document_type,
     }
 
-    # Add saved page IDs for authenticated users (for save button state)
+    # Add saved page IDs for authenticated users (for add-to-set button state)
     if request.user.is_authenticated and context["results"]:
-        from notebooks.models import NotebookEntry
+        from research.models import SetItem
 
         result_page_ids = [r.pk for r in context["results"]]
         saved_page_ids = set(
-            NotebookEntry.objects.filter(
-                notebook__user=request.user, meeting_page_id__in=result_page_ids
-            ).values_list("meeting_page_id", flat=True)
+            SetItem.objects.filter(
+                result_set__project__owner=request.user,
+                result_set__project__is_archived=False,
+                page_id__in=result_page_ids,
+            ).values_list("page_id", flat=True)
         )
         context["saved_page_ids"] = saved_page_ids
     else:

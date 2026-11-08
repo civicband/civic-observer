@@ -1,4 +1,4 @@
-{% load meeting_filters notebook_filters utm %}
+{% load meeting_filters utm %}
 
 {% if error %}
     <!-- Error State -->
@@ -131,7 +131,11 @@
                             View on CivicBand
                         </a>
                         {% if user.is_authenticated %}
-                            {% include "notebooks/partials/save_button.html" with page_id=result.id is_saved=result.id|in_set:saved_page_ids %}
+                            {% if result.id in saved_page_ids %}
+                                {% include "research/partials/add_to_set_button.html" with page_id=result.id is_saved=True %}
+                            {% else %}
+                                {% include "research/partials/add_to_set_button.html" with page_id=result.id is_saved=False %}
+                            {% endif %}
                         {% endif %}
                     </div>
                     <div class="text-xs text-gray-500">
@@ -139,9 +143,9 @@
                     </div>
                 </div>
 
-                <!-- Save Panel Placeholder (populated via HTMX) -->
+                <!-- Add to Set Panel Placeholder (populated via HTMX) -->
                 {% if user.is_authenticated %}
-                    <div id="save-panel-{{ result.id }}"></div>
+                    <div id="add-to-set-panel-{{ result.id }}"></div>
                 {% endif %}
             </div>
         {% endfor %}

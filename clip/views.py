@@ -1,14 +1,17 @@
 import logging
+import uuid
 
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.http import HttpResponse
+from django.db.models import Prefetch
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
 from django.views import View
 from django.views.generic import TemplateView
 
 from meetings.models import MeetingPage
-from notebooks.models import Notebook, NotebookEntry, Tag
+from research.add_to_set import add_page_to_set, default_set_for_user
+from research.models import Code, Project, ResultSet
 
 from .services import FetchError, fetch_single_page
 
@@ -17,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class ClipView(LoginRequiredMixin, TemplateView):
     """
-    Clip endpoint for saving meeting pages from civic.band to notebooks.
+    Clip endpoint for adding meeting pages from civic.band to research sets.
 
     Accepts query params:
     - id: civic.band page ID
@@ -77,20 +80,26 @@ class FetchPageView(LoginRequiredMixin, View):
             )
 
     def _render_preview(self, request, page, subdomain, table):
-        """Render the page preview with save form."""
-        notebooks = Notebook.objects.filter(
-            user=request.user, is_archived=False
-        ).order_by("-modified")
-        tags = Tag.objects.filter(user=request.user).order_by("name")
-
+        """Render the page preview with the add-to-set form."""
+        projects = (
+            Project.objects.filter(owner=request.user, is_archived=False)
+            .prefetch_related(
+                "sets",
+                Prefetch(
+                    "codes",
+                    queryset=Code.objects.filter(is_archived=False),
+                    to_attr="active_codes",
+                ),
+            )
+            .order_by("-modified")
+        )
         html = render_to_string(
             "clip/partials/page_preview.html",
             {
                 "page": page,
                 "subdomain": subdomain,
                 "table": table,
-                "notebooks": notebooks,
-                "tags": tags,
+                "projects": projects,
             },
             request=request,
         )
@@ -110,79 +119,46 @@ class FetchPageView(LoginRequiredMixin, View):
 
 class SavePageView(LoginRequiredMixin, View):
     """
-    Save a meeting page to a notebook and redirect to the notebook.
+    Add a clipped meeting page to a research set and redirect to the set.
 
-    Creates a new notebook if new_notebook_name is provided.
-    Handles tags (existing and new).
+    Uses the selected set when provided, otherwise the user's default set.
     """
 
     def post(self, request):
         page_id = request.POST.get("page_id")
-        notebook_id = request.POST.get("notebook_id")
-        new_notebook_name = request.POST.get("new_notebook_name", "").strip()
+        set_id = request.POST.get("set")
         note = request.POST.get("note", "").strip()
-        new_tag = request.POST.get("new_tag", "").strip().lower()
-        tag_ids = request.POST.getlist("tags")
 
-        # Get the page
         page = get_object_or_404(MeetingPage, id=page_id)
 
-        # Determine target notebook
-        if new_notebook_name:
-            # Create new notebook
-            notebook = Notebook.objects.create(
-                user=request.user,
-                name=new_notebook_name,
+        if set_id:
+            try:
+                set_uuid = uuid.UUID(set_id)
+            except ValueError:
+                return HttpResponseBadRequest("Invalid set")
+            result_set = get_object_or_404(
+                ResultSet, id=set_uuid, project__owner=request.user
             )
-        elif notebook_id:
-            notebook = get_object_or_404(Notebook, id=notebook_id, user=request.user)
         else:
-            # Use most recently modified notebook, or create default
-            notebook_or_none = (
-                Notebook.objects.filter(user=request.user, is_archived=False)
-                .order_by("-modified")
-                .first()
+            default_set = default_set_for_user(request.user)
+            assert default_set is not None
+            result_set = default_set
+
+        try:
+            add_page_to_set(
+                result_set.project,
+                result_set,
+                page,
+                actor=request.user,
+                note=note,
+                code_names=request.POST.getlist("codes"),
             )
-            if not notebook_or_none:
-                notebook = Notebook.objects.create(
-                    user=request.user,
-                    name="My Notebook",
-                )
-            else:
-                notebook = notebook_or_none
-
-        # Check if already saved to this notebook
-        existing = NotebookEntry.objects.filter(
-            notebook=notebook,
-            meeting_page=page,
-        ).first()
-
-        if existing:
-            # Already saved - redirect to notebook
-            return redirect("notebooks:notebook-detail", pk=notebook.pk)
-
-        # Create entry
-        entry = NotebookEntry.objects.create(
-            notebook=notebook,
-            meeting_page=page,
-            note=note,
+        except ValueError:
+            return HttpResponseBadRequest(
+                "The page could not be added. Check the selected set and code names."
+            )
+        return redirect(
+            "research:set-detail",
+            project=result_set.project_id,
+            set=result_set.id,
         )
-
-        # Handle existing tags
-        if tag_ids:
-            tags = Tag.objects.filter(user=request.user, id__in=tag_ids)
-            entry.tags.add(*tags)
-
-        # Handle new tag creation
-        if new_tag:
-            tag, _ = Tag.objects.get_or_create(
-                user=request.user,
-                name=new_tag,
-            )
-            entry.tags.add(tag)
-
-        # Update notebook's modified time
-        notebook.save()
-
-        # Redirect to notebook detail
-        return redirect("notebooks:notebook-detail", pk=notebook.pk)
