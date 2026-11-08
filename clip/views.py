@@ -153,8 +153,10 @@ class SavePageView(LoginRequiredMixin, View):
                 note=note,
                 code_names=request.POST.getlist("codes"),
             )
-        except ValueError as exc:
-            return HttpResponseBadRequest(str(exc))
+        except ValueError:
+            return HttpResponseBadRequest(
+                "The page could not be added. Check the selected set and code names."
+            )
         return redirect(
             "research:set-detail",
             project=result_set.project_id,

@@ -204,8 +204,10 @@ class ProjectCreateView(LoginRequiredMixin, View):
                 request.POST.get("name", ""),
                 request.POST.get("description", ""),
             )
-        except ValueError as exc:
-            return HttpResponseBadRequest(str(exc))
+        except ValueError:
+            return HttpResponseBadRequest(
+                "A project needs a name of 200 characters or fewer."
+            )
         return redirect("research:project-detail", project=project.id)
 
 
@@ -257,8 +259,10 @@ class SaveAsSetView(LoginRequiredMixin, View):
         if new_project:
             try:
                 project = create_project(request.user, new_project)
-            except ValueError as exc:
-                return HttpResponseBadRequest(str(exc))
+            except ValueError:
+                return HttpResponseBadRequest(
+                    "A project needs a name of 200 characters or fewer."
+                )
         elif project_id:
             try:
                 project_uuid = uuid.UUID(project_id)
@@ -329,11 +333,15 @@ class AddToSetView(LoginRequiredMixin, View):
                 note=request.POST.get("note", ""),
                 code_names=request.POST.getlist("codes"),
             )
-        except ValueError as exc:
+        except ValueError:
             return render(
                 request,
                 self.template_name,
-                self._context(request, page, error=str(exc)),
+                self._context(
+                    request,
+                    page,
+                    error="The page could not be added. Check the selected set and code names.",
+                ),
                 status=400,
             )
         return render(
@@ -1029,8 +1037,21 @@ class CodeCreateView(LoginRequiredMixin, View):
                 exclusion=request.POST.get("exclusion", ""),
                 actor=request.user,
             )
-        except ValueError as exc:
-            return self._render_error(request, project_obj, str(exc))
+        except ValueError:
+            name = request.POST.get("name", "").strip()
+            duplicate = (
+                bool(name)
+                and Code.objects.filter(
+                    project=project_obj, parent=parent, name=name
+                ).exists()
+            )
+            return self._render_error(
+                request,
+                project_obj,
+                "A code with that name already exists."
+                if duplicate
+                else "The code could not be created. Check the name, parent, and length.",
+            )
         return redirect("research:codebook", project=project_obj.id)
 
 
@@ -1056,8 +1077,12 @@ class CodeRenameView(LoginRequiredMixin, View):
                 exclusion=request.POST.get("exclusion"),
                 actor=request.user,
             )
-        except ValueError as exc:
-            return self._render_error(request, code_obj.project, str(exc))
+        except ValueError:
+            return self._render_error(
+                request,
+                code_obj.project,
+                "The code could not be renamed. Check the name and length.",
+            )
         return redirect("research:codebook", project=project)
 
 
@@ -1082,9 +1107,12 @@ class CodeMergeView(LoginRequiredMixin, View):
         )
         try:
             merge_codes(source, target, actor=request.user)
-        except ValueError as exc:
+        except ValueError:
             context = _codebook_context(source.project)
-            context["error"] = str(exc)
+            context["error"] = (
+                "The codes could not be merged. Check the source has no "
+                "children and both codes belong to the same project."
+            )
             return render(request, self.template_name, context, status=400)
         return redirect("research:codebook", project=project)
 
@@ -1219,8 +1247,8 @@ class MemoCreateView(LoginRequiredMixin, View):
                 code=code,
                 page=page,
             )
-        except ValueError as exc:
-            return HttpResponseBadRequest(str(exc))
+        except ValueError:
+            return HttpResponseBadRequest("A memo needs a body and at most one target.")
         if result_set is not None:
             return redirect(
                 "research:set-detail", project=project_obj.id, set=result_set.id
@@ -1242,8 +1270,8 @@ class MemoUpdateView(LoginRequiredMixin, View):
         )
         try:
             update_memo(memo_obj, body=request.POST.get("body", ""))
-        except ValueError as exc:
-            return HttpResponseBadRequest(str(exc))
+        except ValueError:
+            return HttpResponseBadRequest("A memo needs a body.")
         return redirect("research:project-detail", project=project)
 
 
