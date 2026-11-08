@@ -50,6 +50,7 @@ class TestBulkCodeApplication:
         )
 
         assert response.status_code == 200
+        assert response["HX-Refresh"] == "true"
         assert Coding.objects.filter(code=code, page=ca).exists()
         assert not Coding.objects.filter(code=code, page=or_).exists()
         event = project.events.get(verb="items.coded")

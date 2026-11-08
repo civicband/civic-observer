@@ -17,15 +17,17 @@
                    class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
             <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Ignore all</button>
         </form>
-        <form hx-post="{% url 'research:set-bulk' result_set.project_id result_set.id %}"
-              hx-target="#bulk-confirm" hx-swap="innerHTML" class="inline-flex items-center gap-2">
-            {% csrf_token %}
-            <input type="hidden" name="lens" value="{{ querystring }}">
-            <select name="code" class="rounded-md border-gray-300 text-xs shadow-sm">
-                {% for code in codes %}<option value="{{ code.id }}">{{ code.name }}</option>{% endfor %}
-            </select>
-            <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Apply code</button>
-        </form>
+        {% if codes %}
+            <form hx-post="{% url 'research:set-bulk' result_set.project_id result_set.id %}"
+                  hx-target="#bulk-confirm" hx-swap="innerHTML" class="inline-flex items-center gap-2">
+                {% csrf_token %}
+                <input type="hidden" name="lens" value="{{ querystring }}">
+                <select name="code" class="rounded-md border-gray-300 text-xs shadow-sm">
+                    {% for code in codes %}<option value="{{ code.id }}">{{ code.name }}</option>{% endfor %}
+                </select>
+                <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Apply code</button>
+            </form>
+        {% endif %}
     </div>
     <div id="bulk-confirm"></div>
 {% endif %}
