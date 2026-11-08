@@ -101,4 +101,15 @@ urlpatterns = [
         views.PageCodeView.as_view(),
         name="page-code",
     ),
+    path("<uuid:project>/memos/", views.MemoCreateView.as_view(), name="memo-create"),
+    path(
+        "<uuid:project>/memos/<uuid:memo>/",
+        views.MemoUpdateView.as_view(),
+        name="memo-update",
+    ),
+    path(
+        "<uuid:project>/memos/<uuid:memo>/delete/",
+        views.MemoDeleteView.as_view(),
+        name="memo-delete",
+    ),
 ]

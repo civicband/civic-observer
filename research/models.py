@@ -276,9 +276,19 @@ class Memo(TimeStampedModel):
     )
     body = models.TextField()
     result_set = models.ForeignKey(
-        ResultSet, on_delete=models.CASCADE, null=True, blank=True
+        ResultSet,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="memos",
     )
-    code = models.ForeignKey(Code, on_delete=models.CASCADE, null=True, blank=True)
+    code = models.ForeignKey(
+        Code,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="memos",
+    )
     page = models.ForeignKey(
         "meetings.MeetingPage",
         on_delete=models.DO_NOTHING,

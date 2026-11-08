@@ -77,6 +77,31 @@
             </div>
         </div>
 
+        <div class="mt-8 bg-white shadow rounded-lg border border-gray-200">
+            <div class="px-4 py-5 sm:p-6">
+                <h2 class="text-lg font-medium text-gray-900">Memo</h2>
+                <p class="mt-1 text-sm text-gray-600">Leave a note about this codebook. Markdown is supported.</p>
+                <form method="post" action="{% url 'research:memo-create' project.id %}" class="mt-4 space-y-3">
+                    {% csrf_token %}
+                    <textarea name="body" rows="2" required placeholder="Notes on definitions, boundaries, or decisions"
+                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
+                    <button type="submit"
+                            class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                        Add memo
+                    </button>
+                </form>
+                {% for code in codes %}
+                    <form method="post" action="{% url 'research:memo-create' project.id %}" class="mt-3 flex items-center gap-2">
+                        {% csrf_token %}
+                        <input type="hidden" name="code" value="{{ code.id }}">
+                        <input type="text" name="body" required placeholder="Memo for {{ code.name }}"
+                               class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Add code memo</button>
+                    </form>
+                {% endfor %}
+            </div>
+        </div>
+
         <div class="mt-8">
             <h2 class="text-lg font-medium text-gray-900">Codes</h2>
             <div class="mt-4 space-y-4">

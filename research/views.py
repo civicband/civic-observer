@@ -12,6 +12,7 @@ from django.http import (
 )
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
 from django.views.generic import DetailView, ListView
 
@@ -34,6 +35,7 @@ from .codebook import (
 from .disposition import dispose_item, dispose_items, undo_disposition_event
 from .lens import Lens
 from .materialize import create_result_set
+from .memos import create_memo, delete_memo, project_timeline, update_memo
 from .models import (
     AuditEvent,
     Code,
@@ -149,6 +151,11 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
 
     def get_queryset(self) -> QuerySet[Project]:
         return Project.objects.filter(owner=self.request.user)  # type: ignore[misc]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["timeline"] = project_timeline(self.object)
+        return context
 
 
 class SetCreateView(LoginRequiredMixin, View):
@@ -843,3 +850,70 @@ class PageCodeView(LoginRequiredMixin, View):
         return render(
             request, self.template_name, _page_coding_context(project_obj, page_obj)
         )
+
+
+def _memo_target(model, raw_id, project):
+    if not raw_id:
+        return None
+    return get_object_or_404(model, id=raw_id, project=project)
+
+
+class MemoCreateView(LoginRequiredMixin, View):
+    def post(self, request, project):
+        project_obj = get_object_or_404(Project, id=project, owner=request.user)
+        result_set = _memo_target(
+            ResultSet, request.POST.get("result_set"), project_obj
+        )
+        code = _memo_target(Code, request.POST.get("code"), project_obj)
+        page_id = request.POST.get("page")
+        page = None
+        if page_id:
+            if not SetItem.objects.filter(
+                result_set__project=project_obj, page_id=page_id
+            ).exists():
+                raise Http404
+            page = MeetingPage.objects.get(pk=page_id)
+        try:
+            create_memo(
+                project_obj,
+                author=request.user,
+                body=request.POST.get("body", ""),
+                result_set=result_set,
+                code=code,
+                page=page,
+            )
+        except ValueError as exc:
+            return HttpResponseBadRequest(str(exc))
+        if result_set is not None:
+            return redirect(
+                "research:set-detail", project=project_obj.id, set=result_set.id
+            )
+        if code is not None:
+            return redirect("research:codebook", project=project_obj.id)
+        next_url = request.POST.get("next")
+        if next_url and url_has_allowed_host_and_scheme(
+            next_url, allowed_hosts={request.get_host()}
+        ):
+            return redirect(next_url)
+        return redirect("research:project-detail", project=project_obj.id)
+
+
+class MemoUpdateView(LoginRequiredMixin, View):
+    def post(self, request, project, memo):
+        memo_obj = get_object_or_404(
+            Memo, id=memo, project__owner=request.user, project_id=project
+        )
+        try:
+            update_memo(memo_obj, body=request.POST.get("body", ""))
+        except ValueError as exc:
+            return HttpResponseBadRequest(str(exc))
+        return redirect("research:project-detail", project=project)
+
+
+class MemoDeleteView(LoginRequiredMixin, View):
+    def post(self, request, project, memo):
+        memo_obj = get_object_or_404(
+            Memo, id=memo, project__owner=request.user, project_id=project
+        )
+        delete_memo(memo_obj)
+        return redirect("research:project-detail", project=project)
