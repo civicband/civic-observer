@@ -131,23 +131,16 @@ class TestMigrateNotebook:
         event = project.events.get(verb="project.imported")
         assert event.payload["entries"] == 0
 
-    def test_missing_page_keeps_note_and_tag(self):
+    def test_entry_without_note_creates_no_memo(self):
         notebook = NotebookFactory()
         page = MeetingPageFactory(document=MeetingDocumentFactory())
-        tag = TagFactory(user=notebook.user, name="housing")
-        entry = NotebookEntryFactory(notebook=notebook, meeting_page=page, note="note")
-        entry.tags.add(tag)
-        page_id = page.id
-        page.delete()
+        NotebookEntryFactory(notebook=notebook, meeting_page=page, note="")
 
         migrate_notebook(notebook)
 
         project = Project.objects.get(id=notebook.id)
-        assert SetItem.objects.filter(
-            result_set__project=project, page_id=page_id
-        ).exists()
-        assert Memo.objects.filter(project=project, page_id=page_id).exists()
-        assert Coding.objects.filter(project=project, page_id=page_id).exists()
+        assert SetItem.objects.filter(result_set__project=project, page=page).exists()
+        assert not Memo.objects.filter(project=project).exists()
 
 
 @pytest.mark.django_db
