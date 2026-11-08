@@ -3,19 +3,21 @@ from datetime import date
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count, QuerySet
-from django.http import HttpResponse
-from django.shortcuts import get_object_or_404, redirect
+from django.http import HttpResponse, HttpResponseBadRequest, QueryDict
+from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.views import View
 from django.views.generic import DetailView, ListView
 
+from meetings.models import MeetingPage
 from municipalities.models import Muni
 from searches.queryspec import QuerySpec
 
-from .browse import browse_set, set_facets
+from .browse import browse_set, filter_items, set_facets
+from .disposition import dispose_item, dispose_items, undo_disposition_event
 from .lens import Lens
 from .materialize import create_result_set
-from .models import Project, ResultSet
+from .models import AuditEvent, Project, ResultSet, SetItem
 
 
 def _split_csv(value: str | None) -> tuple[str, ...]:
@@ -120,6 +122,7 @@ class SetDetailView(LoginRequiredMixin, DetailView):
             context["items"] = items
             context["next_cursor"] = next_cursor
             context["facets"] = self._municipality_names(set_facets(result_set, lens))
+            context["lens_count"] = filter_items(result_set, lens).count()
 
         return context
 
@@ -156,3 +159,107 @@ class SetStatusView(LoginRequiredMixin, View):
         if result_set.status == ResultSet.Status.READY:
             response["HX-Refresh"] = "true"
         return response
+
+
+class DispositionView(LoginRequiredMixin, View):
+    def post(self, request, project, set, item):
+        result_set = get_object_or_404(
+            ResultSet,
+            id=set,
+            project_id=project,
+            project__owner=request.user,
+        )
+        set_item = get_object_or_404(SetItem, id=item, result_set=result_set)
+        disposition = request.POST.get("disposition", "")
+        reason = request.POST.get("reason", "")
+        lens = Lens.from_querydict(QueryDict(request.POST.get("lens", "")))
+        try:
+            dispose_item(set_item, disposition, actor=request.user, reason=reason)
+        except ValueError:
+            return HttpResponseBadRequest("Invalid disposition")
+
+        set_item.refresh_from_db()
+        set_item.page_obj = MeetingPage.objects.in_bulk([set_item.page_id]).get(  # type: ignore[attr-defined]
+            set_item.page_id
+        )
+        context = {
+            "result_set": result_set,
+            "lens": lens,
+            "querystring": lens.to_querystring(),
+            "item": set_item,
+        }
+        return render(request, "research/partials/item.html", context)
+
+
+class BulkActionView(LoginRequiredMixin, View):
+    def post(self, request, project, set):
+        result_set = get_object_or_404(
+            ResultSet,
+            id=set,
+            project_id=project,
+            project__owner=request.user,
+        )
+        disposition = request.POST.get("disposition", "")
+        if disposition not in SetItem.Disposition.values:
+            return HttpResponseBadRequest("Invalid disposition")
+        reason = request.POST.get("reason", "")
+        lens = Lens.from_querydict(QueryDict(request.POST.get("lens", "")))
+        if request.POST.get("confirm") != "1":
+            count = filter_items(result_set, lens).count()
+            return render(
+                request,
+                "research/partials/bulk_confirm.html",
+                {
+                    "result_set": result_set,
+                    "lens": lens,
+                    "querystring": lens.to_querystring(),
+                    "disposition": disposition,
+                    "reason": reason,
+                    "count": count,
+                },
+            )
+        dispose_items(result_set, lens, disposition, actor=request.user, reason=reason)
+        response = HttpResponse("")
+        response["HX-Refresh"] = "true"
+        return response
+
+
+class UndoView(LoginRequiredMixin, View):
+    def post(self, request, project, set, event):
+        result_set = get_object_or_404(
+            ResultSet,
+            id=set,
+            project_id=project,
+            project__owner=request.user,
+        )
+        audit_event = get_object_or_404(
+            AuditEvent,
+            id=event,
+            project=result_set.project,
+            result_set=result_set,
+        )
+        try:
+            undo_event, count = undo_disposition_event(audit_event, actor=request.user)
+        except ValueError:
+            return HttpResponseBadRequest("Event cannot be undone")
+        if count == 0:
+            return HttpResponse("Nothing to undo", status=409)
+
+        item_ids = audit_event.payload.get("item_ids", [])
+        if len(item_ids) != 1:
+            response = HttpResponse("")
+            response["HX-Refresh"] = "true"
+            return response
+
+        set_item = get_object_or_404(SetItem, id=item_ids[0], result_set=result_set)
+        set_item.page_obj = MeetingPage.objects.in_bulk([set_item.page_id]).get(  # type: ignore[attr-defined]
+            set_item.page_id
+        )
+        lens = Lens.from_querydict(QueryDict(request.POST.get("lens", "")))
+        context = {
+            "result_set": result_set,
+            "lens": lens,
+            "querystring": lens.to_querystring(),
+            "item": set_item,
+        }
+        return render(request, "research/partials/item.html", context)

@@ -22,4 +22,19 @@ urlpatterns = [
         views.SetStatusView.as_view(),
         name="set-status",
     ),
+    path(
+        "<uuid:project>/sets/<uuid:set>/items/<int:item>/disposition/",
+        views.DispositionView.as_view(),
+        name="item-disposition",
+    ),
+    path(
+        "<uuid:project>/sets/<uuid:set>/bulk/",
+        views.BulkActionView.as_view(),
+        name="set-bulk",
+    ),
+    path(
+        "<uuid:project>/sets/<uuid:set>/events/<int:event>/undo/",
+        views.UndoView.as_view(),
+        name="event-undo",
+    ),
 ]

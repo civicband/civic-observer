@@ -32,7 +32,10 @@
                     {% include "research/partials/facets.html" %}
                 </aside>
                 <div class="lg:col-span-3">
-                    {% include "research/partials/set_items.html" %}
+                    {% include "research/partials/bulk_bar.html" %}
+                    <div id="set-items">
+                        {% include "research/partials/set_items.html" %}
+                    </div>
                 </div>
             </div>
         {% else %}
