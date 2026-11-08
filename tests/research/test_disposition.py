@@ -64,6 +64,22 @@ class TestDisposeItem:
         assert item.disposition_by_rule is None
         assert item.ignore_reason == ""
 
+    def test_manual_same_disposition_clears_rule(self):
+        item = SetItemFactory()
+        rule = IgnoreRuleFactory(project=item.result_set.project)
+        item.disposition = "i"
+        item.disposition_by_rule = rule
+        item.save()
+
+        event = dispose_item(item, "i")
+        item.refresh_from_db()
+
+        assert event is not None
+        assert item.disposition == "i"
+        assert item.disposition_by_rule is None
+        assert item.previous_disposition == "i"
+        assert AuditEvent.objects.filter(verb="items.disposed").count() == 1
+
     def test_unreviewed_clears_reason(self):
         item = SetItemFactory(disposition="i", ignore_reason="Boilerplate")
 

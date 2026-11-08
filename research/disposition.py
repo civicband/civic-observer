@@ -36,7 +36,11 @@ def dispose_item(
         raise ValueError(f"Invalid disposition: {disposition!r}")
 
     reason = _clean_reason(reason)
-    if item.disposition == disposition and item.ignore_reason == reason:
+    if (
+        item.disposition == disposition
+        and item.ignore_reason == reason
+        and item.disposition_by_rule is None
+    ):
         return None
 
     previous = item.disposition
