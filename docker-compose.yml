@@ -9,6 +9,8 @@ x-django-settings: &django-settings
   restart: on-failure
   networks:
     civic-network:
+  volumes:
+    - media-data:/src/media
 
 x-django-web: &django-web
   <<: *django-settings
@@ -108,6 +110,7 @@ services:
 volumes:
   postgres-data:
   redis-data:
+  media-data:
 
 networks:
   civic-network:

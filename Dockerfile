@@ -70,6 +70,11 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 # Copy application code
 COPY --chown=app:app . /src/
 
+# The named media volume is initialized from this directory. Create it owned
+# by the runtime user so export jobs can write to it on a fresh deploy (a
+# root-owned mount point is unwritable by UID 1000).
+RUN mkdir -p /src/media && chown app:app /src/media
+
 # Copy pre-built static files from asset-builder
 COPY --from=asset-builder --chown=app:app /src/static /src/static
 COPY --from=asset-builder --chown=app:app /src/frontend/css /src/frontend/css

@@ -34,6 +34,10 @@
                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
                     Review
                 </a>
+                <a href="{% url 'research:set-export' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}{% endif %}"
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                    Export CSV
+                </a>
                 <a href="{% url 'research:rule-create' result_set.project_id %}{% if querystring %}?lens={{ querystring|urlencode }}{% endif %}"
                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
                     Make ignore rule
@@ -57,6 +61,24 @@
                         Copy dispositions
                     </label>
                     <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Save lens as set</button>
+                </form>
+            </div>
+        </div>
+
+        <div class="mt-6 bg-white shadow rounded-lg border border-gray-200">
+            <div class="px-4 py-5 sm:p-6">
+                <h2 class="text-lg font-medium text-gray-900">Memo</h2>
+                <p class="mt-1 text-sm text-gray-600">Leave a note about this result set. Markdown is supported.</p>
+                <form method="post" action="{% url 'research:memo-create' result_set.project_id %}" class="mt-4 space-y-3">
+                    {% csrf_token %}
+                    <input type="hidden" name="result_set" value="{{ result_set.id }}">
+                    <input type="hidden" name="next" value="{% url 'research:set-detail' result_set.project_id result_set.id %}">
+                    <textarea name="body" rows="2" required placeholder="Why this query, what to look for, etc."
+                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
+                    <button type="submit"
+                            class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                        Add memo
+                    </button>
                 </form>
             </div>
         </div>
