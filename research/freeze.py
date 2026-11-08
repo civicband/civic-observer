@@ -32,6 +32,46 @@ def _query_hash(query: dict) -> str:
     ).hexdigest()
 
 
+def _record_too_large(
+    child: ResultSet,
+    parent: ResultSet,
+    lens: Lens,
+    count: int,
+    copy_dispositions: bool,
+) -> None:
+    record_event(
+        child.project,
+        "set.derived",
+        result_set=child,
+        payload={
+            "parent": str(parent.id),
+            "lens": lens.canonical(),
+            "item_count": count,
+            "dispositions_copied": copy_dispositions,
+            "rejected": True,
+            "reason": "too_large",
+        },
+    )
+
+
+def _mark_too_large(
+    child: ResultSet,
+    parent: ResultSet,
+    lens: Lens,
+    count: int,
+    copy_dispositions: bool,
+) -> ResultSet:
+    child.status = ResultSet.Status.TOO_LARGE
+    child.item_count = count
+    child.error = (
+        f"This lens matches at least {count} pages, more than the "
+        f"{settings.RESEARCH_SET_MAX_ITEMS:,}-page set limit."
+    )
+    child.save(update_fields=["status", "item_count", "error", "modified"])
+    _record_too_large(child, parent, lens, count, copy_dispositions)
+    return child
+
+
 def freeze_lens(
     parent: ResultSet,
     name: str,
@@ -49,19 +89,28 @@ def freeze_lens(
         query_hash=_query_hash(query),
         status=ResultSet.Status.PENDING,
     )
-    count = filter_items(parent, lens).count()
-    if count > settings.RESEARCH_SET_MAX_ITEMS:
-        child.status = ResultSet.Status.TOO_LARGE
-        child.item_count = count
-        child.error = (
-            f"This lens matches at least {count} pages, more than the "
-            f"{settings.RESEARCH_SET_MAX_ITEMS:,}-page set limit."
-        )
-        child.save(update_fields=["status", "item_count", "error", "modified"])
+    try:
+        count = filter_items(parent, lens).count()
+    except Exception as exc:
+        child.status = ResultSet.Status.FAILED
+        child.error = str(exc)
+        child.save(update_fields=["status", "error", "modified"])
         return child
+    if count > settings.RESEARCH_SET_MAX_ITEMS:
+        return _mark_too_large(child, parent, lens, count, copy_dispositions)
     if count <= settings.RESEARCH_INLINE_SET_MAX_ITEMS:
-        return materialize_lens_set(child.id)
-    enqueue_lens_materialization(child.id)
+        try:
+            return materialize_lens_set(child.id)
+        except Exception:
+            # materialize_lens_set records FAILED before re-raising.
+            child.refresh_from_db()
+            return child
+    try:
+        enqueue_lens_materialization(child.id)
+    except Exception as exc:
+        child.status = ResultSet.Status.FAILED
+        child.error = str(exc)
+        child.save(update_fields=["status", "error", "modified"])
     return child
 
 
@@ -91,6 +140,10 @@ def materialize_lens_set(result_set_id) -> ResultSet:
     child.error = ""
     child.save(update_fields=["status", "error", "modified"])
     try:
+        count = filter_items(parent, lens).count()
+        if count > settings.RESEARCH_SET_MAX_ITEMS:
+            _mark_too_large(child, parent, lens, count, copy_dispositions)
+            return child
         with transaction.atomic():
             source = filter_items(parent, lens).values(
                 "page_id",

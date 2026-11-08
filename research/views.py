@@ -20,8 +20,11 @@ from .disposition import dispose_item, dispose_items, undo_disposition_event
 from .lens import Lens
 from .materialize import create_result_set
 from .models import AuditEvent, IgnoreRule, Project, ResultSet, SetItem
-from .rules import preview_rule, revert_rule
+from .rules import is_empty, preview_rule, revert_rule, validate_rule_predicate
 from .tasks import apply_rule_to_project_task, revert_rule_task
+
+MAX_NAME_LENGTH = 200
+MAX_REASON_LENGTH = 500
 
 
 def _split_csv(value: str | None) -> tuple[str, ...]:
@@ -67,15 +70,18 @@ def _ignore_reasons(result_set: ResultSet) -> list[str]:
         SetItem.objects.filter(result_set__project=result_set.project)
         .exclude(ignore_reason="")
         .values_list("ignore_reason", flat=True)
-        .distinct()[:20]
+        .distinct()
+        .order_by("ignore_reason")[:20]
     )
 
 
-def _enqueue_rule_task(task, rule_id) -> None:
+def _enqueue_rule_task(task, rule_id, actor_id=None) -> None:
     import django_rq
 
     queue = django_rq.get_queue(settings.RESEARCH_QUEUE)
-    queue.enqueue(task, rule_id, job_timeout=settings.RESEARCH_JOB_TIMEOUT)
+    queue.enqueue(
+        task, rule_id, actor_id=actor_id, job_timeout=settings.RESEARCH_JOB_TIMEOUT
+    )
 
 
 def _rule_form_initial(spec: QuerySpec) -> dict:
@@ -137,7 +143,10 @@ class SetCreateView(LoginRequiredMixin, View):
             date_to=_date_value(request.POST.get("date_to")),
             document_type=document_type,
         )
-        name = (request.POST.get("name") or "").strip() or "Untitled set"
+        name = (request.POST.get("name") or "").strip()
+        if len(name) > MAX_NAME_LENGTH:
+            return HttpResponseBadRequest("Set name is too long")
+        name = name or "Untitled set"
 
         result_set = create_result_set(project_obj, name, spec)
         return redirect(
@@ -228,6 +237,8 @@ class FreezeLensView(LoginRequiredMixin, View):
         name = (request.POST.get("name") or "").strip()
         if not name:
             return HttpResponseBadRequest("A name is required")
+        if len(name) > MAX_NAME_LENGTH:
+            return HttpResponseBadRequest("Set name is too long")
         copy_dispositions = request.POST.get("copy_dispositions") == "1"
         from .freeze import freeze_lens
 
@@ -469,7 +480,7 @@ class IgnoreRuleCreateView(LoginRequiredMixin, View):
     def _project(self, request, project) -> Project:
         return get_object_or_404(Project, id=project, owner=request.user)
 
-    def _render(self, request, project, initial, preview=None, error=""):
+    def _render(self, request, project, initial, preview=None, error="", status=200):
         return render(
             request,
             self.template_name,
@@ -479,6 +490,7 @@ class IgnoreRuleCreateView(LoginRequiredMixin, View):
                 "preview": preview,
                 "error": error,
             },
+            status=status,
         )
 
     def get(self, request, project):
@@ -520,6 +532,25 @@ class IgnoreRuleCreateView(LoginRequiredMixin, View):
         spec = _spec_from_rule_form(request.POST)
         action = request.POST.get("action")
 
+        if is_empty(spec):
+            return self._render(
+                request,
+                project_obj,
+                request.POST,
+                error="A rule needs at least one condition.",
+                status=400,
+            )
+
+        predicate_error = validate_rule_predicate(spec)
+        if predicate_error:
+            return self._render(
+                request,
+                project_obj,
+                request.POST,
+                error=predicate_error,
+                status=400,
+            )
+
         if action == "preview":
             preview = preview_rule(project_obj, spec)
             return self._render(request, project_obj, request.POST, preview=preview)
@@ -535,8 +566,16 @@ class IgnoreRuleCreateView(LoginRequiredMixin, View):
                 request.POST,
                 error="A name is required",
             )
+        if len(name) > MAX_NAME_LENGTH:
+            return self._render(
+                request,
+                project_obj,
+                request.POST,
+                error="Rule name is too long",
+                status=400,
+            )
 
-        reason = (request.POST.get("reason") or "").strip()
+        reason = (request.POST.get("reason") or "").strip()[:MAX_REASON_LENGTH]
         rule = IgnoreRule.objects.create(
             project=project_obj,
             name=name,
@@ -549,7 +588,7 @@ class IgnoreRuleCreateView(LoginRequiredMixin, View):
             actor=request.user,
             payload={"name": rule.name, "predicate": rule.predicate, "reason": reason},
         )
-        _enqueue_rule_task(apply_rule_to_project_task, rule.id)
+        _enqueue_rule_task(apply_rule_to_project_task, rule.id, request.user.id)
         return redirect("research:rule-list", project=project_obj.id)
 
 
@@ -571,9 +610,9 @@ class IgnoreRuleToggleView(LoginRequiredMixin, View):
             },
         )
         if rule_obj.is_active:
-            _enqueue_rule_task(apply_rule_to_project_task, rule_obj.id)
+            _enqueue_rule_task(apply_rule_to_project_task, rule_obj.id, request.user.id)
         else:
-            _enqueue_rule_task(revert_rule_task, rule_obj.id)
+            _enqueue_rule_task(revert_rule_task, rule_obj.id, request.user.id)
         return redirect("research:rule-list", project=project_obj.id)
 
 

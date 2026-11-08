@@ -4,14 +4,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from django.db import connection, transaction
-from django.db.models import Count
+from django.conf import settings
+from django.db import DatabaseError, connection, transaction
 from django.utils import timezone
 
 from searches.queryspec import QuerySpec, build_where
 
 from .audit import record_event
-from .models import AuditEvent, IgnoreRule, ResultSet, SetItem
+from .models import AuditEvent, IgnoreRule, ResultSet
 
 RULE_APPLIED = "rule.applied"
 RULE_REVERTED = "rule.reverted"
@@ -26,7 +26,7 @@ def _counts_sql(spec: QuerySpec) -> tuple[str, list[Any]]:
     return where, params
 
 
-def _is_empty(spec: QuerySpec) -> bool:
+def is_empty(spec: QuerySpec) -> bool:
     """An empty predicate matches every page; treating it as a rule is unsafe."""
     return not (
         spec.text
@@ -40,59 +40,79 @@ def _is_empty(spec: QuerySpec) -> bool:
     )
 
 
+def validate_rule_predicate(spec: QuerySpec) -> str | None:
+    """Return a database error message if ``spec`` cannot be executed."""
+    if is_empty(spec):
+        return None
+    where, params = build_where(spec, alias="mp")
+    try:
+        with transaction.atomic(), connection.cursor() as cur:
+            cur.execute(
+                f"SELECT 1 FROM meetings_meetingpage mp WHERE {where} LIMIT 1",
+                params,
+            )
+    except DatabaseError as exc:
+        return str(exc)
+    return None
+
+
 def preview_rule(project, spec: QuerySpec, *, sample_limit: int = 10) -> dict:
     """Dry-run a rule: per-set unreviewed counts and a small sample."""
-    if _is_empty(spec):
+    if is_empty(spec):
         return {"counts": [], "total": 0, "samples": []}
     where, params = _counts_sql(spec)
     counts: list[dict] = []
-    with connection.cursor() as cur:
-        cur.execute(
-            f"""
-            SELECT r.id, r.name, count(i.id)
-            FROM research_resultset r
-            JOIN research_setitem i ON i.result_set_id = r.id
-            JOIN meetings_meetingpage mp ON mp.id = i.page_id
-            WHERE r.project_id = %s
-              AND i.disposition = 'u'
-              AND {where}
-            GROUP BY r.id, r.name
-            ORDER BY r.created
-            """,
-            [project.id, *params],
-        )
-        counts = [
-            {"result_set_id": row[0], "name": row[1], "count": row[2]}
-            for row in cur.fetchall()
-        ]
+    samples: list[dict] = []
+    try:
+        with transaction.atomic(), connection.cursor() as cur:
+            cur.execute(
+                f"""
+                SELECT r.id, r.name, count(i.id)
+                FROM research_resultset r
+                JOIN research_setitem i ON i.result_set_id = r.id
+                JOIN meetings_meetingpage mp ON mp.id = i.page_id
+                WHERE r.project_id = %s
+                  AND i.disposition = 'u'
+                  AND {where}
+                GROUP BY r.id, r.name
+                ORDER BY r.created
+                """,
+                [project.id, *params],
+            )
+            counts = [
+                {"result_set_id": row[0], "name": row[1], "count": row[2]}
+                for row in cur.fetchall()
+            ]
 
-        cur.execute(
-            f"""
-            SELECT i.id, r.name, mp.meeting_name, mp.meeting_date,
-                   mp.document_type, mp.page_number, left(mp.text, 200)
-            FROM research_setitem i
-            JOIN research_resultset r ON r.id = i.result_set_id
-            JOIN meetings_meetingpage mp ON mp.id = i.page_id
-            WHERE r.project_id = %s
-              AND i.disposition = 'u'
-              AND {where}
-            ORDER BY r.created, i.id
-            LIMIT %s
-            """,
-            [project.id, *params, sample_limit],
-        )
-        samples = [
-            {
-                "item_id": row[0],
-                "set_name": row[1],
-                "meeting_name": row[2],
-                "meeting_date": row[3],
-                "document_type": row[4],
-                "page_number": row[5],
-                "text": row[6],
-            }
-            for row in cur.fetchall()
-        ]
+            cur.execute(
+                f"""
+                SELECT i.id, r.name, mp.meeting_name, mp.meeting_date,
+                       mp.document_type, mp.page_number, left(mp.text, 200)
+                FROM research_setitem i
+                JOIN research_resultset r ON r.id = i.result_set_id
+                JOIN meetings_meetingpage mp ON mp.id = i.page_id
+                WHERE r.project_id = %s
+                  AND i.disposition = 'u'
+                  AND {where}
+                ORDER BY r.created, i.id
+                LIMIT %s
+                """,
+                [project.id, *params, sample_limit],
+            )
+            samples = [
+                {
+                    "item_id": row[0],
+                    "set_name": row[1],
+                    "meeting_name": row[2],
+                    "meeting_date": row[3],
+                    "document_type": row[4],
+                    "page_number": row[5],
+                    "text": row[6],
+                }
+                for row in cur.fetchall()
+            ]
+    except DatabaseError as exc:
+        return {"counts": [], "total": 0, "samples": [], "error": str(exc)}
 
     return {
         "counts": counts,
@@ -103,14 +123,15 @@ def preview_rule(project, spec: QuerySpec, *, sample_limit: int = 10) -> dict:
 
 def apply_rule_to_project(rule: IgnoreRule, *, actor=None) -> AuditEvent | None:
     """Apply one active rule across every set in the project."""
-    if not rule.is_active:
-        return None
-    spec = _rule_spec(rule)
-    if _is_empty(spec):
-        return None
-    where, params = _counts_sql(spec)
-
     with transaction.atomic():
+        rule = IgnoreRule.objects.select_for_update().get(pk=rule.pk)
+        if not rule.is_active:
+            return None
+        spec = _rule_spec(rule)
+        if is_empty(spec):
+            return None
+        where, params = _counts_sql(spec)
+
         event = AuditEvent.objects.create(
             project=rule.project,
             actor=actor,
@@ -123,6 +144,10 @@ def apply_rule_to_project(rule: IgnoreRule, *, actor=None) -> AuditEvent | None:
             },
         )
         with connection.cursor() as cur:
+            cur.execute(
+                "SELECT set_config('statement_timeout', %s, true)",
+                [str(settings.RESEARCH_STATEMENT_TIMEOUT_MS)],
+            )
             cur.execute(
                 f"""
                 WITH updated AS (
@@ -161,28 +186,47 @@ def apply_rule_to_project(rule: IgnoreRule, *, actor=None) -> AuditEvent | None:
 def revert_rule(rule: IgnoreRule, *, actor=None) -> AuditEvent:
     """Revert only rows still ignored by this rule."""
     with transaction.atomic():
-        rows = list(
-            SetItem.objects.filter(disposition_by_rule=rule, disposition="i")
-            .values("result_set_id")
-            .annotate(count=Count("id"))
-        )
+        rule = IgnoreRule.objects.select_for_update().get(pk=rule.pk)
         event = AuditEvent.objects.create(
             project=rule.project,
             actor=actor,
             verb=RULE_REVERTED,
             payload={
                 "predicate": rule.predicate,
-                "counts": {str(row["result_set_id"]): row["count"] for row in rows},
-                "count": sum(row["count"] for row in rows),
+                "counts": {},
+                "count": 0,
             },
         )
-        SetItem.objects.filter(disposition_by_rule=rule, disposition="i").update(
-            disposition=SetItem.Disposition.UNREVIEWED,
-            disposition_by_rule=None,
-            ignore_reason="",
-            last_event=event,
-        )
-        ResultSet.objects.filter(id__in=[row["result_set_id"] for row in rows]).update(
+        with connection.cursor() as cur:
+            cur.execute(
+                "SELECT set_config('statement_timeout', %s, true)",
+                [str(settings.RESEARCH_STATEMENT_TIMEOUT_MS)],
+            )
+            cur.execute(
+                """
+                WITH updated AS (
+                    UPDATE research_setitem
+                    SET disposition = 'u',
+                        disposition_by_rule_id = NULL,
+                        ignore_reason = '',
+                        last_event_id = %s
+                    WHERE disposition_by_rule_id = %s
+                      AND disposition = 'i'
+                    RETURNING result_set_id
+                )
+                SELECT result_set_id, count(*)
+                FROM updated
+                GROUP BY result_set_id
+                """,
+                [event.id, rule.id],
+            )
+            rows = cur.fetchall()
+
+        counts = {str(row[0]): row[1] for row in rows}
+        event.payload["counts"] = counts
+        event.payload["count"] = sum(counts.values())
+        event.save(update_fields=["payload"])
+        ResultSet.objects.filter(id__in=[row[0] for row in rows]).update(
             modified=timezone.now()
         )
     return event
@@ -196,10 +240,21 @@ def apply_rule_to_set(
     only_new: bool = False,
 ) -> int:
     """Apply one rule to a single set (used by materialization/new matches)."""
+    try:
+        rule = IgnoreRule.objects.select_for_update().get(pk=rule.pk)
+    except IgnoreRule.DoesNotExist:
+        return 0
+    if not rule.is_active:
+        return 0
     spec = _rule_spec(rule)
     where, params = _counts_sql(spec)
-    extra = "AND i.added_via = 'new_matches'" if only_new else ""
+    extra = "AND i.last_event_id = %s" if only_new else ""
+    extra_params = [event.id] if only_new else []
     with connection.cursor() as cur:
+        cur.execute(
+            "SELECT set_config('statement_timeout', %s, true)",
+            [str(settings.RESEARCH_STATEMENT_TIMEOUT_MS)],
+        )
         cur.execute(
             f"""
             UPDATE research_setitem i
@@ -214,7 +269,14 @@ def apply_rule_to_set(
               {extra}
               AND {where}
             """,
-            [rule.id, rule.reason, event.id, result_set.id, *params],
+            [
+                rule.id,
+                rule.reason,
+                event.id,
+                result_set.id,
+                *extra_params,
+                *params,
+            ],
         )
         return cur.rowcount
 
@@ -229,7 +291,7 @@ def apply_active_rules_for_set(
         )
     counts: dict[str, int] = {}
     for rule in result_set.project.ignore_rules.filter(is_active=True):
-        if _is_empty(_rule_spec(rule)):
+        if is_empty(_rule_spec(rule)):
             continue
         updated = apply_rule_to_set(rule, result_set, event=event, only_new=only_new)
         if updated:

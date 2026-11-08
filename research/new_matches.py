@@ -75,13 +75,15 @@ def create_new_matches(result_set: ResultSet, *, actor=None) -> ResultSet:
     if result_set.origin != ResultSet.Origin.QUERY:
         raise ValueError("Only query-origin sets can check for new matches")
     if count_new_matches(result_set) > settings.RESEARCH_INLINE_SET_MAX_ITEMS:
-        enqueue_new_matches(result_set.id)
+        enqueue_new_matches(
+            result_set.id, actor_id=actor.id if actor is not None else None
+        )
         return result_set
     check_for_new_matches(result_set, actor=actor)
     return result_set
 
 
-def enqueue_new_matches(result_set_id) -> None:
+def enqueue_new_matches(result_set_id, *, actor_id=None) -> None:
     import django_rq
 
     from .tasks import check_new_matches_task
@@ -90,6 +92,7 @@ def enqueue_new_matches(result_set_id) -> None:
     queue.enqueue(
         check_new_matches_task,
         result_set_id,
+        actor_id=actor_id,
         job_timeout=settings.RESEARCH_JOB_TIMEOUT,
     )
 

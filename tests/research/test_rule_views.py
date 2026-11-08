@@ -87,6 +87,62 @@ class TestRuleViews:
         assert "1 unreviewed page" in content
         assert not IgnoreRule.objects.filter(project=project).exists()
 
+    def test_malformed_text_preview_returns_400_without_saving(self, client):
+        user, project = self._project()
+        client.force_login(user)
+
+        response = client.post(
+            reverse("research:rule-create", args=[project.id]),
+            {"name": "Housing", "text": "housing", "action": "preview"},
+        )
+
+        assert response.status_code == 400
+        assert not IgnoreRule.objects.filter(project=project).exists()
+
+    def test_empty_predicate_save_returns_400_without_saving(self, client):
+        user, project = self._project()
+        client.force_login(user)
+
+        response = client.post(
+            reverse("research:rule-create", args=[project.id]),
+            {"name": "Everything", "action": "save"},
+        )
+
+        assert response.status_code == 400
+        assert "at least one condition" in response.content.decode()
+        assert not IgnoreRule.objects.filter(project=project).exists()
+
+    def test_too_long_rule_name_returns_400_without_saving(self, client):
+        user, project = self._project()
+        client.force_login(user)
+
+        response = client.post(
+            reverse("research:rule-create", args=[project.id]),
+            {"name": "x" * 201, "states": "CA", "action": "save"},
+        )
+
+        assert response.status_code == 400
+        assert not IgnoreRule.objects.filter(project=project).exists()
+
+    def test_long_reason_is_truncated(self, client, settings):
+        user, project = self._project()
+        client.force_login(user)
+
+        with patch("django_rq.get_queue"):
+            response = client.post(
+                reverse("research:rule-create", args=[project.id]),
+                {
+                    "name": "CA",
+                    "states": "CA",
+                    "reason": "x" * 600,
+                    "action": "save",
+                },
+            )
+
+        assert response.status_code == 302
+        rule = IgnoreRule.objects.get(project=project)
+        assert len(rule.reason) == 500
+
     def test_create_saves_and_enqueues(self, client, settings):
         user, project = self._project()
         client.force_login(user)

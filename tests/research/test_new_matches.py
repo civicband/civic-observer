@@ -4,7 +4,7 @@ import pytest
 from django.utils import timezone
 
 from meetings.models import MeetingPage
-from research.models import ResultSet
+from research.models import AuditEvent, ResultSet
 from research.new_matches import check_for_new_matches, create_new_matches
 from research.tasks import check_new_matches_task
 from searches.queryspec import QuerySpec
@@ -16,6 +16,7 @@ from tests.factories import (
     ProjectFactory,
     ResultSetFactory,
     SetItemFactory,
+    UserFactory,
 )
 
 
@@ -188,5 +189,38 @@ class TestCheckForNewMatches:
         mock_get_queue.return_value.enqueue.assert_called_once_with(
             check_new_matches_task,
             result_set.id,
+            actor_id=None,
             job_timeout=settings.RESEARCH_JOB_TIMEOUT,
         )
+
+    @patch("django_rq.get_queue")
+    def test_enqueue_when_over_inline_with_actor(self, mock_get_queue, settings):
+        settings.RESEARCH_INLINE_SET_MAX_ITEMS = 1
+        actor = UserFactory()
+        result_set = ResultSetFactory(
+            project=ProjectFactory(),
+            query=QuerySpec(text="housing").canonical(),
+            status=ResultSet.Status.READY,
+        )
+        with patch("research.new_matches.count_new_matches", return_value=5):
+            create_new_matches(result_set, actor=actor)
+        mock_get_queue.return_value.enqueue.assert_called_once_with(
+            check_new_matches_task,
+            result_set.id,
+            actor_id=actor.id,
+            job_timeout=settings.RESEARCH_JOB_TIMEOUT,
+        )
+
+    def test_task_passes_actor_to_event(self, settings):
+        settings.RESEARCH_USE_SQL_MATERIALIZATION = False
+        actor = UserFactory()
+        result_set = ResultSetFactory(
+            project=ProjectFactory(),
+            query=QuerySpec(text="housing").canonical(),
+            status=ResultSet.Status.READY,
+        )
+
+        check_new_matches_task(result_set.id, actor.id)
+
+        event = AuditEvent.objects.get(verb="set.new_matches")
+        assert event.actor == actor

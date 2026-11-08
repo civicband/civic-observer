@@ -179,6 +179,19 @@ class TestSetCreateView:
         assert result_set.query["municipality_ids"] == []
         assert result_set.query["date_from"] is None
 
+    def test_rejects_too_long_name(self, client):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+
+        client.force_login(user)
+        response = client.post(
+            reverse("research:set-create", args=[project.id]),
+            {"name": "x" * 201, "q": "housing"},
+        )
+
+        assert response.status_code == 400
+        assert not project.sets.exists()
+
 
 @pytest.mark.django_db
 class TestSetDetailView:
@@ -411,6 +424,19 @@ class TestSetDetailView:
         content = response.content.decode()
         assert response.status_code == 200
         assert 'hx-trigger="every 2s"' in content
+
+    def test_ignore_reasons_are_rendered_alphabetically(self, client):
+        user, project, result_set = self._ready_set()
+        for reason in ("zebra", "alpha", "mango"):
+            SetItemFactory(result_set=result_set, disposition="i", ignore_reason=reason)
+        client.force_login(user)
+
+        response = client.get(
+            reverse("research:set-detail", args=[project.id, result_set.id])
+        )
+
+        content = response.content.decode()
+        assert content.index("alpha") < content.index("mango") < content.index("zebra")
 
 
 @pytest.mark.django_db
@@ -1019,6 +1045,23 @@ class TestFreezeLensView:
         child = ResultSet.objects.get(project=project, name="Child")
         assert child.parent == parent
         assert child.items.get(page_id=item.page_id)
+
+    def test_rejects_too_long_child_name(self, client, settings):
+        settings.RESEARCH_SET_MAX_ITEMS = 500_000
+        settings.RESEARCH_INLINE_SET_MAX_ITEMS = 1000
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        parent = ResultSetFactory(project=project)
+        SetItemFactory(result_set=parent, disposition="u")
+        client.force_login(user)
+
+        response = client.post(
+            self._url(parent),
+            {"name": "x" * 201, "lens": "", "copy_dispositions": "1"},
+        )
+
+        assert response.status_code == 400
+        assert not ResultSet.objects.filter(parent=parent).exists()
 
 
 @pytest.mark.django_db
