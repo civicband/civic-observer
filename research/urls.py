@@ -43,6 +43,11 @@ urlpatterns = [
         name="set-detail",
     ),
     path(
+        "<uuid:project>/sets/<uuid:set>/export/",
+        views.ExportView.as_view(),
+        name="set-export",
+    ),
+    path(
         "<uuid:project>/sets/<uuid:set>/status/",
         views.SetStatusView.as_view(),
         name="set-status",

@@ -5,15 +5,18 @@ from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count, QuerySet
 from django.http import (
+    FileResponse,
     Http404,
     HttpResponse,
     HttpResponseBadRequest,
     QueryDict,
+    StreamingHttpResponse,
 )
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.utils.text import slugify
 from django.views import View
 from django.views.generic import DetailView, ListView
 
@@ -34,6 +37,7 @@ from .codebook import (
     rename_code,
 )
 from .disposition import dispose_item, dispose_items, undo_disposition_event
+from .export import export_zip
 from .lens import Lens
 from .materialize import create_result_set
 from .memos import create_memo, delete_memo, project_timeline, update_memo
@@ -49,7 +53,7 @@ from .models import (
     SetItem,
 )
 from .rules import is_empty, preview_rule, revert_rule, validate_rule_predicate
-from .tasks import apply_rule_to_project_task, revert_rule_task
+from .tasks import apply_rule_to_project_task, export_lens_task, revert_rule_task
 
 MAX_NAME_LENGTH = 200
 MAX_REASON_LENGTH = 500
@@ -109,6 +113,24 @@ def _enqueue_rule_task(task, rule_id, actor_id=None) -> None:
     queue = django_rq.get_queue(settings.RESEARCH_QUEUE)
     queue.enqueue(
         task, rule_id, actor_id=actor_id, job_timeout=settings.RESEARCH_JOB_TIMEOUT
+    )
+
+
+def _export_filename(result_set: ResultSet) -> str:
+    slug = slugify(result_set.name) or "export"
+    return f"{slug}-export.zip"
+
+
+def _enqueue_export(result_set: ResultSet, lens: Lens, user):
+    import django_rq
+
+    queue = django_rq.get_queue(settings.RESEARCH_QUEUE)
+    return queue.enqueue(
+        export_lens_task,
+        result_set.id,
+        lens.canonical(),
+        user.id,
+        job_timeout=settings.RESEARCH_JOB_TIMEOUT,
     )
 
 
@@ -253,6 +275,68 @@ class SetDetailView(LoginRequiredMixin, DetailView):
         for row in rows:
             row["name"] = names.get(row["municipality_id"], "")
         return facets
+
+
+class ExportView(LoginRequiredMixin, View):
+    def get(self, request, project, set):
+        result_set = get_object_or_404(
+            ResultSet,
+            id=set,
+            project_id=project,
+            project__owner=request.user,
+        )
+        lens = Lens.from_querydict(request.GET)
+        job_id = request.GET.get("job")
+        if job_id:
+            return self._job_response(request, result_set, job_id)
+
+        count = filter_items(result_set, lens).count()
+        if count <= settings.RESEARCH_INLINE_EXPORT_MAX_ROWS:
+            payload = export_zip(result_set.project, result_set, lens)
+            response = StreamingHttpResponse(
+                iter([payload]), content_type="application/zip"
+            )
+            response["Content-Disposition"] = (
+                f'attachment; filename="{_export_filename(result_set)}"'
+            )
+            return response
+
+        job = _enqueue_export(result_set, lens, request.user)
+        return render(
+            request,
+            "research/export.html",
+            {"result_set": result_set, "job_id": job.id, "count": count},
+            status=202,
+        )
+
+    def _job_response(self, request, result_set, job_id):
+        import django_rq
+
+        queue = django_rq.get_queue(settings.RESEARCH_QUEUE)
+        job = queue.fetch_job(job_id)
+        if job is None:
+            raise Http404("Export job not found")
+        if not job.args or str(job.args[0]) != str(result_set.id):
+            raise Http404("Export job not found")
+
+        if job.is_failed:
+            return HttpResponse("Export failed", status=500)
+        if not job.is_finished:
+            return render(
+                request,
+                "research/export.html",
+                {
+                    "result_set": result_set,
+                    "job_id": job.id,
+                    "still_generating": True,
+                },
+                status=202,
+            )
+        return FileResponse(
+            open(job.result, "rb"),
+            as_attachment=True,
+            filename=_export_filename(result_set),
+        )
 
 
 class SetStatusView(LoginRequiredMixin, View):

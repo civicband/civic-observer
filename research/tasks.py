@@ -48,3 +48,34 @@ def revert_rule_task(rule_id, actor_id=None) -> None:
         revert_rule(rule, actor=_resolve_actor(actor_id))
     except IgnoreRule.DoesNotExist:
         return
+
+
+def export_lens_task(result_set_id, lens_canonical, user_id=None) -> str:
+    import uuid
+    from pathlib import Path
+
+    from django.conf import settings
+
+    from .export import export_zip
+    from .lens import Lens
+    from .models import ResultSet
+
+    result_set = ResultSet.objects.select_related("project").get(pk=result_set_id)
+    lens = Lens.from_canonical(lens_canonical)
+    payload = export_zip(result_set.project, result_set, lens)
+
+    job_id = str(uuid.uuid4())
+    try:
+        import rq
+
+        job = rq.get_current_job()
+        if job is not None:
+            job_id = job.id
+    except Exception:
+        pass
+
+    directory = Path(settings.MEDIA_ROOT) / "research_exports"
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / f"{job_id}.zip"
+    path.write_bytes(payload)
+    return str(path)

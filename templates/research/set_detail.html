@@ -34,6 +34,10 @@
                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
                     Review
                 </a>
+                <a href="{% url 'research:set-export' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}{% endif %}"
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                    Export CSV
+                </a>
                 <a href="{% url 'research:rule-create' result_set.project_id %}{% if querystring %}?lens={{ querystring|urlencode }}{% endif %}"
                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
                     Make ignore rule

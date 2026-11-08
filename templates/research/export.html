@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+
+{% block title %}Export - {{ result_set.name }} - Research - CivicObserver{% endblock %}
+
+{% block content %}
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <nav class="text-sm text-gray-500 mb-2">
+            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600">Research</a>
+            <span class="mx-2">/</span>
+            <a href="{% url 'research:project-detail' result_set.project_id %}" class="hover:text-indigo-600">{{ result_set.project.name }}</a>
+            <span class="mx-2">/</span>
+            <a href="{% url 'research:set-detail' result_set.project_id result_set.id %}" class="hover:text-indigo-600">{{ result_set.name }}</a>
+            <span class="mx-2">/</span>
+            <span class="text-gray-900">Export</span>
+        </nav>
+
+        <div class="bg-white shadow rounded-lg border border-gray-200 p-6">
+            {% if still_generating %}
+                <h1 class="text-lg font-medium text-gray-900">Still generating</h1>
+                <p class="mt-2 text-sm text-gray-600">
+                    Your export is still being prepared. Check back in a moment.
+                </p>
+            {% else %}
+                <h1 class="text-lg font-medium text-gray-900">Export queued</h1>
+                <p class="mt-2 text-sm text-gray-600">
+                    Your export of {{ count }} rows is being prepared.
+                </p>
+            {% endif %}
+
+            <a href="{% url 'research:set-export' result_set.project_id result_set.id %}?job={{ job_id|urlencode }}"
+               class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                Download when ready
+            </a>
+        </div>
+    </div>
+{% endblock content %}
