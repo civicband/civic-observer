@@ -9,6 +9,8 @@ def create_project(user, name: str, description: str = "") -> Project:
     cleaned = (name or "").strip()
     if not cleaned:
         raise ValueError("A project needs a name")
+    if len(cleaned) > 200:
+        raise ValueError("A project name must be 200 characters or fewer")
     return Project.objects.create(
         owner=user, name=cleaned, description=(description or "").strip()
     )

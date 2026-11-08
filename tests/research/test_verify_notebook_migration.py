@@ -1,5 +1,5 @@
 import pytest
-from django.core.management import call_command
+from django.core.management import CommandError, call_command
 
 from research.notebooks_migration import migrate_notebook
 from tests.factories import (
@@ -26,6 +26,10 @@ class TestVerifyNotebookMigration:
         captured = capsys.readouterr()
         assert "Housing" in captured.out
         assert "OK" in captured.out
+
+    def test_rejects_an_invalid_notebook_id(self):
+        with pytest.raises(CommandError):
+            call_command("verify_notebook_migration", "--notebook", "not-a-uuid")
 
     def test_reports_missing_project(self, capsys):
         NotebookFactory(name="Orphan")

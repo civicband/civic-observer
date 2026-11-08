@@ -39,9 +39,7 @@
     </div>
 
     <!-- Add to Set Form -->
-    <form hx-post="{% url 'clip:save-page' %}"
-          hx-swap="outerHTML"
-          class="space-y-4">
+    <form method="post" action="{% url 'clip:save-page' %}" class="space-y-4">
         {% csrf_token %}
         <input type="hidden" name="page_id" value="{{ page.id }}">
 
@@ -58,6 +56,10 @@
                         <option value="{{ result_set.id }}"{% if forloop.parentloop.first and forloop.first %} selected{% endif %}>
                             {{ project.name }} / {{ result_set.name }}
                         </option>
+                    {% empty %}
+                        {% if forloop.parentloop.first %}
+                            <option value="" disabled>No sets yet — saving creates your default set</option>
+                        {% endif %}
                     {% endfor %}
                 {% empty %}
                     <option value="" disabled>No sets yet — saving creates your default set</option>

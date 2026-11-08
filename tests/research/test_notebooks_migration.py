@@ -101,3 +101,29 @@ class TestMigrateNotebooks:
         assert Project.objects.filter(id=second.id).exists()
         assert Code.objects.filter(project__owner=user, name="orphan").exists()
         assert not Coding.objects.filter(code__name="orphan").exists()
+
+    def test_orphan_tags_become_codes_without_any_notebooks(self):
+        user = UserFactory()
+        TagFactory(user=user, name="orphan")
+
+        migrate_notebooks([])
+
+        project = Project.objects.get(owner=user, name="My research")
+        assert Code.objects.filter(project=project, name="orphan").exists()
+
+    def test_orphan_tags_are_not_duplicated_across_notebooks(self):
+        user = UserFactory()
+        first = NotebookFactory(user=user, name="First")
+        second = NotebookFactory(user=user, name="Second")
+        TagFactory(user=user, name="orphan")
+
+        migrate_notebooks([first, second])
+
+        assert Code.objects.filter(project__owner=user, name="orphan").count() == 1
+
+    def test_unowned_orphan_tags_are_not_silently_dropped(self):
+        TagFactory(user=None, name="orphan")
+
+        migrate_notebooks([])
+
+        assert not Code.objects.filter(name="orphan").exists()

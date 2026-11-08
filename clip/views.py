@@ -1,8 +1,9 @@
 import logging
+import uuid
 
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Prefetch
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect
 from django.template.loader import render_to_string
 from django.views import View
@@ -19,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 class ClipView(LoginRequiredMixin, TemplateView):
     """
-    Clip endpoint for saving meeting pages from civic.band to notebooks.
+    Clip endpoint for adding meeting pages from civic.band to research sets.
 
     Accepts query params:
     - id: civic.band page ID
@@ -131,20 +132,29 @@ class SavePageView(LoginRequiredMixin, View):
         page = get_object_or_404(MeetingPage, id=page_id)
 
         if set_id:
+            try:
+                set_uuid = uuid.UUID(set_id)
+            except ValueError:
+                return HttpResponseBadRequest("Invalid set")
             result_set = get_object_or_404(
-                ResultSet, id=set_id, project__owner=request.user
+                ResultSet, id=set_uuid, project__owner=request.user
             )
         else:
-            result_set = default_set_for_user(request.user)
+            default_set = default_set_for_user(request.user)
+            assert default_set is not None
+            result_set = default_set
 
-        add_page_to_set(
-            result_set.project,
-            result_set,
-            page,
-            actor=request.user,
-            note=note,
-            code_names=request.POST.getlist("codes"),
-        )
+        try:
+            add_page_to_set(
+                result_set.project,
+                result_set,
+                page,
+                actor=request.user,
+                note=note,
+                code_names=request.POST.getlist("codes"),
+            )
+        except ValueError as exc:
+            return HttpResponseBadRequest(str(exc))
         return redirect(
             "research:set-detail",
             project=result_set.project_id,

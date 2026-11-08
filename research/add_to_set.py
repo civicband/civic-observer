@@ -2,20 +2,25 @@
 
 from __future__ import annotations
 
+from django.db import transaction
 from django.utils import timezone
 
 from .audit import record_event
-from .models import Code, Coding, Memo, Project, ResultSet, SetItem
+from .codebook import apply_code_to_pages, create_code
+from .models import Code, Memo, Project, ResultSet, SetItem
 
 
-def default_set_for_user(user) -> ResultSet:
+def default_set_for_user(user, *, create: bool = True) -> ResultSet | None:
+    """Return the user's most recent set, preferring a manual "Saved pages" set."""
+    sets = ResultSet.objects.filter(project__owner=user, project__is_archived=False)
     result_set = (
-        ResultSet.objects.filter(project__owner=user, project__is_archived=False)
-        .order_by("-modified")
-        .first()
+        sets.filter(origin=ResultSet.Origin.MANUAL).order_by("-modified").first()
+        or sets.order_by("-modified").first()
     )
     if result_set is not None:
         return result_set
+    if not create:
+        return None
     project = Project.objects.create(owner=user, name="My research")
     return ResultSet.objects.create(
         project=project,
@@ -26,6 +31,7 @@ def default_set_for_user(user) -> ResultSet:
     )
 
 
+@transaction.atomic
 def add_page_to_set(
     project,
     result_set,
@@ -68,17 +74,12 @@ def add_page_to_set(
         cleaned = name.strip()
         if not cleaned:
             continue
-        code, _created = Code.objects.get_or_create(
-            project=project, parent=None, name=cleaned
-        )
-        Coding.objects.get_or_create(
-            project=project,
-            code=code,
-            page=page,
-            span_start=None,
-            span_end=None,
-            defaults={"coder": actor},
-        )
+        if len(cleaned) > 100:
+            raise ValueError("Code names must be 100 characters or fewer")
+        code = Code.objects.filter(project=project, parent=None, name=cleaned).first()
+        if code is None:
+            code = create_code(project, name=cleaned, actor=actor)
+        apply_code_to_pages(project, code, [page.id], actor=actor)
     return item
 
 
@@ -86,6 +87,7 @@ def add_page_to_default_set(
     user, page, *, actor, note: str = "", code_names: list[str] | None = None
 ) -> SetItem:
     result_set = default_set_for_user(user)
+    assert result_set is not None
     return add_page_to_set(
         result_set.project,
         result_set,

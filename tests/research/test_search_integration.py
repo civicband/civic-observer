@@ -6,6 +6,8 @@ from tests.factories import (
     MeetingDocumentFactory,
     MeetingPageFactory,
     MuniFactory,
+    NotebookEntryFactory,
+    NotebookFactory,
     ProjectFactory,
     ResultSetFactory,
     SetItemFactory,
@@ -32,6 +34,25 @@ class TestSearchResultsAddToSet:
 
         assert response.status_code == 200
         assert "Add to set" in response.content.decode()
+
+    def test_notebook_entry_does_not_mark_a_result_in_a_set(self, client):
+        user = UserFactory()
+        notebook = NotebookFactory(user=user)
+        muni = MuniFactory()
+        page = MeetingPageFactory(
+            document=MeetingDocumentFactory(municipality=muni),
+            text="housing policy discussion",
+        )
+        NotebookEntryFactory(notebook=notebook, meeting_page=page)
+        client.force_login(user)
+
+        response = client.get(
+            reverse("meetings:meeting-search-results"),
+            {"query": "housing"},
+            HTTP_HX_REQUEST="true",
+        )
+
+        assert "In a set" not in response.content.decode()
 
     def test_saved_state_uses_research_set_items(self, client):
         user = UserFactory()

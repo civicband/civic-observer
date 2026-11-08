@@ -32,6 +32,7 @@ class TestDefaultSet:
 
         result_set = default_set_for_user(user)
 
+        assert result_set is not None
         assert result_set.name == "Saved pages"
         assert result_set.origin == ResultSet.Origin.MANUAL
         assert result_set.project.name == "My research"
@@ -65,6 +66,38 @@ class TestAddPageToSet:
 
         assert SetItem.objects.filter(result_set=result_set, page=page).count() == 1
         assert project.events.filter(verb="item.added").count() == 0
+
+    def test_code_application_records_events(self):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project, origin=ResultSet.Origin.MANUAL)
+        page = MeetingPageFactory()
+
+        add_page_to_set(
+            project,
+            result_set,
+            page,
+            actor=user,
+            code_names=["Housing"],
+        )
+
+        assert project.events.filter(verb="code.created").exists()
+        assert project.events.filter(verb="items.coded").exists()
+
+    def test_rejects_a_long_code_name(self):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project, origin=ResultSet.Origin.MANUAL)
+        page = MeetingPageFactory()
+
+        with pytest.raises(ValueError):
+            add_page_to_set(
+                project,
+                result_set,
+                page,
+                actor=user,
+                code_names=["x" * 101],
+            )
 
     def test_note_becomes_page_memo_and_codes_become_codings(self):
         user = UserFactory()
@@ -117,6 +150,15 @@ class TestAddToSetViews:
         response = client.get(reverse("research:add-to-set"), {"page": page.id})
         assert response.status_code == 302
 
+    def test_panel_does_not_create_a_default_set_on_get(self, client):
+        user = UserFactory()
+        page = MeetingPageFactory(document=MeetingDocumentFactory())
+        client.force_login(user)
+
+        client.get(reverse("research:add-to-set"), {"page": page.id})
+
+        assert not ResultSet.objects.filter(project__owner=user).exists()
+
     def test_panel_lists_projects_and_sets(self, client):
         user = UserFactory()
         project = ProjectFactory(owner=user)
@@ -146,6 +188,33 @@ class TestAddToSetViews:
         assert response.status_code == 200
         assert SetItem.objects.filter(result_set=result_set, page=page).exists()
         assert Memo.objects.filter(project=project, page=page, body="note").exists()
+
+    def test_rejects_a_malformed_set_uuid(self, client):
+        user = UserFactory()
+        page = MeetingPageFactory(document=MeetingDocumentFactory())
+        client.force_login(user)
+
+        response = client.post(
+            reverse("research:add-to-set"),
+            {"page": page.id, "set": "not-a-uuid"},
+        )
+
+        assert response.status_code == 400
+
+    def test_rejects_a_long_code_name_with_400(self, client):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project)
+        page = MeetingPageFactory(document=MeetingDocumentFactory())
+        client.force_login(user)
+
+        response = client.post(
+            reverse("research:add-to-set"),
+            {"page": page.id, "set": str(result_set.id), "codes": ["x" * 101]},
+        )
+
+        assert response.status_code == 400
+        assert not SetItem.objects.filter(page=page).exists()
 
     def test_cannot_add_to_another_users_set(self, client):
         user = UserFactory()

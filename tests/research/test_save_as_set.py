@@ -6,6 +6,7 @@ from research.projects import create_project
 from tests.factories import (
     MeetingDocumentFactory,
     MeetingPageFactory,
+    MuniFactory,
     ProjectFactory,
     UserFactory,
 )
@@ -27,6 +28,12 @@ class TestCreateProject:
 
         with pytest.raises(ValueError):
             create_project(user, "   ")
+
+    def test_rejects_a_long_name(self):
+        user = UserFactory()
+
+        with pytest.raises(ValueError):
+            create_project(user, "x" * 201)
 
 
 @pytest.mark.django_db
@@ -63,6 +70,30 @@ class TestSaveAsSetPanel:
         content = response.content.decode()
         assert 'name="query" value="housing"' in content
         assert 'name="states" value="CA,OR"' in content
+
+    def test_counts_every_repeated_filter_value(self, client):
+        user = UserFactory()
+        first = MuniFactory(name="First")
+        second = MuniFactory(name="Second")
+        MeetingPageFactory(
+            document=MeetingDocumentFactory(municipality=first),
+            text="housing policy",
+            state=first.state,
+        )
+        MeetingPageFactory(
+            document=MeetingDocumentFactory(municipality=second),
+            text="housing policy",
+            state=second.state,
+        )
+        client.force_login(user)
+
+        response = client.get(
+            reverse("research:save-as-set"),
+            {"query": "housing", "municipalities": [str(first.id), str(second.id)]},
+        )
+
+        content = response.content.decode()
+        assert "2 pages" in content
 
     def test_over_ceiling_hides_submit(self, client, settings):
         settings.RESEARCH_SET_MAX_ITEMS = 0
@@ -117,6 +148,43 @@ class TestSaveAsSetView:
         project = Project.objects.get(owner=user, name="Housing watch")
         assert ResultSet.objects.filter(project=project, name="Housing").exists()
         assert response.status_code == 302
+
+    def test_creates_my_research_when_no_project_is_given(self, client):
+        user = UserFactory()
+        MeetingPageFactory(document=MeetingDocumentFactory(), text="housing policy")
+        client.force_login(user)
+
+        response = client.post(
+            reverse("research:save-as-set"), {"name": "Housing", "query": "housing"}
+        )
+
+        project = Project.objects.get(owner=user, name="My research")
+        assert ResultSet.objects.filter(project=project, name="Housing").exists()
+        assert response.status_code == 302
+
+    def test_rejects_a_malformed_project_uuid(self, client):
+        user = UserFactory()
+        client.force_login(user)
+
+        response = client.post(
+            reverse("research:save-as-set"),
+            {"project": "not-a-uuid", "name": "Housing", "query": "housing"},
+        )
+
+        assert response.status_code == 400
+
+    def test_rejects_a_post_over_the_ceiling(self, client, settings):
+        settings.RESEARCH_SET_MAX_ITEMS = 0
+        user = UserFactory()
+        MeetingPageFactory(document=MeetingDocumentFactory(), text="housing policy")
+        client.force_login(user)
+
+        response = client.post(
+            reverse("research:save-as-set"), {"name": "Housing", "query": "housing"}
+        )
+
+        assert response.status_code == 400
+        assert not ResultSet.objects.filter(name="Housing").exists()
 
     def test_cannot_target_another_users_project(self, client):
         user = UserFactory()

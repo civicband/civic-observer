@@ -4,13 +4,13 @@ from django.db import migrations
 def forwards(apps, schema_editor):
     from research.notebooks_migration import migrate_notebooks
 
-    migrate_notebooks()
+    migrate_notebooks(apps=apps)
 
 
 def backwards(apps, schema_editor):
     from research.notebooks_migration import unmigrate_notebooks
 
-    unmigrate_notebooks()
+    unmigrate_notebooks(apps=apps)
 
 
 class Migration(migrations.Migration):

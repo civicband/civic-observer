@@ -77,6 +77,27 @@ def _uuid_values(value: str | None) -> tuple[uuid.UUID, ...]:
     return tuple(values)
 
 
+def _list_values(params, key: str) -> tuple[str, ...]:
+    """Read a repeated/CSV parameter, preserving every submitted value."""
+    values: list[str] = []
+    for raw in params.getlist(key):
+        for part in str(raw).split(","):
+            part = part.strip()
+            if part and part not in values:
+                values.append(part)
+    return tuple(values)
+
+
+def _list_uuid_values(params, key: str) -> tuple[uuid.UUID, ...]:
+    values: list[uuid.UUID] = []
+    for part in _list_values(params, key):
+        try:
+            values.append(uuid.UUID(part))
+        except ValueError:
+            continue
+    return tuple(values)
+
+
 def _date_value(value: str | None) -> date | None:
     if not value:
         return None
@@ -167,8 +188,8 @@ def _spec_from_search(params) -> QuerySpec:
     return QuerySpec(
         text=(params.get("query") or "").strip(),
         meeting_name=(params.get("meeting_name_query") or "").strip(),
-        municipality_ids=_uuid_values(params.get("municipalities")),
-        states=_split_csv(params.get("states")),
+        municipality_ids=_list_uuid_values(params, "municipalities"),
+        states=_list_values(params, "states"),
         date_from=_date_value(params.get("date_from")),
         date_to=_date_value(params.get("date_to")),
         document_type=document_type,
@@ -220,13 +241,32 @@ class SaveAsSetView(LoginRequiredMixin, View):
         new_project = (request.POST.get("new_project") or "").strip()
         name = (request.POST.get("name") or "").strip() or "Untitled set"
 
+        if len(name) > MAX_NAME_LENGTH:
+            return HttpResponseBadRequest("Set name is too long")
+
         if new_project:
             try:
                 project = create_project(request.user, new_project)
             except ValueError as exc:
                 return HttpResponseBadRequest(str(exc))
+        elif project_id:
+            try:
+                project_uuid = uuid.UUID(project_id)
+            except ValueError:
+                return HttpResponseBadRequest("Invalid project")
+            project = get_object_or_404(Project, id=project_uuid, owner=request.user)
         else:
-            project = get_object_or_404(Project, id=project_id, owner=request.user)
+            project = create_project(request.user, "My research")
+
+        count = search_backends.get_search_backend().count_matches(
+            spec, settings.RESEARCH_SET_MAX_ITEMS + 1
+        )
+        if count > settings.RESEARCH_SET_MAX_ITEMS:
+            return HttpResponseBadRequest(
+                f"This search matches more than the "
+                f"{settings.RESEARCH_SET_MAX_ITEMS:,}-page set limit. "
+                "Narrow the search by state, body, or date."
+            )
 
         result_set = create_result_set(project, name, spec)
         return redirect("research:set-detail", project=project.id, set=result_set.id)
@@ -236,7 +276,7 @@ class AddToSetView(LoginRequiredMixin, View):
     template_name = "research/partials/add_to_set_panel.html"
 
     def _context(self, request, page, **extra):
-        default_set = default_set_for_user(request.user)
+        default_set = default_set_for_user(request.user, create=False)
         projects = (
             Project.objects.filter(owner=request.user, is_archived=False)
             .prefetch_related(
@@ -269,19 +309,33 @@ class AddToSetView(LoginRequiredMixin, View):
         page = get_object_or_404(MeetingPage, id=request.POST.get("page"))
         set_id = request.POST.get("set")
         if set_id:
+            try:
+                set_uuid = uuid.UUID(set_id)
+            except ValueError:
+                return HttpResponseBadRequest("Invalid set")
             result_set = get_object_or_404(
-                ResultSet, id=set_id, project__owner=request.user
+                ResultSet, id=set_uuid, project__owner=request.user
             )
         else:
-            result_set = default_set_for_user(request.user)
-        add_page_to_set(
-            result_set.project,
-            result_set,
-            page,
-            actor=request.user,
-            note=request.POST.get("note", ""),
-            code_names=request.POST.getlist("codes"),
-        )
+            default_result_set = default_set_for_user(request.user)
+            assert default_result_set is not None
+            result_set = default_result_set
+        try:
+            add_page_to_set(
+                result_set.project,
+                result_set,
+                page,
+                actor=request.user,
+                note=request.POST.get("note", ""),
+                code_names=request.POST.getlist("codes"),
+            )
+        except ValueError as exc:
+            return render(
+                request,
+                self.template_name,
+                self._context(request, page, error=str(exc)),
+                status=400,
+            )
         return render(
             request,
             self.template_name,

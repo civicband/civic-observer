@@ -1,9 +1,11 @@
 """Compare Notebooks counts against the migrated Research Projects."""
 
-from django.core.management.base import BaseCommand
+import uuid
 
-from notebooks.models import Notebook
-from research.models import Coding, Memo, Project, ResultSet, SetItem
+from django.core.management.base import BaseCommand, CommandError
+
+from notebooks.models import Notebook, Tag
+from research.models import Code, Coding, Memo, Project, ResultSet, SetItem
 
 
 class Command(BaseCommand):
@@ -13,9 +15,15 @@ class Command(BaseCommand):
         parser.add_argument("--notebook", dest="notebook", default=None)
 
     def handle(self, *args, **options):
-        notebooks = Notebook.objects.all().order_by("name")
+        notebooks = (
+            Notebook.objects.all().order_by("name").prefetch_related("entries__tags")
+        )
         if options["notebook"]:
-            notebooks = notebooks.filter(id=options["notebook"])
+            try:
+                notebook_id = uuid.UUID(options["notebook"])
+            except ValueError as exc:
+                raise CommandError("Invalid notebook id") from exc
+            notebooks = notebooks.filter(id=notebook_id)
 
         failures = 0
         for notebook in notebooks:
@@ -33,7 +41,7 @@ class Command(BaseCommand):
             entries = list(notebook.entries.all())
             entry_count = len(entries)
             note_count = sum(1 for entry in entries if (entry.note or "").strip())
-            tag_count = sum(entry.tags.count() for entry in entries)
+            tag_count = sum(len(entry.tags.all()) for entry in entries)
             setitem_count = (
                 SetItem.objects.filter(result_set=result_set).count()
                 if result_set
@@ -63,7 +71,46 @@ class Command(BaseCommand):
                     f"{entry_count} entries, {note_count} notes, {tag_count} tags"
                 )
 
+        failures += self._verify_orphan_tags()
+
         if failures:
             self.stderr.write(f"{failures} notebook(s) failed verification")
             raise SystemExit(1)
         self.stdout.write(self.style.SUCCESS("All notebooks verified"))
+
+    def _verify_orphan_tags(self) -> int:
+        """Verify tags used nowhere were copied to a project-owned code."""
+        orphan_tags = Tag.objects.filter(entries__isnull=True)
+        failures = 0
+        user_ids = list(orphan_tags.values_list("user_id", flat=True).distinct())
+        for user_id in user_ids:
+            names = set(
+                orphan_tags.filter(user_id=user_id).values_list("name", flat=True)
+            )
+            if user_id is None:
+                failures += 1
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"UNMIGRATED {len(names)} tag(s) have no owning user"
+                    )
+                )
+                continue
+            migrated = set(
+                Code.objects.filter(
+                    project__owner_id=user_id, name__in=names
+                ).values_list("name", flat=True)
+            )
+            missing = names - migrated
+            if missing:
+                failures += 1
+                self.stdout.write(
+                    self.style.WARNING(
+                        f"MISMATCH orphan tags for user {user_id}: "
+                        f"{len(missing)} of {len(names)} missing"
+                    )
+                )
+            else:
+                self.stdout.write(
+                    f"OK orphan tags for user {user_id}: {len(names)} code(s)"
+                )
+        return failures
