@@ -23,12 +23,25 @@
                     {% endif %}
                     · {{ result_set.get_status_display }}
                 </p>
+                {% if result_set.last_checked_at %}
+                    <p class="mt-1 text-xs text-gray-500">
+                        Last checked for new matches {{ result_set.last_checked_at|date:"M j, Y g:i A" }}
+                    </p>
+                {% endif %}
             </div>
             <div class="mt-4 sm:mt-0 flex flex-wrap items-center gap-2">
                 <a href="{% url 'research:set-review' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}{% endif %}"
                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
                     Review
                 </a>
+                {% if result_set.origin == "query" and result_set.status == "ready" %}
+                    <form method="post" action="{% url 'research:set-new-matches' result_set.project_id result_set.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                            Check for new matches
+                        </button>
+                    </form>
+                {% endif %}
                 <form method="post" action="{% url 'research:set-freeze' result_set.project_id result_set.id %}" class="flex items-center gap-2">
                     {% csrf_token %}
                     <input type="hidden" name="lens" value="{{ querystring }}">

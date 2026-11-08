@@ -28,6 +28,11 @@ urlpatterns = [
         name="set-freeze",
     ),
     path(
+        "<uuid:project>/sets/<uuid:set>/new-matches/",
+        views.NewMatchesView.as_view(),
+        name="set-new-matches",
+    ),
+    path(
         "<uuid:project>/sets/<uuid:set>/items/<int:item>/disposition/",
         views.DispositionView.as_view(),
         name="item-disposition",

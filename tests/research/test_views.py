@@ -7,6 +7,7 @@ from research.browse import browse_set
 from research.disposition import dispose_item, dispose_items, undo_disposition_event
 from research.lens import Lens
 from research.models import ResultSet, SetItem
+from searches.queryspec import QuerySpec
 from tests.factories import (
     AuditEventFactory,
     MeetingDocumentFactory,
@@ -1018,3 +1019,41 @@ class TestFreezeLensView:
         child = ResultSet.objects.get(project=project, name="Child")
         assert child.parent == parent
         assert child.items.get(page_id=item.page_id)
+
+
+@pytest.mark.django_db
+class TestNewMatchesView:
+    def _url(self, result_set):
+        return reverse(
+            "research:set-new-matches", args=[result_set.project_id, result_set.id]
+        )
+
+    def test_requires_login(self, client):
+        result_set = ResultSetFactory()
+        assert client.post(self._url(result_set)).status_code == 302
+
+    def test_cannot_check_another_users_set(self, client):
+        result_set = ResultSetFactory()
+        client.force_login(UserFactory())
+        assert client.post(self._url(result_set)).status_code == 404
+
+    def test_non_query_origin_returns_409(self, client):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project, origin=ResultSet.Origin.LENS)
+        client.force_login(user)
+        assert client.post(self._url(result_set)).status_code == 409
+
+    def test_query_origin_runs_and_refreshes(self, client, settings):
+        settings.RESEARCH_USE_SQL_MATERIALIZATION = False
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(
+            project=project,
+            query=QuerySpec(text="housing").canonical(),
+            status=ResultSet.Status.READY,
+        )
+        client.force_login(user)
+        response = client.post(self._url(result_set))
+        assert response.status_code == 200
+        assert response["HX-Refresh"] == "true"

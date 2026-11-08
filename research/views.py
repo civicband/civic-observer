@@ -187,6 +187,22 @@ class FreezeLensView(LoginRequiredMixin, View):
         return redirect("research:set-detail", project=parent.project_id, set=child.id)
 
 
+class NewMatchesView(LoginRequiredMixin, View):
+    def post(self, request, project, set):
+        result_set = get_object_or_404(
+            ResultSet, id=set, project_id=project, project__owner=request.user
+        )
+        from .new_matches import create_new_matches
+
+        try:
+            create_new_matches(result_set, actor=request.user)
+        except ValueError:
+            return HttpResponse("Only query sets can check for new matches", status=409)
+        response = HttpResponse("")
+        response["HX-Refresh"] = "true"
+        return response
+
+
 class DispositionView(LoginRequiredMixin, View):
     def post(self, request, project, set, item):
         result_set = get_object_or_404(
