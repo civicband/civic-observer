@@ -19,7 +19,7 @@ from .models import Coding, SetItem
 PAGE_SIZE = 1000
 
 
-def _filtered_items(result_set, lens: Lens):
+def filter_items(result_set, lens: Lens):
     items = SetItem.objects.filter(result_set=result_set)
 
     if lens.dispositions:
@@ -143,7 +143,7 @@ def _apply_cursor(items, after: str, order: str):
 def browse_set(
     result_set, lens: Lens, *, limit: int = 50, after: str | None = None
 ) -> tuple[list[SetItem], str | None]:
-    items = _filtered_items(result_set, lens)
+    items = filter_items(result_set, lens)
     items = _ordered(items, lens.order)
     if after:
         items = _apply_cursor(items, after, lens.order)
@@ -159,7 +159,7 @@ def browse_set(
 
 
 def set_facets(result_set, lens: Lens) -> dict:
-    items = _filtered_items(result_set, lens)
+    items = filter_items(result_set, lens)
 
     dispositions = list(
         items.values("disposition")
