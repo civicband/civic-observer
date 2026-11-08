@@ -111,6 +111,20 @@ def materialize_result_set(result_set_id) -> ResultSet:
             else:
                 _insert_items_orm(result_set)
 
+            event = AuditEvent.objects.create(
+                project=result_set.project,
+                result_set=result_set,
+                verb="set.materialized",
+                payload={
+                    "query": result_set.query,
+                    "item_count": 0,
+                    "duration_ms": int((time.monotonic() - started) * 1000),
+                    "ignored_by_rule": {},
+                },
+            )
+            from .rules import apply_active_rules_for_set
+
+            ignored = apply_active_rules_for_set(result_set, event=event)
             result_set.item_count = result_set.items.count()
             result_set.materialized_at = now
             result_set.status = ResultSet.Status.READY
@@ -122,17 +136,10 @@ def materialize_result_set(result_set_id) -> ResultSet:
                     "modified",
                 ]
             )
-            AuditEvent.objects.create(
-                project=result_set.project,
-                result_set=result_set,
-                verb="set.materialized",
-                payload={
-                    "query": result_set.query,
-                    "item_count": result_set.item_count,
-                    "duration_ms": int((time.monotonic() - started) * 1000),
-                    "ignored_by_rule": {},
-                },
-            )
+            event.payload["item_count"] = result_set.item_count
+            event.payload["ignored_by_rule"] = ignored
+            event.payload["duration_ms"] = int((time.monotonic() - started) * 1000)
+            event.save(update_fields=["payload"])
     except Exception as exc:
         result_set.status = ResultSet.Status.FAILED
         result_set.error = str(exc)
