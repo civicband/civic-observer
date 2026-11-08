@@ -22,6 +22,7 @@ from django.views.generic import DetailView, ListView
 
 from meetings.models import MeetingPage
 from municipalities.models import Muni
+from searches import search_backends
 from searches.queryspec import QuerySpec
 
 from .audit import record_event
@@ -53,6 +54,7 @@ from .models import (
     ResultSet,
     SetItem,
 )
+from .projects import create_project, project_list_for_user
 from .rules import is_empty, preview_rule, revert_rule, validate_rule_predicate
 from .tasks import apply_rule_to_project_task, export_lens_task, revert_rule_task
 
@@ -155,6 +157,78 @@ def _undo_single_item_id(event: AuditEvent) -> int | None:
     if not item_ids:
         return None
     return int(item_ids[0])
+
+
+def _spec_from_search(params) -> QuerySpec:
+    document_type = (params.get("document_type") or "all").strip()
+    if document_type not in {"agenda", "minutes"}:
+        document_type = "all"
+    return QuerySpec(
+        text=(params.get("query") or "").strip(),
+        meeting_name=(params.get("meeting_name_query") or "").strip(),
+        municipality_ids=_uuid_values(params.get("municipalities")),
+        states=_split_csv(params.get("states")),
+        date_from=_date_value(params.get("date_from")),
+        date_to=_date_value(params.get("date_to")),
+        document_type=document_type,
+    )
+
+
+class ProjectCreateView(LoginRequiredMixin, View):
+    def post(self, request):
+        try:
+            project = create_project(
+                request.user,
+                request.POST.get("name", ""),
+                request.POST.get("description", ""),
+            )
+        except ValueError as exc:
+            return HttpResponseBadRequest(str(exc))
+        return redirect("research:project-detail", project=project.id)
+
+
+class SaveAsSetView(LoginRequiredMixin, View):
+    template_name = "research/partials/save_as_set_panel.html"
+
+    def get(self, request):
+        spec = _spec_from_search(request.GET)
+        backend = search_backends.get_search_backend()
+        count = backend.count_matches(spec, settings.RESEARCH_SET_MAX_ITEMS + 1)
+        over_ceiling = count > settings.RESEARCH_SET_MAX_ITEMS
+        hidden_params = [
+            {"name": key, "value": value}
+            for key, values in request.GET.lists()
+            for value in values
+        ]
+        return render(
+            request,
+            self.template_name,
+            {
+                "spec": spec,
+                "count": count,
+                "over_ceiling": over_ceiling,
+                "projects": project_list_for_user(request.user),
+                "max_items": settings.RESEARCH_SET_MAX_ITEMS,
+                "hidden_params": hidden_params,
+            },
+        )
+
+    def post(self, request):
+        spec = _spec_from_search(request.POST)
+        project_id = request.POST.get("project")
+        new_project = (request.POST.get("new_project") or "").strip()
+        name = (request.POST.get("name") or "").strip() or "Untitled set"
+
+        if new_project:
+            try:
+                project = create_project(request.user, new_project)
+            except ValueError as exc:
+                return HttpResponseBadRequest(str(exc))
+        else:
+            project = get_object_or_404(Project, id=project_id, owner=request.user)
+
+        result_set = create_result_set(project, name, spec)
+        return redirect("research:set-detail", project=project.id, set=result_set.id)
 
 
 class ProjectListView(LoginRequiredMixin, ListView):
