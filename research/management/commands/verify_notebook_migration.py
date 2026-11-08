@@ -82,7 +82,9 @@ class Command(BaseCommand):
         """Verify tags used nowhere were copied to a project-owned code."""
         orphan_tags = Tag.objects.filter(entries__isnull=True)
         failures = 0
-        user_ids = list(orphan_tags.values_list("user_id", flat=True).distinct())
+        user_ids = list(
+            orphan_tags.order_by().values_list("user_id", flat=True).distinct()
+        )
         for user_id in user_ids:
             names = set(
                 orphan_tags.filter(user_id=user_id).values_list("name", flat=True)

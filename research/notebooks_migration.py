@@ -155,7 +155,11 @@ def _code_orphan_tags(user_id, models) -> dict[str, int]:
 
     Project = models["Project"]
     Code = models["Code"]
-    project = Project.objects.filter(owner_id=user_id).order_by("-modified").first()
+    project = (
+        Project.objects.filter(owner_id=user_id, is_archived=False)
+        .order_by("-modified")
+        .first()
+    )
     if project is None:
         project = Project.objects.create(owner_id=user_id, name="My research")
 
@@ -220,6 +224,7 @@ def migrate_notebooks(notebooks=None, apps=None) -> dict[str, dict]:
     Tag = models["Tag"]
     user_ids = list(
         Tag.objects.filter(entries__isnull=True)
+        .order_by()
         .values_list("user_id", flat=True)
         .distinct()
     )

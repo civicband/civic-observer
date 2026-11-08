@@ -186,6 +186,19 @@ class TestSaveAsSetView:
         assert response.status_code == 400
         assert not ResultSet.objects.filter(name="Housing").exists()
 
+    def test_rejected_over_ceiling_post_creates_no_project(self, client, settings):
+        settings.RESEARCH_SET_MAX_ITEMS = 0
+        user = UserFactory()
+        MeetingPageFactory(document=MeetingDocumentFactory(), text="housing policy")
+        client.force_login(user)
+
+        response = client.post(
+            reverse("research:save-as-set"), {"name": "Housing", "query": "housing"}
+        )
+
+        assert response.status_code == 400
+        assert not Project.objects.filter(owner=user).exists()
+
     def test_cannot_target_another_users_project(self, client):
         user = UserFactory()
         other = UserFactory()

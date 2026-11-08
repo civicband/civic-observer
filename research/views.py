@@ -244,6 +244,16 @@ class SaveAsSetView(LoginRequiredMixin, View):
         if len(name) > MAX_NAME_LENGTH:
             return HttpResponseBadRequest("Set name is too long")
 
+        count = search_backends.get_search_backend().count_matches(
+            spec, settings.RESEARCH_SET_MAX_ITEMS + 1
+        )
+        if count > settings.RESEARCH_SET_MAX_ITEMS:
+            return HttpResponseBadRequest(
+                f"This search matches more than the "
+                f"{settings.RESEARCH_SET_MAX_ITEMS:,}-page set limit. "
+                "Narrow the search by state, body, or date."
+            )
+
         if new_project:
             try:
                 project = create_project(request.user, new_project)
@@ -257,16 +267,6 @@ class SaveAsSetView(LoginRequiredMixin, View):
             project = get_object_or_404(Project, id=project_uuid, owner=request.user)
         else:
             project = create_project(request.user, "My research")
-
-        count = search_backends.get_search_backend().count_matches(
-            spec, settings.RESEARCH_SET_MAX_ITEMS + 1
-        )
-        if count > settings.RESEARCH_SET_MAX_ITEMS:
-            return HttpResponseBadRequest(
-                f"This search matches more than the "
-                f"{settings.RESEARCH_SET_MAX_ITEMS:,}-page set limit. "
-                "Narrow the search by state, body, or date."
-            )
 
         result_set = create_result_set(project, name, spec)
         return redirect("research:set-detail", project=project.id, set=result_set.id)
