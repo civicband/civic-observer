@@ -188,7 +188,7 @@ def review_item(
     if after and before:
         raise ValueError("after and before are mutually exclusive")
 
-    items = filter_items(result_set, lens)
+    items = filter_items(result_set, lens).select_related("last_event")
     if after:
         items = _apply_cursor(_ordered(items, lens.order), after, lens.order)
     elif before:

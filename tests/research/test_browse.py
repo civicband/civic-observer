@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from research.browse import _encode_cursor, browse_set, review_item, set_facets
+from research.disposition import dispose_item
 from research.lens import Lens
 from research.models import SetItem
 from searches.queryspec import QuerySpec
@@ -309,3 +310,13 @@ class TestReviewItem:
 
         assert found == item
         assert found.page_obj is None
+
+    def test_loads_last_event_with_item(self, django_assert_num_queries):
+        result_set = ResultSetFactory()
+        item = SetItemFactory(result_set=result_set)
+        dispose_item(item, "r")
+
+        found, _ = review_item(result_set, Lens())
+
+        with django_assert_num_queries(0):
+            assert found.can_undo is True
