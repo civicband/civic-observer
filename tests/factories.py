@@ -78,6 +78,7 @@ class MeetingPageFactory(DjangoModelFactory):
     page_image = factory.LazyAttribute(  # type: ignore
         lambda obj: f"/_agendas/{obj.document.meeting_name}/{obj.document.meeting_date}/{obj.page_number}.png"
     )
+    content_hash = ""
 
 
 class SearchFactory(DjangoModelFactory):
