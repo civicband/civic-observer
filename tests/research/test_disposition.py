@@ -35,7 +35,7 @@ class TestDisposeItem:
         assert event.actor == actor
         assert event.result_set == item.result_set
         assert event.payload["item_ids"] == [item.id]
-        assert event.payload["from"] == "u"
+        assert event.payload["from"] == {"u": 1}
         assert event.payload["to"] == "r"
         assert event.payload["count"] == 1
         assert event.payload["reason"] == ""

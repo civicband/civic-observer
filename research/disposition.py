@@ -51,7 +51,7 @@ def dispose_item(
         result_set=item.result_set,
         payload={
             "item_ids": [item.id],
-            "from": previous,
+            "from": {previous: 1},
             "to": disposition,
             "reason": reason,
             "count": 1,
