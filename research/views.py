@@ -22,6 +22,7 @@ from searches.queryspec import QuerySpec
 from .audit import record_event
 from .browse import _encode_cursor, browse_set, filter_items, review_item, set_facets
 from .codebook import (
+    apply_code_to_lens,
     apply_code_to_pages,
     archive_code,
     codebook_tree,
@@ -202,6 +203,9 @@ class SetDetailView(LoginRequiredMixin, DetailView):
         context["next_cursor"] = None
         context["facets"] = {}
         context["ignore_reasons"] = _ignore_reasons(result_set)
+        context["codes"] = result_set.project.codes.filter(is_archived=False).order_by(
+            "name"
+        )
 
         if result_set.status == ResultSet.Status.READY:
             after = self.request.GET.get("after") or None
@@ -346,11 +350,33 @@ class BulkActionView(LoginRequiredMixin, View):
         )
         if result_set.status != ResultSet.Status.READY:
             return HttpResponse("Set is not ready", status=409)
+        lens = Lens.from_querydict(QueryDict(request.POST.get("lens", "")))
+        code_id = request.POST.get("code")
+        if code_id:
+            code = get_object_or_404(Code, id=code_id, project=result_set.project)
+            if request.POST.get("confirm") != "1":
+                count = filter_items(result_set, lens).count()
+                return render(
+                    request,
+                    "research/partials/bulk_confirm.html",
+                    {
+                        "result_set": result_set,
+                        "lens": lens,
+                        "querystring": lens.to_querystring(),
+                        "code": code,
+                        "count": count,
+                    },
+                )
+            apply_code_to_lens(
+                result_set.project, code, result_set, lens, actor=request.user
+            )
+            response = HttpResponse("")
+            response["HX-Refresh"] = "true"
+            return response
         disposition = request.POST.get("disposition", "")
         if disposition not in SetItem.Disposition.values:
             return HttpResponseBadRequest("Invalid disposition")
         reason = request.POST.get("reason", "")
-        lens = Lens.from_querydict(QueryDict(request.POST.get("lens", "")))
         if request.POST.get("confirm") != "1":
             count = filter_items(result_set, lens).count()
             return render(

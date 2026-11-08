@@ -1,13 +1,23 @@
 <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
-    <p class="text-sm text-amber-900">
-        Change all {{ count }} item{{ count|pluralize }} in this view to "{{ disposition_label }}"?
-    </p>
+    {% if code %}
+        <p class="text-sm text-amber-900">
+            Apply code "{{ code.name }}" to all {{ count }} item{{ count|pluralize }} in this view?
+        </p>
+    {% else %}
+        <p class="text-sm text-amber-900">
+            Change all {{ count }} item{{ count|pluralize }} in this view to "{{ disposition_label }}"?
+        </p>
+    {% endif %}
     <form hx-post="{% url 'research:set-bulk' result_set.project_id result_set.id %}"
           hx-target="#set-items" hx-swap="innerHTML" hx-disabled-elt="find button[type='submit']" class="mt-3 flex gap-2">
         {% csrf_token %}
         <input type="hidden" name="lens" value="{{ querystring }}">
-        <input type="hidden" name="disposition" value="{{ disposition }}">
-        <input type="hidden" name="reason" value="{{ reason }}">
+        {% if code %}
+            <input type="hidden" name="code" value="{{ code.id }}">
+        {% else %}
+            <input type="hidden" name="disposition" value="{{ disposition }}">
+            <input type="hidden" name="reason" value="{{ reason }}">
+        {% endif %}
         <input type="hidden" name="confirm" value="1">
         <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">Confirm</button>
         <button type="button" onclick="document.getElementById('bulk-confirm').innerHTML = ''"
