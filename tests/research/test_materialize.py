@@ -228,7 +228,7 @@ def test_materialization_applies_active_rules(settings):
     doc = MeetingDocumentFactory(municipality=muni, document_type="agenda")
     page = MeetingPageFactory(document=doc, text="housing")
     project = ProjectFactory()
-    IgnoreRuleFactory(
+    rule = IgnoreRuleFactory(
         project=project,
         name="Agendas",
         predicate=QuerySpec(document_type="agenda").canonical(),
@@ -242,4 +242,4 @@ def test_materialization_applies_active_rules(settings):
     assert item.disposition_by_rule is not None
     assert item.ignore_reason == "Duplicate of minutes"
     event = AuditEvent.objects.get(project=project, verb="set.materialized")
-    assert event.payload["ignored_by_rule"]
+    assert event.payload["ignored_by_rule"] == {str(rule.id): 1}

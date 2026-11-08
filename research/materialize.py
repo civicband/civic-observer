@@ -13,6 +13,7 @@ from searches import search_backends
 from searches.queryspec import QuerySpec, build_where
 
 from .models import AuditEvent, ResultSet, SetItem
+from .rules import apply_active_rules_for_set
 
 # Pages fetched per backend round-trip when hydrating through the ORM.
 PAGE_SIZE = 1000
@@ -122,8 +123,6 @@ def materialize_result_set(result_set_id) -> ResultSet:
                     "ignored_by_rule": {},
                 },
             )
-            from .rules import apply_active_rules_for_set
-
             ignored = apply_active_rules_for_set(result_set, event=event)
             result_set.item_count = result_set.items.count()
             result_set.materialized_at = now

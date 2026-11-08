@@ -26,8 +26,24 @@ def _counts_sql(spec: QuerySpec) -> tuple[str, list[Any]]:
     return where, params
 
 
+def _is_empty(spec: QuerySpec) -> bool:
+    """An empty predicate matches every page; treating it as a rule is unsafe."""
+    return not (
+        spec.text
+        or spec.meeting_name
+        or spec.municipality_ids
+        or spec.states
+        or spec.date_from
+        or spec.date_to
+        or (spec.document_type and spec.document_type != "all")
+        or spec.modified_after
+    )
+
+
 def preview_rule(project, spec: QuerySpec, *, sample_limit: int = 10) -> dict:
     """Dry-run a rule: per-set unreviewed counts and a small sample."""
+    if _is_empty(spec):
+        return {"counts": [], "total": 0, "samples": []}
     where, params = _counts_sql(spec)
     counts: list[dict] = []
     with connection.cursor() as cur:
@@ -90,8 +106,9 @@ def apply_rule_to_project(rule: IgnoreRule, *, actor=None) -> AuditEvent | None:
     if not rule.is_active:
         return None
     spec = _rule_spec(rule)
+    if _is_empty(spec):
+        return None
     where, params = _counts_sql(spec)
-    preview = preview_rule(rule.project, spec, sample_limit=0)
 
     with transaction.atomic():
         event = AuditEvent.objects.create(
@@ -108,31 +125,36 @@ def apply_rule_to_project(rule: IgnoreRule, *, actor=None) -> AuditEvent | None:
         with connection.cursor() as cur:
             cur.execute(
                 f"""
-                UPDATE research_setitem i
-                SET disposition = 'i',
-                    disposition_by_rule_id = %s,
-                    ignore_reason = %s,
-                    last_event_id = %s
-                FROM meetings_meetingpage mp
-                WHERE i.page_id = mp.id
-                  AND i.result_set_id IN (
-                      SELECT id FROM research_resultset WHERE project_id = %s
-                  )
-                  AND i.disposition = 'u'
-                  AND {where}
+                WITH updated AS (
+                    UPDATE research_setitem i
+                    SET disposition = 'i',
+                        disposition_by_rule_id = %s,
+                        ignore_reason = %s,
+                        last_event_id = %s
+                    FROM meetings_meetingpage mp
+                    WHERE i.page_id = mp.id
+                      AND i.result_set_id IN (
+                          SELECT id FROM research_resultset WHERE project_id = %s
+                      )
+                      AND i.disposition = 'u'
+                      AND {where}
+                    RETURNING i.result_set_id
+                )
+                SELECT result_set_id, count(*)
+                FROM updated
+                GROUP BY result_set_id
                 """,
                 [rule.id, rule.reason, event.id, rule.project_id, *params],
             )
-            count = cur.rowcount
+            rows = cur.fetchall()
 
-        event.payload["counts"] = {
-            str(row["result_set_id"]): row["count"] for row in preview["counts"]
-        }
-        event.payload["count"] = count
+        counts = {str(row[0]): row[1] for row in rows}
+        event.payload["counts"] = counts
+        event.payload["count"] = sum(counts.values())
         event.save(update_fields=["payload"])
-        ResultSet.objects.filter(
-            id__in=[row["result_set_id"] for row in preview["counts"]]
-        ).update(modified=timezone.now())
+        ResultSet.objects.filter(id__in=[row[0] for row in rows]).update(
+            modified=timezone.now()
+        )
     return event
 
 
@@ -207,6 +229,8 @@ def apply_active_rules_for_set(
         )
     counts: dict[str, int] = {}
     for rule in result_set.project.ignore_rules.filter(is_active=True):
+        if _is_empty(_rule_spec(rule)):
+            continue
         updated = apply_rule_to_set(rule, result_set, event=event, only_new=only_new)
         if updated:
             counts[str(rule.id)] = updated

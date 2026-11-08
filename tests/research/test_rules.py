@@ -1,3 +1,5 @@
+from unittest.mock import patch
+
 import pytest
 
 from research.audit import record_event
@@ -62,6 +64,11 @@ class TestPreviewRule:
         preview = preview_rule(project, QuerySpec(states=("CA",)))
         assert preview == {"counts": [], "total": 0, "samples": []}
 
+    def test_empty_predicate_returns_nothing(self):
+        project, *_ = _project_with_sets()
+        preview = preview_rule(project, QuerySpec())
+        assert preview == {"counts": [], "total": 0, "samples": []}
+
 
 @pytest.mark.django_db
 class TestApplyRuleToProject:
@@ -115,6 +122,46 @@ class TestApplyRuleToProject:
             name="California",
             predicate=QuerySpec(states=("CA",)).canonical(),
             is_active=False,
+        )
+
+        event = apply_rule_to_project(rule)
+
+        ca_item.refresh_from_db()
+        assert ca_item.disposition == "u"
+        assert event is None
+
+    def test_counts_match_rows_actually_updated(self):
+        project, first, second, ca_item, _, _ = _project_with_sets()
+        rule = IgnoreRule.objects.create(
+            project=project,
+            name="California",
+            predicate=QuerySpec(states=("CA",)).canonical(),
+        )
+        before_second = second.modified
+        stale_preview = {
+            "counts": [
+                {"result_set_id": second.id, "name": "Second", "count": 99},
+            ],
+            "total": 99,
+            "samples": [],
+        }
+
+        with patch("research.rules.preview_rule", return_value=stale_preview):
+            event = apply_rule_to_project(rule)
+
+        ca_item.refresh_from_db()
+        second.refresh_from_db()
+        assert ca_item.disposition == "i"
+        assert event.payload["counts"] == {str(first.id): 1}
+        assert event.payload["count"] == 1
+        assert second.modified == before_second
+
+    def test_empty_predicate_is_a_noop(self):
+        project, _, _, ca_item, _, _ = _project_with_sets()
+        rule = IgnoreRule.objects.create(
+            project=project,
+            name="Everything",
+            predicate={},
         )
 
         event = apply_rule_to_project(rule)
@@ -214,3 +261,18 @@ class TestApplyActiveRulesForSet:
         assert counts == {str(rule.id): 1}
         assert ca_item.disposition == "i"
         assert older.disposition == "u"
+
+    def test_skips_empty_predicate(self):
+        project, first, _, ca_item, _, _ = _project_with_sets()
+        IgnoreRule.objects.create(
+            project=project,
+            name="Everything",
+            predicate={},
+        )
+        event = record_event(project, "set.materialized", result_set=first)
+
+        counts = apply_active_rules_for_set(first, event=event)
+
+        ca_item.refresh_from_db()
+        assert counts == {}
+        assert ca_item.disposition == "u"
