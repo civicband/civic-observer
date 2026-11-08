@@ -642,7 +642,7 @@ class TestBulkActionView:
         content = response.content.decode()
         assert "1 item" in content
         assert 'Change all 1 item in this view to "Relevant"?' in content
-        assert 'hx-disabled-elt="this"' in content
+        assert "hx-disabled-elt=\"find button[type='submit']\"" in content
         unreviewed.refresh_from_db()
         relevant.refresh_from_db()
         assert unreviewed.disposition == "u"

@@ -216,6 +216,23 @@ class TestDisposeItems:
         assert items[0].disposition == "u"
         assert items[0].disposition_by_rule is None
 
+    def test_manual_same_disposition_clears_rule_for_bulk(self):
+        result_set = ResultSetFactory()
+        item = SetItemFactory(result_set=result_set, disposition="i")
+        rule = IgnoreRuleFactory(project=result_set.project)
+        item.disposition_by_rule = rule
+        item.save()
+
+        event, count = dispose_items(result_set, Lens(dispositions=("i",)), "i")
+
+        assert event is not None
+        assert count == 1
+        item.refresh_from_db()
+        assert item.disposition == "i"
+        assert item.disposition_by_rule is None
+        assert item.previous_disposition == "i"
+        assert AuditEvent.objects.filter(verb="items.disposed").count() == 1
+
     def test_no_matches_writes_no_event(self):
         result_set = ResultSetFactory()
 

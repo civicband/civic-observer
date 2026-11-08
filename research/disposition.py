@@ -95,7 +95,11 @@ def dispose_items(
     if disposition != SetItem.Disposition.IGNORED:
         reason = ""
     items: QuerySet[SetItem] = filter_items(result_set, lens)
-    changed = items.exclude(disposition=disposition, ignore_reason=reason)
+    changed = items.exclude(
+        disposition=disposition,
+        ignore_reason=reason,
+        disposition_by_rule__isnull=True,
+    )
     counts = {
         row["disposition"]: row["count"]
         for row in changed.values("disposition").annotate(count=Count("id"))
