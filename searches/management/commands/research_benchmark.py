@@ -114,7 +114,7 @@ class Command(BaseCommand):
                 EXPLAIN (ANALYZE, BUFFERS, FORMAT JSON)
                 INSERT INTO research_bench_setitem
                 SELECT '00000000-0000-0000-0000-000000000001'::uuid,
-                       mp.id, paradedb.score(mp.id), mp.meeting_date,
+                       mp.id, paradedb.score(id), mp.meeting_date,
                        mp.municipality_id, mp.state, mp.document_type,
                        'u', 'query', now()
                 FROM meetings_meetingpage mp

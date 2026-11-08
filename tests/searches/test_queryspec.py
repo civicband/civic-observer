@@ -123,26 +123,41 @@ class TestBuildWhere:
 
         where, params = build_where(spec)
 
-        assert where == (
-            "mp.id @@@ paradedb.parse(%s)"
-            " AND mp.id @@@ paradedb.parse(%s)"
-            " AND mp.municipality_id = ANY(%s)"
-            " AND mp.state = ANY(%s)"
-            " AND mp.meeting_date >= %s"
-            " AND mp.meeting_date <= %s"
-            " AND mp.document_type = %s"
-            " AND mp.modified >= %s"
-        )
+        assert where == ("mp.id @@@ paradedb.parse(%s) AND mp.modified >= %s")
         assert params == [
-            "text:(housing)",
-            "meeting_name:(council)",
-            [muni_id],
-            ["CA"],
-            date(2024, 1, 1),
-            date(2024, 12, 31),
-            "agenda",
+            (
+                "text:(housing) AND meeting_name:(council)"
+                ' AND municipality_id:"00000000-0000-0000-0000-000000000007"'
+                ' AND state:"CA"'
+                " AND meeting_date:[2024-01-01 TO 2024-12-31]"
+                ' AND document_type:"agenda"'
+            ),
             datetime(2024, 6, 1),
         ]
+
+    def test_filter_only_query_keeps_sql_predicates(self):
+        where, params = build_where(QuerySpec(states=("CA", "OR")))
+
+        assert where == "mp.state = ANY(%s)"
+        assert params == [["CA", "OR"]]
+
+    def test_text_query_pushes_filters_into_bm25(self):
+        where, params = build_where(
+            QuerySpec(text="housing", states=("CA", "OR"), document_type="agenda")
+        )
+
+        assert where == "mp.id @@@ paradedb.parse(%s)"
+        assert params == [
+            'text:(housing) AND (state:"CA" OR state:"OR") AND document_type:"agenda"'
+        ]
+
+    def test_modified_after_stays_sql_for_text_queries(self):
+        where, params = build_where(
+            QuerySpec(text="housing", modified_after=datetime(2024, 6, 1))
+        )
+
+        assert where == "mp.id @@@ paradedb.parse(%s) AND mp.modified >= %s"
+        assert params == ["text:(housing)", datetime(2024, 6, 1)]
 
     def test_empty_spec_is_true(self):
         assert build_where(QuerySpec()) == ("TRUE", [])

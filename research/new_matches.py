@@ -99,7 +99,10 @@ def enqueue_new_matches(result_set_id, *, actor_id=None) -> None:
 
 def _insert_sql(result_set: ResultSet, spec: QuerySpec, event: AuditEvent) -> int:
     where_sql, params = build_where(spec)
-    rank_sql = "paradedb.score(mp.id)" if (spec.text or spec.meeting_name) else "NULL"
+    # Gate A (2026-11-08): the installed pg_search rejects the qualified
+    # paradedb.score(mp.id) inside INSERT ... SELECT with ON CONFLICT; the
+    # unqualified form works. A facet-only spec has no BM25 predicate to score.
+    rank_sql = "paradedb.score(id)" if (spec.text or spec.meeting_name) else "NULL"
     with connection.cursor() as cur:
         cur.execute(
             "SELECT set_config('statement_timeout', %s, true)",

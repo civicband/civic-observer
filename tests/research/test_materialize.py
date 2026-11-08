@@ -173,7 +173,7 @@ class TestSqlMaterialization:
 
         sql = calls[-1].args[0]
         assert "INSERT INTO research_setitem" in sql
-        assert "paradedb.score(mp.id)" in sql
+        assert "paradedb.score(id)" in sql
         assert "previous_disposition" in sql
         assert "ignore_reason" in sql
         assert "ON CONFLICT (result_set_id, page_id) DO NOTHING" in sql
