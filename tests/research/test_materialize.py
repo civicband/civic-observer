@@ -216,3 +216,30 @@ class TestSqlMaterializationAgainstPostgres:
         materialize_result_set(result_set.id)
 
         assert result_set.items.count() == 2
+
+
+@pytest.mark.django_db
+def test_materialization_applies_active_rules(settings):
+    from tests.factories import IgnoreRuleFactory
+
+    settings.RESEARCH_SET_MAX_ITEMS = 500_000
+    settings.RESEARCH_INLINE_SET_MAX_ITEMS = 1000
+    muni = MuniFactory(state="CA")
+    doc = MeetingDocumentFactory(municipality=muni, document_type="agenda")
+    page = MeetingPageFactory(document=doc, text="housing")
+    project = ProjectFactory()
+    rule = IgnoreRuleFactory(
+        project=project,
+        name="Agendas",
+        predicate=QuerySpec(document_type="agenda").canonical(),
+        reason="Duplicate of minutes",
+    )
+
+    result_set = create_result_set(project, "Housing", QuerySpec(text="housing"))
+
+    item = result_set.items.get(page=page)
+    assert item.disposition == "i"
+    assert item.disposition_by_rule is not None
+    assert item.ignore_reason == "Duplicate of minutes"
+    event = AuditEvent.objects.get(project=project, verb="set.materialized")
+    assert event.payload["ignored_by_rule"] == {str(rule.id): 1}

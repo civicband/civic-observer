@@ -8,6 +8,26 @@ urlpatterns = [
     path("", views.ProjectListView.as_view(), name="project-list"),
     path("<uuid:project>/", views.ProjectDetailView.as_view(), name="project-detail"),
     path(
+        "<uuid:project>/rules/",
+        views.IgnoreRuleListView.as_view(),
+        name="rule-list",
+    ),
+    path(
+        "<uuid:project>/rules/new/",
+        views.IgnoreRuleCreateView.as_view(),
+        name="rule-create",
+    ),
+    path(
+        "<uuid:project>/rules/<uuid:rule>/toggle/",
+        views.IgnoreRuleToggleView.as_view(),
+        name="rule-toggle",
+    ),
+    path(
+        "<uuid:project>/rules/<uuid:rule>/delete/",
+        views.IgnoreRuleDeleteView.as_view(),
+        name="rule-delete",
+    ),
+    path(
         "<uuid:project>/sets/new/",
         views.SetCreateView.as_view(),
         name="set-create",
@@ -21,6 +41,16 @@ urlpatterns = [
         "<uuid:project>/sets/<uuid:set>/status/",
         views.SetStatusView.as_view(),
         name="set-status",
+    ),
+    path(
+        "<uuid:project>/sets/<uuid:set>/freeze/",
+        views.FreezeLensView.as_view(),
+        name="set-freeze",
+    ),
+    path(
+        "<uuid:project>/sets/<uuid:set>/new-matches/",
+        views.NewMatchesView.as_view(),
+        name="set-new-matches",
     ),
     path(
         "<uuid:project>/sets/<uuid:set>/items/<int:item>/disposition/",

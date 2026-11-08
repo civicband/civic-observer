@@ -23,11 +23,42 @@
                     {% endif %}
                     · {{ result_set.get_status_display }}
                 </p>
+                {% if result_set.last_checked_at %}
+                    <p class="mt-1 text-xs text-gray-500">
+                        Last checked for new matches {{ result_set.last_checked_at|date:"M j, Y g:i A" }}
+                    </p>
+                {% endif %}
             </div>
-            <a href="{% url 'research:set-review' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}{% endif %}"
-               class="mt-4 sm:mt-0 inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
-                Review
-            </a>
+            <div class="mt-4 sm:mt-0 flex flex-wrap items-center gap-2">
+                <a href="{% url 'research:set-review' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}{% endif %}"
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                    Review
+                </a>
+                <a href="{% url 'research:rule-create' result_set.project_id %}{% if querystring %}?lens={{ querystring|urlencode }}{% endif %}"
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                    Make ignore rule
+                </a>
+                {% if result_set.origin == "query" and result_set.status == "ready" %}
+                    <form method="post" action="{% url 'research:set-new-matches' result_set.project_id result_set.id %}"
+                          hx-post="{% url 'research:set-new-matches' result_set.project_id result_set.id %}">
+                        {% csrf_token %}
+                        <button type="submit" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                            Check for new matches
+                        </button>
+                    </form>
+                {% endif %}
+                <form method="post" action="{% url 'research:set-freeze' result_set.project_id result_set.id %}" class="flex items-center gap-2">
+                    {% csrf_token %}
+                    <input type="hidden" name="lens" value="{{ querystring }}">
+                    <input type="text" name="name" required placeholder="Child set name"
+                           class="rounded-md border-gray-300 text-sm shadow-sm">
+                    <label class="flex items-center gap-1 text-xs text-gray-600">
+                        <input type="checkbox" name="copy_dispositions" value="1" checked>
+                        Copy dispositions
+                    </label>
+                    <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Save lens as set</button>
+                </form>
+            </div>
         </div>
 
         {% if result_set.status == "ready" %}
@@ -45,5 +76,10 @@
         {% else %}
             {% include "research/partials/set_status.html" %}
         {% endif %}
+        <datalist id="ignore-reasons">
+            {% for reason in ignore_reasons %}
+                <option value="{{ reason }}"></option>
+            {% endfor %}
+        </datalist>
     </div>
 {% endblock content %}

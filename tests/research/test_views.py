@@ -7,6 +7,7 @@ from research.browse import browse_set
 from research.disposition import dispose_item, dispose_items, undo_disposition_event
 from research.lens import Lens
 from research.models import ResultSet, SetItem
+from searches.queryspec import QuerySpec
 from tests.factories import (
     AuditEventFactory,
     MeetingDocumentFactory,
@@ -177,6 +178,19 @@ class TestSetCreateView:
         assert result_set.status == ResultSet.Status.READY
         assert result_set.query["municipality_ids"] == []
         assert result_set.query["date_from"] is None
+
+    def test_rejects_too_long_name(self, client):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+
+        client.force_login(user)
+        response = client.post(
+            reverse("research:set-create", args=[project.id]),
+            {"name": "x" * 201, "q": "housing"},
+        )
+
+        assert response.status_code == 400
+        assert not project.sets.exists()
 
 
 @pytest.mark.django_db
@@ -410,6 +424,19 @@ class TestSetDetailView:
         content = response.content.decode()
         assert response.status_code == 200
         assert 'hx-trigger="every 2s"' in content
+
+    def test_ignore_reasons_are_rendered_alphabetically(self, client):
+        user, project, result_set = self._ready_set()
+        for reason in ("zebra", "alpha", "mango"):
+            SetItemFactory(result_set=result_set, disposition="i", ignore_reason=reason)
+        client.force_login(user)
+
+        response = client.get(
+            reverse("research:set-detail", args=[project.id, result_set.id])
+        )
+
+        content = response.content.decode()
+        assert content.index("alpha") < content.index("mango") < content.index("zebra")
 
 
 @pytest.mark.django_db
@@ -982,3 +1009,110 @@ class TestReviewView:
         content = response.content.decode()
         assert "review-card" in content
         assert "first page text" in content
+
+
+@pytest.mark.django_db
+class TestFreezeLensView:
+    def _url(self, result_set):
+        return reverse(
+            "research:set-freeze", args=[result_set.project_id, result_set.id]
+        )
+
+    def test_requires_login(self, client):
+        result_set = ResultSetFactory()
+        assert client.post(self._url(result_set)).status_code == 302
+
+    def test_cannot_freeze_another_users_set(self, client):
+        result_set = ResultSetFactory()
+        client.force_login(UserFactory())
+        assert client.post(self._url(result_set)).status_code == 404
+
+    def test_creates_child_set(self, client, settings):
+        settings.RESEARCH_SET_MAX_ITEMS = 500_000
+        settings.RESEARCH_INLINE_SET_MAX_ITEMS = 1000
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        parent = ResultSetFactory(project=project)
+        item = SetItemFactory(result_set=parent, disposition="u")
+        client.force_login(user)
+
+        response = client.post(
+            self._url(parent),
+            {"name": "Child", "lens": "", "copy_dispositions": "1"},
+        )
+
+        assert response.status_code == 302
+        child = ResultSet.objects.get(project=project, name="Child")
+        assert child.parent == parent
+        assert child.items.get(page_id=item.page_id)
+
+    def test_rejects_too_long_child_name(self, client, settings):
+        settings.RESEARCH_SET_MAX_ITEMS = 500_000
+        settings.RESEARCH_INLINE_SET_MAX_ITEMS = 1000
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        parent = ResultSetFactory(project=project)
+        SetItemFactory(result_set=parent, disposition="u")
+        client.force_login(user)
+
+        response = client.post(
+            self._url(parent),
+            {"name": "x" * 201, "lens": "", "copy_dispositions": "1"},
+        )
+
+        assert response.status_code == 400
+        assert not ResultSet.objects.filter(parent=parent).exists()
+
+
+@pytest.mark.django_db
+class TestNewMatchesView:
+    def _url(self, result_set):
+        return reverse(
+            "research:set-new-matches", args=[result_set.project_id, result_set.id]
+        )
+
+    def test_requires_login(self, client):
+        result_set = ResultSetFactory()
+        assert client.post(self._url(result_set)).status_code == 302
+
+    def test_cannot_check_another_users_set(self, client):
+        result_set = ResultSetFactory()
+        client.force_login(UserFactory())
+        assert client.post(self._url(result_set)).status_code == 404
+
+    def test_non_query_origin_returns_409(self, client):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project, origin=ResultSet.Origin.LENS)
+        client.force_login(user)
+        assert client.post(self._url(result_set)).status_code == 409
+
+    def test_query_origin_non_htmx_redirects(self, client, settings):
+        settings.RESEARCH_USE_SQL_MATERIALIZATION = False
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(
+            project=project,
+            query=QuerySpec(text="housing").canonical(),
+            status=ResultSet.Status.READY,
+        )
+        client.force_login(user)
+        response = client.post(self._url(result_set))
+        assert response.status_code == 302
+        assert response.url == reverse(
+            "research:set-detail", args=[project.id, result_set.id]
+        )
+
+    def test_query_origin_htmx_refreshes(self, client, settings):
+        settings.RESEARCH_USE_SQL_MATERIALIZATION = False
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(
+            project=project,
+            query=QuerySpec(text="housing").canonical(),
+            status=ResultSet.Status.READY,
+        )
+        client.force_login(user)
+        response = client.post(self._url(result_set), HTTP_HX_REQUEST="true")
+        assert response.status_code == 200
+        assert response["HX-Refresh"] == "true"

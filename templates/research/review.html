@@ -23,6 +23,11 @@
         <div class="mt-6">
             {% include "research/partials/review_item.html" %}
         </div>
+        <datalist id="ignore-reasons">
+            {% for reason in ignore_reasons %}
+                <option value="{{ reason }}"></option>
+            {% endfor %}
+        </datalist>
     </div>
 
     <script>
