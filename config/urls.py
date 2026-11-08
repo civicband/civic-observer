@@ -17,6 +17,7 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import URLPattern, URLResolver, include, path
+from django.views.generic import RedirectView
 
 from apikeys.urls import internal_urlpatterns as apikeys_internal
 from searches.views import public_search_detail, public_search_list
@@ -38,7 +39,17 @@ urlpatterns: list[URLPattern | URLResolver] = [
     path("login/", login_view, name="login"),
     path("meetings/", include("meetings.urls")),
     path("munis/", include("municipalities.urls")),
-    path("notebooks/", include("notebooks.urls")),
+    path(
+        "notebooks/",
+        RedirectView.as_view(url="/research/", permanent=True),
+        name="notebooks-redirect",
+    ),
+    path(
+        "notebooks/<uuid:project>/",
+        RedirectView.as_view(pattern_name="research:project-detail", permanent=True),
+        name="notebook-detail-redirect",
+    ),
+    path("notebooks/legacy/", include("notebooks.urls")),
     path("notifications/", include("notifications.urls")),
     path("research/", include("research.urls")),
     path("searches/", include("searches.urls")),
