@@ -12,6 +12,7 @@ from django.http import (
 )
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
+from django.urls import reverse
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views import View
 from django.views.generic import DetailView, ListView
@@ -792,6 +793,11 @@ class CodeMergeView(LoginRequiredMixin, View):
 
 
 def _page_coding_context(project_obj: Project, page: MeetingPage) -> dict:
+    set_item = (
+        SetItem.objects.filter(result_set__project=project_obj, page=page)
+        .select_related("result_set")
+        .first()
+    )
     return {
         "project": project_obj,
         "page": page,
@@ -803,6 +809,14 @@ def _page_coding_context(project_obj: Project, page: MeetingPage) -> dict:
         ).order_by("name"),
         "memos": Memo.objects.filter(project=project_obj, page=page).order_by(
             "-created"
+        ),
+        "next": (
+            reverse(
+                "research:set-detail",
+                args=[project_obj.id, set_item.result_set_id],
+            )
+            if set_item is not None
+            else ""
         ),
     }
 
@@ -872,7 +886,7 @@ class MemoCreateView(LoginRequiredMixin, View):
                 result_set__project=project_obj, page_id=page_id
             ).exists():
                 raise Http404
-            page = MeetingPage.objects.get(pk=page_id)
+            page = get_object_or_404(MeetingPage, pk=page_id)
         try:
             create_memo(
                 project_obj,

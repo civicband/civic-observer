@@ -83,6 +83,7 @@
                 <p class="mt-1 text-sm text-gray-600">Leave a note about this codebook. Markdown is supported.</p>
                 <form method="post" action="{% url 'research:memo-create' project.id %}" class="mt-4 space-y-3">
                     {% csrf_token %}
+                    <input type="hidden" name="next" value="{% url 'research:codebook' project.id %}">
                     <textarea name="body" rows="2" required placeholder="Notes on definitions, boundaries, or decisions"
                               class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
                     <button type="submit"

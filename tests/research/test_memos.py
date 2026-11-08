@@ -1,6 +1,7 @@
 import pytest
 from django.urls import reverse
 
+from meetings.models import MeetingPage
 from research.memos import create_memo, delete_memo, project_timeline, update_memo
 from research.models import Memo
 from tests.factories import (
@@ -167,6 +168,22 @@ class TestMemoViews:
         assert response.status_code == 302
         assert project.memos.filter(body="Note on the page", page=page).exists()
 
+    def test_create_page_memo_404s_when_page_is_deleted(self, client):
+        user = _login(client)
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project)
+        page = MeetingPageFactory()
+        SetItemFactory(result_set=result_set, page=page)
+        page_id = page.id
+        MeetingPage.objects.filter(pk=page_id).delete()
+
+        response = client.post(
+            reverse("research:memo-create", args=[project.id]),
+            {"body": "Ghost page", "page": page_id},
+        )
+
+        assert response.status_code == 404
+
     def test_create_rejects_two_targets(self, client):
         user = _login(client)
         project = ProjectFactory(owner=user)
@@ -235,3 +252,32 @@ class TestMemoViews:
         content = response.content.decode()
         assert "A project note" in content
         assert "set.materialized" in content
+
+    def test_page_coding_memo_form_has_next(self, client):
+        user = _login(client)
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project)
+        page = MeetingPageFactory()
+        SetItemFactory(result_set=result_set, page=page)
+
+        response = client.get(
+            reverse("research:page-coding", args=[project.id, page.id])
+        )
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert 'name="next"' in content
+        assert (
+            reverse("research:set-detail", args=[project.id, result_set.id]) in content
+        )
+
+    def test_codebook_memo_form_has_next(self, client):
+        user = _login(client)
+        project = ProjectFactory(owner=user)
+
+        response = client.get(reverse("research:codebook", args=[project.id]))
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert 'name="next"' in content
+        assert reverse("research:codebook", args=[project.id]) in content

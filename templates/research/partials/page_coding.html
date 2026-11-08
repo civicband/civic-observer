@@ -58,6 +58,7 @@
         <form method="post" action="{% url 'research:memo-create' project.id %}" class="mt-3 flex items-center gap-2">
             {% csrf_token %}
             <input type="hidden" name="page" value="{{ page.id }}">
+            <input type="hidden" name="next" value="{{ next }}">
             <input type="text" name="body" required placeholder="Add a note about this page"
                    class="block w-full rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
             <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">Add memo</button>
