@@ -161,6 +161,52 @@ class TestCodeMutations:
 
         assert response.status_code == 404
 
+    def test_rename_updates_definition_and_exclusion(self, client):
+        user = _login(client)
+        project = ProjectFactory(owner=user)
+        code = CodeFactory(project=project, name="Housing")
+
+        response = client.post(
+            reverse("research:code-rename", args=[project.id, code.id]),
+            {
+                "name": "Housing",
+                "definition": "Housing policy",
+                "inclusion": "When housing is discussed",
+                "exclusion": "Only mentioned in passing",
+            },
+        )
+
+        assert response.status_code == 302
+        code.refresh_from_db()
+        assert code.definition == "Housing policy"
+        assert code.inclusion == "When housing is discussed"
+        assert code.exclusion == "Only mentioned in passing"
+
+    def test_rename_rejects_a_blank_name_with_400(self, client):
+        user = _login(client)
+        project = ProjectFactory(owner=user)
+        code = CodeFactory(project=project, name="Housing")
+
+        response = client.post(
+            reverse("research:code-rename", args=[project.id, code.id]),
+            {"name": "   "},
+        )
+
+        assert response.status_code == 400
+
+    def test_rename_rejects_a_duplicate_name_with_400(self, client):
+        user = _login(client)
+        project = ProjectFactory(owner=user)
+        CodeFactory(project=project, name="Housing")
+        code = CodeFactory(project=project, name="Housing policy")
+
+        response = client.post(
+            reverse("research:code-rename", args=[project.id, code.id]),
+            {"name": "Housing"},
+        )
+
+        assert response.status_code == 400
+
 
 @pytest.mark.django_db
 class TestPageCodingPartial:
@@ -226,3 +272,62 @@ class TestPageCodingPartial:
         )
 
         assert response.status_code == 404
+
+    def test_marks_and_unmarks_an_exemplar(self, client):
+        user = _login(client)
+        project = ProjectFactory(owner=user)
+        page = MeetingPageFactory()
+        result_set = ResultSetFactory(project=project)
+        SetItemFactory(result_set=result_set, page=page)
+        code = CodeFactory(project=project, name="Housing")
+        coding = CodingFactory(project=project, code=code, page=page)
+        url = reverse("research:code-exemplar", args=[project.id, code.id, coding.id])
+
+        response = client.post(url, {"is_exemplar": "1"})
+
+        assert response.status_code == 200
+        coding.refresh_from_db()
+        assert coding.is_exemplar is True
+
+        response = client.post(url, {"is_exemplar": "0"})
+
+        assert response.status_code == 200
+        coding.refresh_from_db()
+        assert coding.is_exemplar is False
+
+    def test_cannot_mark_another_users_exemplar(self, client):
+        _login(client)
+        project = ProjectFactory()
+        page = MeetingPageFactory()
+        code = CodeFactory(project=project, name="Housing")
+        coding = CodingFactory(project=project, code=code, page=page)
+
+        response = client.post(
+            reverse("research:code-exemplar", args=[project.id, code.id, coding.id]),
+            {"is_exemplar": "1"},
+        )
+
+        assert response.status_code == 404
+
+    def test_shows_text_changed_since_coded(self, client):
+        user = _login(client)
+        project = ProjectFactory(owner=user)
+        page = MeetingPageFactory(text="New text", content_hash="new-hash")
+        result_set = ResultSetFactory(project=project)
+        SetItemFactory(result_set=result_set, page=page)
+        code = CodeFactory(project=project, name="Housing")
+        CodingFactory(
+            project=project,
+            code=code,
+            page=page,
+            quote="Old text",
+            page_hash="old-hash",
+        )
+
+        response = client.get(
+            reverse("research:page-coding", args=[project.id, page.id])
+        )
+
+        content = response.content.decode()
+        assert "Text changed since coded" in content
+        assert "Old text" in content

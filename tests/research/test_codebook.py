@@ -13,11 +13,12 @@ from research.codebook import (
     set_exemplar,
 )
 from research.lens import Lens
-from research.models import Code, Coding
+from research.models import Code, Coding, Memo
 from tests.factories import (
     CodeFactory,
     CodingFactory,
     MeetingPageFactory,
+    MemoFactory,
     ProjectFactory,
     ResultSetFactory,
     SetItemFactory,
@@ -168,6 +169,21 @@ class TestCreateAndRenameCode:
         assert event.payload["before"]["name"] == "Housing"
         assert event.payload["after"]["name"] == "Housing policy"
 
+    def test_rename_rejects_a_blank_name(self):
+        project = ProjectFactory()
+        code = create_code(project, name="Housing")
+
+        with pytest.raises(ValueError):
+            rename_code(code, name="   ")
+
+    def test_rename_rejects_a_duplicate_sibling_name(self):
+        project = ProjectFactory()
+        create_code(project, name="Housing")
+        code = create_code(project, name="Housing policy")
+
+        with pytest.raises(ValueError):
+            rename_code(code, name="Housing")
+
 
 @pytest.mark.django_db
 class TestArchiveCode:
@@ -235,6 +251,18 @@ class TestMergeCodes:
 
         with pytest.raises(ValueError):
             merge_codes(source, target)
+
+    def test_moves_source_memos_to_target(self):
+        project = ProjectFactory()
+        source = create_code(project, name="Housing")
+        target = create_code(project, name="Housing policy")
+        memo = MemoFactory(project=project, code=source, body="Meaning shifted")
+
+        merge_codes(source, target)
+
+        memo.refresh_from_db()
+        assert memo.code_id == target.id
+        assert Memo.objects.filter(code=source).count() == 0
 
 
 @pytest.mark.django_db

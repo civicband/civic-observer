@@ -111,6 +111,11 @@ urlpatterns = [
         views.PageCodeView.as_view(),
         name="page-code",
     ),
+    path(
+        "<uuid:project>/codes/<uuid:code>/exemplars/<uuid:coding>/",
+        views.CodeExemplarView.as_view(),
+        name="code-exemplar",
+    ),
     path("<uuid:project>/memos/", views.MemoCreateView.as_view(), name="memo-create"),
     path(
         "<uuid:project>/memos/<uuid:memo>/",

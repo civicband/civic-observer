@@ -35,6 +35,7 @@ from .codebook import (
     merge_codes,
     remove_code_from_pages,
     rename_code,
+    set_exemplar,
 )
 from .disposition import dispose_item, dispose_items, undo_disposition_event
 from .export import export_zip
@@ -908,12 +909,19 @@ def _page_coding_context(project_obj: Project, page: MeetingPage) -> dict:
         .select_related("result_set")
         .first()
     )
+    codings = list(
+        Coding.objects.filter(project=project_obj, page=page).select_related("code")
+    )
+    for coding in codings:
+        coding.changed = bool(
+            coding.page_hash
+            and page.content_hash
+            and coding.page_hash != page.content_hash
+        )
     return {
         "project": project_obj,
         "page": page,
-        "codes": Coding.objects.filter(project=project_obj, page=page).select_related(
-            "code"
-        ),
+        "codes": codings,
         "available_codes": Code.objects.filter(
             project=project_obj, is_archived=False
         ).order_by("name"),
@@ -971,6 +979,25 @@ class PageCodeView(LoginRequiredMixin, View):
             )
         else:
             return HttpResponseBadRequest("Unknown action")
+        return render(
+            request, self.template_name, _page_coding_context(project_obj, page_obj)
+        )
+
+
+class CodeExemplarView(LoginRequiredMixin, View):
+    template_name = "research/partials/page_coding.html"
+
+    def post(self, request, project, code, coding):
+        project_obj = get_object_or_404(Project, id=project, owner=request.user)
+        coding_obj = get_object_or_404(
+            Coding, id=coding, code_id=code, project=project_obj
+        )
+        set_exemplar(
+            coding_obj,
+            is_exemplar=request.POST.get("is_exemplar") == "1",
+            actor=request.user,
+        )
+        page_obj = get_object_or_404(MeetingPage, id=coding_obj.page_id)
         return render(
             request, self.template_name, _page_coding_context(project_obj, page_obj)
         )

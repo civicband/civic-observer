@@ -13,7 +13,7 @@ from meetings.models import MeetingPage
 from .audit import record_event
 from .browse import filter_items
 from .lens import Lens
-from .models import Code, Coding
+from .models import Code, Coding, Memo
 
 
 def codebook_tree(project, *, include_archived: bool = False) -> list[dict]:
@@ -132,6 +132,11 @@ def rename_code(
         "inclusion": inclusion,
         "exclusion": exclusion,
     }
+    if name is not None:
+        name = name.strip()
+        if not name:
+            raise ValueError("A code name is required")
+        passed["name"] = name
     changed = {
         field: value
         for field, value in passed.items()
@@ -145,13 +150,17 @@ def rename_code(
         setattr(code, field, value)
     after = {field: getattr(code, field) for field in changed}
 
-    code.save(update_fields=[*changed, "modified"])
-    record_event(
-        code.project,
-        "code.changed",
-        actor=actor,
-        payload={"before": before, "after": after},
-    )
+    try:
+        with transaction.atomic():
+            code.save(update_fields=[*changed, "modified"])
+            record_event(
+                code.project,
+                "code.changed",
+                actor=actor,
+                payload={"before": before, "after": after},
+            )
+    except IntegrityError as exc:
+        raise ValueError("A code with that name already exists") from exc
     return code
 
 
@@ -212,6 +221,7 @@ def merge_codes(source, target, *, actor=None) -> int:
             cursor.execute(sql, [target_id, source_id])
             moved = cursor.rowcount
 
+        Memo.objects.filter(code=source).update(code=target)
         Coding.objects.filter(code=source).delete()
         source.delete()
 
