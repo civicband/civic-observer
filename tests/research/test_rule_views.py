@@ -57,11 +57,23 @@ class TestRuleViews:
 
         content = response.content.decode()
         assert response.status_code == 200
-        assert item.page.meeting_name in content
-        assert "agenda" in content.lower()
+        assert f'value="{item.page.meeting_name}"' in content
+        assert '<option value="agenda" selected>' in content
+
+    def test_create_ignores_invalid_page_prefill(self, client):
+        user, project = self._project()
+        client.force_login(user)
+
+        response = client.get(
+            reverse("research:rule-create", args=[project.id]) + "?page=not-a-number"
+        )
+
+        assert response.status_code == 200
 
     def test_create_previews_without_saving(self, client):
         user, project = self._project()
+        result_set = ResultSetFactory(project=project, name="Preview Set")
+        SetItemFactory(result_set=result_set)
         client.force_login(user)
 
         response = client.post(
@@ -69,8 +81,10 @@ class TestRuleViews:
             {"name": "CA", "states": "CA", "action": "preview"},
         )
 
+        content = response.content.decode()
         assert response.status_code == 200
-        assert "Preview" in response.content.decode()
+        assert "Preview Set" in content
+        assert "1 unreviewed page" in content
         assert not IgnoreRule.objects.filter(project=project).exists()
 
     def test_create_saves_and_enqueues(self, client, settings):
@@ -100,7 +114,11 @@ class TestRuleViews:
         rule = IgnoreRuleFactory(project=project, is_active=True)
         client.force_login(user)
 
-        with patch("django_rq.get_queue") as get_queue:
+        with (
+            patch("research.views.apply_rule_to_project_task") as apply_task,
+            patch("research.views.revert_rule_task") as revert_task,
+            patch("django_rq.get_queue") as get_queue,
+        ):
             response = client.post(
                 reverse("research:rule-toggle", args=[project.id, rule.id])
             )
@@ -110,18 +128,28 @@ class TestRuleViews:
         assert rule.is_active is False
         assert AuditEvent.objects.filter(project=project, verb="rule.changed").exists()
         get_queue.assert_called_once_with(settings.RESEARCH_QUEUE)
+        enqueued = get_queue.return_value.enqueue.call_args
+        assert enqueued.args[0] is revert_task
+        assert apply_task not in enqueued.args
 
     def test_toggle_on_enqueues_apply(self, client, settings):
         user, project = self._project()
         rule = IgnoreRuleFactory(project=project, is_active=False)
         client.force_login(user)
 
-        with patch("django_rq.get_queue") as get_queue:
+        with (
+            patch("research.views.apply_rule_to_project_task") as apply_task,
+            patch("research.views.revert_rule_task") as revert_task,
+            patch("django_rq.get_queue") as get_queue,
+        ):
             client.post(reverse("research:rule-toggle", args=[project.id, rule.id]))
 
         rule.refresh_from_db()
         assert rule.is_active is True
         get_queue.assert_called_once_with(settings.RESEARCH_QUEUE)
+        enqueued = get_queue.return_value.enqueue.call_args
+        assert enqueued.args[0] is apply_task
+        assert revert_task not in enqueued.args
 
     def test_delete_reverts_and_deletes(self, client):
         user, project = self._project()
@@ -129,6 +157,26 @@ class TestRuleViews:
             result_set=ResultSetFactory(project=project), disposition="i"
         )
         rule = IgnoreRuleFactory(project=project)
+        item.disposition_by_rule = rule
+        item.save()
+        client.force_login(user)
+
+        response = client.post(
+            reverse("research:rule-delete", args=[project.id, rule.id])
+        )
+
+        assert response.status_code == 302
+        assert not IgnoreRule.objects.filter(id=rule.id).exists()
+        item.refresh_from_db()
+        assert item.disposition == "u"
+        assert item.disposition_by_rule is None
+
+    def test_delete_inactive_rule_reverts_owned_rows(self, client):
+        user, project = self._project()
+        item = SetItemFactory(
+            result_set=ResultSetFactory(project=project), disposition="i"
+        )
+        rule = IgnoreRuleFactory(project=project, is_active=False)
         item.disposition_by_rule = rule
         item.save()
         client.force_login(user)
@@ -156,6 +204,7 @@ class TestRuleViews:
         content = response.content.decode()
         assert "Ignore pages like this" in content
         assert 'list="ignore-reasons"' in content
+        assert content.count('id="ignore-reasons"') == 1
 
     def test_set_detail_has_make_ignore_rule(self, client):
         user, project = self._project()

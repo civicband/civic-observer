@@ -76,5 +76,10 @@
         {% else %}
             {% include "research/partials/set_status.html" %}
         {% endif %}
+        <datalist id="ignore-reasons">
+            {% for reason in ignore_reasons %}
+                <option value="{{ reason }}"></option>
+            {% endfor %}
+        </datalist>
     </div>
 {% endblock content %}

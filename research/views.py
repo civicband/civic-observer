@@ -21,6 +21,7 @@ from .lens import Lens
 from .materialize import create_result_set
 from .models import AuditEvent, IgnoreRule, Project, ResultSet, SetItem
 from .rules import preview_rule, revert_rule
+from .tasks import apply_rule_to_project_task, revert_rule_task
 
 
 def _split_csv(value: str | None) -> tuple[str, ...]:
@@ -486,13 +487,18 @@ class IgnoreRuleCreateView(LoginRequiredMixin, View):
         page_id = request.GET.get("page")
         lens_param = request.GET.get("lens")
         if page_id:
-            item = get_object_or_404(
-                SetItem.objects.select_related("page"),
-                id=page_id,
-                result_set__project=project_obj,
-            )
-            initial["meeting_name"] = item.page.meeting_name
-            initial["document_type"] = item.page.document_type
+            try:
+                page_pk = int(page_id)
+            except (TypeError, ValueError):
+                page_pk = None
+            if page_pk is not None:
+                item = get_object_or_404(
+                    SetItem.objects.select_related("page"),
+                    id=page_pk,
+                    result_set__project=project_obj,
+                )
+                initial["meeting_name"] = item.page.meeting_name
+                initial["document_type"] = item.page.document_type
         elif lens_param:
             lens = Lens.from_querydict(QueryDict(lens_param))
             initial.update(
@@ -543,8 +549,6 @@ class IgnoreRuleCreateView(LoginRequiredMixin, View):
             actor=request.user,
             payload={"name": rule.name, "predicate": rule.predicate, "reason": reason},
         )
-        from .tasks import apply_rule_to_project_task
-
         _enqueue_rule_task(apply_rule_to_project_task, rule.id)
         return redirect("research:rule-list", project=project_obj.id)
 
@@ -567,12 +571,8 @@ class IgnoreRuleToggleView(LoginRequiredMixin, View):
             },
         )
         if rule_obj.is_active:
-            from .tasks import apply_rule_to_project_task
-
             _enqueue_rule_task(apply_rule_to_project_task, rule_obj.id)
         else:
-            from .tasks import revert_rule_task
-
             _enqueue_rule_task(revert_rule_task, rule_obj.id)
         return redirect("research:rule-list", project=project_obj.id)
 
@@ -581,8 +581,7 @@ class IgnoreRuleDeleteView(LoginRequiredMixin, View):
     def post(self, request, project, rule):
         project_obj = get_object_or_404(Project, id=project, owner=request.user)
         rule_obj = get_object_or_404(IgnoreRule, id=rule, project=project_obj)
-        if rule_obj.is_active:
-            revert_rule(rule_obj, actor=request.user)
+        revert_rule(rule_obj, actor=request.user)
         record_event(
             project_obj,
             "rule.changed",
