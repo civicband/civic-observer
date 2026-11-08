@@ -1,7 +1,8 @@
 """Tests for the send_meeting_digests management command."""
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from io import StringIO
+from unittest.mock import patch
 
 from django.core.management import call_command
 from django.db import connection
@@ -173,12 +174,16 @@ class SendMeetingDigestsCommandTest(TestCase):
         )
 
         out = StringIO()
-        call_command(
-            "send_meeting_digests",
-            "--for-date",
-            str(today),
-            stdout=out,
-        )
+        with patch(
+            "notifications.management.commands.send_meeting_digests.timezone.now",
+            return_value=datetime(2026, 1, 1, 12, 0, tzinfo=UTC),
+        ):
+            call_command(
+                "send_meeting_digests",
+                "--for-date",
+                str(today),
+                stdout=out,
+            )
 
         output = out.getvalue()
         self.assertIn("Emails sent: 0", output)
@@ -311,12 +316,16 @@ class SendMeetingDigestsCommandTest(TestCase):
         )
 
         out = StringIO()
-        call_command(
-            "send_meeting_digests",
-            "--for-date",
-            str(today),
-            stdout=out,
-        )
+        with patch(
+            "notifications.management.commands.send_meeting_digests.timezone.now",
+            return_value=datetime(2026, 1, 1, 12, 0, tzinfo=UTC),
+        ):
+            call_command(
+                "send_meeting_digests",
+                "--for-date",
+                str(today),
+                stdout=out,
+            )
 
         output = out.getvalue()
         self.assertIn("Emails sent: 0", output)
