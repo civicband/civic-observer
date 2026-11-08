@@ -5,6 +5,13 @@ from django.urls import reverse
 
 from meetings.models import MeetingDocument, MeetingPage
 from municipalities.models import Muni
+from research.models import Code, Coding, Memo, SetItem
+from tests.factories import (
+    ProjectFactory,
+    ResultSetFactory,
+    SetItemFactory,
+    UserFactory,
+)
 
 
 @pytest.fixture
@@ -134,210 +141,97 @@ class TestSavePageView:
         response = client.post(url, {"page_id": "test"})
         assert response.status_code == 302
 
-    def test_save_page_creates_entry_and_redirects(
-        self, client, django_user_model, meeting_page
-    ):
-        """Should create notebook entry and redirect to notebook."""
-        from notebooks.models import Notebook, NotebookEntry
-
-        user = django_user_model.objects.create_user(
-            username="testuser", email="test@example.com", password="testpass"
-        )
-        notebook = Notebook.objects.create(user=user, name="Test Notebook")
+    def test_save_page_adds_to_research_set(self, client, meeting_page):
+        """Should add the page to the selected research set and redirect."""
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project, name="Saved pages")
         client.force_login(user)
 
-        url = reverse("clip:save-page")
         response = client.post(
-            url,
+            reverse("clip:save-page"),
             {
                 "page_id": meeting_page.id,
-                "notebook_id": str(notebook.id),
+                "set": str(result_set.id),
                 "note": "Important budget info",
             },
         )
 
-        # Should redirect to notebook detail
         assert response.status_code == 302
-        assert str(notebook.id) in response.url
+        assert str(result_set.id) in response.url
+        assert SetItem.objects.filter(result_set=result_set, page=meeting_page).exists()
+        assert Memo.objects.filter(
+            project=project, page=meeting_page, body="Important budget info"
+        ).exists()
 
-        # Verify entry was created
-        entry = NotebookEntry.objects.get(notebook=notebook, meeting_page=meeting_page)
-        assert entry.note == "Important budget info"
-
-    def test_save_page_creates_new_notebook_if_specified(
-        self, client, django_user_model, meeting_page
-    ):
-        """Should create new notebook if new_notebook_name is provided."""
-        from notebooks.models import Notebook, NotebookEntry
-
-        user = django_user_model.objects.create_user(
-            username="testuser", email="test@example.com", password="testpass"
-        )
+    def test_save_page_uses_default_set_when_none_given(self, client, meeting_page):
+        """Should create the default set when no set is selected."""
+        user = UserFactory()
         client.force_login(user)
 
-        url = reverse("clip:save-page")
         response = client.post(
-            url,
+            reverse("clip:save-page"),
+            {"page_id": meeting_page.id, "note": "Saved to auto-created set"},
+        )
+
+        assert response.status_code == 302
+        item = SetItem.objects.get(page=meeting_page)
+        assert item.result_set.name == "Saved pages"
+        assert item.result_set.project.name == "My research"
+        assert str(item.result_set.id) in response.url
+
+    def test_save_page_applies_codes(self, client, meeting_page):
+        """Should create the named code and code the page."""
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project)
+        client.force_login(user)
+
+        response = client.post(
+            reverse("clip:save-page"),
             {
                 "page_id": meeting_page.id,
-                "new_notebook_name": "My New Research",
-                "note": "Starting research on this topic",
+                "set": str(result_set.id),
+                "codes": ["Housing"],
             },
         )
 
         assert response.status_code == 302
+        code = Code.objects.get(project=project, name="Housing")
+        assert Coding.objects.filter(code=code, page=meeting_page).exists()
 
-        # Verify notebook was created
-        notebook = Notebook.objects.get(user=user, name="My New Research")
-        assert notebook is not None
-
-        # Verify entry was created
-        entry = NotebookEntry.objects.get(notebook=notebook, meeting_page=meeting_page)
-        assert entry.note == "Starting research on this topic"
-
-    def test_save_page_with_existing_tags(
-        self, client, django_user_model, meeting_page
-    ):
-        """Should add existing tags to the entry."""
-        from notebooks.models import Notebook, NotebookEntry, Tag
-
-        user = django_user_model.objects.create_user(
-            username="testuser", email="test@example.com", password="testpass"
-        )
-        notebook = Notebook.objects.create(user=user, name="Test Notebook")
-        tag1 = Tag.objects.create(user=user, name="budget")
-        tag2 = Tag.objects.create(user=user, name="zoning")
+    def test_save_page_already_saved_does_not_duplicate(self, client, meeting_page):
+        """Saving the same page twice keeps one SetItem."""
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project)
+        SetItemFactory(result_set=result_set, page=meeting_page)
         client.force_login(user)
 
-        url = reverse("clip:save-page")
         response = client.post(
-            url,
-            {
-                "page_id": meeting_page.id,
-                "notebook_id": str(notebook.id),
-                "tags": [str(tag1.id), str(tag2.id)],
-                "note": "Budget and zoning discussion",
-            },
+            reverse("clip:save-page"),
+            {"page_id": meeting_page.id, "set": str(result_set.id)},
         )
 
         assert response.status_code == 302
-
-        # Verify entry was created with tags
-        entry = NotebookEntry.objects.get(notebook=notebook, meeting_page=meeting_page)
-        assert entry.tags.count() == 2
-        assert tag1 in entry.tags.all()
-        assert tag2 in entry.tags.all()
-
-    def test_save_page_with_new_tag(self, client, django_user_model, meeting_page):
-        """Should create and add a new tag when new_tag parameter is provided."""
-        from notebooks.models import Notebook, NotebookEntry, Tag
-
-        user = django_user_model.objects.create_user(
-            username="testuser", email="test@example.com", password="testpass"
-        )
-        notebook = Notebook.objects.create(user=user, name="Test Notebook")
-        client.force_login(user)
-
-        url = reverse("clip:save-page")
-        response = client.post(
-            url,
-            {
-                "page_id": meeting_page.id,
-                "notebook_id": str(notebook.id),
-                "new_tag": "Infrastructure",
-                "note": "Infrastructure planning",
-            },
-        )
-
-        assert response.status_code == 302
-
-        # Verify tag was created (lowercased)
-        tag = Tag.objects.get(user=user, name="infrastructure")
-        assert tag is not None
-
-        # Verify entry was created with the new tag
-        entry = NotebookEntry.objects.get(notebook=notebook, meeting_page=meeting_page)
-        assert tag in entry.tags.all()
-
-    def test_save_page_already_saved_redirects(
-        self, client, django_user_model, meeting_page
-    ):
-        """Should redirect without creating duplicate when page already saved to notebook."""
-        from notebooks.models import Notebook, NotebookEntry
-
-        user = django_user_model.objects.create_user(
-            username="testuser", email="test@example.com", password="testpass"
-        )
-        notebook = Notebook.objects.create(user=user, name="Test Notebook")
-        client.force_login(user)
-
-        # Create existing entry
-        existing_entry = NotebookEntry.objects.create(
-            notebook=notebook,
-            meeting_page=meeting_page,
-            note="Original note",
-        )
-
-        # Try to save the same page again
-        url = reverse("clip:save-page")
-        response = client.post(
-            url,
-            {
-                "page_id": meeting_page.id,
-                "notebook_id": str(notebook.id),
-                "note": "This should not be saved",
-            },
-        )
-
-        # Should redirect to notebook
-        assert response.status_code == 302
-        assert str(notebook.id) in response.url
-
-        # Should still have only one entry
         assert (
-            NotebookEntry.objects.filter(
-                notebook=notebook, meeting_page=meeting_page
-            ).count()
+            SetItem.objects.filter(result_set=result_set, page=meeting_page).count()
             == 1
         )
 
-        # Original entry should be unchanged
-        existing_entry.refresh_from_db()
-        assert existing_entry.note == "Original note"
-
-    def test_save_page_creates_default_notebook_if_none_exist(
-        self, client, django_user_model, meeting_page
-    ):
-        """Should create default 'My Notebook' when no notebook_id provided and none exist."""
-        from notebooks.models import Notebook, NotebookEntry
-
-        user = django_user_model.objects.create_user(
-            username="testuser", email="test@example.com", password="testpass"
-        )
+    def test_cannot_save_to_another_users_set(self, client, meeting_page):
+        """A user cannot add a page to someone else's set."""
+        user = UserFactory()
+        other_set = ResultSetFactory(project=ProjectFactory())
         client.force_login(user)
 
-        # Verify user has no notebooks
-        assert Notebook.objects.filter(user=user).count() == 0
-
-        url = reverse("clip:save-page")
         response = client.post(
-            url,
-            {
-                "page_id": meeting_page.id,
-                "note": "Saved to auto-created notebook",
-            },
+            reverse("clip:save-page"),
+            {"page_id": meeting_page.id, "set": str(other_set.id)},
         )
 
-        assert response.status_code == 302
-
-        # Verify default notebook was created
-        notebook = Notebook.objects.get(user=user, name="My Notebook")
-        assert notebook is not None
-        assert str(notebook.id) in response.url
-
-        # Verify entry was created in the default notebook
-        entry = NotebookEntry.objects.get(notebook=notebook, meeting_page=meeting_page)
-        assert entry.note == "Saved to auto-created notebook"
+        assert response.status_code == 404
+        assert not SetItem.objects.filter(page=meeting_page).exists()
 
 
 @pytest.mark.django_db
@@ -376,7 +270,7 @@ class TestClipIntegration:
         )
 
         assert response.status_code == 200
-        assert b"Save to Notebook" in response.content
+        assert b"Add to Research Set" in response.content
         # Should have HTMX trigger for fetch
         assert b"hx-get" in response.content
 
