@@ -16,3 +16,17 @@ def check_new_matches_task(result_set_id) -> None:
     from .new_matches import check_for_new_matches
 
     check_for_new_matches(ResultSet.objects.get(pk=result_set_id))
+
+
+def apply_rule_to_project_task(rule_id) -> None:
+    from .models import IgnoreRule
+    from .rules import apply_rule_to_project
+
+    apply_rule_to_project(IgnoreRule.objects.get(pk=rule_id))
+
+
+def revert_rule_task(rule_id) -> None:
+    from .models import IgnoreRule
+    from .rules import revert_rule
+
+    revert_rule(IgnoreRule.objects.get(pk=rule_id))

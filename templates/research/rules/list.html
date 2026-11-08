@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+
+{% block title %}Ignore rules - {{ project.name }} - Research - CivicObserver{% endblock %}
+
+{% block content %}
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <nav class="text-sm text-gray-500 mb-2">
+            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600">Research</a>
+            <span class="mx-2">/</span>
+            <a href="{% url 'research:project-detail' project.id %}" class="hover:text-indigo-600">{{ project.name }}</a>
+            <span class="mx-2">/</span>
+            <span class="text-gray-900">Ignore rules</span>
+        </nav>
+
+        <div class="sm:flex sm:items-center sm:justify-between">
+            <div>
+                <h1 class="text-3xl font-bold tracking-tight text-gray-900">Ignore rules</h1>
+                <p class="mt-2 text-sm text-gray-600">Rules ignore matching pages across every set. Manual decisions always win.</p>
+            </div>
+            <div class="mt-4 sm:mt-0">
+                <a href="{% url 'research:rule-create' project.id %}"
+                   class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
+                    New rule
+                </a>
+            </div>
+        </div>
+
+        <div class="mt-8 space-y-4">
+            {% for row in rule_rows %}
+                {% with rule=row.rule %}
+                    <div class="bg-white shadow rounded-lg border border-gray-200 p-6">
+                        <div class="flex items-start justify-between gap-4">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center gap-3">
+                                    <h2 class="text-lg font-medium text-gray-900">{{ rule.name }}</h2>
+                                    {% if rule.is_active %}
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Active</span>
+                                    {% else %}
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Inactive</span>
+                                    {% endif %}
+                                </div>
+                                {% if rule.reason %}
+                                    <p class="mt-1 text-sm text-gray-600">{{ rule.reason }}</p>
+                                {% endif %}
+                                <p class="mt-2 text-xs text-gray-500">{{ row.summary }}</p>
+                            </div>
+                            <div class="flex flex-shrink-0 items-center gap-2">
+                                <form method="post" action="{% url 'research:rule-create' project.id %}">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="action" value="preview">
+                                    {% for key, value in row.preview_fields.items %}
+                                        <input type="hidden" name="{{ key }}" value="{{ value }}">
+                                    {% endfor %}
+                                    <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Preview</button>
+                                </form>
+                                <form method="post" action="{% url 'research:rule-toggle' project.id rule.id %}">
+                                    {% csrf_token %}
+                                    <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                                        {% if rule.is_active %}Deactivate{% else %}Activate{% endif %}
+                                    </button>
+                                </form>
+                                <form method="post" action="{% url 'research:rule-delete' project.id rule.id %}"
+                                      onsubmit="return confirm('Delete this rule and revert rows it owns?');">
+                                    {% csrf_token %}
+                                    <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-red-300 text-xs font-medium rounded-md text-red-700 bg-white hover:bg-red-50">Delete</button>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                {% endwith %}
+            {% empty %}
+                <div class="text-center py-12 bg-white rounded-lg border border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">No ignore rules yet</h3>
+                    <p class="mt-2 text-gray-500">Create a rule to ignore recurring pages across this project.</p>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+{% endblock content %}

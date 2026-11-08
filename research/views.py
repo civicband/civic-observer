@@ -1,6 +1,7 @@
 import uuid
 from datetime import date
 
+from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count, QuerySet
 from django.http import HttpResponse, HttpResponseBadRequest, QueryDict
@@ -13,11 +14,13 @@ from meetings.models import MeetingPage
 from municipalities.models import Muni
 from searches.queryspec import QuerySpec
 
+from .audit import record_event
 from .browse import _encode_cursor, browse_set, filter_items, review_item, set_facets
 from .disposition import dispose_item, dispose_items, undo_disposition_event
 from .lens import Lens
 from .materialize import create_result_set
-from .models import AuditEvent, Project, ResultSet, SetItem
+from .models import AuditEvent, IgnoreRule, Project, ResultSet, SetItem
+from .rules import preview_rule, revert_rule
 
 
 def _split_csv(value: str | None) -> tuple[str, ...]:
@@ -41,6 +44,49 @@ def _date_value(value: str | None) -> date | None:
         return date.fromisoformat(value)
     except ValueError:
         return None
+
+
+def _spec_from_rule_form(post) -> QuerySpec:
+    document_type = (post.get("document_type") or "all").strip()
+    if document_type not in {"agenda", "minutes"}:
+        document_type = "all"
+    return QuerySpec(
+        text=(post.get("text") or "").strip(),
+        meeting_name=(post.get("meeting_name") or "").strip(),
+        municipality_ids=_uuid_values(post.get("municipality")),
+        states=_split_csv(post.get("states")),
+        date_from=_date_value(post.get("date_from")),
+        date_to=_date_value(post.get("date_to")),
+        document_type=document_type,
+    )
+
+
+def _ignore_reasons(result_set: ResultSet) -> list[str]:
+    return list(
+        SetItem.objects.filter(result_set__project=result_set.project)
+        .exclude(ignore_reason="")
+        .values_list("ignore_reason", flat=True)
+        .distinct()[:20]
+    )
+
+
+def _enqueue_rule_task(task, rule_id) -> None:
+    import django_rq
+
+    queue = django_rq.get_queue(settings.RESEARCH_QUEUE)
+    queue.enqueue(task, rule_id, job_timeout=settings.RESEARCH_JOB_TIMEOUT)
+
+
+def _rule_form_initial(spec: QuerySpec) -> dict:
+    return {
+        "text": spec.text,
+        "meeting_name": spec.meeting_name,
+        "municipality": ",".join(str(value) for value in spec.municipality_ids),
+        "states": ",".join(spec.states),
+        "date_from": spec.date_from.isoformat() if spec.date_from else "",
+        "date_to": spec.date_to.isoformat() if spec.date_to else "",
+        "document_type": spec.document_type,
+    }
 
 
 def _undo_single_item_id(event: AuditEvent) -> int | None:
@@ -122,6 +168,7 @@ class SetDetailView(LoginRequiredMixin, DetailView):
         context["items"] = []
         context["next_cursor"] = None
         context["facets"] = {}
+        context["ignore_reasons"] = _ignore_reasons(result_set)
 
         if result_set.status == ResultSet.Status.READY:
             after = self.request.GET.get("after") or None
@@ -239,6 +286,7 @@ class DispositionView(LoginRequiredMixin, View):
             "lens": lens,
             "querystring": lens.to_querystring(),
             "item": set_item,
+            "ignore_reasons": _ignore_reasons(result_set),
         }
         if request.POST.get("next") == "review":
             try:
@@ -330,6 +378,7 @@ class UndoView(LoginRequiredMixin, View):
             "lens": lens,
             "querystring": lens.to_querystring(),
             "item": set_item,
+            "ignore_reasons": _ignore_reasons(result_set),
         }
         if request.POST.get("next") == "review":
             context["cursor"] = _encode_cursor(set_item, lens.order)
@@ -361,5 +410,184 @@ class ReviewView(LoginRequiredMixin, View):
                 "querystring": lens.to_querystring(),
                 "item": item,
                 "cursor": cursor,
+                "ignore_reasons": _ignore_reasons(result_set),
             },
         )
+
+
+class IgnoreRuleListView(LoginRequiredMixin, ListView):
+    model = IgnoreRule
+    template_name = "research/rules/list.html"
+    context_object_name = "rules"
+
+    def get_queryset(self) -> QuerySet[IgnoreRule]:
+        self.project = get_object_or_404(
+            Project, id=self.kwargs["project"], owner=self.request.user
+        )
+        return IgnoreRule.objects.filter(project=self.project).order_by("-created")
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        rows = []
+        for rule in context["rules"]:
+            spec = QuerySpec.from_canonical(rule.predicate or {})
+            rows.append(
+                {
+                    "rule": rule,
+                    "summary": self._summary(spec),
+                    "preview_fields": _rule_form_initial(spec),
+                }
+            )
+        context["project"] = self.project
+        context["rule_rows"] = rows
+        return context
+
+    @staticmethod
+    def _summary(spec: QuerySpec) -> str:
+        parts: list[str] = []
+        if spec.text:
+            parts.append(f"text: {spec.text}")
+        if spec.meeting_name:
+            parts.append(f"meeting: {spec.meeting_name}")
+        if spec.municipality_ids:
+            parts.append(f"municipalities: {len(spec.municipality_ids)}")
+        if spec.states:
+            parts.append(f"states: {', '.join(spec.states)}")
+        if spec.date_from:
+            parts.append(f"from {spec.date_from.isoformat()}")
+        if spec.date_to:
+            parts.append(f"to {spec.date_to.isoformat()}")
+        if spec.document_type and spec.document_type != "all":
+            parts.append(f"type: {spec.document_type}")
+        return " · ".join(parts) or "No conditions"
+
+
+class IgnoreRuleCreateView(LoginRequiredMixin, View):
+    template_name = "research/rules/form.html"
+
+    def _project(self, request, project) -> Project:
+        return get_object_or_404(Project, id=project, owner=request.user)
+
+    def _render(self, request, project, initial, preview=None, error=""):
+        return render(
+            request,
+            self.template_name,
+            {
+                "project": project,
+                "initial": initial,
+                "preview": preview,
+                "error": error,
+            },
+        )
+
+    def get(self, request, project):
+        project_obj = self._project(request, project)
+        initial: dict = {}
+        page_id = request.GET.get("page")
+        lens_param = request.GET.get("lens")
+        if page_id:
+            item = get_object_or_404(
+                SetItem.objects.select_related("page"),
+                id=page_id,
+                result_set__project=project_obj,
+            )
+            initial["meeting_name"] = item.page.meeting_name
+            initial["document_type"] = item.page.document_type
+        elif lens_param:
+            lens = Lens.from_querydict(QueryDict(lens_param))
+            initial.update(
+                {
+                    "text": lens.text,
+                    "municipality": ",".join(
+                        str(value) for value in lens.municipality_ids
+                    ),
+                    "states": ",".join(lens.states),
+                    "date_from": (lens.date_from.isoformat() if lens.date_from else ""),
+                    "date_to": lens.date_to.isoformat() if lens.date_to else "",
+                    "document_type": lens.document_type,
+                }
+            )
+        return self._render(request, project_obj, initial)
+
+    def post(self, request, project):
+        project_obj = self._project(request, project)
+        spec = _spec_from_rule_form(request.POST)
+        action = request.POST.get("action")
+
+        if action == "preview":
+            preview = preview_rule(project_obj, spec)
+            return self._render(request, project_obj, request.POST, preview=preview)
+
+        if action != "save":
+            return HttpResponseBadRequest("Unknown action")
+
+        name = (request.POST.get("name") or "").strip()
+        if not name:
+            return self._render(
+                request,
+                project_obj,
+                request.POST,
+                error="A name is required",
+            )
+
+        reason = (request.POST.get("reason") or "").strip()
+        rule = IgnoreRule.objects.create(
+            project=project_obj,
+            name=name,
+            predicate=spec.canonical(),
+            reason=reason,
+        )
+        record_event(
+            project_obj,
+            "rule.created",
+            actor=request.user,
+            payload={"name": rule.name, "predicate": rule.predicate, "reason": reason},
+        )
+        from .tasks import apply_rule_to_project_task
+
+        _enqueue_rule_task(apply_rule_to_project_task, rule.id)
+        return redirect("research:rule-list", project=project_obj.id)
+
+
+class IgnoreRuleToggleView(LoginRequiredMixin, View):
+    def post(self, request, project, rule):
+        project_obj = get_object_or_404(Project, id=project, owner=request.user)
+        rule_obj = get_object_or_404(IgnoreRule, id=rule, project=project_obj)
+        before = rule_obj.is_active
+        rule_obj.is_active = not before
+        rule_obj.save(update_fields=["is_active", "modified"])
+        record_event(
+            project_obj,
+            "rule.changed",
+            actor=request.user,
+            payload={
+                "before": before,
+                "after": rule_obj.is_active,
+                "name": rule_obj.name,
+            },
+        )
+        if rule_obj.is_active:
+            from .tasks import apply_rule_to_project_task
+
+            _enqueue_rule_task(apply_rule_to_project_task, rule_obj.id)
+        else:
+            from .tasks import revert_rule_task
+
+            _enqueue_rule_task(revert_rule_task, rule_obj.id)
+        return redirect("research:rule-list", project=project_obj.id)
+
+
+class IgnoreRuleDeleteView(LoginRequiredMixin, View):
+    def post(self, request, project, rule):
+        project_obj = get_object_or_404(Project, id=project, owner=request.user)
+        rule_obj = get_object_or_404(IgnoreRule, id=rule, project=project_obj)
+        if rule_obj.is_active:
+            revert_rule(rule_obj, actor=request.user)
+        record_event(
+            project_obj,
+            "rule.changed",
+            actor=request.user,
+            payload={"deleted": True, "name": rule_obj.name},
+        )
+        rule_obj.delete()
+        return redirect("research:rule-list", project=project_obj.id)

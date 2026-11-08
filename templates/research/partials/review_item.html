@@ -55,6 +55,7 @@
                 <input type="hidden" name="lens" value="{{ querystring }}">
                 <input type="hidden" name="next" value="review">
                 <input type="text" name="reason" value="{{ item.ignore_reason }}" placeholder="Reason (optional)"
+                       list="ignore-reasons"
                        class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
                 <button id="review-ignore" type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Ignore</button>
             </form>
@@ -84,6 +85,11 @@
                href="{% url 'research:set-review' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}&{% else %}?{% endif %}after={{ cursor|urlencode }}"
                class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Next</a>
         </div>
+        <datalist id="ignore-reasons">
+            {% for reason in ignore_reasons %}
+                <option value="{{ reason }}"></option>
+            {% endfor %}
+        </datalist>
     {% else %}
         <div class="text-center py-12">
             <h3 class="text-lg font-medium text-gray-900">No items left</h3>

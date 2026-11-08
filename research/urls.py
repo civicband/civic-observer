@@ -8,6 +8,26 @@ urlpatterns = [
     path("", views.ProjectListView.as_view(), name="project-list"),
     path("<uuid:project>/", views.ProjectDetailView.as_view(), name="project-detail"),
     path(
+        "<uuid:project>/rules/",
+        views.IgnoreRuleListView.as_view(),
+        name="rule-list",
+    ),
+    path(
+        "<uuid:project>/rules/new/",
+        views.IgnoreRuleCreateView.as_view(),
+        name="rule-create",
+    ),
+    path(
+        "<uuid:project>/rules/<uuid:rule>/toggle/",
+        views.IgnoreRuleToggleView.as_view(),
+        name="rule-toggle",
+    ),
+    path(
+        "<uuid:project>/rules/<uuid:rule>/delete/",
+        views.IgnoreRuleDeleteView.as_view(),
+        name="rule-delete",
+    ),
+    path(
         "<uuid:project>/sets/new/",
         views.SetCreateView.as_view(),
         name="set-create",
