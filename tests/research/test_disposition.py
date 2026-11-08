@@ -1,4 +1,5 @@
 import pytest
+from django.db.models import QuerySet
 from django.utils import timezone
 
 from research.browse import filter_items
@@ -8,7 +9,7 @@ from research.disposition import (
     undo_disposition_event,
 )
 from research.lens import Lens
-from research.models import AuditEvent
+from research.models import AuditEvent, SetItem
 from tests.factories import (
     IgnoreRuleFactory,
     ProjectFactory,
@@ -106,6 +107,37 @@ class TestDisposeItem:
         item.refresh_from_db()
         assert item.ignore_reason == "Off topic"
 
+    def test_reason_for_non_ignore_disposition_is_dropped(self):
+        item = SetItemFactory(disposition="u")
+
+        event = dispose_item(item, "r", reason="  Off topic  ")
+
+        assert event is not None
+        assert event.payload["reason"] == ""
+        item.refresh_from_db()
+        assert item.ignore_reason == ""
+
+    def test_reason_only_change_on_non_ignore_disposition_is_noop(self):
+        item = SetItemFactory(disposition="r")
+
+        event = dispose_item(item, "r", reason="Off topic")
+
+        assert event is None
+        assert not AuditEvent.objects.filter(verb="items.disposed").exists()
+
+    def test_row_write_failure_rolls_back_event(self, monkeypatch):
+        item = SetItemFactory()
+
+        def boom(*args, **kwargs):
+            raise RuntimeError("row write failed")
+
+        monkeypatch.setattr(SetItem, "save", boom)
+
+        with pytest.raises(RuntimeError):
+            dispose_item(item, "r")
+
+        assert not AuditEvent.objects.filter(verb="items.disposed").exists()
+
     def test_invalid_disposition_raises(self):
         item = SetItemFactory()
 
@@ -193,6 +225,73 @@ class TestDisposeItems:
         assert count == 0
         assert not AuditEvent.objects.filter(verb="items.disposed").exists()
 
+    def test_from_counts_only_include_changed_rows(self):
+        result_set = ResultSetFactory()
+        SetItemFactory(
+            result_set=result_set, disposition="i", ignore_reason="Boilerplate"
+        )
+        SetItemFactory(result_set=result_set, disposition="u")
+
+        event, count = dispose_items(
+            result_set,
+            Lens(dispositions=("i", "u")),
+            "i",
+            reason="Boilerplate",
+        )
+
+        assert event is not None
+        assert count == 1
+        assert event.payload["from"] == {"u": 1}
+        assert event.payload["count"] == 1
+
+    def test_second_identical_bulk_is_noop_and_undo_still_restores(self):
+        result_set = ResultSetFactory()
+        unreviewed = SetItemFactory(result_set=result_set, disposition="u")
+        relevant = SetItemFactory(result_set=result_set, disposition="r")
+        lens = Lens(dispositions=("u", "r", "i"))
+
+        event, count = dispose_items(result_set, lens, "i", reason="Boilerplate")
+
+        assert event is not None
+        assert count == 2
+
+        second_event, second_count = dispose_items(
+            result_set, lens, "i", reason="Boilerplate"
+        )
+
+        assert second_event is None
+        assert second_count == 0
+        assert AuditEvent.objects.filter(verb="items.disposed").count() == 1
+
+        unreviewed.refresh_from_db()
+        relevant.refresh_from_db()
+        assert unreviewed.previous_disposition == "u"
+        assert relevant.previous_disposition == "r"
+
+        undo, undo_count = undo_disposition_event(event)
+
+        assert undo_count == 2
+        unreviewed.refresh_from_db()
+        relevant.refresh_from_db()
+        assert unreviewed.disposition == "u"
+        assert relevant.disposition == "r"
+        assert unreviewed.ignore_reason == ""
+        assert relevant.ignore_reason == ""
+
+    def test_row_write_failure_rolls_back_event(self, monkeypatch):
+        result_set = ResultSetFactory()
+        SetItemFactory(result_set=result_set, disposition="u")
+
+        def boom(*args, **kwargs):
+            raise RuntimeError("row update failed")
+
+        monkeypatch.setattr(QuerySet, "update", boom)
+
+        with pytest.raises(RuntimeError):
+            dispose_items(result_set, Lens(), "r")
+
+        assert not AuditEvent.objects.filter(verb="items.disposed").exists()
+
     def test_invalid_disposition_raises(self):
         result_set = ResultSetFactory()
 
@@ -268,6 +367,21 @@ class TestUndoDispositionEvent:
 
         with pytest.raises(ValueError):
             undo_disposition_event(event)
+
+    def test_row_write_failure_rolls_back_event(self, monkeypatch):
+        result_set = ResultSetFactory()
+        SetItemFactory(result_set=result_set, disposition="u")
+        event, _ = dispose_items(result_set, Lens(), "r")
+
+        def boom(*args, **kwargs):
+            raise RuntimeError("row update failed")
+
+        monkeypatch.setattr(QuerySet, "update", boom)
+
+        with pytest.raises(RuntimeError):
+            undo_disposition_event(event)
+
+        assert not AuditEvent.objects.filter(verb="bulk.undone").exists()
 
     def test_bumps_set_modified(self):
         result_set = ResultSetFactory()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from django.db import transaction
 from django.db.models import Count, F, QuerySet
 from django.utils import timezone
 
@@ -36,6 +37,8 @@ def dispose_item(
         raise ValueError(f"Invalid disposition: {disposition!r}")
 
     reason = _clean_reason(reason)
+    if disposition != SetItem.Disposition.IGNORED:
+        reason = ""
     if (
         item.disposition == disposition
         and item.ignore_reason == reason
@@ -44,34 +47,35 @@ def dispose_item(
         return None
 
     previous = item.disposition
-    event = record_event(
-        item.result_set.project,
-        "items.disposed",
-        actor=actor,
-        result_set=item.result_set,
-        payload={
-            "item_ids": [item.id],
-            "from": {previous: 1},
-            "to": disposition,
-            "reason": reason,
-            "count": 1,
-        },
-    )
-    item.previous_disposition = previous
-    item.disposition = disposition
-    item.ignore_reason = reason if disposition == SetItem.Disposition.IGNORED else ""
-    item.disposition_by_rule = None
-    item.last_event = event
-    item.save(
-        update_fields=[
-            "previous_disposition",
-            "disposition",
-            "ignore_reason",
-            "disposition_by_rule",
-            "last_event",
-        ]
-    )
-    _bump_set_modified(item.result_set_id)
+    with transaction.atomic():
+        event = record_event(
+            item.result_set.project,
+            "items.disposed",
+            actor=actor,
+            result_set=item.result_set,
+            payload={
+                "item_ids": [item.id],
+                "from": {previous: 1},
+                "to": disposition,
+                "reason": reason,
+                "count": 1,
+            },
+        )
+        item.previous_disposition = previous
+        item.disposition = disposition
+        item.ignore_reason = reason
+        item.disposition_by_rule = None
+        item.last_event = event
+        item.save(
+            update_fields=[
+                "previous_disposition",
+                "disposition",
+                "ignore_reason",
+                "disposition_by_rule",
+                "last_event",
+            ]
+        )
+        _bump_set_modified(item.result_set_id)
     return event
 
 
@@ -88,36 +92,40 @@ def dispose_items(
         raise ValueError(f"Invalid disposition: {disposition!r}")
 
     reason = _clean_reason(reason)
+    if disposition != SetItem.Disposition.IGNORED:
+        reason = ""
     items: QuerySet[SetItem] = filter_items(result_set, lens)
+    changed = items.exclude(disposition=disposition, ignore_reason=reason)
     counts = {
         row["disposition"]: row["count"]
-        for row in items.values("disposition").annotate(count=Count("id"))
+        for row in changed.values("disposition").annotate(count=Count("id"))
     }
     count = sum(counts.values())
     if count == 0:
         return None, 0
 
-    event = record_event(
-        result_set.project,
-        "items.disposed",
-        actor=actor,
-        result_set=result_set,
-        payload={
-            "lens": lens.to_querystring(),
-            "from": counts,
-            "to": disposition,
-            "reason": reason,
-            "count": count,
-        },
-    )
-    items.update(
-        previous_disposition=F("disposition"),
-        disposition=disposition,
-        ignore_reason=reason if disposition == SetItem.Disposition.IGNORED else "",
-        disposition_by_rule=None,
-        last_event=event,
-    )
-    _bump_set_modified(result_set.pk)
+    with transaction.atomic():
+        event = record_event(
+            result_set.project,
+            "items.disposed",
+            actor=actor,
+            result_set=result_set,
+            payload={
+                "lens": lens.to_querystring(),
+                "from": counts,
+                "to": disposition,
+                "reason": reason,
+                "count": count,
+            },
+        )
+        changed.update(
+            previous_disposition=F("disposition"),
+            disposition=disposition,
+            ignore_reason=reason,
+            disposition_by_rule=None,
+            last_event=event,
+        )
+        _bump_set_modified(result_set.pk)
     return event, count
 
 
@@ -133,20 +141,21 @@ def undo_disposition_event(
     if count == 0:
         return None, 0
 
-    undo_event = record_event(
-        event.project,
-        "bulk.undone",
-        actor=actor,
-        result_set=event.result_set,
-        payload={"original_event_id": event.id, "count": count},
-    )
-    items.update(
-        disposition=F("previous_disposition"),
-        previous_disposition="",
-        ignore_reason="",
-        disposition_by_rule=None,
-        last_event=undo_event,
-    )
-    if event.result_set_id:
-        _bump_set_modified(event.result_set_id)
+    with transaction.atomic():
+        undo_event = record_event(
+            event.project,
+            "bulk.undone",
+            actor=actor,
+            result_set=event.result_set,
+            payload={"original_event_id": event.id, "count": count},
+        )
+        items.update(
+            disposition=F("previous_disposition"),
+            previous_disposition="",
+            ignore_reason="",
+            disposition_by_rule=None,
+            last_event=undo_event,
+        )
+        if event.result_set_id:
+            _bump_set_modified(event.result_set_id)
     return undo_event, count
