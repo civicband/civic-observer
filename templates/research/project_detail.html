@@ -17,7 +17,11 @@
                     <p class="mt-2 text-sm text-gray-600">{{ project.description }}</p>
                 {% endif %}
             </div>
-            <div class="mt-4 sm:mt-0">
+            <div class="mt-4 sm:mt-0 flex items-center gap-2">
+                <a href="{% url 'research:codebook' project.id %}"
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                    Codebook
+                </a>
                 <a href="{% url 'research:rule-list' project.id %}"
                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
                     Rules

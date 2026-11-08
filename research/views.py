@@ -4,7 +4,12 @@ from datetime import date
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
 from django.db.models import Count, QuerySet
-from django.http import HttpResponse, HttpResponseBadRequest, QueryDict
+from django.http import (
+    Http404,
+    HttpResponse,
+    HttpResponseBadRequest,
+    QueryDict,
+)
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.views import View
@@ -16,10 +21,28 @@ from searches.queryspec import QuerySpec
 
 from .audit import record_event
 from .browse import _encode_cursor, browse_set, filter_items, review_item, set_facets
+from .codebook import (
+    apply_code_to_pages,
+    archive_code,
+    codebook_tree,
+    create_code,
+    merge_codes,
+    remove_code_from_pages,
+    rename_code,
+)
 from .disposition import dispose_item, dispose_items, undo_disposition_event
 from .lens import Lens
 from .materialize import create_result_set
-from .models import AuditEvent, IgnoreRule, Project, ResultSet, SetItem
+from .models import (
+    AuditEvent,
+    Code,
+    Coding,
+    IgnoreRule,
+    Memo,
+    Project,
+    ResultSet,
+    SetItem,
+)
 from .rules import is_empty, preview_rule, revert_rule, validate_rule_predicate
 from .tasks import apply_rule_to_project_task, revert_rule_task
 
@@ -629,3 +652,168 @@ class IgnoreRuleDeleteView(LoginRequiredMixin, View):
         )
         rule_obj.delete()
         return redirect("research:rule-list", project=project_obj.id)
+
+
+class CodebookView(LoginRequiredMixin, View):
+    template_name = "research/codebook.html"
+
+    def get(self, request, project):
+        project_obj = get_object_or_404(Project, id=project, owner=request.user)
+        return render(request, self.template_name, _codebook_context(project_obj))
+
+
+def _codebook_context(project_obj: Project) -> dict:
+    return {
+        "project": project_obj,
+        "tree": codebook_tree(project_obj),
+        "include_archived": False,
+        "codes": Code.objects.filter(project=project_obj, is_archived=False).order_by(
+            "name"
+        ),
+    }
+
+
+class CodeCreateView(LoginRequiredMixin, View):
+    template_name = "research/codebook.html"
+
+    def _render_error(self, request, project_obj, error):
+        context = _codebook_context(project_obj)
+        context["error"] = error
+        return render(request, self.template_name, context, status=400)
+
+    def post(self, request, project):
+        project_obj = get_object_or_404(Project, id=project, owner=request.user)
+        parent_id = request.POST.get("parent")
+        parent = None
+        if parent_id:
+            parent = get_object_or_404(Code, id=parent_id, project=project_obj)
+        try:
+            create_code(
+                project_obj,
+                name=request.POST.get("name", ""),
+                parent=parent,
+                color=request.POST.get("color", ""),
+                definition=request.POST.get("definition", ""),
+                inclusion=request.POST.get("inclusion", ""),
+                exclusion=request.POST.get("exclusion", ""),
+                actor=request.user,
+            )
+        except ValueError as exc:
+            return self._render_error(request, project_obj, str(exc))
+        return redirect("research:codebook", project=project_obj.id)
+
+
+class CodeRenameView(LoginRequiredMixin, View):
+    template_name = "research/codebook.html"
+
+    def _render_error(self, request, project_obj, error):
+        context = _codebook_context(project_obj)
+        context["error"] = error
+        return render(request, self.template_name, context, status=400)
+
+    def post(self, request, project, code):
+        code_obj = get_object_or_404(
+            Code, id=code, project__owner=request.user, project_id=project
+        )
+        try:
+            rename_code(
+                code_obj,
+                name=request.POST.get("name"),
+                color=request.POST.get("color"),
+                definition=request.POST.get("definition"),
+                inclusion=request.POST.get("inclusion"),
+                exclusion=request.POST.get("exclusion"),
+                actor=request.user,
+            )
+        except ValueError as exc:
+            return self._render_error(request, code_obj.project, str(exc))
+        return redirect("research:codebook", project=project)
+
+
+class CodeArchiveView(LoginRequiredMixin, View):
+    def post(self, request, project, code):
+        code_obj = get_object_or_404(
+            Code, id=code, project__owner=request.user, project_id=project
+        )
+        archive_code(code_obj, actor=request.user)
+        return redirect("research:codebook", project=project)
+
+
+class CodeMergeView(LoginRequiredMixin, View):
+    template_name = "research/codebook.html"
+
+    def post(self, request, project, code):
+        source = get_object_or_404(
+            Code, id=code, project__owner=request.user, project_id=project
+        )
+        target = get_object_or_404(
+            Code, id=request.POST.get("target"), project=source.project
+        )
+        try:
+            merge_codes(source, target, actor=request.user)
+        except ValueError as exc:
+            context = _codebook_context(source.project)
+            context["error"] = str(exc)
+            return render(request, self.template_name, context, status=400)
+        return redirect("research:codebook", project=project)
+
+
+def _page_coding_context(project_obj: Project, page: MeetingPage) -> dict:
+    return {
+        "project": project_obj,
+        "page": page,
+        "codes": Coding.objects.filter(project=project_obj, page=page).select_related(
+            "code"
+        ),
+        "available_codes": Code.objects.filter(
+            project=project_obj, is_archived=False
+        ).order_by("name"),
+        "memos": Memo.objects.filter(project=project_obj, page=page).order_by(
+            "-created"
+        ),
+    }
+
+
+def _page_in_project(project_obj: Project, page: MeetingPage) -> None:
+    if not SetItem.objects.filter(
+        result_set__project=project_obj, page_id=page.id
+    ).exists():
+        raise Http404
+
+
+class PageCodingView(LoginRequiredMixin, View):
+    template_name = "research/partials/page_coding.html"
+
+    def get(self, request, project, page):
+        project_obj = get_object_or_404(Project, id=project, owner=request.user)
+        page_obj = get_object_or_404(MeetingPage, id=page)
+        _page_in_project(project_obj, page_obj)
+        return render(
+            request, self.template_name, _page_coding_context(project_obj, page_obj)
+        )
+
+
+class PageCodeView(LoginRequiredMixin, View):
+    template_name = "research/partials/page_coding.html"
+
+    def post(self, request, project, page):
+        project_obj = get_object_or_404(Project, id=project, owner=request.user)
+        page_obj = get_object_or_404(MeetingPage, id=page)
+        _page_in_project(project_obj, page_obj)
+        code_obj = get_object_or_404(
+            Code, id=request.POST.get("code"), project=project_obj
+        )
+        action = request.POST.get("action")
+        if action == "apply":
+            apply_code_to_pages(
+                project_obj, code_obj, [page_obj.id], actor=request.user
+            )
+        elif action == "remove":
+            remove_code_from_pages(
+                project_obj, code_obj, [page_obj.id], actor=request.user
+            )
+        else:
+            return HttpResponseBadRequest("Unknown action")
+        return render(
+            request, self.template_name, _page_coding_context(project_obj, page_obj)
+        )

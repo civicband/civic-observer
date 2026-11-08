@@ -72,4 +72,33 @@ urlpatterns = [
         views.UndoView.as_view(),
         name="event-undo",
     ),
+    path("<uuid:project>/codes/", views.CodebookView.as_view(), name="codebook"),
+    path(
+        "<uuid:project>/codes/new/", views.CodeCreateView.as_view(), name="code-create"
+    ),
+    path(
+        "<uuid:project>/codes/<uuid:code>/rename/",
+        views.CodeRenameView.as_view(),
+        name="code-rename",
+    ),
+    path(
+        "<uuid:project>/codes/<uuid:code>/archive/",
+        views.CodeArchiveView.as_view(),
+        name="code-archive",
+    ),
+    path(
+        "<uuid:project>/codes/<uuid:code>/merge/",
+        views.CodeMergeView.as_view(),
+        name="code-merge",
+    ),
+    path(
+        "<uuid:project>/pages/<str:page>/",
+        views.PageCodingView.as_view(),
+        name="page-coding",
+    ),
+    path(
+        "<uuid:project>/pages/<str:page>/codes/",
+        views.PageCodeView.as_view(),
+        name="page-code",
+    ),
 ]

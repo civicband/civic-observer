@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block title %}Codebook - {{ project.name }} - Research - CivicObserver{% endblock %}
+
+{% block content %}
+    <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <nav class="text-sm text-gray-500 mb-2">
+            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600">Research</a>
+            <span class="mx-2">/</span>
+            <a href="{% url 'research:project-detail' project.id %}" class="hover:text-indigo-600">{{ project.name }}</a>
+            <span class="mx-2">/</span>
+            <span class="text-gray-900">Codebook</span>
+        </nav>
+
+        <div class="sm:flex sm:items-center sm:justify-between">
+            <div>
+                <h1 class="text-3xl font-bold tracking-tight text-gray-900">Codebook</h1>
+                <p class="mt-2 text-sm text-gray-600">Define, organize, and merge the codes used to annotate pages.</p>
+            </div>
+        </div>
+
+        {% if error %}
+            <div class="mt-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                {{ error }}
+            </div>
+        {% endif %}
+
+        <div class="mt-8 bg-white shadow rounded-lg border border-gray-200">
+            <div class="px-4 py-5 sm:p-6">
+                <h2 class="text-lg font-medium text-gray-900">New code</h2>
+                <form method="post" action="{% url 'research:code-create' project.id %}" class="mt-4 space-y-4">
+                    {% csrf_token %}
+                    <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                        <div>
+                            <label for="code-name" class="block text-sm font-medium text-gray-700">Name</label>
+                            <input type="text" name="name" id="code-name" required
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="code-parent" class="block text-sm font-medium text-gray-700">Parent</label>
+                            <select name="parent" id="code-parent"
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                <option value="">None (root code)</option>
+                                {% for node in tree %}
+                                    <option value="{{ node.code.id }}">{{ node.code.name }}</option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                        <div>
+                            <label for="code-color" class="block text-sm font-medium text-gray-700">Color</label>
+                            <input type="color" name="color" id="code-color" value="#6366f1"
+                                   class="mt-1 block h-9 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="code-definition" class="block text-sm font-medium text-gray-700">Definition</label>
+                            <input type="text" name="definition" id="code-definition"
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                        </div>
+                        <div>
+                            <label for="code-inclusion" class="block text-sm font-medium text-gray-700">Apply when</label>
+                            <textarea name="inclusion" id="code-inclusion" rows="2"
+                                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
+                        </div>
+                        <div>
+                            <label for="code-exclusion" class="block text-sm font-medium text-gray-700">Do not apply when</label>
+                            <textarea name="exclusion" id="code-exclusion" rows="2"
+                                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
+                        </div>
+                    </div>
+                    <div>
+                        <button type="submit"
+                                class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
+                            Create code
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="mt-8">
+            <h2 class="text-lg font-medium text-gray-900">Codes</h2>
+            <div class="mt-4 space-y-4">
+                {% include "research/partials/codebook_tree.html" %}
+            </div>
+        </div>
+    </div>
+{% endblock content %}

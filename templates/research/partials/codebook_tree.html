@@ -1,0 +1,66 @@
+{% for node in tree %}
+    <div class="bg-white shadow rounded-lg border border-gray-200 p-6">
+        <div class="flex items-start justify-between gap-4">
+            <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-3">
+                    {% if node.code.color %}
+                        <span class="inline-block h-4 w-4 rounded-full border border-gray-200" style="background-color: {{ node.code.color }};"></span>
+                    {% endif %}
+                    <h3 class="text-lg font-medium text-gray-900">{{ node.code.name }}</h3>
+                    <span class="text-xs text-gray-500">{{ node.coding_count }} coding{{ node.coding_count|pluralize }}</span>
+                </div>
+                {% if node.code.definition %}
+                    <p class="mt-2 text-sm text-gray-700">{{ node.code.definition }}</p>
+                {% endif %}
+                {% if node.code.inclusion %}
+                    <p class="mt-2 text-sm text-gray-600"><span class="font-medium text-gray-700">Apply when:</span> {{ node.code.inclusion }}</p>
+                {% endif %}
+                {% if node.code.exclusion %}
+                    <p class="mt-1 text-sm text-gray-600"><span class="font-medium text-gray-700">Do not apply when:</span> {{ node.code.exclusion }}</p>
+                {% else %}
+                    <p class="mt-1 text-xs text-amber-600">No exclusion rule</p>
+                {% endif %}
+                {% for exemplar in node.exemplars %}
+                    <blockquote class="mt-3 border-l-4 border-indigo-200 pl-3 text-sm italic text-gray-600">
+                        {{ exemplar.page.text }}
+                    </blockquote>
+                {% endfor %}
+            </div>
+        </div>
+
+        <div class="mt-4 flex flex-wrap items-start gap-3">
+            <form method="post" action="{% url 'research:code-rename' project.id node.code.id %}" class="flex items-center gap-2">
+                {% csrf_token %}
+                <input type="text" name="name" value="{{ node.code.name }}" required
+                       class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Rename</button>
+            </form>
+            <form method="post" action="{% url 'research:code-archive' project.id node.code.id %}">
+                {% csrf_token %}
+                <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Archive</button>
+            </form>
+            <form method="post" action="{% url 'research:code-merge' project.id node.code.id %}" class="flex items-center gap-2">
+                {% csrf_token %}
+                <select name="target" class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    {% for candidate in codes %}
+                        {% if candidate.id != node.code.id %}
+                            <option value="{{ candidate.id }}">{{ candidate.name }}</option>
+                        {% endif %}
+                    {% endfor %}
+                </select>
+                <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Merge</button>
+            </form>
+        </div>
+
+        {% if node.children %}
+            <div class="mt-4 ml-6 space-y-4 border-l border-gray-200 pl-4">
+                {% include "research/partials/codebook_tree.html" with tree=node.children %}
+            </div>
+        {% endif %}
+    </div>
+{% empty %}
+    <div class="text-center py-12 bg-white rounded-lg border border-gray-200">
+        <h3 class="text-lg font-medium text-gray-900">No codes yet</h3>
+        <p class="mt-2 text-gray-500">Create a code above to start coding pages.</p>
+    </div>
+{% endfor %}
