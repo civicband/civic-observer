@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+
+{% block title %}Review {{ result_set.name }} - Research - CivicObserver{% endblock %}
+
+{% block content %}
+    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
+         x-data="reviewKeyboard()" @keydown.window="handle($event)">
+        <nav class="text-sm text-gray-500 mb-2">
+            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600">Research</a>
+            <span class="mx-2">/</span>
+            <a href="{% url 'research:project-detail' result_set.project_id %}" class="hover:text-indigo-600">{{ result_set.project.name }}</a>
+            <span class="mx-2">/</span>
+            <a href="{% url 'research:set-detail' result_set.project_id result_set.id %}" class="hover:text-indigo-600">{{ result_set.name }}</a>
+            <span class="mx-2">/</span>
+            <span class="text-gray-900">Review</span>
+        </nav>
+
+        <div class="flex items-center justify-between">
+            <h1 class="text-2xl font-bold tracking-tight text-gray-900">Review</h1>
+            <p class="text-sm text-gray-500">j/k move · r relevant · i ignore · u unreviewed</p>
+        </div>
+
+        <div class="mt-6">
+            {% include "research/partials/review_item.html" %}
+        </div>
+    </div>
+
+    <script>
+        function reviewKeyboard() {
+            return {
+                handle(event) {
+                    if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) {
+                        return;
+                    }
+                    if (event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA") {
+                        return;
+                    }
+                    const targets = {
+                        j: "review-next",
+                        k: "review-prev",
+                        r: "review-relevant",
+                        i: "review-ignore",
+                        u: "review-unreviewed",
+                    };
+                    const target = targets[event.key.toLowerCase()];
+                    if (target) {
+                        const element = document.getElementById(target);
+                        if (element) {
+                            event.preventDefault();
+                            element.click();
+                        }
+                    }
+                },
+            };
+        }
+    </script>
+{% endblock content %}

@@ -3,7 +3,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from research.browse import browse_set, set_facets
+from research.browse import _encode_cursor, browse_set, review_item, set_facets
+from research.disposition import dispose_item
 from research.lens import Lens
 from research.models import SetItem
 from searches.queryspec import QuerySpec
@@ -178,3 +179,146 @@ class TestFacets:
         assert facets["states"] == [{"state": "CA", "count": 1}]
         assert {row["document_type"] for row in facets["document_types"]} == {"agenda"}
         assert first.state == "CA" and second.state == "OR"
+
+
+@pytest.mark.django_db
+class TestReviewItem:
+    def _set(self):
+        result_set = ResultSetFactory()
+        items = [
+            SetItemFactory(result_set=result_set, rank=3.0),
+            SetItemFactory(result_set=result_set, rank=2.0),
+            SetItemFactory(result_set=result_set, rank=1.0),
+        ]
+        return result_set, items
+
+    def test_returns_first_item_without_cursor(self):
+        result_set, items = self._set()
+
+        item, cursor = review_item(result_set, Lens())
+
+        assert item == items[0]
+        assert cursor == _encode_cursor(items[0], "rank")
+
+    def test_after_moves_forward(self):
+        result_set, items = self._set()
+
+        item, cursor = review_item(
+            result_set, Lens(), after=_encode_cursor(items[0], "rank")
+        )
+
+        assert item == items[1]
+        assert cursor == _encode_cursor(items[1], "rank")
+
+    def test_before_moves_backward(self):
+        result_set, items = self._set()
+
+        item, cursor = review_item(
+            result_set, Lens(), before=_encode_cursor(items[1], "rank")
+        )
+
+        assert item == items[0]
+        assert cursor == _encode_cursor(items[0], "rank")
+
+    def test_before_from_first_item_returns_none(self):
+        result_set, items = self._set()
+
+        item, cursor = review_item(
+            result_set, Lens(), before=_encode_cursor(items[0], "rank")
+        )
+
+        assert item is None
+        assert cursor is None
+
+    def test_after_from_last_item_returns_none(self):
+        result_set, items = self._set()
+
+        item, cursor = review_item(
+            result_set, Lens(), after=_encode_cursor(items[-1], "rank")
+        )
+
+        assert item is None
+        assert cursor is None
+
+    def test_rank_null_forward_and_backward(self):
+        result_set = ResultSetFactory()
+        ranked = SetItemFactory(result_set=result_set, rank=1.0)
+        unranked = SetItemFactory(result_set=result_set, rank=None)
+
+        forward, _ = review_item(
+            result_set, Lens(), after=_encode_cursor(ranked, "rank")
+        )
+        backward, _ = review_item(
+            result_set, Lens(), before=_encode_cursor(unranked, "rank")
+        )
+
+        assert forward == unranked
+        assert backward == ranked
+
+    def test_date_asc_forward_and_backward(self):
+        result_set = ResultSetFactory()
+        older = SetItemFactory(result_set=result_set, meeting_date=date(2024, 1, 1))
+        newer = SetItemFactory(result_set=result_set, meeting_date=date(2024, 6, 1))
+        lens = Lens(order="date_asc")
+
+        forward, _ = review_item(
+            result_set, lens, after=_encode_cursor(older, "date_asc")
+        )
+        backward, _ = review_item(
+            result_set, lens, before=_encode_cursor(newer, "date_asc")
+        )
+
+        assert forward == newer
+        assert backward == older
+
+    def test_date_null_forward_and_backward(self):
+        result_set = ResultSetFactory()
+        dated = SetItemFactory(result_set=result_set, meeting_date=date(2024, 1, 1))
+        undated = SetItemFactory(result_set=result_set, meeting_date=None)
+        lens = Lens(order="date_desc")
+
+        forward, _ = review_item(
+            result_set, lens, after=_encode_cursor(dated, "date_desc")
+        )
+        backward, _ = review_item(
+            result_set, lens, before=_encode_cursor(undated, "date_desc")
+        )
+
+        assert forward == undated
+        assert backward == dated
+
+    def test_rejects_after_and_before_together(self):
+        result_set = ResultSetFactory()
+
+        with pytest.raises(ValueError):
+            review_item(result_set, Lens(), after="1|a", before="2|b")
+
+    def test_rejects_malformed_cursor(self):
+        result_set = ResultSetFactory()
+
+        with pytest.raises(ValueError):
+            review_item(result_set, Lens(), after="not-a-cursor")
+
+    def test_handles_missing_page(self):
+        result_set = ResultSetFactory()
+        item = SetItemFactory(result_set=result_set)
+        from meetings.models import MeetingPage
+
+        MeetingPage.objects.filter(pk=item.page_id).delete()
+
+        found, _ = review_item(result_set, Lens())
+
+        assert found is not None
+        assert found == item
+        assert found.page_obj is None
+
+    def test_loads_last_event_with_item(self, django_assert_num_queries):
+        result_set = ResultSetFactory()
+        item = SetItemFactory(result_set=result_set)
+        dispose_item(item, "r")
+
+        found, _ = review_item(result_set, Lens())
+
+        assert found is not None
+        with django_assert_num_queries(0):
+            assert found.can_undo is True

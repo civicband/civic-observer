@@ -1,0 +1,22 @@
+{% if lens_count %}
+    <div class="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 shadow-sm">
+        <span class="text-sm text-gray-600">{{ lens_count }} item{{ lens_count|pluralize }} in this view</span>
+        <form hx-post="{% url 'research:set-bulk' result_set.project_id result_set.id %}"
+              hx-target="#bulk-confirm" hx-swap="innerHTML" class="inline-flex">
+            {% csrf_token %}
+            <input type="hidden" name="lens" value="{{ querystring }}">
+            <input type="hidden" name="disposition" value="r">
+            <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700">Mark all relevant</button>
+        </form>
+        <form hx-post="{% url 'research:set-bulk' result_set.project_id result_set.id %}"
+              hx-target="#bulk-confirm" hx-swap="innerHTML" class="inline-flex items-center gap-2">
+            {% csrf_token %}
+            <input type="hidden" name="lens" value="{{ querystring }}">
+            <input type="hidden" name="disposition" value="i">
+            <input type="text" name="reason" placeholder="Reason (optional)"
+                   class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Ignore all</button>
+        </form>
+    </div>
+    <div id="bulk-confirm"></div>
+{% endif %}

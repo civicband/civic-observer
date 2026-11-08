@@ -207,6 +207,14 @@ class SetItem(models.Model):
     def __str__(self) -> str:
         return f"{self.result_set_id}:{self.page_id}"
 
+    @property
+    def can_undo(self) -> bool:
+        return bool(
+            self.last_event_id
+            and self.last_event
+            and self.last_event.verb == "items.disposed"
+        )
+
 
 class Coding(TimeStampedModel):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

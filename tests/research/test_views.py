@@ -4,9 +4,11 @@ import pytest
 from django.urls import reverse
 
 from research.browse import browse_set
+from research.disposition import dispose_item, dispose_items, undo_disposition_event
 from research.lens import Lens
 from research.models import ResultSet, SetItem
 from tests.factories import (
+    AuditEventFactory,
     MeetingDocumentFactory,
     MeetingPageFactory,
     MuniFactory,
@@ -521,3 +523,462 @@ class TestSetStatusView:
         assert response.status_code == 200
         assert "Ready" in content
         assert 'hx-trigger="every 2s"' not in content
+
+
+@pytest.mark.django_db
+class TestDispositionView:
+    def _item(self):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project)
+        item = SetItemFactory(result_set=result_set)
+        return user, result_set, item
+
+    def _url(self, item):
+        return reverse(
+            "research:item-disposition",
+            args=[item.result_set.project_id, item.result_set_id, item.id],
+        )
+
+    def test_requires_login(self, client):
+        _, _, item = self._item()
+
+        response = client.post(self._url(item), {"disposition": "r"})
+
+        assert response.status_code == 302
+
+    def test_cannot_dispose_another_users_item(self, client):
+        _, _, item = self._item()
+        client.force_login(UserFactory())
+
+        response = client.post(self._url(item), {"disposition": "r"})
+
+        assert response.status_code == 404
+
+    def test_marks_relevant_and_returns_item_partial(self, client):
+        user, result_set, item = self._item()
+        client.force_login(user)
+
+        response = client.post(self._url(item), {"disposition": "r", "lens": ""})
+
+        assert response.status_code == 200
+        item.refresh_from_db()
+        assert item.disposition == "r"
+        content = response.content.decode()
+        assert "Relevant" in content
+        assert "item-card" in content
+
+    def test_ignore_records_reason(self, client):
+        user, _, item = self._item()
+        client.force_login(user)
+
+        response = client.post(
+            self._url(item), {"disposition": "i", "reason": "Boilerplate"}
+        )
+
+        assert response.status_code == 200
+        item.refresh_from_db()
+        assert item.disposition == "i"
+        assert item.ignore_reason == "Boilerplate"
+
+    def test_invalid_disposition_returns_400(self, client):
+        user, _, item = self._item()
+        client.force_login(user)
+
+        response = client.post(self._url(item), {"disposition": "x"})
+
+        assert response.status_code == 400
+
+    def test_missing_page_still_returns_item_partial(self, client):
+        user, _, item = self._item()
+        client.force_login(user)
+        from meetings.models import MeetingPage
+
+        MeetingPage.objects.filter(pk=item.page_id).delete()
+
+        response = client.post(self._url(item), {"disposition": "r"})
+
+        assert response.status_code == 200
+        assert "Page no longer in corpus" in response.content.decode()
+
+
+@pytest.mark.django_db
+class TestBulkActionView:
+    def _set_with_items(self):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project, status=ResultSet.Status.READY)
+        unreviewed = SetItemFactory(result_set=result_set, disposition="u")
+        relevant = SetItemFactory(result_set=result_set, disposition="r")
+        return user, result_set, unreviewed, relevant
+
+    def _url(self, result_set):
+        return reverse("research:set-bulk", args=[result_set.project_id, result_set.id])
+
+    def test_requires_login(self, client):
+        _, result_set, _, _ = self._set_with_items()
+
+        response = client.post(self._url(result_set), {"disposition": "r"})
+
+        assert response.status_code == 302
+
+    def test_cannot_bulk_another_users_set(self, client):
+        _, result_set, _, _ = self._set_with_items()
+        client.force_login(UserFactory())
+
+        response = client.post(self._url(result_set), {"disposition": "r"})
+
+        assert response.status_code == 404
+
+    def test_shows_confirmation_count_without_confirm(self, client):
+        user, result_set, unreviewed, relevant = self._set_with_items()
+        client.force_login(user)
+
+        response = client.post(
+            self._url(result_set), {"disposition": "r", "lens": "disposition=u"}
+        )
+
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "1 item" in content
+        assert 'Change all 1 item in this view to "Relevant"?' in content
+        assert "hx-disabled-elt=\"find button[type='submit']\"" in content
+        unreviewed.refresh_from_db()
+        relevant.refresh_from_db()
+        assert unreviewed.disposition == "u"
+        assert relevant.disposition == "r"
+
+    def test_rejects_bulk_when_set_is_not_ready(self, client):
+        user, result_set, unreviewed, _ = self._set_with_items()
+        result_set.status = ResultSet.Status.PENDING
+        result_set.save(update_fields=["status"])
+        client.force_login(user)
+
+        response = client.post(
+            self._url(result_set),
+            {"disposition": "r", "lens": "disposition=u", "confirm": "1"},
+        )
+
+        assert response.status_code == 409
+        unreviewed.refresh_from_db()
+        assert unreviewed.disposition == "u"
+
+    def test_confirms_and_updates_lens_items(self, client):
+        user, result_set, unreviewed, relevant = self._set_with_items()
+        client.force_login(user)
+
+        response = client.post(
+            self._url(result_set),
+            {"disposition": "r", "lens": "disposition=u", "confirm": "1"},
+        )
+
+        assert response.status_code == 200
+        assert response["HX-Refresh"] == "true"
+        unreviewed.refresh_from_db()
+        relevant.refresh_from_db()
+        assert unreviewed.disposition == "r"
+        assert relevant.disposition == "r"
+
+    def test_does_not_touch_other_sets(self, client):
+        user, result_set, _, _ = self._set_with_items()
+        other_set = ResultSetFactory(project=result_set.project)
+        other_item = SetItemFactory(result_set=other_set, disposition="u")
+        client.force_login(user)
+
+        client.post(
+            self._url(result_set),
+            {"disposition": "r", "lens": "disposition=u", "confirm": "1"},
+        )
+
+        other_item.refresh_from_db()
+        assert other_item.disposition == "u"
+
+    def test_invalid_disposition_returns_400(self, client):
+        user, result_set, _, _ = self._set_with_items()
+        client.force_login(user)
+
+        response = client.post(self._url(result_set), {"disposition": "x"})
+
+        assert response.status_code == 400
+
+
+@pytest.mark.django_db
+class TestUndoView:
+    def _event(self):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project)
+        item = SetItemFactory(result_set=result_set, disposition="u")
+        event = dispose_item(item, "r", actor=user)
+        return user, result_set, item, event
+
+    def _url(self, event):
+        return reverse(
+            "research:event-undo",
+            args=[event.project_id, event.result_set_id, event.id],
+        )
+
+    def test_requires_login(self, client):
+        _, _, _, event = self._event()
+
+        response = client.post(self._url(event))
+
+        assert response.status_code == 302
+
+    def test_cannot_undo_another_users_event(self, client):
+        _, _, _, event = self._event()
+        client.force_login(UserFactory())
+
+        response = client.post(self._url(event))
+
+        assert response.status_code == 404
+
+    def test_restores_single_item_and_returns_partial(self, client):
+        user, _, item, event = self._event()
+        client.force_login(user)
+
+        response = client.post(self._url(event), {"lens": ""})
+
+        assert response.status_code == 200
+        item.refresh_from_db()
+        assert item.disposition == "u"
+        assert "Unreviewed" in response.content.decode()
+
+    def test_returns_409_when_nothing_to_undo(self, client):
+        user, _, item, event = self._event()
+        SetItem.objects.filter(pk=item.pk).update(
+            last_event=None, previous_disposition=""
+        )
+        client.force_login(user)
+
+        response = client.post(self._url(event))
+
+        assert response.status_code == 409
+
+    def test_rejects_non_disposition_event(self, client):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project)
+        event = AuditEventFactory(
+            project=project, result_set=result_set, verb="set.materialized"
+        )
+        client.force_login(user)
+
+        response = client.post(
+            reverse(
+                "research:event-undo",
+                args=[project.id, result_set.id, event.id],
+            )
+        )
+
+        assert response.status_code == 400
+
+    def test_bulk_undo_returns_refresh(self, client):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project)
+        first = SetItemFactory(result_set=result_set, disposition="u")
+        second = SetItemFactory(result_set=result_set, disposition="i")
+
+        event, _ = dispose_items(result_set, Lens(), "r", actor=user)
+        assert event is not None
+        client.force_login(user)
+
+        response = client.post(
+            reverse(
+                "research:event-undo",
+                args=[project.id, result_set.id, event.id],
+            )
+        )
+
+        assert response.status_code == 200
+        assert response["HX-Refresh"] == "true"
+        first.refresh_from_db()
+        second.refresh_from_db()
+        assert first.disposition == "u"
+        assert second.disposition == "i"
+
+
+@pytest.mark.django_db
+class TestItemUndoControl:
+    def _ready_set(self):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project, status=ResultSet.Status.READY)
+        return user, project, result_set
+
+    def _get(self, client, user, project, result_set):
+        client.force_login(user)
+        return client.get(
+            reverse("research:set-detail", args=[project.id, result_set.id])
+        )
+
+    def test_no_undo_control_when_last_event_is_bulk_undone(self, client):
+        user, project, result_set = self._ready_set()
+        item = SetItemFactory(result_set=result_set, disposition="u")
+        event = dispose_item(item, "r", actor=user)
+        undo_disposition_event(event, actor=user)
+
+        response = self._get(client, user, project, result_set)
+
+        assert response.status_code == 200
+        assert "Undo" not in response.content.decode()
+
+    def test_undo_control_when_last_event_is_items_disposed(self, client):
+        user, project, result_set = self._ready_set()
+        item = SetItemFactory(result_set=result_set, disposition="u")
+        dispose_item(item, "r", actor=user)
+
+        response = self._get(client, user, project, result_set)
+
+        assert response.status_code == 200
+        assert "Undo" in response.content.decode()
+
+
+@pytest.mark.django_db
+class TestReviewView:
+    def _set_with_items(self):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project)
+        first = SetItemFactory(
+            result_set=result_set,
+            rank=2.0,
+            page=MeetingPageFactory(text="first page text"),
+        )
+        second = SetItemFactory(
+            result_set=result_set,
+            rank=1.0,
+            page=MeetingPageFactory(text="second page text"),
+        )
+        return user, result_set, first, second
+
+    def _url(self, result_set):
+        return reverse(
+            "research:set-review", args=[result_set.project_id, result_set.id]
+        )
+
+    def test_requires_login(self, client):
+        _, result_set, _, _ = self._set_with_items()
+
+        response = client.get(self._url(result_set))
+
+        assert response.status_code == 302
+
+    def test_cannot_review_another_users_set(self, client):
+        _, result_set, _, _ = self._set_with_items()
+        client.force_login(UserFactory())
+
+        response = client.get(self._url(result_set))
+
+        assert response.status_code == 404
+
+    def test_shows_first_item(self, client):
+        user, result_set, first, _ = self._set_with_items()
+        client.force_login(user)
+
+        response = client.get(self._url(result_set))
+
+        assert response.status_code == 200
+        assert "review-card" in response.content.decode()
+
+    def test_keyboard_shortcuts_ignore_modifier_keys(self, client):
+        user, result_set, _, _ = self._set_with_items()
+        client.force_login(user)
+
+        response = client.get(self._url(result_set))
+
+        content = response.content.decode()
+        assert (
+            "event.ctrlKey || event.metaKey || event.altKey || event.repeat" in content
+        )
+
+    def test_reason_field_is_prefilled_from_item(self, client):
+        user, result_set, first, _ = self._set_with_items()
+        dispose_item(first, "i", reason="Boilerplate")
+        client.force_login(user)
+
+        response = client.get(self._url(result_set), {"disposition": "i"})
+
+        content = response.content.decode()
+        assert 'name="reason" value="Boilerplate"' in content
+
+    def test_after_moves_to_next_item(self, client):
+        user, result_set, first, second = self._set_with_items()
+        client.force_login(user)
+        from research.browse import _encode_cursor
+
+        response = client.get(
+            self._url(result_set),
+            {"after": _encode_cursor(first, "rank")},
+        )
+
+        assert response.status_code == 200
+        assert "second page text" in response.content.decode()
+
+    def test_before_moves_to_previous_item(self, client):
+        user, result_set, first, second = self._set_with_items()
+        client.force_login(user)
+        from research.browse import _encode_cursor
+
+        response = client.get(
+            self._url(result_set),
+            {"before": _encode_cursor(second, "rank")},
+        )
+
+        assert response.status_code == 200
+        assert "first page text" in response.content.decode()
+
+    def test_malformed_cursor_resets_to_first_item(self, client):
+        user, result_set, first, _ = self._set_with_items()
+        client.force_login(user)
+
+        response = client.get(self._url(result_set), {"after": "not-a-cursor"})
+
+        assert response.status_code == 200
+        assert "review-card" in response.content.decode()
+
+    def test_empty_lens_shows_empty_state(self, client):
+        user, result_set, _, _ = self._set_with_items()
+        result_set.items.update(disposition="i")
+        client.force_login(user)
+
+        response = client.get(self._url(result_set))
+
+        assert response.status_code == 200
+        assert "No items left" in response.content.decode()
+
+    def test_disposition_next_returns_next_item(self, client):
+        user, result_set, first, second = self._set_with_items()
+        client.force_login(user)
+
+        response = client.post(
+            reverse(
+                "research:item-disposition",
+                args=[result_set.project_id, result_set.id, first.id],
+            ),
+            {"disposition": "r", "lens": "", "next": "review"},
+        )
+
+        assert response.status_code == 200
+        assert "second page text" in response.content.decode()
+
+    def test_undo_next_returns_item(self, client):
+        user, result_set, first, _ = self._set_with_items()
+        client.force_login(user)
+        from research.disposition import dispose_item
+
+        event = dispose_item(first, "r", actor=user)
+        assert event is not None
+        response = client.post(
+            reverse(
+                "research:event-undo",
+                args=[result_set.project_id, result_set.id, event.id],
+            ),
+            {"lens": "", "next": "review"},
+        )
+
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "review-card" in content
+        assert "first page text" in content
