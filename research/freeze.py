@@ -101,9 +101,15 @@ def freeze_lens(
     if count <= settings.RESEARCH_INLINE_SET_MAX_ITEMS:
         try:
             return materialize_lens_set(child.id)
-        except Exception:
-            # materialize_lens_set records FAILED before re-raising.
+        except Exception as exc:
             child.refresh_from_db()
+            if child.status not in (
+                ResultSet.Status.FAILED,
+                ResultSet.Status.TOO_LARGE,
+            ):
+                child.status = ResultSet.Status.FAILED
+                child.error = str(exc)
+                child.save(update_fields=["status", "error", "modified"])
             return child
     try:
         enqueue_lens_materialization(child.id)

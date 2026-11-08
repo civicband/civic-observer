@@ -124,21 +124,21 @@ def preview_rule(project, spec: QuerySpec, *, sample_limit: int = 10) -> dict:
 def apply_rule_to_project(rule: IgnoreRule, *, actor=None) -> AuditEvent | None:
     """Apply one active rule across every set in the project."""
     with transaction.atomic():
-        rule = IgnoreRule.objects.select_for_update().get(pk=rule.pk)
-        if not rule.is_active:
+        locked_rule = IgnoreRule.objects.select_for_update().filter(pk=rule.pk).first()
+        if locked_rule is None or not locked_rule.is_active:
             return None
-        spec = _rule_spec(rule)
+        spec = _rule_spec(locked_rule)
         if is_empty(spec):
             return None
         where, params = _counts_sql(spec)
 
         event = AuditEvent.objects.create(
-            project=rule.project,
+            project=locked_rule.project,
             actor=actor,
             verb=RULE_APPLIED,
             payload={
-                "predicate": rule.predicate,
-                "reason": rule.reason,
+                "predicate": locked_rule.predicate,
+                "reason": locked_rule.reason,
                 "counts": {},
                 "count": 0,
             },
@@ -169,7 +169,13 @@ def apply_rule_to_project(rule: IgnoreRule, *, actor=None) -> AuditEvent | None:
                 FROM updated
                 GROUP BY result_set_id
                 """,
-                [rule.id, rule.reason, event.id, rule.project_id, *params],
+                [
+                    locked_rule.id,
+                    locked_rule.reason,
+                    event.id,
+                    locked_rule.project_id,
+                    *params,
+                ],
             )
             rows = cur.fetchall()
 
@@ -183,16 +189,18 @@ def apply_rule_to_project(rule: IgnoreRule, *, actor=None) -> AuditEvent | None:
     return event
 
 
-def revert_rule(rule: IgnoreRule, *, actor=None) -> AuditEvent:
+def revert_rule(rule: IgnoreRule, *, actor=None) -> AuditEvent | None:
     """Revert only rows still ignored by this rule."""
     with transaction.atomic():
-        rule = IgnoreRule.objects.select_for_update().get(pk=rule.pk)
+        locked_rule = IgnoreRule.objects.select_for_update().filter(pk=rule.pk).first()
+        if locked_rule is None:
+            return None
         event = AuditEvent.objects.create(
-            project=rule.project,
+            project=locked_rule.project,
             actor=actor,
             verb=RULE_REVERTED,
             payload={
-                "predicate": rule.predicate,
+                "predicate": locked_rule.predicate,
                 "counts": {},
                 "count": 0,
             },
@@ -218,7 +226,7 @@ def revert_rule(rule: IgnoreRule, *, actor=None) -> AuditEvent:
                 FROM updated
                 GROUP BY result_set_id
                 """,
-                [event.id, rule.id],
+                [event.id, locked_rule.id],
             )
             rows = cur.fetchall()
 
@@ -247,6 +255,8 @@ def apply_rule_to_set(
     if not rule.is_active:
         return 0
     spec = _rule_spec(rule)
+    if is_empty(spec):
+        return 0
     where, params = _counts_sql(spec)
     extra = "AND i.last_event_id = %s" if only_new else ""
     extra_params = [event.id] if only_new else []

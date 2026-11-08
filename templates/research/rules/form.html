@@ -85,6 +85,9 @@
         {% if preview %}
             <div class="mt-8 bg-white shadow rounded-lg border border-gray-200 p-6">
                 <h2 class="text-lg font-medium text-gray-900">Preview</h2>
+                {% if preview.error %}
+                    <div class="mt-4 rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-700">{{ preview.error }}</div>
+                {% endif %}
                 <p class="mt-1 text-sm text-gray-600">{{ preview.total }} unreviewed page{{ preview.total|pluralize }} would be ignored.</p>
                 {% if preview.counts %}
                     <ul class="mt-4 space-y-1 text-sm text-gray-700">

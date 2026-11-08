@@ -34,9 +34,9 @@ def apply_rule_to_project_task(rule_id, actor_id=None) -> None:
 
     try:
         rule = IgnoreRule.objects.get(pk=rule_id)
+        apply_rule_to_project(rule, actor=_resolve_actor(actor_id))
     except IgnoreRule.DoesNotExist:
         return
-    apply_rule_to_project(rule, actor=_resolve_actor(actor_id))
 
 
 def revert_rule_task(rule_id, actor_id=None) -> None:
@@ -45,6 +45,6 @@ def revert_rule_task(rule_id, actor_id=None) -> None:
 
     try:
         rule = IgnoreRule.objects.get(pk=rule_id)
+        revert_rule(rule, actor=_resolve_actor(actor_id))
     except IgnoreRule.DoesNotExist:
         return
-    revert_rule(rule, actor=_resolve_actor(actor_id))

@@ -91,12 +91,28 @@ class TestRuleViews:
         user, project = self._project()
         client.force_login(user)
 
-        response = client.post(
-            reverse("research:rule-create", args=[project.id]),
-            {"name": "Housing", "text": "housing", "action": "preview"},
-        )
+        with patch("research.views.validate_rule_predicate", return_value="bad syntax"):
+            response = client.post(
+                reverse("research:rule-create", args=[project.id]),
+                {"name": "Housing", "text": "housing", "action": "preview"},
+            )
 
         assert response.status_code == 400
+        assert "bad syntax" in response.content.decode()
+        assert not IgnoreRule.objects.filter(project=project).exists()
+
+    def test_malformed_text_save_returns_400_without_saving(self, client):
+        user, project = self._project()
+        client.force_login(user)
+
+        with patch("research.views.validate_rule_predicate", return_value="bad syntax"):
+            response = client.post(
+                reverse("research:rule-create", args=[project.id]),
+                {"name": "Housing", "text": "housing", "action": "save"},
+            )
+
+        assert response.status_code == 400
+        assert "bad syntax" in response.content.decode()
         assert not IgnoreRule.objects.filter(project=project).exists()
 
     def test_empty_predicate_save_returns_400_without_saving(self, client):

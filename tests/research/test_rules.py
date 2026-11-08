@@ -1,7 +1,7 @@
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-from django.db import connection
+from django.db import DatabaseError, connection
 from django.test.utils import CaptureQueriesContext
 
 from research.audit import record_event
@@ -74,8 +74,13 @@ class TestPreviewRule:
 
     def test_text_preview_reports_database_error(self):
         project, *_ = _project_with_sets()
+        cursor = MagicMock()
+        cursor.execute.side_effect = DatabaseError("bad syntax")
+        cursor_factory = MagicMock()
+        cursor_factory.return_value.__enter__.return_value = cursor
 
-        preview = preview_rule(project, QuerySpec(text="housing"))
+        with patch("research.rules.connection.cursor", cursor_factory):
+            preview = preview_rule(project, QuerySpec(text="housing"))
 
         assert preview["counts"] == []
         assert preview["total"] == 0
@@ -230,6 +235,7 @@ class TestRevertRule:
         ca_item.refresh_from_db()
         assert ca_item.disposition == "i"
         assert ca_item.disposition_by_rule == other_rule
+        assert event is not None
         assert event.payload["counts"] == {}
         assert event.payload["count"] == 0
 
@@ -250,6 +256,7 @@ class TestRevertRule:
         ca_item.refresh_from_db()
         first.refresh_from_db()
         second.refresh_from_db()
+        assert event is not None
         assert ca_item.disposition == "u"
         assert ca_item.disposition_by_rule is None
         assert ca_item.ignore_reason == ""
