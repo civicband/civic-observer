@@ -21,9 +21,11 @@
                     <p class="mt-1 text-xs text-amber-600">No exclusion rule</p>
                 {% endif %}
                 {% for exemplar in node.exemplars %}
-                    <blockquote class="mt-3 border-l-4 border-indigo-200 pl-3 text-sm italic text-gray-600">
-                        {{ exemplar.page.text }}
-                    </blockquote>
+                    {% if exemplar.page and exemplar.page.text %}
+                        <blockquote class="mt-3 border-l-4 border-indigo-200 pl-3 text-sm italic text-gray-600">
+                            {{ exemplar.page.text }}
+                        </blockquote>
+                    {% endif %}
                 {% endfor %}
             </div>
         </div>

@@ -85,6 +85,23 @@ class TestCodebookTree:
 
         assert [coding.page_id for coding in tree[0]["exemplars"]] == [page.id]
 
+    def test_skips_codings_with_missing_pages(self):
+        project = ProjectFactory()
+        code = CodeFactory(project=project)
+        page = MeetingPageFactory(text="Surviving page")
+        CodingFactory(project=project, code=code, page=page, is_exemplar=True)
+        Coding.objects.create(
+            project=project,
+            code=code,
+            page_id="missing-page",
+            is_exemplar=True,
+        )
+
+        tree = codebook_tree(project)
+
+        assert tree[0]["coding_count"] == 1
+        assert [coding.page_id for coding in tree[0]["exemplars"]] == [page.id]
+
 
 @pytest.mark.django_db
 class TestCreateAndRenameCode:

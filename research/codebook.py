@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from django.db import IntegrityError, connection, transaction
-from django.db.models import Count
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from meetings.models import MeetingPage
@@ -18,7 +18,10 @@ from .models import Code, Coding
 
 def codebook_tree(project, *, include_archived: bool = False) -> list[dict]:
     """Return codes as a one-level tree with counts and exemplars."""
-    codes = Code.objects.filter(project=project).annotate(coding_count=Count("codings"))
+    surviving_page_ids = MeetingPage.objects.values("pk")
+    codes = Code.objects.filter(project=project).annotate(
+        coding_count=Count("codings", filter=Q(codings__page_id__in=surviving_page_ids))
+    )
     if not include_archived:
         codes = codes.exclude(is_archived=True)
     ordered_codes = list(codes.order_by("created", "name"))
@@ -31,9 +34,11 @@ def codebook_tree(project, *, include_archived: bool = False) -> list[dict]:
             "coding_count": getattr(code, "coding_count", 0),
             "missing_exclusion": not bool(code.exclusion.strip()),
             "exemplars": list(
-                Coding.objects.filter(code=code, is_exemplar=True).select_related(
-                    "page"
-                )
+                Coding.objects.filter(
+                    code=code,
+                    is_exemplar=True,
+                    page_id__in=surviving_page_ids,
+                ).select_related("page")
             ),
         }
 
