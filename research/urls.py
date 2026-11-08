@@ -8,6 +8,11 @@ urlpatterns = [
     path("", views.ProjectListView.as_view(), name="project-list"),
     path("<uuid:project>/", views.ProjectDetailView.as_view(), name="project-detail"),
     path(
+        "<uuid:project>/methods/",
+        views.MethodsView.as_view(),
+        name="methods",
+    ),
+    path(
         "<uuid:project>/rules/",
         views.IgnoreRuleListView.as_view(),
         name="rule-list",

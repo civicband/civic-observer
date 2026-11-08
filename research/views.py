@@ -37,6 +37,7 @@ from .disposition import dispose_item, dispose_items, undo_disposition_event
 from .lens import Lens
 from .materialize import create_result_set
 from .memos import create_memo, delete_memo, project_timeline, update_memo
+from .methods import build_methods
 from .models import (
     AuditEvent,
     Code,
@@ -157,6 +158,19 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
         context = super().get_context_data(**kwargs)
         context["timeline"] = project_timeline(self.object)
         return context
+
+
+class MethodsView(LoginRequiredMixin, View):
+    template_name = "research/methods.html"
+
+    def get(self, request, project):
+        project_obj = get_object_or_404(Project, id=project, owner=request.user)
+        markdown = build_methods(project_obj)
+        return render(
+            request,
+            self.template_name,
+            {"project": project_obj, "methods_markdown": markdown},
+        )
 
 
 class SetCreateView(LoginRequiredMixin, View):
