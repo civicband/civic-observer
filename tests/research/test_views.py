@@ -781,6 +781,7 @@ class TestUndoView:
         second = SetItemFactory(result_set=result_set, disposition="i")
 
         event, _ = dispose_items(result_set, Lens(), "r", actor=user)
+        assert event is not None
         client.force_login(user)
 
         response = client.post(
@@ -968,6 +969,7 @@ class TestReviewView:
         from research.disposition import dispose_item
 
         event = dispose_item(first, "r", actor=user)
+        assert event is not None
         response = client.post(
             reverse(
                 "research:event-undo",

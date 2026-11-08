@@ -308,6 +308,7 @@ class TestReviewItem:
 
         found, _ = review_item(result_set, Lens())
 
+        assert found is not None
         assert found == item
         assert found.page_obj is None
 
@@ -318,5 +319,6 @@ class TestReviewItem:
 
         found, _ = review_item(result_set, Lens())
 
+        assert found is not None
         with django_assert_num_queries(0):
             assert found.can_undo is True

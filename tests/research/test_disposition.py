@@ -199,6 +199,7 @@ class TestDisposeItems:
         assert items[2].disposition == "r"
         assert items[0].previous_disposition == "u"
         assert items[0].ignore_reason == "Boilerplate"
+        assert event is not None
         assert event.payload["count"] == 2
         assert event.payload["from"] == {"u": 2}
         assert event.payload["lens"] == "disposition=u"
@@ -359,6 +360,8 @@ class TestUndoDispositionEvent:
         assert item_a.ignore_reason == ""
         assert item_b.ignore_reason == ""
         assert item_a.disposition_by_rule is None
+        assert undo is not None
+        assert event is not None
         assert undo.verb == "bulk.undone"
         assert undo.payload["original_event_id"] == event.id
         assert undo.payload["count"] == 2
