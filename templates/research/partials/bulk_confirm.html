@@ -1,6 +1,6 @@
 <div class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
     <p class="text-sm text-amber-900">
-        Change all {{ count }} item{{ count|pluralize }} in this view to "{{ disposition }}"?
+        Change all {{ count }} item{{ count|pluralize }} in this view to "{{ disposition_label }}"?
     </p>
     <form hx-post="{% url 'research:set-bulk' result_set.project_id result_set.id %}"
           hx-target="#set-items" hx-swap="innerHTML" class="mt-3 flex gap-2">

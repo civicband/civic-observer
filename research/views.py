@@ -43,6 +43,16 @@ def _date_value(value: str | None) -> date | None:
         return None
 
 
+def _undo_single_item_id(event: AuditEvent) -> int | None:
+    payload = event.payload or {}
+    if payload.get("count") != 1:
+        return None
+    item_ids = payload.get("item_ids")
+    if not item_ids:
+        return None
+    return int(item_ids[0])
+
+
 class ProjectListView(LoginRequiredMixin, ListView):
     model = Project
     template_name = "research/project_list.html"
@@ -169,7 +179,11 @@ class DispositionView(LoginRequiredMixin, View):
             project_id=project,
             project__owner=request.user,
         )
-        set_item = get_object_or_404(SetItem, id=item, result_set=result_set)
+        set_item = get_object_or_404(
+            SetItem.objects.select_related("last_event"),
+            id=item,
+            result_set=result_set,
+        )
         disposition = request.POST.get("disposition", "")
         reason = request.POST.get("reason", "")
         lens = Lens.from_querydict(QueryDict(request.POST.get("lens", "")))
@@ -199,6 +213,8 @@ class BulkActionView(LoginRequiredMixin, View):
             project_id=project,
             project__owner=request.user,
         )
+        if result_set.status != ResultSet.Status.READY:
+            return HttpResponse("Set is not ready", status=409)
         disposition = request.POST.get("disposition", "")
         if disposition not in SetItem.Disposition.values:
             return HttpResponseBadRequest("Invalid disposition")
@@ -214,6 +230,7 @@ class BulkActionView(LoginRequiredMixin, View):
                     "lens": lens,
                     "querystring": lens.to_querystring(),
                     "disposition": disposition,
+                    "disposition_label": SetItem.Disposition(disposition).label,
                     "reason": reason,
                     "count": count,
                 },
@@ -245,13 +262,17 @@ class UndoView(LoginRequiredMixin, View):
         if count == 0:
             return HttpResponse("Nothing to undo", status=409)
 
-        item_ids = audit_event.payload.get("item_ids", [])
-        if len(item_ids) != 1:
+        item_id = _undo_single_item_id(audit_event)
+        if item_id is None:
             response = HttpResponse("")
             response["HX-Refresh"] = "true"
             return response
 
-        set_item = get_object_or_404(SetItem, id=item_ids[0], result_set=result_set)
+        set_item = get_object_or_404(
+            SetItem.objects.select_related("last_event"),
+            id=item_id,
+            result_set=result_set,
+        )
         set_item.page_obj = MeetingPage.objects.in_bulk([set_item.page_id]).get(  # type: ignore[attr-defined]
             set_item.page_id
         )

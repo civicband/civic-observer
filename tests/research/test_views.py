@@ -4,7 +4,7 @@ import pytest
 from django.urls import reverse
 
 from research.browse import browse_set
-from research.disposition import dispose_item, dispose_items
+from research.disposition import dispose_item, dispose_items, undo_disposition_event
 from research.lens import Lens
 from research.models import ResultSet, SetItem
 from tests.factories import (
@@ -607,7 +607,7 @@ class TestBulkActionView:
     def _set_with_items(self):
         user = UserFactory()
         project = ProjectFactory(owner=user)
-        result_set = ResultSetFactory(project=project)
+        result_set = ResultSetFactory(project=project, status=ResultSet.Status.READY)
         unreviewed = SetItemFactory(result_set=result_set, disposition="u")
         relevant = SetItemFactory(result_set=result_set, disposition="r")
         return user, result_set, unreviewed, relevant
@@ -641,10 +641,26 @@ class TestBulkActionView:
         assert response.status_code == 200
         content = response.content.decode()
         assert "1 item" in content
+        assert 'Change all 1 item in this view to "Relevant"?' in content
         unreviewed.refresh_from_db()
         relevant.refresh_from_db()
         assert unreviewed.disposition == "u"
         assert relevant.disposition == "r"
+
+    def test_rejects_bulk_when_set_is_not_ready(self, client):
+        user, result_set, unreviewed, _ = self._set_with_items()
+        result_set.status = ResultSet.Status.PENDING
+        result_set.save(update_fields=["status"])
+        client.force_login(user)
+
+        response = client.post(
+            self._url(result_set),
+            {"disposition": "r", "lens": "disposition=u", "confirm": "1"},
+        )
+
+        assert response.status_code == 409
+        unreviewed.refresh_from_db()
+        assert unreviewed.disposition == "u"
 
     def test_confirms_and_updates_lens_items(self, client):
         user, result_set, unreviewed, relevant = self._set_with_items()
@@ -727,6 +743,17 @@ class TestUndoView:
         assert item.disposition == "u"
         assert "Unreviewed" in response.content.decode()
 
+    def test_returns_409_when_nothing_to_undo(self, client):
+        user, _, item, event = self._event()
+        SetItem.objects.filter(pk=item.pk).update(
+            last_event=None, previous_disposition=""
+        )
+        client.force_login(user)
+
+        response = client.post(self._url(event))
+
+        assert response.status_code == 409
+
     def test_rejects_non_disposition_event(self, client):
         user = UserFactory()
         project = ProjectFactory(owner=user)
@@ -749,7 +776,8 @@ class TestUndoView:
         user = UserFactory()
         project = ProjectFactory(owner=user)
         result_set = ResultSetFactory(project=project)
-        SetItemFactory(result_set=result_set, disposition="u")
+        first = SetItemFactory(result_set=result_set, disposition="u")
+        second = SetItemFactory(result_set=result_set, disposition="i")
 
         event, _ = dispose_items(result_set, Lens(), "r", actor=user)
         client.force_login(user)
@@ -763,3 +791,43 @@ class TestUndoView:
 
         assert response.status_code == 200
         assert response["HX-Refresh"] == "true"
+        first.refresh_from_db()
+        second.refresh_from_db()
+        assert first.disposition == "u"
+        assert second.disposition == "i"
+
+
+@pytest.mark.django_db
+class TestItemUndoControl:
+    def _ready_set(self):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project, status=ResultSet.Status.READY)
+        return user, project, result_set
+
+    def _get(self, client, user, project, result_set):
+        client.force_login(user)
+        return client.get(
+            reverse("research:set-detail", args=[project.id, result_set.id])
+        )
+
+    def test_no_undo_control_when_last_event_is_bulk_undone(self, client):
+        user, project, result_set = self._ready_set()
+        item = SetItemFactory(result_set=result_set, disposition="u")
+        event = dispose_item(item, "r", actor=user)
+        undo_disposition_event(event, actor=user)
+
+        response = self._get(client, user, project, result_set)
+
+        assert response.status_code == 200
+        assert "Undo" not in response.content.decode()
+
+    def test_undo_control_when_last_event_is_items_disposed(self, client):
+        user, project, result_set = self._ready_set()
+        item = SetItemFactory(result_set=result_set, disposition="u")
+        dispose_item(item, "r", actor=user)
+
+        response = self._get(client, user, project, result_set)
+
+        assert response.status_code == 200
+        assert "Undo" in response.content.decode()

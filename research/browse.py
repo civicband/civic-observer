@@ -143,7 +143,7 @@ def _apply_cursor(items, after: str, order: str):
 def browse_set(
     result_set, lens: Lens, *, limit: int = 50, after: str | None = None
 ) -> tuple[list[SetItem], str | None]:
-    items = filter_items(result_set, lens)
+    items = filter_items(result_set, lens).select_related("last_event")
     items = _ordered(items, lens.order)
     if after:
         items = _apply_cursor(items, after, lens.order)

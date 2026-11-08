@@ -62,7 +62,7 @@
             <input type="hidden" name="lens" value="{{ querystring }}">
             <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Unreviewed</button>
         </form>
-        {% if item.last_event_id %}
+        {% if item.can_undo %}
             <form hx-post="{% url 'research:event-undo' result_set.project_id result_set.id item.last_event_id %}"
                   hx-target="closest .item-card" hx-swap="outerHTML" class="inline-flex">
                 {% csrf_token %}
