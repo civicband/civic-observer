@@ -140,6 +140,70 @@ def _apply_cursor(items, after: str, order: str):
     return items.filter(condition)
 
 
+def _reverse_ordered(items, order: str):
+    if order == "date_asc":
+        return items.order_by(
+            F("meeting_date").desc(nulls_first=True), F("page_id").desc()
+        )
+    if order == "date_desc":
+        return items.order_by(
+            F("meeting_date").asc(nulls_first=True), F("page_id").desc()
+        )
+    return items.order_by(F("rank").asc(nulls_first=True), F("page_id").desc())
+
+
+def _apply_cursor_before(items, before: str, order: str):
+    first, separator, page_id = before.partition("|")
+    if not separator:
+        raise ValueError(f"Invalid cursor: {before!r}")
+
+    if order.startswith("date"):
+        if first:
+            date_value = date.fromisoformat(first)
+            if order == "date_asc":
+                condition = Q(meeting_date__lt=date_value) | (
+                    Q(meeting_date=date_value) & Q(page__lt=page_id)
+                )
+            else:
+                condition = Q(meeting_date__gt=date_value) | (
+                    Q(meeting_date=date_value) & Q(page__lt=page_id)
+                )
+        else:
+            condition = Q(meeting_date__isnull=True, page__lt=page_id) | Q(
+                meeting_date__isnull=False
+            )
+    elif first:
+        rank_value = float(first)
+        condition = Q(rank__gt=rank_value) | (Q(rank=rank_value) & Q(page__lt=page_id))
+    else:
+        condition = Q(rank__isnull=True, page__lt=page_id) | Q(rank__isnull=False)
+
+    return _reverse_ordered(items.filter(condition), order)
+
+
+def review_item(
+    result_set, lens: Lens, *, after: str | None = None, before: str | None = None
+) -> tuple[SetItem | None, str | None]:
+    """Return one item and its cursor for keyboard review navigation."""
+    if after and before:
+        raise ValueError("after and before are mutually exclusive")
+
+    items = filter_items(result_set, lens)
+    if after:
+        items = _apply_cursor(_ordered(items, lens.order), after, lens.order)
+    elif before:
+        items = _apply_cursor_before(items, before, lens.order)
+    else:
+        items = _ordered(items, lens.order)
+
+    row = items.first()
+    if row is None:
+        return None, None
+
+    row.page_obj = MeetingPage.objects.in_bulk([row.page_id]).get(row.page_id)
+    return row, _encode_cursor(row, lens.order)
+
+
 def browse_set(
     result_set, lens: Lens, *, limit: int = 50, after: str | None = None
 ) -> tuple[list[SetItem], str | None]:

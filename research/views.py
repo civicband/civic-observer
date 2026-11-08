@@ -13,7 +13,7 @@ from meetings.models import MeetingPage
 from municipalities.models import Muni
 from searches.queryspec import QuerySpec
 
-from .browse import browse_set, filter_items, set_facets
+from .browse import _encode_cursor, browse_set, filter_items, review_item, set_facets
 from .disposition import dispose_item, dispose_items, undo_disposition_event
 from .lens import Lens
 from .materialize import create_result_set
@@ -202,6 +202,16 @@ class DispositionView(LoginRequiredMixin, View):
             "querystring": lens.to_querystring(),
             "item": set_item,
         }
+        if request.POST.get("next") == "review":
+            try:
+                next_item, cursor = review_item(
+                    result_set, lens, after=_encode_cursor(set_item, lens.order)
+                )
+            except ValueError:
+                next_item, cursor = review_item(result_set, lens)
+            context["item"] = next_item
+            context["cursor"] = cursor
+            return render(request, "research/partials/review_item.html", context)
         return render(request, "research/partials/item.html", context)
 
 
@@ -283,4 +293,35 @@ class UndoView(LoginRequiredMixin, View):
             "querystring": lens.to_querystring(),
             "item": set_item,
         }
+        if request.POST.get("next") == "review":
+            context["cursor"] = _encode_cursor(set_item, lens.order)
+            return render(request, "research/partials/review_item.html", context)
         return render(request, "research/partials/item.html", context)
+
+
+class ReviewView(LoginRequiredMixin, View):
+    def get(self, request, project, set):
+        result_set = get_object_or_404(
+            ResultSet,
+            id=set,
+            project_id=project,
+            project__owner=request.user,
+        )
+        lens = Lens.from_querydict(request.GET)
+        after = request.GET.get("after") or None
+        before = request.GET.get("before") or None
+        try:
+            item, cursor = review_item(result_set, lens, after=after, before=before)
+        except ValueError:
+            item, cursor = review_item(result_set, lens)
+        return render(
+            request,
+            "research/review.html",
+            {
+                "result_set": result_set,
+                "lens": lens,
+                "querystring": lens.to_querystring(),
+                "item": item,
+                "cursor": cursor,
+            },
+        )

@@ -24,6 +24,10 @@
                     · {{ result_set.get_status_display }}
                 </p>
             </div>
+            <a href="{% url 'research:set-review' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}{% endif %}"
+               class="mt-4 sm:mt-0 inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                Review
+            </a>
         </div>
 
         {% if result_set.status == "ready" %}

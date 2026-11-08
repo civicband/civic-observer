@@ -28,6 +28,11 @@ urlpatterns = [
         name="item-disposition",
     ),
     path(
+        "<uuid:project>/sets/<uuid:set>/review/",
+        views.ReviewView.as_view(),
+        name="set-review",
+    ),
+    path(
         "<uuid:project>/sets/<uuid:set>/bulk/",
         views.BulkActionView.as_view(),
         name="set-bulk",

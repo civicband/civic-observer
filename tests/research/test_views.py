@@ -831,3 +831,130 @@ class TestItemUndoControl:
 
         assert response.status_code == 200
         assert "Undo" in response.content.decode()
+
+
+@pytest.mark.django_db
+class TestReviewView:
+    def _set_with_items(self):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project)
+        first = SetItemFactory(
+            result_set=result_set,
+            rank=2.0,
+            page=MeetingPageFactory(text="first page text"),
+        )
+        second = SetItemFactory(
+            result_set=result_set,
+            rank=1.0,
+            page=MeetingPageFactory(text="second page text"),
+        )
+        return user, result_set, first, second
+
+    def _url(self, result_set):
+        return reverse(
+            "research:set-review", args=[result_set.project_id, result_set.id]
+        )
+
+    def test_requires_login(self, client):
+        _, result_set, _, _ = self._set_with_items()
+
+        response = client.get(self._url(result_set))
+
+        assert response.status_code == 302
+
+    def test_cannot_review_another_users_set(self, client):
+        _, result_set, _, _ = self._set_with_items()
+        client.force_login(UserFactory())
+
+        response = client.get(self._url(result_set))
+
+        assert response.status_code == 404
+
+    def test_shows_first_item(self, client):
+        user, result_set, first, _ = self._set_with_items()
+        client.force_login(user)
+
+        response = client.get(self._url(result_set))
+
+        assert response.status_code == 200
+        assert "review-card" in response.content.decode()
+
+    def test_after_moves_to_next_item(self, client):
+        user, result_set, first, second = self._set_with_items()
+        client.force_login(user)
+        from research.browse import _encode_cursor
+
+        response = client.get(
+            self._url(result_set),
+            {"after": _encode_cursor(first, "rank")},
+        )
+
+        assert response.status_code == 200
+        assert "second page text" in response.content.decode()
+
+    def test_before_moves_to_previous_item(self, client):
+        user, result_set, first, second = self._set_with_items()
+        client.force_login(user)
+        from research.browse import _encode_cursor
+
+        response = client.get(
+            self._url(result_set),
+            {"before": _encode_cursor(second, "rank")},
+        )
+
+        assert response.status_code == 200
+        assert "first page text" in response.content.decode()
+
+    def test_malformed_cursor_resets_to_first_item(self, client):
+        user, result_set, first, _ = self._set_with_items()
+        client.force_login(user)
+
+        response = client.get(self._url(result_set), {"after": "not-a-cursor"})
+
+        assert response.status_code == 200
+        assert "review-card" in response.content.decode()
+
+    def test_empty_lens_shows_empty_state(self, client):
+        user, result_set, _, _ = self._set_with_items()
+        result_set.items.update(disposition="i")
+        client.force_login(user)
+
+        response = client.get(self._url(result_set))
+
+        assert response.status_code == 200
+        assert "No items left" in response.content.decode()
+
+    def test_disposition_next_returns_next_item(self, client):
+        user, result_set, first, second = self._set_with_items()
+        client.force_login(user)
+
+        response = client.post(
+            reverse(
+                "research:item-disposition",
+                args=[result_set.project_id, result_set.id, first.id],
+            ),
+            {"disposition": "r", "lens": "", "next": "review"},
+        )
+
+        assert response.status_code == 200
+        assert "second page text" in response.content.decode()
+
+    def test_undo_next_returns_item(self, client):
+        user, result_set, first, _ = self._set_with_items()
+        client.force_login(user)
+        from research.disposition import dispose_item
+
+        event = dispose_item(first, "r", actor=user)
+        response = client.post(
+            reverse(
+                "research:event-undo",
+                args=[result_set.project_id, result_set.id, event.id],
+            ),
+            {"lens": "", "next": "review"},
+        )
+
+        assert response.status_code == 200
+        content = response.content.decode()
+        assert "review-card" in content
+        assert "first page text" in content
