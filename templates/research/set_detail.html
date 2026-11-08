@@ -35,7 +35,8 @@
                     Review
                 </a>
                 {% if result_set.origin == "query" and result_set.status == "ready" %}
-                    <form method="post" action="{% url 'research:set-new-matches' result_set.project_id result_set.id %}">
+                    <form method="post" action="{% url 'research:set-new-matches' result_set.project_id result_set.id %}"
+                          hx-post="{% url 'research:set-new-matches' result_set.project_id result_set.id %}">
                         {% csrf_token %}
                         <button type="submit" class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
                             Check for new matches

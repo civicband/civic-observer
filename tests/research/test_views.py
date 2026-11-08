@@ -1044,7 +1044,7 @@ class TestNewMatchesView:
         client.force_login(user)
         assert client.post(self._url(result_set)).status_code == 409
 
-    def test_query_origin_runs_and_refreshes(self, client, settings):
+    def test_query_origin_non_htmx_redirects(self, client, settings):
         settings.RESEARCH_USE_SQL_MATERIALIZATION = False
         user = UserFactory()
         project = ProjectFactory(owner=user)
@@ -1055,5 +1055,21 @@ class TestNewMatchesView:
         )
         client.force_login(user)
         response = client.post(self._url(result_set))
+        assert response.status_code == 302
+        assert response.url == reverse(
+            "research:set-detail", args=[project.id, result_set.id]
+        )
+
+    def test_query_origin_htmx_refreshes(self, client, settings):
+        settings.RESEARCH_USE_SQL_MATERIALIZATION = False
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(
+            project=project,
+            query=QuerySpec(text="housing").canonical(),
+            status=ResultSet.Status.READY,
+        )
+        client.force_login(user)
+        response = client.post(self._url(result_set), HTTP_HX_REQUEST="true")
         assert response.status_code == 200
         assert response["HX-Refresh"] == "true"

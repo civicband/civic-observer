@@ -3,8 +3,10 @@ from unittest.mock import patch
 import pytest
 from django.utils import timezone
 
+from meetings.models import MeetingPage
 from research.models import ResultSet
 from research.new_matches import check_for_new_matches, create_new_matches
+from research.tasks import check_new_matches_task
 from searches.queryspec import QuerySpec
 from tests.factories import (
     IgnoreRuleFactory,
@@ -36,8 +38,6 @@ class TestCheckForNewMatches:
         old = MeetingPageFactory(document=doc, text="housing")
         new = MeetingPageFactory(document=doc, text="housing")
         SetItemFactory(result_set=result_set, page=old)
-        from meetings.models import MeetingPage
-
         MeetingPage.objects.filter(pk=old.pk).update(
             modified=cutoff - timezone.timedelta(days=1)
         )
@@ -76,8 +76,6 @@ class TestCheckForNewMatches:
         old = SetItemFactory(result_set=result_set)
         old_page = old.page
         # The old item is already in the set; make it match the search too.
-        from meetings.models import MeetingPage
-
         MeetingPage.objects.filter(pk=old_page.pk).update(
             text="housing", modified=cutoff - timezone.timedelta(hours=1)
         )
@@ -102,7 +100,79 @@ class TestCheckForNewMatches:
         assert new_item.disposition_by_rule is not None
         assert event.payload["ignored_by_rule"]
 
-    def test_enqueue_when_over_inline(self, settings):
+    def test_last_checked_uses_captured_time_before_insert(self, settings):
+        settings.RESEARCH_USE_SQL_MATERIALIZATION = False
+        project = ProjectFactory()
+        result_set = ResultSetFactory(
+            project=project,
+            query=QuerySpec(text="housing").canonical(),
+            status=ResultSet.Status.READY,
+        )
+        cutoff = timezone.now() - timezone.timedelta(days=1)
+        result_set.last_checked_at = cutoff
+        result_set.save()
+        muni = MuniFactory()
+        doc = MeetingDocumentFactory(municipality=muni)
+        page = MeetingPageFactory(document=doc, text="housing")
+        page_modified = cutoff + timezone.timedelta(hours=1)
+        MeetingPage.objects.filter(pk=page.pk).update(modified=page_modified)
+        checked_at = cutoff + timezone.timedelta(minutes=30)
+
+        with patch("research.new_matches.timezone.now", return_value=checked_at):
+            event = check_for_new_matches(result_set)
+
+        result_set.refresh_from_db()
+        assert result_set.last_checked_at == checked_at
+        assert result_set.last_checked_at < page_modified
+        assert event.payload["checked_at"] == checked_at.isoformat()
+
+    def test_orm_path_skips_dangling_page(self, settings):
+        settings.RESEARCH_USE_SQL_MATERIALIZATION = False
+        result_set = ResultSetFactory(
+            project=ProjectFactory(),
+            query=QuerySpec(text="housing").canonical(),
+            status=ResultSet.Status.READY,
+        )
+        result_set.last_checked_at = timezone.now() - timezone.timedelta(days=1)
+        result_set.save()
+        from searches import search_backends
+
+        backend = search_backends.get_search_backend()
+        with patch.object(
+            backend, "search", return_value=([{"id": "missing-page"}], 1)
+        ):
+            event = check_for_new_matches(result_set)
+
+        assert result_set.items.count() == 0
+        assert event.payload["added"] == 0
+
+    def test_sql_path_inserts_state_filtered_page(self, settings):
+        settings.RESEARCH_USE_SQL_MATERIALIZATION = True
+        muni = MuniFactory(state="CA")
+        doc = MeetingDocumentFactory(municipality=muni)
+        page = MeetingPageFactory(document=doc, text="zoning")
+        cutoff = timezone.now() - timezone.timedelta(days=1)
+        MeetingPage.objects.filter(pk=page.pk).update(
+            modified=cutoff + timezone.timedelta(hours=1)
+        )
+        project = ProjectFactory()
+        result_set = ResultSetFactory(
+            project=project,
+            query=QuerySpec(states=("CA",)).canonical(),
+            status=ResultSet.Status.READY,
+        )
+        result_set.last_checked_at = cutoff
+        result_set.save()
+
+        event = check_for_new_matches(result_set)
+
+        item = result_set.items.get(page=page)
+        assert item.added_via == "new_matches"
+        assert item.last_event == event
+        assert event.payload["added"] == 1
+
+    @patch("django_rq.get_queue")
+    def test_enqueue_when_over_inline(self, mock_get_queue, settings):
         settings.RESEARCH_INLINE_SET_MAX_ITEMS = 1
         result_set = ResultSetFactory(
             project=ProjectFactory(),
@@ -114,3 +184,9 @@ class TestCheckForNewMatches:
         ) as mock_count:
             create_new_matches(result_set)
         mock_count.assert_called_once_with(result_set)
+        mock_get_queue.assert_called_once_with(settings.RESEARCH_QUEUE)
+        mock_get_queue.return_value.enqueue.assert_called_once_with(
+            check_new_matches_task,
+            result_set.id,
+            job_timeout=settings.RESEARCH_JOB_TIMEOUT,
+        )

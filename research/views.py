@@ -198,6 +198,12 @@ class NewMatchesView(LoginRequiredMixin, View):
             create_new_matches(result_set, actor=request.user)
         except ValueError:
             return HttpResponse("Only query sets can check for new matches", status=409)
+        if not request.headers.get("HX-Request"):
+            return redirect(
+                "research:set-detail",
+                project=result_set.project_id,
+                set=result_set.id,
+            )
         response = HttpResponse("")
         response["HX-Refresh"] = "true"
         return response
