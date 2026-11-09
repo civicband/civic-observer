@@ -105,42 +105,98 @@ def _column(alias: str, name: str) -> str:
     return f"{alias}.{name}" if alias else name
 
 
+def _quote_bm25(value: str) -> str:
+    """Quote a filter value for the ParadeDB query string."""
+    escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{escaped}"'
+
+
+def _or_terms(field: str, values) -> str | None:
+    """Render one BM25 field filter, ORing multiple values."""
+    rendered = [f"{field}:{_quote_bm25(str(value))}" for value in values if str(value)]
+    if not rendered:
+        return None
+    joined = " OR ".join(rendered)
+    return f"({joined})" if len(rendered) > 1 else joined
+
+
+def _bm25_query(spec: QuerySpec) -> str | None:
+    """Build one ParadeDB query string with the indexed filters pushed down.
+
+    Separate SQL predicates on indexed columns (`state = ANY(...)`, date
+    comparisons, document type) are not pushed into the BM25 index scan and
+    force a full match enumeration. Gate A measured 20s for a California
+    "housing" count with SQL filters vs 0.44s with field-qualified BM25
+    filters. `modified` is not in the index, so it stays a SQL predicate.
+    """
+    # Filter-only queries keep plain SQL predicates: the test database and
+    # dev environments may not have pg_search installed. Text queries already
+    # require it, so folding filters into the BM25 query there is free.
+    if not (spec.text or spec.meeting_name):
+        return None
+
+    clauses: list[str] = []
+
+    if spec.text:
+        clauses.append(f"text:({_clean(spec.text)})")
+    if spec.meeting_name:
+        clauses.append(f"meeting_name:({_clean(spec.meeting_name)})")
+
+    municipality_clause = _or_terms("municipality_id", spec.municipality_ids)
+    if municipality_clause:
+        clauses.append(municipality_clause)
+
+    state_clause = _or_terms("state", spec.states)
+    if state_clause:
+        clauses.append(state_clause)
+
+    if spec.date_from or spec.date_to:
+        start = spec.date_from.isoformat() if spec.date_from else "*"
+        end = spec.date_to.isoformat() if spec.date_to else "*"
+        clauses.append(f"meeting_date:[{start} TO {end}]")
+
+    if spec.document_type and spec.document_type != "all":
+        clauses.append(f"document_type:{_quote_bm25(spec.document_type)}")
+
+    return " AND ".join(clauses) if clauses else None
+
+
 def build_where(spec: QuerySpec, alias: str = "mp") -> tuple[str, list]:
     """Render ``spec`` as a SQL WHERE clause and positional parameters.
 
-    ``alias`` prefixes every column so callers can join or subquery the page
-    table. Pass ``alias=""`` for an unqualified single-table query.
+    Indexed filters are folded into one ``paradedb.parse`` query so the BM25
+    scan can push them down. ``modified_after`` stays a SQL predicate because
+    ``modified`` is not part of the BM25 index. ``alias`` prefixes every column
+    so callers can join or subquery the page table; pass ``alias=""`` for an
+    unqualified single-table query.
     """
     where: list[str] = []
     params: list = []
 
-    if spec.text:
+    query = _bm25_query(spec)
+    if query is not None:
         where.append(f"{_column(alias, 'id')} @@@ paradedb.parse(%s)")
-        params.append(f"text:({_clean(spec.text)})")
+        params.append(query)
+    else:
+        if spec.municipality_ids:
+            where.append(f"{_column(alias, 'municipality_id')} = ANY(%s)")
+            params.append(list(spec.municipality_ids))
 
-    if spec.meeting_name:
-        where.append(f"{_column(alias, 'id')} @@@ paradedb.parse(%s)")
-        params.append(f"meeting_name:({_clean(spec.meeting_name)})")
+        if spec.states:
+            where.append(f"{_column(alias, 'state')} = ANY(%s)")
+            params.append(list(spec.states))
 
-    if spec.municipality_ids:
-        where.append(f"{_column(alias, 'municipality_id')} = ANY(%s)")
-        params.append(list(spec.municipality_ids))
+        if spec.date_from:
+            where.append(f"{_column(alias, 'meeting_date')} >= %s")
+            params.append(spec.date_from)
 
-    if spec.states:
-        where.append(f"{_column(alias, 'state')} = ANY(%s)")
-        params.append(list(spec.states))
+        if spec.date_to:
+            where.append(f"{_column(alias, 'meeting_date')} <= %s")
+            params.append(spec.date_to)
 
-    if spec.date_from:
-        where.append(f"{_column(alias, 'meeting_date')} >= %s")
-        params.append(spec.date_from)
-
-    if spec.date_to:
-        where.append(f"{_column(alias, 'meeting_date')} <= %s")
-        params.append(spec.date_to)
-
-    if spec.document_type and spec.document_type != "all":
-        where.append(f"{_column(alias, 'document_type')} = %s")
-        params.append(spec.document_type)
+        if spec.document_type and spec.document_type != "all":
+            where.append(f"{_column(alias, 'document_type')} = %s")
+            params.append(spec.document_type)
 
     if spec.modified_after:
         where.append(f"{_column(alias, 'modified')} >= %s")

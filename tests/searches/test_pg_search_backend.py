@@ -91,9 +91,7 @@ class TestPgSearchBackendSearch:
         params = mock_cursor.execute.call_args[0][1]
 
         assert "id @@@ paradedb.parse(%s)" in sql
-        assert "meeting_name:(council)" in params
-        assert "meeting_name:(council)" in params
-        assert "text:(budget)" in params
+        assert "text:(budget) AND meeting_name:(council)" in params
 
     @patch("searches.search_backends.connection")
     def test_search_with_municipality_queryset(self, mock_conn):

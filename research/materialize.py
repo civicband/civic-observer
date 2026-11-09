@@ -153,9 +153,11 @@ def _insert_items_sql(result_set: ResultSet, now) -> None:
     spec = _spec_from_set(result_set)
     where_sql, where_params = build_where(spec)
 
-    # paradedb.score() needs a BM25 predicate in the same query; a purely
-    # facet-filtered set has no score to record.
-    rank_sql = "paradedb.score(mp.id)" if (spec.text or spec.meeting_name) else "NULL"
+    # Gate A (2026-11-08): the installed pg_search rejects the
+    # alias-qualified ``paradedb.score(mp.id)`` inside INSERT ... SELECT with
+    # ON CONFLICT ("Unsupported query shape"); the unqualified form works.
+    # A purely facet-filtered set has no BM25 predicate to score.
+    rank_sql = "paradedb.score(id)" if (spec.text or spec.meeting_name) else "NULL"
 
     sql = f"""
         INSERT INTO research_setitem
