@@ -49,10 +49,14 @@ municipality UUIDs, document type and date ranges with one or both bounds.
 `municipality_id`, `municipality_subdomain`, `state`, `document_type`,
 `meeting_date`, `document_id` and `page_number`. It does **not** include
 `modified`, so `modified_after` stays a SQL predicate. A 30-day "housing in CA"
-query filters 373,129 BM25 matches down to 17,339 in 0.76s; acceptable, but a
-modified-only alert scan still falls back to the table. Add `modified` to the
-index config or a concurrent btree before relying on large modified-only
-scans.
+query filters 373,129 BM25 matches down to 17,339 in 0.76s. A modified-only
+scan (zero rows over 1 and 7 days) took 6.8s and 3.6s because no index covers
+`modified`.
+
+`meetings.0011_add_meetingpage_modified_index` adds a concurrent btree on
+`modified` for the no-text "all updates" alert path and modified-only
+new-match checks. It does not change combined text+modified queries, which
+still filter after the BM25 scan.
 
 ### Finding 3: scored insert needs the unqualified score form
 
