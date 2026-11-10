@@ -49,7 +49,6 @@ urlpatterns: list[URLPattern | URLResolver] = [
         RedirectView.as_view(pattern_name="research:project-detail", permanent=True),
         name="notebook-detail-redirect",
     ),
-    path("notebooks/legacy/", include("notebooks.urls")),
     path("notifications/", include("notifications.urls")),
     path("research/", include("research.urls")),
     path("searches/", include("searches.urls")),

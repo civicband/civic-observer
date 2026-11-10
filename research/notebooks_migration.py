@@ -10,35 +10,25 @@ from django.utils import timezone
 SAVED_PAGES = "Saved pages"
 
 
-def _models(apps=None) -> dict[str, Any]:
-    """Return live or historical model classes for the migration to use."""
-    if apps is not None:
-        return {
-            "Project": apps.get_model("research", "Project"),
-            "ResultSet": apps.get_model("research", "ResultSet"),
-            "SetItem": apps.get_model("research", "SetItem"),
-            "Memo": apps.get_model("research", "Memo"),
-            "Code": apps.get_model("research", "Code"),
-            "Coding": apps.get_model("research", "Coding"),
-            "AuditEvent": apps.get_model("research", "AuditEvent"),
-            "Notebook": apps.get_model("notebooks", "Notebook"),
-            "Tag": apps.get_model("notebooks", "Tag"),
-        }
+def _models(apps) -> dict[str, Any]:
+    """Return historical model classes for the migration to use.
 
-    from notebooks import models as notebook_models
-
-    from . import models as research_models
+    The live ``notebooks`` models were removed in Release 2, so this helper is
+    only usable from the historical migration state.
+    """
+    if apps is None:
+        raise RuntimeError("Notebook migration requires historical apps")
 
     return {
-        "Project": research_models.Project,
-        "ResultSet": research_models.ResultSet,
-        "SetItem": research_models.SetItem,
-        "Memo": research_models.Memo,
-        "Code": research_models.Code,
-        "Coding": research_models.Coding,
-        "AuditEvent": research_models.AuditEvent,
-        "Notebook": notebook_models.Notebook,
-        "Tag": notebook_models.Tag,
+        "Project": apps.get_model("research", "Project"),
+        "ResultSet": apps.get_model("research", "ResultSet"),
+        "SetItem": apps.get_model("research", "SetItem"),
+        "Memo": apps.get_model("research", "Memo"),
+        "Code": apps.get_model("research", "Code"),
+        "Coding": apps.get_model("research", "Coding"),
+        "AuditEvent": apps.get_model("research", "AuditEvent"),
+        "Notebook": apps.get_model("notebooks", "Notebook"),
+        "Tag": apps.get_model("notebooks", "Tag"),
     }
 
 
@@ -174,8 +164,7 @@ def _code_orphan_tags(user_id, models) -> dict[str, int]:
 
 
 @transaction.atomic
-def migrate_notebook(notebook, models=None) -> dict:
-    models = models or _models()
+def migrate_notebook(notebook, models) -> dict:
     project = _project_for_notebook(notebook, models)
     result_set = _saved_pages_set(project, models)
     counts = _migrate_entries(project, result_set, notebook, models)

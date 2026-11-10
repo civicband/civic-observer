@@ -135,7 +135,6 @@ addopts = [
     "--cov=municipalities",
     "--cov=searches",
     "--cov=meetings",
-    "--cov=notebooks",
     "--cov=apikeys",
     "--cov=notifications",
     "--cov=analytics",

@@ -9,7 +9,6 @@ import research.models
 from apikeys.models import APIKey
 from meetings.models import MeetingDocument, MeetingPage
 from municipalities.models import Muni
-from notebooks.models import Notebook, NotebookEntry, Tag
 from notifications.models import NotificationChannel
 from searches.models import SavedSearch, Search
 
@@ -110,32 +109,6 @@ class SavedSearchFactory(DjangoModelFactory):
     user = factory.SubFactory(UserFactory)  # type: ignore
     search = factory.SubFactory(SearchFactory)  # type: ignore
     name = factory.Faker("sentence", nb_words=3)  # type: ignore
-
-
-class NotebookFactory(DjangoModelFactory):
-    class Meta:
-        model = Notebook
-
-    user = factory.SubFactory(UserFactory)  # type: ignore
-    name = factory.Faker("sentence", nb_words=3)  # type: ignore
-    is_archived = False
-
-
-class TagFactory(DjangoModelFactory):
-    class Meta:
-        model = Tag
-
-    user = factory.SubFactory(UserFactory)  # type: ignore
-    name = factory.Faker("word")  # type: ignore
-
-
-class NotebookEntryFactory(DjangoModelFactory):
-    class Meta:
-        model = NotebookEntry
-
-    notebook = factory.SubFactory(NotebookFactory)  # type: ignore
-    meeting_page = factory.SubFactory(MeetingPageFactory)  # type: ignore
-    note = ""
 
 
 class APIKeyFactory(DjangoModelFactory):

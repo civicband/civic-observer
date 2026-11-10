@@ -106,7 +106,7 @@ class TestEmailAuthFlow:
         assert not User.objects.filter(email=EMAIL).exists()
 
     def test_protected_page_requires_login(self, client):
-        response = client.get(reverse("notebooks:notebook-list"))
+        response = client.get(reverse("research:project-list"))
 
         assert response.status_code == 302
         assert response.url.startswith(reverse("login"))
