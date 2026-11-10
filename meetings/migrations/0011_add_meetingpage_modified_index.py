@@ -2,6 +2,26 @@
 
 from django.db import migrations
 
+from meetings.migration_utils import (
+    create_index_concurrently,
+    drop_index_concurrently,
+)
+
+INDEX_NAME = "meetings_meetingpage_modified_idx"
+
+
+def create_index(apps, schema_editor):
+    create_index_concurrently(
+        schema_editor.connection,
+        INDEX_NAME,
+        "meetings_meetingpage",
+        ["modified"],
+    )
+
+
+def drop_index(apps, schema_editor):
+    drop_index_concurrently(schema_editor.connection, INDEX_NAME)
+
 
 class Migration(migrations.Migration):
     """
@@ -13,8 +33,11 @@ class Migration(migrations.Migration):
     after the BM25 scan; this btree serves the no-text "all updates" alert path
     and any modified-only new-match check.
 
-    CREATE INDEX CONCURRENTLY avoids an ACCESS EXCLUSIVE lock. If it fails
-    partway, drop the invalid index manually and re-run:
+    CREATE INDEX CONCURRENTLY avoids an ACCESS EXCLUSIVE lock. The helper does
+    not use IF NOT EXISTS: an interrupted concurrent build leaves an invalid
+    index behind, and skipping it would let this migration be recorded as
+    successful while the index remains unusable. If it fails partway, drop the
+    invalid index manually and re-run:
 
         DROP INDEX CONCURRENTLY IF EXISTS meetings_meetingpage_modified_idx;
     """
@@ -27,14 +50,5 @@ class Migration(migrations.Migration):
     atomic = False
 
     operations = [
-        migrations.RunSQL(
-            sql=(
-                "CREATE INDEX CONCURRENTLY IF NOT EXISTS "
-                "meetings_meetingpage_modified_idx "
-                "ON meetings_meetingpage (modified)"
-            ),
-            reverse_sql=(
-                "DROP INDEX CONCURRENTLY IF EXISTS meetings_meetingpage_modified_idx"
-            ),
-        ),
+        migrations.RunPython(create_index, reverse_code=drop_index),
     ]
