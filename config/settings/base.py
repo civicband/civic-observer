@@ -37,6 +37,7 @@ LOCAL_APPS: list[str] = [
     "municipalities",
     "searches",
     "meetings",
+    # Migrations-only after Release 2; research.0004 depends on notebooks.0003.
     "notebooks",
     "apikeys",
     "notifications",
