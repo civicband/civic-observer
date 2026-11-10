@@ -1,10 +1,10 @@
 """Tests for meetings models."""
 
-from datetime import datetime
+from datetime import date, datetime
 
 import pytest
 
-from meetings.models import BackfillProgress
+from meetings.models import BackfillProgress, MeetingDocument, MeetingPage
 from municipalities.models import Muni
 
 
@@ -152,3 +152,66 @@ class TestBackfillJobModel:
             )
             job.refresh_from_db()
             assert job.status == status
+
+
+@pytest.mark.django_db
+class TestMeetingPageImageURLs:
+    @pytest.fixture
+    def muni(self):
+        return Muni.objects.create(
+            subdomain="alameda.ca",
+            name="Alameda",
+            state="CA",
+            country="US",
+            kind="city",
+        )
+
+    @pytest.fixture
+    def document(self, muni):
+        return MeetingDocument.objects.create(
+            municipality=muni,
+            meeting_name="CityCouncil",
+            meeting_date=date(2024, 1, 15),
+            document_type="agenda",
+        )
+
+    def test_uses_cdn_subdomain_and_width(self, document, settings):
+        settings.CDN_URL = "https://cdn.example.com"
+        page = MeetingPage.objects.create(
+            id="image-page",
+            document=document,
+            page_number=1,
+            page_image="/_agendas/CityCouncil/2024-01-15/1.png",
+        )
+
+        assert (
+            page.page_image_url
+            == "https://cdn.example.com/alameda.ca/_agendas/CityCouncil/2024-01-15/1.png?width=800"
+        )
+        assert (
+            page.page_image_thumbnail_url
+            == "https://cdn.example.com/alameda.ca/_agendas/CityCouncil/2024-01-15/1.png?width=400"
+        )
+
+    def test_empty_without_image_or_subdomain(self, document):
+        page = MeetingPage.objects.create(
+            id="no-image", document=document, page_number=1
+        )
+        assert page.page_image_url == ""
+        assert page.page_image_thumbnail_url == ""
+
+        page.page_image = "agendas/CityCouncil/2024-01-15/1.png"
+        page.municipality_subdomain = ""
+        assert page.page_image_url == ""
+
+    def test_adds_leading_slash(self, document):
+        page = MeetingPage.objects.create(
+            id="slashless",
+            document=document,
+            page_number=1,
+            page_image="agendas/CityCouncil/2024-01-15/1.png",
+        )
+
+        assert page.page_image_url.endswith(
+            "/alameda.ca/agendas/CityCouncil/2024-01-15/1.png?width=800"
+        )

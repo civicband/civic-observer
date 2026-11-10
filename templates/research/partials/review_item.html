@@ -1,4 +1,5 @@
-<div id="review-card" class="item-card bg-white shadow rounded-lg border border-gray-200 p-6">
+<div id="review-card" class="item-card bg-white shadow rounded-lg border border-gray-200 p-6"
+     x-data="{ lightbox: false }">
     {% if item %}
         <div class="flex items-start justify-between gap-4">
             <div class="flex-1 min-w-0">
@@ -36,9 +37,33 @@
                 {% endif %}
             </div>
         </div>
-        {% if item.page_obj and item.page_obj.text %}
-            <p class="mt-3 text-sm text-gray-700 leading-relaxed">{{ item.page_obj.text }}</p>
-        {% endif %}
+        <div class="mt-3 flex flex-col gap-4 lg:flex-row lg:items-start">
+            <div class="min-w-0 flex-1">
+                {% if item.page_obj and item.page_obj.text %}
+                    <p class="text-sm text-gray-700 leading-relaxed">{{ item.page_obj.text }}</p>
+                {% endif %}
+            </div>
+            {% if item.page_obj.page_image_url %}
+                <div class="shrink-0 lg:w-1/2">
+                    <img src="{{ item.page_obj.page_image_thumbnail_url }}"
+                         alt="Page image for {{ item.page_obj.meeting_name }} page {{ item.page_obj.page_number }}"
+                         loading="lazy"
+                         referrerpolicy="no-referrer"
+                         class="w-full rounded-md border border-gray-200 cursor-zoom-in"
+                         @click="lightbox = true">
+                    <div x-show="lightbox"
+                         x-cloak
+                         @click.self="lightbox = false"
+                         class="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+                        <img src="{{ item.page_obj.page_image_url }}"
+                             alt="Page image for {{ item.page_obj.meeting_name }} page {{ item.page_obj.page_number }}"
+                             loading="lazy"
+                             referrerpolicy="no-referrer"
+                             class="max-h-[90vh] max-w-[90vw] rounded-lg shadow-2xl">
+                    </div>
+                </div>
+            {% endif %}
+        </div>
         <div class="mt-4 flex flex-wrap items-center gap-2">
             <form hx-post="{% url 'research:item-disposition' result_set.project_id result_set.id item.id %}"
                   hx-target="#review-card" hx-swap="outerHTML" class="inline-flex">

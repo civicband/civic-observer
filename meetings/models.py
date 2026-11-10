@@ -1,5 +1,6 @@
 import uuid
 
+from django.conf import settings
 from django.db import models
 from model_utils.models import TimeStampedModel
 
@@ -119,6 +120,24 @@ class MeetingPage(TimeStampedModel):
     @property
     def civic_band_table_name(self) -> str:
         return "agendas" if self.document_type == "agenda" else "minutes"
+
+    @property
+    def page_image_url(self) -> str:
+        return self._page_image_url(width=800)
+
+    @property
+    def page_image_thumbnail_url(self) -> str:
+        return self._page_image_url(width=400)
+
+    def _page_image_url(self, *, width: int) -> str:
+        if not self.page_image or not self.municipality_subdomain:
+            return ""
+
+        path = self.page_image
+        if not path.startswith("/"):
+            path = f"/{path}"
+        cdn_url = getattr(settings, "CDN_URL", "https://cdn.civic.band").rstrip("/")
+        return f"{cdn_url}/{self.municipality_subdomain}{path}?width={width}"
 
     def denormalize(self, document=None):
         """Populate the flattened columns from the parent document."""

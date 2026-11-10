@@ -224,6 +224,7 @@ CIVIC_BAND_DOMAINS = env.list(
     "CIVIC_BAND_DOMAINS",
     ["civic.band", "adversely-star-koala.edgecompute.app"],
 )
+CDN_URL = env.str("CDN_URL", "https://cdn.civic.band")
 
 # Notification Channel Settings
 DISCORD_BOT_TOKEN = env.str("DISCORD_BOT_TOKEN", "")
