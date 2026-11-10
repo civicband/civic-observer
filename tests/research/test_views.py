@@ -276,6 +276,40 @@ class TestSetDetailView:
         assert "States" in content
         assert "CA" in content
 
+    def test_renders_page_image_and_show_more(self, client):
+        user, project, result_set = self._ready_set()
+        text = " ".join(["word"] * 60)
+        page = MeetingPageFactory(text=text)
+        SetItemFactory(result_set=result_set, page=page, rank=2.0)
+
+        client.force_login(user)
+        response = client.get(
+            reverse("research:set-detail", args=[project.id, result_set.id])
+        )
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert page.page_image_thumbnail_url in content
+        assert page.page_image_url in content
+        assert "Show more" in content
+        assert "cursor-zoom-in" in content
+        assert 'referrerpolicy="no-referrer"' in content
+
+    def test_omits_image_when_page_has_no_image(self, client):
+        user, project, result_set = self._ready_set()
+        page = MeetingPageFactory(page_image="")
+        SetItemFactory(result_set=result_set, page=page, rank=2.0)
+
+        client.force_login(user)
+        response = client.get(
+            reverse("research:set-detail", args=[project.id, result_set.id])
+        )
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "Page image for" not in content
+        assert "cursor-zoom-in" not in content
+
     def test_orphan_page_is_retained(self, client):
         user, project, result_set = self._ready_set()
         orphan_document = MeetingDocumentFactory(meeting_name="OrphanMeeting")
@@ -908,6 +942,18 @@ class TestReviewView:
 
         assert response.status_code == 200
         assert "review-card" in response.content.decode()
+
+    def test_renders_page_image(self, client):
+        user, result_set, first, _ = self._set_with_items()
+        client.force_login(user)
+
+        response = client.get(self._url(result_set))
+
+        content = response.content.decode()
+        assert first.page.page_image_thumbnail_url in content
+        assert first.page.page_image_url in content
+        assert "cursor-zoom-in" in content
+        assert 'referrerpolicy="no-referrer"' in content
 
     def test_keyboard_shortcuts_ignore_modifier_keys(self, client):
         user, result_set, _, _ = self._set_with_items()
