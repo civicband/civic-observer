@@ -158,5 +158,27 @@ host (see `DATABASE_URL`). For app-side connectivity:
 ```bash
 # Run migrations manually against the configured DATABASE_URL
 docker-compose -f docker-compose.production.yml \
-  run --rm web-blue python manage.py migrate
+  run --rm web-blue python manage.py migrate_locked --noinput
+
+# Verify no migration is pending and no index was left invalid by a failed
+# CREATE INDEX CONCURRENTLY. The container entrypoint runs this automatically.
+docker-compose -f docker-compose.production.yml \
+  exec web-blue python manage.py check_deploy
 ```
+
+If `check_deploy` reports an invalid index, drop and recreate it concurrently:
+
+```bash
+docker-compose -f docker-compose.production.yml exec web-blue \
+  python manage.py dbshell
+```
+
+```sql
+DROP INDEX CONCURRENTLY IF EXISTS <index_name>;
+CREATE INDEX CONCURRENTLY <index_name> ON <table> (<columns>);
+SELECT indisvalid, indisready FROM pg_index
+WHERE indexrelid = '<index_name>'::regclass;
+```
+
+Do not fake the migration: the migration row can be applied while the index is
+invalid. Fix the index, then let `check_deploy` confirm it.
