@@ -17,15 +17,23 @@
                 {% if project.description %}
                     <p class="mt-2 text-sm text-gray-600">{{ project.description }}</p>
                 {% endif %}
+                {% if ignored_total %}
+                    <p class="mt-2 text-sm text-gray-600">{{ ignored_total }} ignored page{{ ignored_total|pluralize }} across sets.</p>
+                {% endif %}
+                <p class="mt-1 text-sm text-gray-500">Ignore rules apply across every existing and future set; they do not create a new set.</p>
             </div>
-            <div class="mt-4 sm:mt-0 flex items-center gap-2">
+            <div class="mt-4 sm:mt-0 flex flex-wrap items-center gap-2">
+                <a href="{% url 'research:project-timeline' project.id %}"
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                    Timeline
+                </a>
                 <a href="{% url 'research:codebook' project.id %}"
                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
                     Codebook
                 </a>
                 <a href="{% url 'research:rule-list' project.id %}"
                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
-                    Rules
+                    Ignore rules
                 </a>
                 <a href="{% url 'research:methods' project.id %}"
                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
@@ -53,53 +61,6 @@
                     </div>
                 </form>
             </div>
-        </div>
-
-        <div class="mt-8">
-            <h2 class="text-lg font-medium text-gray-900">Timeline</h2>
-            {% if timeline %}
-                <ul class="mt-4 space-y-4">
-                    {% for entry in timeline %}
-                        <li class="bg-white shadow rounded-lg border border-gray-200 p-4">
-                            {% if entry.kind == "memo" %}
-                                <div class="flex items-start justify-between gap-4">
-                                    <div class="prose prose-sm max-w-none text-sm text-gray-700">
-                                        {{ entry.memo.body|research_markdown }}
-                                    </div>
-                                    <div class="flex-shrink-0 text-xs text-gray-500">
-                                        {{ entry.created|date:"M j, Y g:i A" }}
-                                    </div>
-                                </div>
-                                <div class="mt-2 flex items-center justify-between gap-2 text-xs text-gray-500">
-                                    <span>
-                                        Memo
-                                        {% if entry.memo.author %}by {{ entry.memo.author.get_full_name|default:entry.memo.author.username }}{% endif %}
-                                        {% if entry.memo.result_set %}· set {{ entry.memo.result_set.name }}{% endif %}
-                                        {% if entry.memo.code %}· code {{ entry.memo.code.name }}{% endif %}
-                                        {% if entry.memo.page %}· page {{ entry.memo.page.page_number }}{% endif %}
-                                    </span>
-                                    <form method="post" action="{% url 'research:memo-delete' project.id entry.memo.id %}">
-                                        {% csrf_token %}
-                                        <button type="submit" class="text-red-600 hover:text-red-800">Delete</button>
-                                    </form>
-                                </div>
-                            {% else %}
-                                <div class="flex items-start justify-between gap-4">
-                                    <span class="text-sm font-medium text-gray-900">{{ entry.event.verb }}</span>
-                                    <span class="flex-shrink-0 text-xs text-gray-500">{{ entry.created|date:"M j, Y g:i A" }}</span>
-                                </div>
-                                {% if entry.event.actor %}
-                                    <p class="mt-1 text-xs text-gray-500">by {{ entry.event.actor.get_full_name|default:entry.event.actor.username }}</p>
-                                {% endif %}
-                            {% endif %}
-                        </li>
-                    {% endfor %}
-                </ul>
-            {% else %}
-                <div class="mt-4 text-center py-12 bg-white rounded-lg border border-gray-200">
-                    <p class="text-gray-500">No activity yet.</p>
-                </div>
-            {% endif %}
         </div>
 
         <div class="mt-8 bg-white shadow rounded-lg border border-gray-200">
@@ -166,57 +127,56 @@
 
         <div class="mt-8">
             <h2 class="text-lg font-medium text-gray-900">Sets</h2>
-            {% with sets=project.sets.all %}
-                {% if sets %}
-                    <div class="mt-4 space-y-4">
-                        {% for result_set in sets %}
-                            <div class="bg-white overflow-hidden shadow rounded-lg border border-gray-200">
-                                <div class="px-4 py-5 sm:p-6">
-                                    <div class="flex items-start justify-between">
-                                        <div class="flex-1 min-w-0">
-                                            <div class="flex items-center gap-3">
-                                                <h3 class="text-lg font-medium leading-6 text-gray-900">
-                                                    <a href="{% url 'research:set-detail' project.id result_set.id %}" class="hover:text-indigo-600">{{ result_set.name }}</a>
-                                                </h3>
-                                                {% if result_set.status == "ready" %}
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Ready</span>
-                                                {% elif result_set.status == "failed" %}
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Failed</span>
-                                                {% elif result_set.status == "too_large" %}
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Too large</span>
+            {% if sets %}
+                <div class="mt-4 space-y-4">
+                    {% for result_set in sets %}
+                        <div class="bg-white overflow-hidden shadow rounded-lg border border-gray-200">
+                            <div class="px-4 py-5 sm:p-6">
+                                <div class="flex items-start justify-between">
+                                    <div class="flex-1 min-w-0">
+                                        <div class="flex items-center gap-3">
+                                            <h3 class="text-lg font-medium leading-6 text-gray-900">
+                                                <a href="{% url 'research:set-detail' project.id result_set.id %}" class="hover:text-indigo-600">{{ result_set.name }}</a>
+                                            </h3>
+                                            {% if result_set.status == "ready" %}
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Ready</span>
+                                            {% elif result_set.status == "failed" %}
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Failed</span>
+                                            {% elif result_set.status == "too_large" %}
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Too large</span>
+                                            {% else %}
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">{{ result_set.get_status_display }}</span>
+                                            {% endif %}
+                                        </div>
+                                        <div class="mt-2 flex items-center gap-4 text-sm text-gray-500">
+                                            <span>
+                                                {% if result_set.status == "too_large" %}
+                                                    at least {{ result_set.item_count }} page{{ result_set.item_count|pluralize }}
                                                 {% else %}
-                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">{{ result_set.get_status_display }}</span>
+                                                    {{ result_set.item_count }} page{{ result_set.item_count|pluralize }}
                                                 {% endif %}
-                                            </div>
-                                            <div class="mt-2 flex items-center gap-4 text-sm text-gray-500">
-                                                <span>
-                                                    {% if result_set.status == "too_large" %}
-                                                        at least {{ result_set.item_count }} page{{ result_set.item_count|pluralize }}
-                                                    {% else %}
-                                                        {{ result_set.item_count }} page{{ result_set.item_count|pluralize }}
-                                                    {% endif %}
-                                                </span>
-                                                <span>Created {{ result_set.created|timesince }} ago</span>
-                                            </div>
+                                                {% if result_set.ignored_count %}· {{ result_set.ignored_count }} ignored{% endif %}
+                                            </span>
+                                            <span>Created {{ result_set.created|timesince }} ago</span>
                                         </div>
-                                        <div class="ml-4 flex-shrink-0">
-                                            <a href="{% url 'research:set-detail' project.id result_set.id %}"
-                                               class="inline-flex items-center justify-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
-                                                View
-                                            </a>
-                                        </div>
+                                    </div>
+                                    <div class="ml-4 flex-shrink-0">
+                                        <a href="{% url 'research:set-detail' project.id result_set.id %}"
+                                           class="inline-flex items-center justify-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                                            View
+                                        </a>
                                     </div>
                                 </div>
                             </div>
-                        {% endfor %}
-                    </div>
-                {% else %}
-                    <div class="mt-4 text-center py-12 bg-white rounded-lg border border-gray-200">
-                        <h3 class="text-lg font-medium text-gray-900">No sets yet</h3>
-                        <p class="mt-2 text-gray-500">Create your first set above.</p>
-                    </div>
-                {% endif %}
-            {% endwith %}
+                        </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="mt-4 text-center py-12 bg-white rounded-lg border border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">No sets yet</h3>
+                    <p class="mt-2 text-gray-500">Create your first set above.</p>
+                </div>
+            {% endif %}
         </div>
     </div>
 {% endblock content %}

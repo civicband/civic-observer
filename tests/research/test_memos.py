@@ -77,6 +77,16 @@ class TestMemoService:
         delete_memo(memo)
         assert Memo.objects.filter(pk=memo.pk).exists() is False
 
+    def test_timeline_limit_returns_newest_entries(self):
+        project = ProjectFactory()
+        author = UserFactory()
+        project.memos.create(body="older", author=author)
+        newer = project.memos.create(body="newer", author=author)
+
+        timeline = project_timeline(project, limit=1)
+
+        assert [entry["memo"] for entry in timeline] == [newer]
+
     def test_timeline_interleaves_memos_and_events_by_date(self):
         project = ProjectFactory()
         older = create_memo(project, author=UserFactory(), body="Older memo")
@@ -241,17 +251,29 @@ class TestMemoViews:
         )
         assert response.status_code == 404
 
-    def test_project_detail_shows_timeline(self, client):
+    def test_project_timeline_page_shows_entries(self, client):
         user = _login(client)
         project = ProjectFactory(owner=user)
         project.memos.create(body="A project note", author=user)
         AuditEventFactory(project=project, verb="set.materialized")
 
+        response = client.get(reverse("research:project-timeline", args=[project.id]))
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "A project note" in content
+        assert "set.materialized" in content
+
+    def test_project_detail_links_to_timeline_without_rendering_it(self, client):
+        user = _login(client)
+        project = ProjectFactory(owner=user)
+        project.memos.create(body="A project note", author=user)
+
         response = client.get(reverse("research:project-detail", args=[project.id]))
 
         content = response.content.decode()
-        assert "A project note" in content
-        assert "set.materialized" in content
+        assert "A project note" not in content
+        assert reverse("research:project-timeline", args=[project.id]) in content
 
     def test_page_coding_memo_form_has_next(self, client):
         user = _login(client)
