@@ -276,6 +276,32 @@ class TestSetDetailView:
         assert "States" in content
         assert "CA" in content
 
+    def test_renders_selection_bar_and_item_checkboxes(self, client):
+        user, project, result_set = self._ready_set()
+        item = SetItemFactory(
+            result_set=result_set,
+            page=MeetingPageFactory(text="selection test"),
+            rank=2.0,
+        )
+
+        client.force_login(user)
+        response = client.get(
+            reverse("research:set-detail", args=[project.id, result_set.id])
+        )
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert 'id="bulk-selection"' in content
+        assert "Select all" in content
+        assert 'form="bulk-selected-form"' in content
+        assert f'name="item_ids" value="{item.id}"' in content
+        assert "Accept" in content
+        assert "Ignore" in content
+        assert "Mark all relevant" not in content
+        assert "Ignore all" not in content
+        assert "bg-emerald-600" in content
+        assert "bg-rose-600" in content
+
     def test_renders_page_image_and_show_more(self, client):
         user, project, result_set = self._ready_set()
         text = " ".join(["word"] * 60)
@@ -629,6 +655,39 @@ class TestDispositionView:
         assert "Relevant" in content
         assert "item-card" in content
 
+    def test_ignore_removes_card_when_not_in_lens(self, client):
+        user, _, item = self._item()
+        client.force_login(user)
+
+        response = client.post(self._url(item), {"disposition": "i", "lens": ""})
+
+        assert response.status_code == 200
+        assert response.content.decode() == ""
+        item.refresh_from_db()
+        assert item.disposition == "i"
+
+    def test_ignored_item_stays_when_viewing_ignored(self, client):
+        user, _, item = self._item()
+        client.force_login(user)
+
+        response = client.post(
+            self._url(item), {"disposition": "i", "lens": "disposition=i"}
+        )
+
+        assert response.status_code == 200
+        assert "item-card" in response.content.decode()
+
+    def test_unreviewed_item_removes_when_viewing_relevant_only(self, client):
+        user, _, item = self._item()
+        client.force_login(user)
+
+        response = client.post(
+            self._url(item), {"disposition": "u", "lens": "disposition=r"}
+        )
+
+        assert response.status_code == 200
+        assert response.content.decode() == ""
+
     def test_ignore_records_reason(self, client):
         user, _, item = self._item()
         client.force_login(user)
@@ -708,6 +767,53 @@ class TestBulkActionView:
         relevant.refresh_from_db()
         assert unreviewed.disposition == "u"
         assert relevant.disposition == "r"
+
+    def test_shows_confirmation_count_for_selected_items(self, client):
+        user, result_set, unreviewed, relevant = self._set_with_items()
+        client.force_login(user)
+
+        response = client.post(
+            self._url(result_set),
+            {
+                "disposition": "r",
+                "lens": "",
+                "item_ids": [unreviewed.id, relevant.id],
+            },
+        )
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "2 selected items" in content
+        assert f'name="item_ids" value="{unreviewed.id}"' in content
+        assert f'name="item_ids" value="{relevant.id}"' in content
+
+    def test_confirms_only_selected_items(self, client):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project, status=ResultSet.Status.READY)
+        first = SetItemFactory(result_set=result_set, disposition="u")
+        second = SetItemFactory(result_set=result_set, disposition="u")
+        untouched = SetItemFactory(result_set=result_set, disposition="u")
+        client.force_login(user)
+
+        response = client.post(
+            self._url(result_set),
+            {
+                "disposition": "r",
+                "lens": "",
+                "item_ids": [first.id, second.id],
+                "confirm": "1",
+            },
+        )
+
+        assert response.status_code == 200
+        assert response["HX-Refresh"] == "true"
+        first.refresh_from_db()
+        second.refresh_from_db()
+        untouched.refresh_from_db()
+        assert first.disposition == "r"
+        assert second.disposition == "r"
+        assert untouched.disposition == "u"
 
     def test_rejects_bulk_when_set_is_not_ready(self, client):
         user, result_set, unreviewed, _ = self._set_with_items()
@@ -954,6 +1060,16 @@ class TestReviewView:
         assert first.page.page_image_url in content
         assert "cursor-zoom-in" in content
         assert 'referrerpolicy="no-referrer"' in content
+
+    def test_action_buttons_use_distinct_colors(self, client):
+        user, result_set, _, _ = self._set_with_items()
+        client.force_login(user)
+
+        response = client.get(self._url(result_set))
+
+        content = response.content.decode()
+        assert "bg-emerald-600" in content
+        assert "bg-rose-600" in content
 
     def test_keyboard_shortcuts_ignore_modifier_keys(self, client):
         user, result_set, _, _ = self._set_with_items()

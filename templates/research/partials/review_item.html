@@ -29,11 +29,11 @@
             </div>
             <div class="flex-shrink-0">
                 {% if item.disposition == "r" %}
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">{{ item.get_disposition_display }}</span>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">{{ item.get_disposition_display }}</span>
                 {% elif item.disposition == "i" %}
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">{{ item.get_disposition_display }}</span>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800">{{ item.get_disposition_display }}</span>
                 {% else %}
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">{{ item.get_disposition_display }}</span>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">{{ item.get_disposition_display }}</span>
                 {% endif %}
             </div>
         </div>
@@ -71,7 +71,12 @@
                 <input type="hidden" name="disposition" value="r">
                 <input type="hidden" name="lens" value="{{ querystring }}">
                 <input type="hidden" name="next" value="review">
-                <button id="review-relevant" type="submit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700">Relevant</button>
+                <button id="review-relevant" type="submit" class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                    </svg>
+                    Relevant
+                </button>
             </form>
             <form hx-post="{% url 'research:item-disposition' result_set.project_id result_set.id item.id %}"
                   hx-target="#review-card" hx-swap="outerHTML" class="inline-flex items-center gap-2">
@@ -82,7 +87,12 @@
                 <input type="text" name="reason" value="{{ item.ignore_reason }}" placeholder="Reason (optional)"
                        list="ignore-reasons"
                        class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                <button id="review-ignore" type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Ignore</button>
+                <button id="review-ignore" type="submit" class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-rose-600 hover:bg-rose-700">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                    Ignore
+                </button>
             </form>
             <form hx-post="{% url 'research:item-disposition' result_set.project_id result_set.id item.id %}"
                   hx-target="#review-card" hx-swap="outerHTML" class="inline-flex">
@@ -90,7 +100,12 @@
                 <input type="hidden" name="disposition" value="u">
                 <input type="hidden" name="lens" value="{{ querystring }}">
                 <input type="hidden" name="next" value="review">
-                <button id="review-unreviewed" type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Unreviewed</button>
+                <button id="review-unreviewed" type="submit" class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 text-xs font-medium rounded-md text-slate-700 bg-slate-100 hover:bg-slate-200">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                    Unreviewed
+                </button>
             </form>
             {% if item.can_undo %}
                 <form hx-post="{% url 'research:event-undo' result_set.project_id result_set.id item.last_event_id %}"
@@ -98,24 +113,44 @@
                     {% csrf_token %}
                     <input type="hidden" name="lens" value="{{ querystring }}">
                     <input type="hidden" name="next" value="review">
-                    <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Undo</button>
+                    <button type="submit" class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 text-xs font-medium rounded-md text-slate-700 bg-slate-100 hover:bg-slate-200">
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
+                        </svg>
+                        Undo
+                    </button>
                 </form>
             {% endif %}
         </div>
         <div class="mt-4 flex items-center justify-between">
             <a id="review-prev"
                href="{% url 'research:set-review' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}&{% else %}?{% endif %}before={{ cursor|urlencode }}"
-               class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Previous</a>
+               class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                </svg>
+                Previous
+            </a>
             <a id="review-next"
                href="{% url 'research:set-review' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}&{% else %}?{% endif %}after={{ cursor|urlencode }}"
-               class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Next</a>
+               class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                Next
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                </svg>
+            </a>
         </div>
     {% else %}
         <div class="text-center py-12">
             <h3 class="text-lg font-medium text-gray-900">No items left</h3>
             <p class="mt-2 text-gray-500">Every item in this view has been triaged.</p>
             <a href="{% url 'research:set-detail' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}{% endif %}"
-               class="mt-4 inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Back to set</a>
+               class="mt-4 inline-flex items-center gap-1.5 px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path>
+                </svg>
+                Back to set
+            </a>
         </div>
     {% endif %}
 </div>

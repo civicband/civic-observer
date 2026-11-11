@@ -1,6 +1,10 @@
 <div class="item-card bg-white shadow rounded-lg border border-gray-200 p-6"
      x-data="{ expanded: false, lightbox: false }">
-    <div class="flex items-start justify-between gap-4">
+    <div class="flex items-start gap-3">
+        <input type="checkbox" name="item_ids" value="{{ item.id }}" form="bulk-selected-form"
+               onchange="updateSelectionBar()"
+               class="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+               aria-label="Select page">
         <div class="flex-1 min-w-0">
             {% if item.page_obj %}
                 <h3 class="text-lg font-semibold text-gray-900">{{ item.page_obj.meeting_name }}</h3>
@@ -28,11 +32,11 @@
         </div>
         <div class="flex-shrink-0">
             {% if item.disposition == "r" %}
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">{{ item.get_disposition_display }}</span>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">{{ item.get_disposition_display }}</span>
             {% elif item.disposition == "i" %}
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">{{ item.get_disposition_display }}</span>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800">{{ item.get_disposition_display }}</span>
             {% else %}
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">{{ item.get_disposition_display }}</span>
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">{{ item.get_disposition_display }}</span>
             {% endif %}
         </div>
     </div>
@@ -77,7 +81,12 @@
             {% csrf_token %}
             <input type="hidden" name="disposition" value="r">
             <input type="hidden" name="lens" value="{{ querystring }}">
-            <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-green-600 hover:bg-green-700">Relevant</button>
+            <button type="submit" class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                Relevant
+            </button>
         </form>
         <form hx-post="{% url 'research:item-disposition' result_set.project_id result_set.id item.id %}"
               hx-target="closest .item-card" hx-swap="outerHTML" class="inline-flex items-center gap-2">
@@ -87,31 +96,56 @@
             <input type="text" name="reason" value="{{ item.ignore_reason }}" placeholder="Reason (optional)"
                    list="ignore-reasons"
                    class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-            <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Ignore</button>
+            <button type="submit" class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-rose-600 hover:bg-rose-700">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+                Ignore
+            </button>
         </form>
         <form hx-post="{% url 'research:item-disposition' result_set.project_id result_set.id item.id %}"
               hx-target="closest .item-card" hx-swap="outerHTML" class="inline-flex">
             {% csrf_token %}
             <input type="hidden" name="disposition" value="u">
             <input type="hidden" name="lens" value="{{ querystring }}">
-            <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Unreviewed</button>
+            <button type="submit" class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 text-xs font-medium rounded-md text-slate-700 bg-slate-100 hover:bg-slate-200">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Unreviewed
+            </button>
         </form>
         {% if item.can_undo %}
             <form hx-post="{% url 'research:event-undo' result_set.project_id result_set.id item.last_event_id %}"
                   hx-target="closest .item-card" hx-swap="outerHTML" class="inline-flex">
                 {% csrf_token %}
                 <input type="hidden" name="lens" value="{{ querystring }}">
-                <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Undo</button>
+                <button type="submit" class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-slate-300 text-xs font-medium rounded-md text-slate-700 bg-slate-100 hover:bg-slate-200">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"></path>
+                    </svg>
+                    Undo
+                </button>
             </form>
         {% endif %}
         <a href="{% url 'research:rule-create' result_set.project_id %}?page={{ item.id }}"
-           class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Ignore pages like this</a>
+           class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-amber-200 text-xs font-medium rounded-md text-amber-700 bg-amber-50 hover:bg-amber-100">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l18 18"></path>
+            </svg>
+            Ignore pages like this
+        </a>
         {% if item.page_obj %}
             <a href="{% url 'research:page-coding' result_set.project_id item.page_obj.id %}"
                hx-get="{% url 'research:page-coding' result_set.project_id item.page_obj.id %}"
                hx-target="#page-coding-{{ item.page_obj.id }}"
                hx-swap="outerHTML"
-               class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Codes</a>
+               class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-indigo-200 text-xs font-medium rounded-md text-indigo-700 bg-indigo-50 hover:bg-indigo-100">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5a2 2 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"></path>
+                </svg>
+                Codes
+            </a>
         {% endif %}
     </div>
     {% if item.page_obj %}

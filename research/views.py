@@ -181,6 +181,16 @@ def _undo_single_item_id(event: AuditEvent) -> int | None:
     return int(item_ids[0])
 
 
+def _item_ids_from_post(request) -> list[int]:
+    item_ids: list[int] = []
+    for raw in request.POST.getlist("item_ids"):
+        try:
+            item_ids.append(int(raw))
+        except (TypeError, ValueError):
+            continue
+    return item_ids
+
+
 def _spec_from_search(params) -> QuerySpec:
     document_type = (params.get("document_type") or "all").strip()
     if document_type not in {"agenda", "minutes"}:
@@ -650,6 +660,8 @@ class DispositionView(LoginRequiredMixin, View):
             context["item"] = next_item
             context["cursor"] = cursor
             return render(request, "research/partials/review_item.html", context)
+        if lens.dispositions and set_item.disposition not in lens.dispositions:
+            return HttpResponse("")
         return render(request, "research/partials/item.html", context)
 
 
@@ -664,11 +676,48 @@ class BulkActionView(LoginRequiredMixin, View):
         if result_set.status != ResultSet.Status.READY:
             return HttpResponse("Set is not ready", status=409)
         lens = Lens.from_querydict(QueryDict(request.POST.get("lens", "")))
+        item_ids = _item_ids_from_post(request)
+        items = filter_items(result_set, lens)
+        if item_ids:
+            items = items.filter(id__in=item_ids)
+
+        disposition = request.POST.get("disposition", "")
         code_id = request.POST.get("code")
+
+        if disposition:
+            if disposition not in SetItem.Disposition.values:
+                return HttpResponseBadRequest("Invalid disposition")
+            reason = request.POST.get("reason", "")
+            if request.POST.get("confirm") != "1":
+                return render(
+                    request,
+                    "research/partials/bulk_confirm.html",
+                    {
+                        "result_set": result_set,
+                        "lens": lens,
+                        "querystring": lens.to_querystring(),
+                        "disposition": disposition,
+                        "disposition_label": SetItem.Disposition(disposition).label,
+                        "reason": reason,
+                        "count": items.count(),
+                        "item_ids": item_ids,
+                    },
+                )
+            dispose_items(
+                result_set,
+                lens,
+                disposition,
+                actor=request.user,
+                reason=reason,
+                item_ids=item_ids,
+            )
+            response = HttpResponse("")
+            response["HX-Refresh"] = "true"
+            return response
+
         if code_id:
             code = get_object_or_404(Code, id=code_id, project=result_set.project)
             if request.POST.get("confirm") != "1":
-                count = filter_items(result_set, lens).count()
                 return render(
                     request,
                     "research/partials/bulk_confirm.html",
@@ -677,38 +726,23 @@ class BulkActionView(LoginRequiredMixin, View):
                         "lens": lens,
                         "querystring": lens.to_querystring(),
                         "code": code,
-                        "count": count,
+                        "count": items.count(),
+                        "item_ids": item_ids,
                     },
                 )
             apply_code_to_lens(
-                result_set.project, code, result_set, lens, actor=request.user
+                result_set.project,
+                code,
+                result_set,
+                lens,
+                actor=request.user,
+                item_ids=item_ids,
             )
             response = HttpResponse("")
             response["HX-Refresh"] = "true"
             return response
-        disposition = request.POST.get("disposition", "")
-        if disposition not in SetItem.Disposition.values:
-            return HttpResponseBadRequest("Invalid disposition")
-        reason = request.POST.get("reason", "")
-        if request.POST.get("confirm") != "1":
-            count = filter_items(result_set, lens).count()
-            return render(
-                request,
-                "research/partials/bulk_confirm.html",
-                {
-                    "result_set": result_set,
-                    "lens": lens,
-                    "querystring": lens.to_querystring(),
-                    "disposition": disposition,
-                    "disposition_label": SetItem.Disposition(disposition).label,
-                    "reason": reason,
-                    "count": count,
-                },
-            )
-        dispose_items(result_set, lens, disposition, actor=request.user, reason=reason)
-        response = HttpResponse("")
-        response["HX-Refresh"] = "true"
-        return response
+
+        return HttpResponseBadRequest("Invalid bulk action")
 
 
 class UndoView(LoginRequiredMixin, View):
