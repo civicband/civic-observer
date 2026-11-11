@@ -51,7 +51,7 @@ services:
       - civic-network
 
   redis:
-    image: "redis:7-alpine"
+    image: "redis:8-alpine"
     init: true
     ports:
       - "6379:6379"
