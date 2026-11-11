@@ -91,6 +91,21 @@ class TestProjectDetailView:
         assert "First snapshot" in content
         assert "at least 600000 pages" in content
 
+    def test_shows_ignored_counts_and_ignore_rules_label(self, client):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project)
+        SetItemFactory(result_set=result_set, disposition="i")
+        SetItemFactory(result_set=result_set, disposition="u")
+        client.force_login(user)
+
+        response = client.get(reverse("research:project-detail", args=[project.id]))
+
+        content = response.content.decode()
+        assert "1 ignored" in content
+        assert "Ignore rules" in content
+        assert "Timeline" in content
+
 
 @pytest.mark.django_db
 class TestSetCreateView:
@@ -275,6 +290,20 @@ class TestSetDetailView:
         assert "Page 7" in content
         assert "States" in content
         assert "CA" in content
+
+    def test_shows_ignored_count_and_link(self, client):
+        user, project, result_set = self._ready_set()
+        SetItemFactory(result_set=result_set, disposition="i")
+        SetItemFactory(result_set=result_set, disposition="u")
+
+        client.force_login(user)
+        response = client.get(
+            reverse("research:set-detail", args=[project.id, result_set.id])
+        )
+
+        content = response.content.decode()
+        assert "1 ignored" in content
+        assert "?disposition=i" in content
 
     def test_renders_selection_bar_and_item_checkboxes(self, client):
         user, project, result_set = self._ready_set()

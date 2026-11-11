@@ -86,6 +86,18 @@ class TestCodebookTree:
 
         assert [coding.page_id for coding in tree[0]["exemplars"]] == [page.id]
 
+    def test_does_not_enumerate_all_meeting_pages(self, monkeypatch):
+        project = ProjectFactory()
+        CodeFactory(project=project)
+
+        from meetings.models import MeetingPage
+
+        def fail(*args, **kwargs):
+            raise AssertionError("codebook_tree must not enumerate every meeting page")
+
+        monkeypatch.setattr(MeetingPage.objects, "values", fail)
+        codebook_tree(project)
+
     def test_skips_codings_with_missing_pages(self):
         project = ProjectFactory()
         code = CodeFactory(project=project)

@@ -11,6 +11,11 @@ urlpatterns = [
     path("add-to-set/", views.AddToSetView.as_view(), name="add-to-set"),
     path("<uuid:project>/", views.ProjectDetailView.as_view(), name="project-detail"),
     path(
+        "<uuid:project>/timeline/",
+        views.ProjectTimelineView.as_view(),
+        name="project-timeline",
+    ),
+    path(
         "<uuid:project>/methods/",
         views.MethodsView.as_view(),
         name="methods",

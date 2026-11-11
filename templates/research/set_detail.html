@@ -16,7 +16,12 @@
             <div>
                 <h1 class="text-3xl font-bold tracking-tight text-gray-900">{{ result_set.name }}</h1>
                 <p class="mt-2 text-sm text-gray-600">
-                    {% if result_set.status == "too_large" %}
+                    {% if result_set.status == "ready" %}
+                        {{ lens_count }} in this view ·
+                        <a href="{% url 'research:set-detail' result_set.project_id result_set.id %}?disposition=i"
+                           class="text-indigo-600 hover:text-indigo-800">{{ ignored_count }} ignored</a>
+                        · {{ result_set.item_count }} total
+                    {% elif result_set.status == "too_large" %}
                         at least {{ result_set.item_count }} page{{ result_set.item_count|pluralize }}
                     {% else %}
                         {{ result_set.item_count }} page{{ result_set.item_count|pluralize }}

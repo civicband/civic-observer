@@ -3,7 +3,7 @@ from datetime import date
 
 from django.conf import settings
 from django.contrib.auth.mixins import LoginRequiredMixin
-from django.db.models import Count, Prefetch, QuerySet
+from django.db.models import Count, Prefetch, Q, QuerySet
 from django.http import (
     FileResponse,
     Http404,
@@ -387,7 +387,29 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["timeline"] = project_timeline(self.object)
+        sets = self.object.sets.annotate(
+            ignored_count=Count(
+                "items",
+                filter=Q(items__disposition=SetItem.Disposition.IGNORED),
+            )
+        )
+        context["sets"] = sets
+        context["ignored_total"] = sum(result_set.ignored_count for result_set in sets)
+        return context
+
+
+class ProjectTimelineView(LoginRequiredMixin, DetailView):
+    model = Project
+    template_name = "research/timeline.html"
+    context_object_name = "project"
+    pk_url_kwarg = "project"
+
+    def get_queryset(self) -> QuerySet[Project]:
+        return Project.objects.filter(owner=self.request.user)  # type: ignore[misc]
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        context["timeline"] = project_timeline(self.object, limit=200)
         return context
 
 
@@ -456,6 +478,10 @@ class SetDetailView(LoginRequiredMixin, DetailView):
         context["next_cursor"] = None
         context["facets"] = {}
         context["ignore_reasons"] = _ignore_reasons(result_set)
+        context["ignored_count"] = SetItem.objects.filter(
+            result_set=result_set,
+            disposition=SetItem.Disposition.IGNORED,
+        ).count()
         context["codes"] = result_set.project.codes.filter(is_archived=False).order_by(
             "name"
         )
@@ -845,6 +871,14 @@ class IgnoreRuleListView(LoginRequiredMixin, ListView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
+        ignored_counts = dict(
+            SetItem.objects.filter(
+                result_set__project=self.project,
+                disposition_by_rule__isnull=False,
+            )
+            .values_list("disposition_by_rule_id")
+            .annotate(count=Count("id"))
+        )
         rows = []
         for rule in context["rules"]:
             spec = QuerySpec.from_canonical(rule.predicate or {})
@@ -853,10 +887,12 @@ class IgnoreRuleListView(LoginRequiredMixin, ListView):
                     "rule": rule,
                     "summary": self._summary(spec),
                     "preview_fields": _rule_form_initial(spec),
+                    "ignored_count": ignored_counts.get(rule.id, 0),
                 }
             )
         context["project"] = self.project
         context["rule_rows"] = rows
+        context["ignored_total"] = sum(ignored_counts.values())
         return context
 
     @staticmethod

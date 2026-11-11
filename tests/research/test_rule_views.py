@@ -39,6 +39,22 @@ class TestRuleViews:
         assert "Mine" in content
         assert "Other" not in content
 
+    def test_rule_list_shows_ignored_count_and_explanation(self, client):
+        user, project = self._project()
+        rule = IgnoreRuleFactory(project=project, name="Boilerplate")
+        item = SetItemFactory(
+            result_set=ResultSetFactory(project=project), disposition="i"
+        )
+        item.disposition_by_rule = rule
+        item.save()
+        client.force_login(user)
+
+        response = client.get(reverse("research:rule-list", args=[project.id]))
+
+        content = response.content.decode()
+        assert "1 page currently ignored" in content
+        assert "do not create a new set" in content
+
     def test_create_requires_login(self, client):
         _, project = self._project()
         assert (

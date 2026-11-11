@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from django.db import IntegrityError, connection, transaction
-from django.db.models import Count, Q
+from django.db.models import Count, Exists, OuterRef
 from django.utils import timezone
 
 from meetings.models import MeetingPage
@@ -17,10 +17,17 @@ from .models import Code, Coding, Memo
 
 
 def codebook_tree(project, *, include_archived: bool = False) -> list[dict]:
-    """Return codes as a one-level tree with counts and exemplars."""
-    surviving_page_ids = MeetingPage.objects.values("pk")
+    """Return codes as a one-level tree with counts and exemplars.
+
+    Join to ``MeetingPage`` instead of filtering with a subquery over every
+    page in the corpus. On the production-sized page table the subquery made
+    opening the codebook time out.
+    """
     codes = Code.objects.filter(project=project).annotate(
-        coding_count=Count("codings", filter=Q(codings__page_id__in=surviving_page_ids))
+        coding_count=Count(
+            "codings",
+            filter=Exists(MeetingPage.objects.filter(pk=OuterRef("codings__page_id"))),
+        )
     )
     if not include_archived:
         codes = codes.exclude(is_archived=True)
@@ -37,8 +44,9 @@ def codebook_tree(project, *, include_archived: bool = False) -> list[dict]:
                 Coding.objects.filter(
                     code=code,
                     is_exemplar=True,
-                    page_id__in=surviving_page_ids,
-                ).select_related("page")
+                )
+                .filter(Exists(MeetingPage.objects.filter(pk=OuterRef("page_id"))))
+                .select_related("page")
             ),
         }
 
