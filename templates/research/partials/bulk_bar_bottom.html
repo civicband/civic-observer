@@ -1,0 +1,72 @@
+{% if lens_count %}
+    <div class="mt-2 mb-2 flex items-center justify-between gap-2">
+        <span class="text-xs text-gray-500">
+            {{ lens_count }} item{{ lens_count|pluralize }} in this view · select pages to bulk edit
+        </span>
+        <button type="button" onclick="toggleAllItems(true)"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-indigo-200 text-xs font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+            </svg>
+            Select all
+        </button>
+    </div>
+    <div id="bulk-selection-bottom" data-selection-bar
+         class="mt-4 flex-wrap items-center gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3 shadow-sm"
+         style="display: none">
+        <span class="text-sm font-medium text-indigo-900">
+            <span data-selection-count>0</span> selected
+        </span>
+        <button type="button" onclick="clearSelection()"
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+            Clear
+        </button>
+        <form id="bulk-selected-form-bottom"
+              hx-post="{% url 'research:set-bulk' result_set.project_id result_set.id %}"
+              hx-target="#bulk-confirm-bottom" hx-swap="innerHTML"
+              hx-disabled-elt="find button[type='submit']"
+              autocomplete="off"
+              class="flex flex-wrap items-center gap-2">
+            {% csrf_token %}
+            <input type="hidden" name="lens" value="{{ querystring }}">
+            <input type="hidden" name="confirm_id" value="bulk-confirm-bottom">
+            <input type="hidden" name="item_ids" value="" data-bulk-item-ids>
+            <button type="submit" name="disposition" value="r"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                Accept
+            </button>
+            <input type="text" name="reason" placeholder="Reason (optional)"
+                   list="ignore-reasons"
+                   class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+            <button type="submit" name="disposition" value="i"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-rose-600 hover:bg-rose-700">
+                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+                Ignore
+            </button>
+            {% if codes %}
+                <select name="code" class="rounded-md border-gray-300 text-xs shadow-sm">
+                    <option value="">Apply code…</option>
+                    {% for code in codes %}
+                        <option value="{{ code.id }}">{{ code.name }}</option>
+                    {% endfor %}
+                </select>
+                <button type="submit" name="apply_code" value="1"
+                        class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5a2 2 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"></path>
+                    </svg>
+                    Apply code
+                </button>
+            {% endif %}
+        </form>
+    </div>
+    <div id="bulk-confirm-bottom"></div>
+{% endif %}

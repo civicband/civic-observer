@@ -36,7 +36,7 @@
             </svg>
             Confirm
         </button>
-        <button type="button" onclick="document.getElementById('bulk-confirm').innerHTML = ''"
+        <button type="button" onclick="document.getElementById('{{ confirm_id|default:'bulk-confirm' }}').innerHTML = ''"
                 class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
