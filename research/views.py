@@ -184,10 +184,14 @@ def _undo_single_item_id(event: AuditEvent) -> int | None:
 def _item_ids_from_post(request) -> list[int]:
     item_ids: list[int] = []
     for raw in request.POST.getlist("item_ids"):
-        try:
-            item_ids.append(int(raw))
-        except (TypeError, ValueError):
-            continue
+        for part in str(raw).split(","):
+            part = part.strip()
+            if not part:
+                continue
+            try:
+                item_ids.append(int(part))
+            except (TypeError, ValueError):
+                continue
     return item_ids
 
 
@@ -677,6 +681,9 @@ class BulkActionView(LoginRequiredMixin, View):
             return HttpResponse("Set is not ready", status=409)
         lens = Lens.from_querydict(QueryDict(request.POST.get("lens", "")))
         item_ids = _item_ids_from_post(request)
+        confirm_id = request.POST.get("confirm_id", "bulk-confirm")
+        if confirm_id not in {"bulk-confirm", "bulk-confirm-bottom"}:
+            confirm_id = "bulk-confirm"
         items = filter_items(result_set, lens)
         if item_ids:
             items = items.filter(id__in=item_ids)
@@ -701,6 +708,7 @@ class BulkActionView(LoginRequiredMixin, View):
                         "reason": reason,
                         "count": items.count(),
                         "item_ids": item_ids,
+                        "confirm_id": confirm_id,
                     },
                 )
             dispose_items(
@@ -728,6 +736,7 @@ class BulkActionView(LoginRequiredMixin, View):
                         "code": code,
                         "count": items.count(),
                         "item_ids": item_ids,
+                        "confirm_id": confirm_id,
                     },
                 )
             apply_code_to_lens(

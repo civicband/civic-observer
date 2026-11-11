@@ -301,6 +301,12 @@ class TestSetDetailView:
         assert "Ignore all" not in content
         assert "bg-emerald-600" in content
         assert "bg-rose-600" in content
+        assert 'id="bulk-selection-bottom"' in content
+        assert "data-bulk-item-ids" in content
+        assert 'name="confirm_id" value="bulk-confirm"' in content
+        assert 'name="confirm_id" value="bulk-confirm-bottom"' in content
+        assert "window.addEventListener('pageshow', clearSelection)" in content
+        assert '@keydown.escape.window="lightbox = false"' in content
 
     def test_renders_page_image_and_show_more(self, client):
         user, project, result_set = self._ready_set()
@@ -815,6 +821,50 @@ class TestBulkActionView:
         assert second.disposition == "r"
         assert untouched.disposition == "u"
 
+    def test_accepts_comma_separated_item_ids(self, client):
+        user = UserFactory()
+        project = ProjectFactory(owner=user)
+        result_set = ResultSetFactory(project=project, status=ResultSet.Status.READY)
+        first = SetItemFactory(result_set=result_set, disposition="u")
+        second = SetItemFactory(result_set=result_set, disposition="u")
+        untouched = SetItemFactory(result_set=result_set, disposition="u")
+        client.force_login(user)
+
+        response = client.post(
+            self._url(result_set),
+            {
+                "disposition": "r",
+                "lens": "",
+                "item_ids": f"{first.id},{second.id}",
+                "confirm": "1",
+            },
+        )
+
+        assert response.status_code == 200
+        first.refresh_from_db()
+        second.refresh_from_db()
+        untouched.refresh_from_db()
+        assert first.disposition == "r"
+        assert second.disposition == "r"
+        assert untouched.disposition == "u"
+
+    def test_confirmation_cancel_targets_requested_container(self, client):
+        user, result_set, unreviewed, _ = self._set_with_items()
+        client.force_login(user)
+
+        response = client.post(
+            self._url(result_set),
+            {
+                "disposition": "r",
+                "lens": "",
+                "item_ids": [unreviewed.id],
+                "confirm_id": "bulk-confirm-bottom",
+            },
+        )
+
+        content = response.content.decode()
+        assert "getElementById('bulk-confirm-bottom')" in content
+
     def test_rejects_bulk_when_set_is_not_ready(self, client):
         user, result_set, unreviewed, _ = self._set_with_items()
         result_set.status = ResultSet.Status.PENDING
@@ -1070,6 +1120,7 @@ class TestReviewView:
         content = response.content.decode()
         assert "bg-emerald-600" in content
         assert "bg-rose-600" in content
+        assert '@keydown.escape.window="lightbox = false"' in content
 
     def test_keyboard_shortcuts_ignore_modifier_keys(self, client):
         user, result_set, _, _ = self._set_with_items()
