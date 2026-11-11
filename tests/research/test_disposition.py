@@ -204,6 +204,26 @@ class TestDisposeItems:
         assert event.payload["from"] == {"u": 2}
         assert event.payload["lens"] == "disposition=u"
 
+    def test_updates_only_selected_item_ids(self):
+        result_set, items = self._three_items()
+
+        event, count = dispose_items(
+            result_set,
+            Lens(dispositions=("u", "r", "i")),
+            "i",
+            item_ids=[items[0].id, items[2].id],
+        )
+
+        assert count == 2
+        for item in items:
+            item.refresh_from_db()
+        assert items[0].disposition == "i"
+        assert items[1].disposition == "u"
+        assert items[2].disposition == "i"
+        assert event is not None
+        assert event.payload["count"] == 2
+        assert event.payload["from"] == {"u": 1, "r": 1}
+
     def test_clears_rule_for_bulk(self):
         result_set, items = self._three_items()
         rule = IgnoreRuleFactory(project=result_set.project)

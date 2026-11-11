@@ -86,8 +86,12 @@ def dispose_items(
     *,
     actor=None,
     reason: str = "",
+    item_ids: list[int] | None = None,
 ) -> tuple[AuditEvent | None, int]:
-    """Bulk-dispose every item in ``lens`` with one UPDATE and one event."""
+    """Bulk-dispose every item in ``lens`` with one UPDATE and one event.
+
+    When ``item_ids`` is provided, only those items are updated.
+    """
     if disposition not in SetItem.Disposition.values:
         raise ValueError(f"Invalid disposition: {disposition!r}")
 
@@ -95,6 +99,8 @@ def dispose_items(
     if disposition != SetItem.Disposition.IGNORED:
         reason = ""
     items: QuerySet[SetItem] = filter_items(result_set, lens)
+    if item_ids:
+        items = items.filter(id__in=item_ids)
     changed = items.exclude(
         disposition=disposition,
         ignore_reason=reason,

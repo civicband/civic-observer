@@ -314,10 +314,22 @@ def apply_code_to_pages(
 
 
 def apply_code_to_lens(
-    project, code, result_set, lens: Lens, *, actor=None
+    project,
+    code,
+    result_set,
+    lens: Lens,
+    *,
+    actor=None,
+    item_ids: list[int] | None = None,
 ) -> list[Coding]:
-    """Apply a code to every page visible through a lens."""
-    page_ids = list(filter_items(result_set, lens).values_list("page_id", flat=True))
+    """Apply a code to every page visible through a lens.
+
+    When ``item_ids`` is provided, only those items are updated.
+    """
+    items = filter_items(result_set, lens)
+    if item_ids:
+        items = items.filter(id__in=item_ids)
+    page_ids = list(items.values_list("page_id", flat=True))
     return apply_code_to_pages(
         project,
         code,

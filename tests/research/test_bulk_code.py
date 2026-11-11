@@ -40,6 +40,42 @@ class TestBulkCodeApplication:
         assert "Housing" in content
         assert "1 item" in content
 
+    def test_confirmation_shows_selected_count(self, client):
+        user, project, result_set, _ca, _or, code = _setup()
+        selected = result_set.items.order_by("id").first()
+        assert selected is not None
+        client.force_login(user)
+
+        response = client.post(
+            reverse("research:set-bulk", args=[project.id, result_set.id]),
+            {"code": str(code.id), "lens": "", "item_ids": [selected.id]},
+        )
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "1 selected item" in content
+        assert f'name="item_ids" value="{selected.id}"' in content
+
+    def test_confirm_applies_code_to_selected_items(self, client):
+        user, project, result_set, _ca, _or, code = _setup()
+        selected, other = list(result_set.items.order_by("id"))
+        client.force_login(user)
+
+        response = client.post(
+            reverse("research:set-bulk", args=[project.id, result_set.id]),
+            {
+                "code": str(code.id),
+                "lens": "",
+                "item_ids": [selected.id],
+                "confirm": "1",
+            },
+        )
+
+        assert response.status_code == 200
+        assert response["HX-Refresh"] == "true"
+        assert Coding.objects.filter(code=code, page_id=selected.page_id).exists()
+        assert not Coding.objects.filter(code=code, page_id=other.page_id).exists()
+
     def test_confirm_applies_code_to_the_lens(self, client):
         user, project, result_set, ca, or_, code = _setup()
         client.force_login(user)
