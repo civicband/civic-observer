@@ -4,42 +4,42 @@
 
 {% block content %}
     <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <nav class="text-sm text-gray-500 mb-2">
-            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600">Research</a>
+        <nav class="text-sm text-gray-500 mb-2 dark:text-gray-400">
+            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">Research</a>
             <span class="mx-2">/</span>
-            <a href="{% url 'research:project-detail' project.id %}" class="hover:text-indigo-600">{{ project.name }}</a>
+            <a href="{% url 'research:project-detail' project.id %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">{{ project.name }}</a>
             <span class="mx-2">/</span>
-            <span class="text-gray-900">Codebook</span>
+            <span class="text-gray-900 dark:text-gray-100">Codebook</span>
         </nav>
 
         <div class="sm:flex sm:items-center sm:justify-between">
             <div>
-                <h1 class="text-3xl font-bold tracking-tight text-gray-900">Codebook</h1>
-                <p class="mt-2 text-sm text-gray-600">Define, organize, and merge the codes used to annotate pages.</p>
+                <h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Codebook</h1>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">Define, organize, and merge the codes used to annotate pages.</p>
             </div>
         </div>
 
         {% if error %}
-            <div class="mt-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+            <div class="mt-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 dark:text-red-200 dark:bg-red-950 dark:border-red-800">
                 {{ error }}
             </div>
         {% endif %}
 
-        <div class="mt-8 bg-white shadow rounded-lg border border-gray-200">
+        <div class="mt-8 bg-white shadow rounded-lg border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
             <div class="px-4 py-5 sm:p-6">
-                <h2 class="text-lg font-medium text-gray-900">New code</h2>
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">New code</h2>
                 <form method="post" action="{% url 'research:code-create' project.id %}" class="mt-4 space-y-4">
                     {% csrf_token %}
                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
-                            <label for="code-name" class="block text-sm font-medium text-gray-700">Name</label>
+                            <label for="code-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
                             <input type="text" name="name" id="code-name" required
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700">
                         </div>
                         <div>
-                            <label for="code-parent" class="block text-sm font-medium text-gray-700">Parent</label>
+                            <label for="code-parent" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Parent</label>
                             <select name="parent" id="code-parent"
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700">
                                 <option value="">None (root code)</option>
                                 {% for node in tree %}
                                     <option value="{{ node.code.id }}">{{ node.code.name }}</option>
@@ -47,24 +47,24 @@
                             </select>
                         </div>
                         <div>
-                            <label for="code-color" class="block text-sm font-medium text-gray-700">Color</label>
+                            <label for="code-color" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Color</label>
                             <input type="color" name="color" id="code-color" value="#6366f1"
-                                   class="mt-1 block h-9 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                   class="mt-1 block h-9 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700">
                         </div>
                         <div>
-                            <label for="code-definition" class="block text-sm font-medium text-gray-700">Definition</label>
+                            <label for="code-definition" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Definition</label>
                             <input type="text" name="definition" id="code-definition"
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700">
                         </div>
                         <div>
-                            <label for="code-inclusion" class="block text-sm font-medium text-gray-700">Apply when</label>
+                            <label for="code-inclusion" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Apply when</label>
                             <textarea name="inclusion" id="code-inclusion" rows="2"
-                                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
+                                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700"></textarea>
                         </div>
                         <div>
-                            <label for="code-exclusion" class="block text-sm font-medium text-gray-700">Do not apply when</label>
+                            <label for="code-exclusion" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Do not apply when</label>
                             <textarea name="exclusion" id="code-exclusion" rows="2"
-                                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
+                                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700"></textarea>
                         </div>
                     </div>
                     <div>
@@ -77,15 +77,15 @@
             </div>
         </div>
 
-        <div class="mt-8 bg-white shadow rounded-lg border border-gray-200">
+        <div class="mt-8 bg-white shadow rounded-lg border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
             <div class="px-4 py-5 sm:p-6">
-                <h2 class="text-lg font-medium text-gray-900">Memo</h2>
-                <p class="mt-1 text-sm text-gray-600">Leave a note about this codebook. Markdown is supported.</p>
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">Memo</h2>
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">Leave a note about this codebook. Markdown is supported.</p>
                 <form method="post" action="{% url 'research:memo-create' project.id %}" class="mt-4 space-y-3">
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{% url 'research:codebook' project.id %}">
                     <textarea name="body" rows="2" required placeholder="Notes on definitions, boundaries, or decisions"
-                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
+                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700"></textarea>
                     <button type="submit"
                             class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
                         Add memo
@@ -96,15 +96,15 @@
                         {% csrf_token %}
                         <input type="hidden" name="code" value="{{ code.id }}">
                         <input type="text" name="body" required placeholder="Memo for {{ code.name }}"
-                               class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-                        <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Add code memo</button>
+                               class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700">
+                        <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">Add code memo</button>
                     </form>
                 {% endfor %}
             </div>
         </div>
 
         <div class="mt-8">
-            <h2 class="text-lg font-medium text-gray-900">Codes</h2>
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">Codes</h2>
             <div class="mt-4 space-y-4">
                 {% include "research/partials/codebook_tree.html" %}
             </div>

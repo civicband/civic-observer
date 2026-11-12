@@ -140,3 +140,16 @@ def test_research_core_pages_have_dark_variants():
             *sorted((TEMPLATES / "research/partials").glob("*.html")),
         ]
     )
+
+
+def test_research_secondary_pages_have_dark_variants():
+    assert_dark_variants(
+        [
+            TEMPLATES / "research/codebook.html",
+            TEMPLATES / "research/export.html",
+            TEMPLATES / "research/methods.html",
+            TEMPLATES / "research/timeline.html",
+            *sorted((TEMPLATES / "research/rules").rglob("*.html")),
+            TEMPLATES / "research/partials/codebook_tree.html",
+        ]
+    )

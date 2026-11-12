@@ -4,30 +4,30 @@
 
 {% block content %}
     <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <nav class="text-sm text-gray-500 mb-2">
-            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600">Research</a>
+        <nav class="text-sm text-gray-500 mb-2 dark:text-gray-400">
+            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">Research</a>
             <span class="mx-2">/</span>
-            <a href="{% url 'research:project-detail' project.id %}" class="hover:text-indigo-600">{{ project.name }}</a>
+            <a href="{% url 'research:project-detail' project.id %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">{{ project.name }}</a>
             <span class="mx-2">/</span>
-            <span class="text-gray-900">Methods</span>
+            <span class="text-gray-900 dark:text-gray-100">Methods</span>
         </nav>
 
         <div class="sm:flex sm:items-center sm:justify-between">
             <div>
-                <h1 class="text-3xl font-bold tracking-tight text-gray-900">Methods</h1>
-                <p class="mt-2 text-sm text-gray-600">How this project's sets, decisions, and codes were produced.</p>
+                <h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Methods</h1>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">How this project's sets, decisions, and codes were produced.</p>
             </div>
             <div class="mt-4 sm:mt-0">
                 <button type="button"
                         onclick="copyMethodsMarkdown()"
-                        class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                        class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
                     Copy Markdown
                 </button>
             </div>
         </div>
 
         <textarea id="methods-markdown-source" class="hidden" readonly>{{ methods_markdown }}</textarea>
-        <pre id="methods-markdown" class="mt-6 whitespace-pre-wrap break-words rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-800">{{ methods_markdown }}</pre>
+        <pre id="methods-markdown" class="mt-6 whitespace-pre-wrap break-words rounded-lg border border-gray-200 bg-gray-50 p-4 text-sm text-gray-800 dark:bg-gray-900 dark:text-gray-200 dark:border-gray-800">{{ methods_markdown }}</pre>
     </div>
 
     <script>
