@@ -73,7 +73,7 @@
                     {% csrf_token %}
                     <input type="hidden" name="lens" value="{{ querystring }}">
                     <input type="text" name="name" required placeholder="Child set name"
-                           class="rounded-md border-gray-300 text-sm shadow-sm dark:border-gray-700">
+                           class="rounded-md border-gray-300 text-sm shadow-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                     <label class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300">
                         <input type="checkbox" name="copy_dispositions" value="1" checked>
                         Copy dispositions
@@ -97,7 +97,7 @@
                     <input type="hidden" name="result_set" value="{{ result_set.id }}">
                     <input type="hidden" name="next" value="{% url 'research:set-detail' result_set.project_id result_set.id %}">
                     <textarea name="body" rows="2" required placeholder="Why this query, what to look for, etc."
-                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700"></textarea>
+                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"></textarea>
                     <button type="submit"
                             class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">

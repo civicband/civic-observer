@@ -70,7 +70,7 @@
                                 {% endif %}
                             </div>
                             {% if form.subdomain.errors %}
-                                <p class="mt-2 text-sm text-red-600 dark:text-red-200">{{ form.subdomain.errors.0 }}</p>
+                                <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.subdomain.errors.0 }}</p>
                             {% endif %}
                             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">The subdomain for the municipality's CivicBand site</p>
                         </div>
@@ -87,7 +87,7 @@
                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.name.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900"
                                    placeholder="e.g., City of Berkeley">
                             {% if form.name.errors %}
-                                <p class="mt-2 text-sm text-red-600 dark:text-red-200">{{ form.name.errors.0 }}</p>
+                                <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.name.errors.0 }}</p>
                             {% endif %}
                         </div>
 
@@ -104,7 +104,7 @@
                                        class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.state.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900"
                                        placeholder="e.g., CA">
                                 {% if form.state.errors %}
-                                    <p class="mt-2 text-sm text-red-600 dark:text-red-200">{{ form.state.errors.0 }}</p>
+                                    <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.state.errors.0 }}</p>
                                 {% endif %}
                             </div>
                             <div>
@@ -118,7 +118,7 @@
                                        class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.country.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900"
                                        placeholder="e.g., US">
                                 {% if form.country.errors %}
-                                    <p class="mt-2 text-sm text-red-600 dark:text-red-200">{{ form.country.errors.0 }}</p>
+                                    <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.country.errors.0 }}</p>
                                 {% endif %}
                             </div>
                         </div>
@@ -135,7 +135,7 @@
                                        class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.kind.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900"
                                        placeholder="e.g., city">
                                 {% if form.kind.errors %}
-                                    <p class="mt-2 text-sm text-red-600 dark:text-red-200">{{ form.kind.errors.0 }}</p>
+                                    <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.kind.errors.0 }}</p>
                                 {% endif %}
                             </div>
                             <div>
@@ -148,7 +148,7 @@
                                        class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.pages.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900"
                                        placeholder="e.g., 150">
                                 {% if form.pages.errors %}
-                                    <p class="mt-2 text-sm text-red-600 dark:text-red-200">{{ form.pages.errors.0 }}</p>
+                                    <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.pages.errors.0 }}</p>
                                 {% endif %}
                             </div>
                         </div>
@@ -163,7 +163,7 @@
                                    id="{{ form.last_updated.id_for_label }}"
                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.last_updated.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900">
                             {% if form.last_updated.errors %}
-                                <p class="mt-2 text-sm text-red-600 dark:text-red-200">{{ form.last_updated.errors.0 }}</p>
+                                <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.last_updated.errors.0 }}</p>
                             {% endif %}
                         </div>
                     </div>
@@ -190,7 +190,7 @@
                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.latitude.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900"
                                    placeholder="e.g., 37.8715">
                             {% if form.latitude.errors %}
-                                <p class="mt-2 text-sm text-red-600 dark:text-red-200">{{ form.latitude.errors.0 }}</p>
+                                <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.latitude.errors.0 }}</p>
                             {% endif %}
                         </div>
                         <div>
@@ -203,7 +203,7 @@
                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.longitude.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900"
                                    placeholder="e.g., -122.2730">
                             {% if form.longitude.errors %}
-                                <p class="mt-2 text-sm text-red-600 dark:text-red-200">{{ form.longitude.errors.0 }}</p>
+                                <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.longitude.errors.0 }}</p>
                             {% endif %}
                         </div>
                     </div>
@@ -228,7 +228,7 @@
                                   class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm font-mono{% if form.popup_data.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900"
                                   placeholder='{"key": "value"}'>{{ form.popup_data.value|default:'' }}</textarea>
                         {% if form.popup_data.errors %}
-                            <p class="mt-2 text-sm text-red-600 dark:text-red-200">{{ form.popup_data.errors.0 }}</p>
+                            <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.popup_data.errors.0 }}</p>
                         {% endif %}
                         <p class="mt-2 text-sm text-gray-500 dark:text-gray-400">
                             <svg aria-hidden="true" class="inline w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">

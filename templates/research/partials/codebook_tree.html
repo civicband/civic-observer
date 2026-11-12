@@ -36,15 +36,15 @@
                 <form method="post" action="{% url 'research:code-rename' project.id node.code.id %}" class="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-2">
                     {% csrf_token %}
                     <input type="text" name="name" value="{{ node.code.name }}" required placeholder="Name"
-                           class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700">
+                           class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                     <input type="text" name="color" value="{{ node.code.color }}" placeholder="#rrggbb"
-                           class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700">
+                           class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                     <textarea name="definition" rows="2" placeholder="Definition"
-                              class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700">{{ node.code.definition }}</textarea>
+                              class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">{{ node.code.definition }}</textarea>
                     <textarea name="inclusion" rows="2" placeholder="Apply when"
-                              class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700">{{ node.code.inclusion }}</textarea>
+                              class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">{{ node.code.inclusion }}</textarea>
                     <textarea name="exclusion" rows="2" placeholder="Do not apply when"
-                              class="sm:col-span-2 rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700">{{ node.code.exclusion }}</textarea>
+                              class="sm:col-span-2 rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">{{ node.code.exclusion }}</textarea>
                     <button type="submit" class="sm:col-span-2 inline-flex w-fit items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">Save</button>
                 </form>
             </details>
@@ -55,7 +55,7 @@
             {% if codes|length > 1 %}
                 <form method="post" action="{% url 'research:code-merge' project.id node.code.id %}" class="flex items-center gap-2">
                     {% csrf_token %}
-                    <select name="target" class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700">
+                    <select name="target" class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                         {% for candidate in codes %}
                             {% if candidate.id != node.code.id %}
                                 <option value="{{ candidate.id }}">{{ candidate.name }}</option>

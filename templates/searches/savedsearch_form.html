@@ -62,7 +62,7 @@
                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.name.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900"
                                    placeholder="e.g., Berkeley Planning Commission Meetings">
                             {% if form.name.errors %}
-                                <p class="mt-2 text-sm text-red-600 dark:text-red-200">{{ form.name.errors.0 }}</p>
+                                <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.name.errors.0 }}</p>
                             {% endif %}
                             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">A descriptive name for this saved search</p>
                         </div>
@@ -88,7 +88,7 @@
                                 {% endfor %}
                             </select>
                             {% if form.search.errors %}
-                                <p class="mt-2 text-sm text-red-600 dark:text-red-200">{{ form.search.errors.0 }}</p>
+                                <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.search.errors.0 }}</p>
                             {% endif %}
                             <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Choose an existing search configuration to save</p>
                         </div>

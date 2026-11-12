@@ -88,7 +88,7 @@
                                             <p class="text-sm text-gray-600 mt-2 line-clamp-2 dark:text-gray-300" x-text="result.snippet"></p>
                                         </div>
                                         <span class="ml-3 inline-flex items-center px-2 py-1 rounded text-xs font-medium"
-                                              :class="result.type === 'agenda' ? 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200' : 'bg-green-100 dark:bg-green-950 text-green-800 dark:text-green-200'"
+                                              :class="result.type === 'agenda' ? 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200' : 'bg-green-100 dark:bg-green-950 text-green-800 dark:text-green-200' dark:text-blue-200 dark:text-green-200"
                                               x-text="result.type"></span>
                                     </div>
                                 </div>
@@ -141,7 +141,7 @@
 
                         <div class="mt-4 pt-4 border-t border-gray-200 dark:border-gray-800">
                             <button @click="addSamplePage()"
-                                    class="w-full inline-flex items-center justify-center px-4 py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-indigo-500 hover:text-indigo-600 dark:text-indigo-400 transition-colors dark:text-gray-300 dark:border-gray-700">
+                                    class="w-full inline-flex items-center justify-center px-4 py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-600 hover:border-indigo-500 hover:text-indigo-600 dark:text-indigo-400 transition-colors dark:text-gray-300 dark:border-gray-700 dark:hover:text-indigo-400">
                                 <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                                 </svg>
@@ -224,11 +224,11 @@
                                         </div>
                                         <div class="flex items-center gap-2">
                                             <span x-show="search.newResults > 0"
-                                                  class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                  class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-200">
                                                 <span x-text="search.newResults"></span> new
                                             </span>
                                             <span class="inline-flex items-center px-2 py-1 rounded text-xs font-medium"
-                                                  :class="search.frequency === 'immediate' ? 'bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-200' : search.frequency === 'daily' ? 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200' : 'bg-green-100 dark:bg-green-950 text-green-800 dark:text-green-200'"
+                                                  :class="search.frequency === 'immediate' ? 'bg-red-100 dark:bg-red-950 text-red-800 dark:text-red-200' : search.frequency === 'daily' ? 'bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200' : 'bg-green-100 dark:bg-green-950 text-green-800 dark:text-green-200' dark:text-blue-200 dark:text-green-200 dark:text-red-200"
                                                   x-text="search.frequency"></span>
                                         </div>
                                     </div>
@@ -236,7 +236,7 @@
                             </template>
                         </div>
 
-                        <div class="mt-4 p-4 bg-indigo-50 rounded-lg border border-indigo-100">
+                        <div class="mt-4 p-4 bg-indigo-50 rounded-lg border border-indigo-100 dark:bg-indigo-950 dark:border-indigo-800">
                             <div class="flex items-start">
                                 <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400 mt-0.5 mr-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -266,7 +266,7 @@
                             <div class="flex items-center justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-800">
                                 <div class="flex items-center">
                                     <div class="w-10 h-10 rounded-full bg-blue-100 dark:bg-blue-950 flex items-center justify-center mr-4">
-                                        <svg class="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <svg class="w-5 h-5 text-blue-600 dark:text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"></path>
                                         </svg>
                                     </div>
@@ -281,8 +281,8 @@
                         <!-- Bluesky Channel -->
                             <div class="flex items-center justify-between p-4 rounded-lg border border-gray-200 dark:border-gray-800">
                                 <div class="flex items-center">
-                                    <div class="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center mr-4">
-                                        <svg class="w-5 h-5 text-sky-600" viewBox="0 0 24 24" fill="currentColor">
+                                    <div class="w-10 h-10 rounded-full bg-sky-100 flex items-center justify-center mr-4 dark:bg-sky-950">
+                                        <svg class="w-5 h-5 text-sky-600 dark:text-sky-400" viewBox="0 0 24 24" fill="currentColor">
                                             <path d="M12 2C6.477 2 2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.879V14.89h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.989C18.343 21.129 22 16.99 22 12c0-5.523-4.477-10-10-10z"/>
                                         </svg>
                                     </div>
@@ -297,7 +297,7 @@
                         <!-- Webhook Channel -->
                             <div class="flex items-center justify-between p-4 rounded-lg border border-dashed border-gray-300 bg-gray-50 dark:bg-gray-900 dark:border-gray-700">
                                 <div class="flex items-center">
-                                    <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center mr-4">
+                                    <div class="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center mr-4 dark:bg-gray-800">
                                         <svg class="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path>
                                         </svg>

@@ -13,7 +13,7 @@ class MeetingSearchForm(forms.Form):
         widget=forms.TextInput(
             attrs={
                 "placeholder": 'Search for "zoning variance" or housing AND development',
-                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500",
+                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700",
                 "autofocus": True,
                 "aria-required": "true",
                 "aria-describedby": "query-help-text",
@@ -29,7 +29,7 @@ class MeetingSearchForm(forms.Form):
         widget=forms.TextInput(
             attrs={
                 "placeholder": "Filter by meeting name (e.g., planning OR zoning)",
-                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500",
+                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700",
                 "aria-describedby": "meeting-name-help-text",
             }
         ),
@@ -55,7 +55,7 @@ class MeetingSearchForm(forms.Form):
         widget=forms.DateInput(
             attrs={
                 "type": "date",
-                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500",
+                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700",
             }
         ),
     )
@@ -66,7 +66,7 @@ class MeetingSearchForm(forms.Form):
         widget=forms.DateInput(
             attrs={
                 "type": "date",
-                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500",
+                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700",
             }
         ),
     )
@@ -81,7 +81,7 @@ class MeetingSearchForm(forms.Form):
         help_text="Filter by document type",
         widget=forms.Select(
             attrs={
-                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500",
+                "class": "w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700",
             }
         ),
     )
