@@ -2,83 +2,30 @@
 <!DOCTYPE html>
 <html lang="en" class="h-full">
     <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <script>
             (function () {
                 var STORAGE_KEY = "civic-theme";
                 var root = document.documentElement;
-                var media = window.matchMedia("(prefers-color-scheme: dark)");
-
-                function storedMode() {
-                    try {
-                        var value = localStorage.getItem(STORAGE_KEY);
-                        return value === "light" || value === "dark" ? value : "system";
-                    } catch (error) {
-                        return "system";
+                var stored = "system";
+                try {
+                    var value = localStorage.getItem(STORAGE_KEY);
+                    if (value === "light" || value === "dark") {
+                        stored = value;
                     }
-                }
-
-                function resolved(mode) {
-                    return mode === "system" ? (media.matches ? "dark" : "light") : mode;
-                }
-
-                function syncButton(button) {
-                    var next = {system: "Light", light: "Dark", dark: "System"};
-                    var names = {system: "System (follow device)", light: "Light", dark: "Dark"};
-                    var label = "Theme: " + names[current] + " — switch to " + next[current];
-                    button.setAttribute("aria-label", label);
-                    button.setAttribute("title", label);
-                }
-
-                function apply(mode) {
-                    var theme = resolved(mode);
-                    root.classList.toggle("dark", theme === "dark");
-                    root.dataset.themeMode = mode;
-                    root.style.colorScheme = theme;
-                    document.querySelectorAll("[data-theme-toggle]").forEach(syncButton);
-                    root.dispatchEvent(new CustomEvent("themechange", {
-                        detail: {mode: mode, theme: theme}
-                    }));
-                }
-
-                var current = storedMode();
-                apply(current);
-
-                window.civicTheme = {
-                    get mode() { return current; },
-                    set: function (mode) {
-                        if (mode !== "light" && mode !== "dark" && mode !== "system") return;
-                        current = mode;
-                        try {
-                            if (mode === "system") {
-                                localStorage.removeItem(STORAGE_KEY);
-                            } else {
-                                localStorage.setItem(STORAGE_KEY, mode);
-                            }
-                        } catch (error) {}
-                        apply(current);
-                    },
-                    cycle: function () {
-                        var next = current === "system" ? "light" : current === "light" ? "dark" : "system";
-                        this.set(next);
-                    },
-                    resolved: function () { return resolved(current); },
-                    syncButton: syncButton
+                } catch (error) {}
+                var theme = stored === "system"
+                    ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+                    : stored;
+                root.classList.toggle("dark", theme === "dark");
+                root.dataset.themeMode = stored;
+                root.style.colorScheme = theme;
+                window.__civicThemeBoot = {
+                    mode: stored,
+                    resolved: theme,
+                    storageKey: STORAGE_KEY
                 };
-
-                media.addEventListener("change", function () {
-                    if (current === "system") apply(current);
-                });
-
-                window.addEventListener("storage", function (event) {
-                    if (event.key === STORAGE_KEY) {
-                        current = storedMode();
-                        apply(current);
-                    }
-                });
-
-                document.addEventListener("DOMContentLoaded", function () {
-                    document.querySelectorAll("[data-theme-toggle]").forEach(syncButton);
-                });
             })();
         </script>
         <style>
@@ -88,13 +35,13 @@
             [data-theme-mode="dark"] .theme-icon-dark { display: inline-flex; }
         </style>
         <noscript><style>[data-theme-toggle]{display:none}</style></noscript>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>{% block title %}CivicObserver{% endblock %}</title>
         {% tailwind_css %}
 
         <!-- HTMX -->
         <script src="https://unpkg.com/htmx.org@1.9.10" defer></script>
+        <!-- Theme controller -->
+        <script src="{% static 'js/theme.js' %}" defer></script>
         <!-- Alpine.js -->
         <script src="https://unpkg.com/alpinejs@3.13.3/dist/cdn.min.js" defer></script>
 
@@ -165,7 +112,7 @@
                                 {% endif %}
                                 <a href="{% url 'api_page' %}" class="text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium transition-colors" data-umami-event="nav_click" data-umami-event-destination="api">API</a>
                                 {% if user.is_staff %} <a href="{% url 'admin:index' %}" class="text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 font-medium transition-colors" data-umami-event="nav_click" data-umami-event-destination="admin">Admin</a> {% endif %}
-                                <button type="button" data-theme-toggle onclick="window.civicTheme.cycle()"
+                                <button type="button" data-theme-toggle @click="$store.theme.cycle()" :aria-label="$store.theme.label" :title="$store.theme.label"
                                         class="inline-flex items-center justify-center rounded-md p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 dark:text-gray-300 dark:hover:text-white dark:hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-indigo-500 transition-colors"
                                         aria-label="Theme: System (follow device) — switch to Light"
                                         title="Theme: System (follow device) — switch to Light">
@@ -230,7 +177,7 @@
                          id="mobile-menu"
                          x-cloak>
                         <div class="px-2 pt-2 pb-3 space-y-1 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800">
-                            <button type="button" data-theme-toggle onclick="window.civicTheme.cycle()"
+                            <button type="button" data-theme-toggle @click="$store.theme.cycle()" :aria-label="$store.theme.label" :title="$store.theme.label"
                                     class="flex w-full items-center gap-2 px-3 py-2 rounded-md text-base font-medium text-gray-600 hover:text-indigo-600 hover:bg-gray-50 dark:text-gray-300 dark:hover:text-indigo-400 dark:hover:bg-gray-800 transition-colors"
                                     aria-label="Theme: System (follow device) — switch to Light"
                                     title="Theme: System (follow device) — switch to Light">

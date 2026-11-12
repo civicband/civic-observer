@@ -66,14 +66,27 @@ the stylesheet:
 - Set `document.documentElement.dataset.themeMode` to `system`, `light`, or `dark`.
 - Set `document.documentElement.style.colorScheme` to match the resolved theme, so
   native form controls and scrollbars adapt.
+- Expose the initial mode to the deferred controller as `window.__civicThemeBoot`.
+
+The inline script must run before the page paints to avoid a light flash in dark mode.
+All storage access is wrapped so private-mode or blocked-storage failures fall back
+to System.
+
+### Theme controller
+
+Keep the ongoing controller out of `base.html` and in the tracked static file
+`frontend/js/theme.js`, loaded with `defer` before Alpine:
+
+- Register an `Alpine.store("theme")` inside the `alpine:init` event.
+- Store `mode` and expose `resolved`, `label`, `set(mode)`, and `cycle()`.
 - While in system mode, listen to `matchMedia("(prefers-color-scheme: dark)")` and
   update the resolved theme when the OS preference changes.
 - Listen for the `storage` event so other tabs follow a theme change.
-- Expose `window.civicTheme` with `mode`, `resolved`, `set(mode)`, and `cycle()`.
+- Update `.dark`, `data-theme-mode`, and `color-scheme` on every change.
+- Wrap storage access so private-mode or blocked-storage failures fall back to
+  an in-memory mode.
 
-The script must run before the page paints to avoid a light flash in dark mode.
-All storage access is wrapped so private-mode or blocked-storage failures fall back
-to System.
+The inline bootstrap remains the only theme code that must run before paint.
 
 ### Navbar control
 
@@ -82,7 +95,9 @@ to System.
 - Render three decorative icons in the button (system, sun, moon) and show only the
   active one using `data-theme-mode` selectors in `<head>` CSS. This avoids icon
   flicker before Alpine or other deferred scripts load.
-- Use `aria-label` and `title` that name the current mode and the next action, e.g.
+- Use Alpine bindings for the click handler, `aria-label`, and `title` from
+  `$store.theme`, with static fallback text before Alpine initializes.
+- The accessible label names the current mode and the next action, e.g.
   “Theme: System (follow device) — switch to Light”.
 - Keep the control keyboard-accessible with the existing focus-visible styles.
 - No visible text label in the navbar; the icons and accessible label carry meaning.

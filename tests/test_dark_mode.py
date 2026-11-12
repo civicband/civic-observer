@@ -133,18 +133,28 @@ def test_base_template_ships_theme_bootstrap_and_toggle(client):
 
     assert 'var STORAGE_KEY = "civic-theme";' in content
     assert "localStorage.getItem(STORAGE_KEY)" in content
-    assert "localStorage.setItem(STORAGE_KEY, mode)" in content
-    assert "localStorage.removeItem(STORAGE_KEY)" in content
-    assert "window.civicTheme" in content
+    assert "root.style.colorScheme" in content
+    assert "window.__civicThemeBoot" in content
     assert "data-theme-mode" in content
     assert "data-theme-toggle" in content
-    assert "root.style.colorScheme" in content
-    assert 'media.addEventListener("change"' in content
-    assert 'addEventListener("storage"' in content
     assert 'class="theme-icon theme-icon-system"' in content
     assert 'class="theme-icon theme-icon-light"' in content
     assert 'class="theme-icon theme-icon-dark"' in content
     assert 'aria-label="Theme:' in content
+    assert "js/theme.js" in content
+    assert content.index("js/theme.js") < content.index("alpinejs")
+
+
+def test_theme_controller_uses_alpine_store():
+    source = (Path(settings.BASE_DIR) / "frontend/js/theme.js").read_text()
+
+    assert "alpine:init" in source
+    assert 'Alpine.store("theme"' in source or "Alpine.store('theme'" in source
+    assert 'media.addEventListener("change"' in source
+    assert 'addEventListener("storage"' in source
+    assert "localStorage.setItem" in source
+    assert "localStorage.removeItem" in source
+    assert "cycle: function" in source or "cycle()" in source
 
 
 def test_base_template_dark_variants():
