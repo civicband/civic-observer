@@ -124,3 +124,7 @@ def test_meeting_pages_have_dark_variants():
 
 def test_municipality_pages_have_dark_variants():
     assert_dark_variants(sorted((TEMPLATES / "municipalities").rglob("*.html")))
+
+
+def test_saved_search_pages_have_dark_variants():
+    assert_dark_variants(sorted((TEMPLATES / "searches").rglob("*.html")))

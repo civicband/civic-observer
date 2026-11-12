@@ -6,8 +6,8 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <!-- Page Header -->
         <div class="mb-8">
-            <h1 class="text-3xl font-bold tracking-tight text-gray-900">Browse Topics</h1>
-            <p class="mt-2 text-sm text-gray-600">Explore curated searches for popular civic topics across municipalities</p>
+            <h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Browse Topics</h1>
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">Explore curated searches for popular civic topics across municipalities</p>
         </div>
 
         {% if pages %}
@@ -15,22 +15,22 @@
             <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {% for page in pages %}
                     <a href="{{ page.get_absolute_url }}"
-                       class="block bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 overflow-hidden group">
+                       class="block bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-200 overflow-hidden group dark:bg-gray-900">
                         <div class="p-6">
                             <!-- Title -->
-                            <h2 class="text-xl font-semibold text-gray-900 group-hover:text-indigo-600 transition-colors">
+                            <h2 class="text-xl font-semibold text-gray-900 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 dark:text-indigo-400 transition-colors dark:text-gray-100">
                                 {{ page.title }}
                             </h2>
 
                             <!-- Description -->
                             {% if page.description %}
-                                <p class="mt-2 text-sm text-gray-600 line-clamp-3">
+                                <p class="mt-2 text-sm text-gray-600 line-clamp-3 dark:text-gray-300">
                                     {{ page.description }}
                                 </p>
                             {% endif %}
 
                             <!-- Search Term Preview -->
-                            <div class="mt-3 flex items-center text-xs text-gray-500">
+                            <div class="mt-3 flex items-center text-xs text-gray-500 dark:text-gray-400">
                                 <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                                 </svg>
@@ -38,7 +38,7 @@
                             </div>
 
                             <!-- Stats -->
-                            <div class="mt-4 flex items-center justify-between text-xs text-gray-500">
+                            <div class="mt-4 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
                                 <div class="flex items-center">
                                     <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
@@ -47,7 +47,7 @@
                                     {{ page.view_count }} views
                                 </div>
                                 {% if page.get_scope_description != "No scope limits" %}
-                                    <div class="flex items-center text-indigo-600">
+                                    <div class="flex items-center text-indigo-600 dark:text-indigo-400">
                                         <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z"></path>
                                         </svg>
@@ -57,7 +57,7 @@
                             </div>
 
                             <!-- Explore Button -->
-                            <div class="mt-4 inline-flex items-center text-sm font-medium text-indigo-600 group-hover:text-indigo-700">
+                            <div class="mt-4 inline-flex items-center text-sm font-medium text-indigo-600 dark:text-indigo-400 group-hover:text-indigo-700 dark:hover:text-indigo-300 dark:group-hover:text-indigo-300">
                                 Explore Topic
                                 <svg class="ml-1 w-4 h-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
@@ -69,12 +69,12 @@
             </div>
         {% else %}
             <!-- Empty State -->
-            <div class="text-center py-12 bg-white shadow-lg rounded-xl">
+            <div class="text-center py-12 bg-white shadow-lg rounded-xl dark:bg-gray-900">
                 <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                 </svg>
-                <h3 class="mt-4 text-lg font-medium text-gray-900">No Topics Yet</h3>
-                <p class="mt-2 text-gray-500">Check back soon for curated topic searches.</p>
+                <h3 class="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">No Topics Yet</h3>
+                <p class="mt-2 text-gray-500 dark:text-gray-400">Check back soon for curated topic searches.</p>
             </div>
         {% endif %}
     </div>
