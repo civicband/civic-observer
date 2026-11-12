@@ -333,7 +333,7 @@ class TestSetDetailView:
         assert response.status_code == 200
         assert 'id="bulk-selection"' in content
         assert "Select all" in content
-        assert 'form="bulk-selected-form"' in content
+        assert "bulk-item-checkbox" in content
         assert f'name="item_ids" value="{item.id}"' in content
         assert "Accept" in content
         assert "Ignore" in content
@@ -342,9 +342,11 @@ class TestSetDetailView:
         assert "bg-emerald-600" in content
         assert "bg-rose-600" in content
         assert 'id="bulk-selection-bottom"' in content
-        assert "data-bulk-item-ids" in content
+        assert 'hx-include=".bulk-item-checkbox"' in content
         assert 'name="confirm_id" value="bulk-confirm"' in content
         assert 'name="confirm_id" value="bulk-confirm-bottom"' in content
+        assert 'name="disposition" value="r"' in content
+        assert 'name="disposition" value="i"' in content
         assert "window.addEventListener('pageshow', clearSelection)" in content
         assert '@keydown.escape.window="lightbox = false"' in content
 
