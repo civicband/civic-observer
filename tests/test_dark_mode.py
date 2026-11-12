@@ -163,3 +163,13 @@ def test_account_and_clip_pages_have_dark_variants():
             *sorted((TEMPLATES / "clip").rglob("*.html")),
         ]
     )
+
+
+def test_all_user_facing_templates_have_dark_variants():
+    paths = []
+    for path in TEMPLATES.rglob("*.html"):
+        relative = path.relative_to(TEMPLATES).as_posix()
+        if relative.startswith("email/") or relative.startswith("admin/"):
+            continue
+        paths.append(path)
+    assert_dark_variants(paths)
