@@ -128,3 +128,15 @@ def test_municipality_pages_have_dark_variants():
 
 def test_saved_search_pages_have_dark_variants():
     assert_dark_variants(sorted((TEMPLATES / "searches").rglob("*.html")))
+
+
+def test_research_core_pages_have_dark_variants():
+    assert_dark_variants(
+        [
+            TEMPLATES / "research/project_detail.html",
+            TEMPLATES / "research/project_list.html",
+            TEMPLATES / "research/set_detail.html",
+            TEMPLATES / "research/review.html",
+            *sorted((TEMPLATES / "research/partials").glob("*.html")),
+        ]
+    )

@@ -6,32 +6,32 @@
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div class="sm:flex sm:items-center sm:justify-between">
             <div>
-                <h1 class="text-3xl font-bold tracking-tight text-gray-900">Research Projects</h1>
-                <p class="mt-2 text-sm text-gray-600">Organize frozen result sets and code the pages that matter.</p>
+                <h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Research Projects</h1>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">Organize frozen result sets and code the pages that matter.</p>
             </div>
         </div>
 
         {% if projects %}
             <div class="mt-8 space-y-4">
                 {% for project in projects %}
-                    <div class="bg-white overflow-hidden shadow rounded-lg border border-gray-200 hover:shadow-md transition-shadow duration-200">
+                    <div class="bg-white overflow-hidden shadow rounded-lg border border-gray-200 hover:shadow-md transition-shadow duration-200 dark:bg-gray-900 dark:border-gray-800">
                         <div class="px-4 py-5 sm:p-6">
                             <div class="flex items-start justify-between">
                                 <div class="flex-1 min-w-0">
-                                    <h2 class="text-lg font-medium leading-6 text-gray-900">
-                                        <a href="{% url 'research:project-detail' project.id %}" class="hover:text-indigo-600">{{ project.name }}</a>
+                                    <h2 class="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100">
+                                        <a href="{% url 'research:project-detail' project.id %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">{{ project.name }}</a>
                                     </h2>
                                     {% if project.description %}
-                                        <p class="mt-2 text-sm text-gray-600">{{ project.description|truncatewords:30 }}</p>
+                                        <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{{ project.description|truncatewords:30 }}</p>
                                     {% endif %}
-                                    <div class="mt-2 flex items-center gap-4 text-sm text-gray-500">
+                                    <div class="mt-2 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
                                         <span>{{ project.set_count }} set{{ project.set_count|pluralize }}</span>
                                         <span>Updated {{ project.modified|timesince }} ago</span>
                                     </div>
                                 </div>
                                 <div class="ml-4 flex-shrink-0">
                                     <a href="{% url 'research:project-detail' project.id %}"
-                                       class="inline-flex items-center justify-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                                       class="inline-flex items-center justify-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
                                         Open
                                     </a>
                                 </div>
@@ -41,9 +41,9 @@
                 {% endfor %}
             </div>
         {% else %}
-            <div class="mt-8 text-center py-12 bg-white rounded-lg border border-gray-200">
-                <h2 class="text-lg font-medium text-gray-900">No research projects yet</h2>
-                <p class="mt-2 text-gray-500">Create a project from the admin to start building frozen result sets.</p>
+            <div class="mt-8 text-center py-12 bg-white rounded-lg border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">No research projects yet</h2>
+                <p class="mt-2 text-gray-500 dark:text-gray-400">Create a project from the admin to start building frozen result sets.</p>
             </div>
         {% endif %}
     </div>

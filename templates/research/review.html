@@ -5,28 +5,28 @@
 {% block content %}
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
          x-data="reviewKeyboard()" @keydown.window="handle($event)">
-        <nav class="text-sm text-gray-500 mb-2">
-            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600">Research</a>
+        <nav class="text-sm text-gray-500 mb-2 dark:text-gray-400">
+            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">Research</a>
             <span class="mx-2">/</span>
-            <a href="{% url 'research:project-detail' result_set.project_id %}" class="hover:text-indigo-600">{{ result_set.project.name }}</a>
+            <a href="{% url 'research:project-detail' result_set.project_id %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">{{ result_set.project.name }}</a>
             <span class="mx-2">/</span>
-            <a href="{% url 'research:set-detail' result_set.project_id result_set.id %}" class="hover:text-indigo-600">{{ result_set.name }}</a>
+            <a href="{% url 'research:set-detail' result_set.project_id result_set.id %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">{{ result_set.name }}</a>
             <span class="mx-2">/</span>
-            <span class="text-gray-900">Review</span>
+            <span class="text-gray-900 dark:text-gray-100">Review</span>
         </nav>
 
         <div class="flex items-center justify-between gap-4">
-            <h1 class="text-2xl font-bold tracking-tight text-gray-900">Review</h1>
+            <h1 class="text-2xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Review</h1>
             <div class="flex flex-wrap items-center justify-end gap-3">
-                <p class="text-sm text-gray-500">j/k or ←/→ move · r relevant · i ignore · u unreviewed</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">j/k or ←/→ move · r relevant · i ignore · u unreviewed</p>
                 {% if review_all %}
                     <a href="{% url 'research:set-review' result_set.project_id result_set.id %}{% if unreviewed_querystring %}?{{ unreviewed_querystring }}{% endif %}"
-                       class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-indigo-200 text-xs font-medium rounded-md text-indigo-700 bg-indigo-50 hover:bg-indigo-100">
+                       class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-indigo-200 text-xs font-medium rounded-md text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900">
                         Unreviewed only
                     </a>
                 {% else %}
                     <a href="{% url 'research:set-review' result_set.project_id result_set.id %}{% if all_querystring %}?{{ all_querystring }}{% endif %}"
-                       class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-indigo-200 text-xs font-medium rounded-md text-indigo-700 bg-indigo-50 hover:bg-indigo-100">
+                       class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-indigo-200 text-xs font-medium rounded-md text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900">
                         Include relevant
                     </a>
                 {% endif %}

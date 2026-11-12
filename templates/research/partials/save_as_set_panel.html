@@ -1,11 +1,11 @@
 <div id="save-as-set-panel" class="fixed inset-0 z-50 flex items-center justify-center bg-gray-500 bg-opacity-75">
-    <div class="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl">
-        <h2 class="text-lg font-semibold text-gray-900">Save as set</h2>
-        <p class="mt-2 text-sm text-gray-600">
+    <div class="w-full max-w-lg rounded-lg bg-white p-6 shadow-xl dark:bg-gray-900">
+        <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">Save as set</h2>
+        <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
             This search matches {{ count }}{% if count > max_items %}+{% endif %} page{{ count|pluralize }}.
         </p>
         {% if over_ceiling %}
-            <p class="mt-2 text-sm text-amber-700">
+            <p class="mt-2 text-sm text-amber-700 dark:text-amber-300">
                 That is more than the {{ max_items }} page limit. Narrow the search by state, body, or date.
             </p>
         {% else %}
@@ -15,8 +15,8 @@
                     <input type="hidden" name="{{ param.name }}" value="{{ param.value }}">
                 {% endfor %}
                 <div>
-                    <label for="save-as-set-project" class="block text-sm font-medium text-gray-700">Project</label>
-                    <select name="project" id="save-as-set-project" class="block w-full rounded-md border-gray-300 shadow-sm text-sm">
+                    <label for="save-as-set-project" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Project</label>
+                    <select name="project" id="save-as-set-project" class="block w-full rounded-md border-gray-300 shadow-sm text-sm dark:border-gray-700">
                         {% for project in projects %}
                             <option value="{{ project.id }}">{{ project.name }}</option>
                         {% empty %}
@@ -25,16 +25,16 @@
                     </select>
                 </div>
                 <div>
-                    <label for="save-as-set-new-project" class="block text-sm font-medium text-gray-700">Or create a project</label>
-                    <input type="text" name="new_project" id="save-as-set-new-project" class="block w-full rounded-md border-gray-300 shadow-sm text-sm" placeholder="New project name">
+                    <label for="save-as-set-new-project" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Or create a project</label>
+                    <input type="text" name="new_project" id="save-as-set-new-project" class="block w-full rounded-md border-gray-300 shadow-sm text-sm dark:border-gray-700" placeholder="New project name">
                 </div>
                 <div>
-                    <label for="save-as-set-name" class="block text-sm font-medium text-gray-700">Set name</label>
-                    <input type="text" name="name" id="save-as-set-name" required class="block w-full rounded-md border-gray-300 shadow-sm text-sm">
+                    <label for="save-as-set-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Set name</label>
+                    <input type="text" name="name" id="save-as-set-name" required class="block w-full rounded-md border-gray-300 shadow-sm text-sm dark:border-gray-700">
                 </div>
                 <button type="submit" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">Create set</button>
             </form>
         {% endif %}
-        <button type="button" onclick="document.getElementById('save-as-set-panel').remove()" class="mt-4 inline-block text-sm text-gray-500 hover:text-gray-700">Cancel</button>
+        <button type="button" onclick="document.getElementById('save-as-set-panel').remove()" class="mt-4 inline-block text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200">Cancel</button>
     </div>
 </div>

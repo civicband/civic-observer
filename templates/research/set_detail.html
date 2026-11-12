@@ -4,22 +4,22 @@
 
 {% block content %}
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <nav class="text-sm text-gray-500 mb-2">
-            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600">Research</a>
+        <nav class="text-sm text-gray-500 mb-2 dark:text-gray-400">
+            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">Research</a>
             <span class="mx-2">/</span>
-            <a href="{% url 'research:project-detail' result_set.project_id %}" class="hover:text-indigo-600">{{ result_set.project.name }}</a>
+            <a href="{% url 'research:project-detail' result_set.project_id %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">{{ result_set.project.name }}</a>
             <span class="mx-2">/</span>
-            <span class="text-gray-900">{{ result_set.name }}</span>
+            <span class="text-gray-900 dark:text-gray-100">{{ result_set.name }}</span>
         </nav>
 
         <div class="sm:flex sm:items-center sm:justify-between">
             <div>
-                <h1 class="text-3xl font-bold tracking-tight text-gray-900">{{ result_set.name }}</h1>
-                <p class="mt-2 text-sm text-gray-600">
+                <h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">{{ result_set.name }}</h1>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
                     {% if result_set.status == "ready" %}
                         {{ lens_count }} in this view ·
                         <a href="{% url 'research:set-detail' result_set.project_id result_set.id %}?disposition=i"
-                           class="text-indigo-600 hover:text-indigo-800">{{ ignored_count }} ignored</a>
+                           class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">{{ ignored_count }} ignored</a>
                         · {{ result_set.item_count }} total
                     {% elif result_set.status == "too_large" %}
                         at least {{ result_set.item_count }} page{{ result_set.item_count|pluralize }}
@@ -29,14 +29,14 @@
                     · {{ result_set.get_status_display }}
                 </p>
                 {% if result_set.last_checked_at %}
-                    <p class="mt-1 text-xs text-gray-500">
+                    <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
                         Last checked for new matches {{ result_set.last_checked_at|date:"M j, Y g:i A" }}
                     </p>
                 {% endif %}
             </div>
             <div class="mt-4 sm:mt-0 flex flex-wrap items-center gap-2">
                 <a href="{% url 'research:set-review' result_set.project_id result_set.id %}{% if review_querystring %}?{{ review_querystring }}{% endif %}"
-                   class="inline-flex items-center gap-1.5 px-4 py-2 border border-indigo-200 text-sm font-medium rounded-md shadow-sm text-indigo-700 bg-indigo-50 hover:bg-indigo-100">
+                   class="inline-flex items-center gap-1.5 px-4 py-2 border border-indigo-200 text-sm font-medium rounded-md shadow-sm text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
@@ -44,14 +44,14 @@
                     Review
                 </a>
                 <a href="{% url 'research:set-export' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}{% endif %}"
-                   class="inline-flex items-center gap-1.5 px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                   class="inline-flex items-center gap-1.5 px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
                     </svg>
                     Export CSV
                 </a>
                 <a href="{% url 'research:rule-create' result_set.project_id %}{% if querystring %}?lens={{ querystring|urlencode }}{% endif %}"
-                   class="inline-flex items-center gap-1.5 px-4 py-2 border border-amber-200 text-sm font-medium rounded-md shadow-sm text-amber-700 bg-amber-50 hover:bg-amber-100">
+                   class="inline-flex items-center gap-1.5 px-4 py-2 border border-amber-200 text-sm font-medium rounded-md shadow-sm text-amber-700 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950 dark:border-amber-800 dark:text-amber-300 dark:hover:bg-amber-900">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"></path>
                     </svg>
@@ -61,7 +61,7 @@
                     <form method="post" action="{% url 'research:set-new-matches' result_set.project_id result_set.id %}"
                           hx-post="{% url 'research:set-new-matches' result_set.project_id result_set.id %}">
                         {% csrf_token %}
-                        <button type="submit" class="inline-flex items-center gap-1.5 px-4 py-2 border border-indigo-200 text-sm font-medium rounded-md shadow-sm text-indigo-700 bg-indigo-50 hover:bg-indigo-100">
+                        <button type="submit" class="inline-flex items-center gap-1.5 px-4 py-2 border border-indigo-200 text-sm font-medium rounded-md shadow-sm text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900">
                             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                             </svg>
@@ -73,12 +73,12 @@
                     {% csrf_token %}
                     <input type="hidden" name="lens" value="{{ querystring }}">
                     <input type="text" name="name" required placeholder="Child set name"
-                           class="rounded-md border-gray-300 text-sm shadow-sm">
-                    <label class="flex items-center gap-1 text-xs text-gray-600">
+                           class="rounded-md border-gray-300 text-sm shadow-sm dark:border-gray-700">
+                    <label class="flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300">
                         <input type="checkbox" name="copy_dispositions" value="1" checked>
                         Copy dispositions
                     </label>
-                    <button type="submit" class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    <button type="submit" class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h6l4 4v12a2 2 0 01-2 2H7a2 2 0 01-2-2V5z"></path>
                         </svg>
@@ -88,16 +88,16 @@
             </div>
         </div>
 
-        <div class="mt-6 bg-white shadow rounded-lg border border-gray-200">
+        <div class="mt-6 bg-white shadow rounded-lg border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
             <div class="px-4 py-5 sm:p-6">
-                <h2 class="text-lg font-medium text-gray-900">Memo</h2>
-                <p class="mt-1 text-sm text-gray-600">Leave a note about this result set. Markdown is supported.</p>
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">Memo</h2>
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">Leave a note about this result set. Markdown is supported.</p>
                 <form method="post" action="{% url 'research:memo-create' result_set.project_id %}" class="mt-4 space-y-3">
                     {% csrf_token %}
                     <input type="hidden" name="result_set" value="{{ result_set.id }}">
                     <input type="hidden" name="next" value="{% url 'research:set-detail' result_set.project_id result_set.id %}">
                     <textarea name="body" rows="2" required placeholder="Why this query, what to look for, etc."
-                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
+                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700"></textarea>
                     <button type="submit"
                             class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
                         <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">

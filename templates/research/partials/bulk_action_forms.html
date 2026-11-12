@@ -29,7 +29,7 @@
         <input type="hidden" name="disposition" value="i">
         <input type="text" name="reason" placeholder="Reason (optional)"
                list="ignore-reasons"
-               class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+               class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700">
         <button type="submit"
                 class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-rose-600 hover:bg-rose-700">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
@@ -48,7 +48,7 @@
             {% csrf_token %}
             <input type="hidden" name="lens" value="{{ querystring }}">
             <input type="hidden" name="confirm_id" value="{{ confirm_id }}">
-            <select name="code" class="rounded-md border-gray-300 text-xs shadow-sm">
+            <select name="code" class="rounded-md border-gray-300 text-xs shadow-sm dark:border-gray-700">
                 <option value="">Apply code…</option>
                 {% for code in codes %}
                     <option value="{{ code.id }}">{{ code.name }}</option>
