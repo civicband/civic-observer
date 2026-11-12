@@ -2,29 +2,29 @@
 <form hx-post="{% url 'notifications:channel-create' %}"
       hx-target="#channel-list"
       hx-swap="afterbegin"
-      class="bg-gray-50 p-4 rounded-lg mb-4">
+      class="bg-gray-50 p-4 rounded-lg mb-4 dark:bg-gray-900">
     {% csrf_token %}
 
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
-            <label for="id_platform" class="block text-sm font-medium text-gray-700">Platform</label>
+            <label for="id_platform" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Platform</label>
             {{ form.platform }}
             {% if form.platform.errors %}
-                <p class="mt-1 text-sm text-red-600">{{ form.platform.errors.0 }}</p>
+                <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.platform.errors.0 }}</p>
             {% endif %}
         </div>
 
         <div>
-            <label for="id_handle" class="block text-sm font-medium text-gray-700">Handle / Webhook URL</label>
+            <label for="id_handle" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Handle / Webhook URL</label>
             {{ form.handle }}
             {% if form.handle.errors %}
-                <p class="mt-1 text-sm text-red-600">{{ form.handle.errors.0 }}</p>
+                <p class="mt-1 text-sm text-red-600 dark:text-red-400">{{ form.handle.errors.0 }}</p>
             {% endif %}
         </div>
     </div>
 
     {% if form.non_field_errors %}
-        <div class="mt-2 text-sm text-red-600">
+        <div class="mt-2 text-sm text-red-600 dark:text-red-400">
             {{ form.non_field_errors.0 }}
         </div>
     {% endif %}
@@ -34,7 +34,7 @@
                 hx-get="{% url 'notifications:channel-list' %}"
                 hx-target="#channel-form-container"
                 hx-swap="innerHTML"
-                class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50">
+                class="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
             Cancel
         </button>
         <button type="submit"

@@ -1,13 +1,13 @@
 {% load analytics utm %}
 <div class="space-y-6">
     <!-- Meeting Preview -->
-    <div class="border border-gray-200 rounded-lg p-4 bg-gray-50">
+    <div class="border border-gray-200 rounded-lg p-4 bg-gray-50 dark:bg-gray-900 dark:border-gray-800">
         <div class="flex items-start justify-between">
             <div>
-                <h2 class="text-lg font-semibold text-gray-900">
+                <h2 class="text-lg font-semibold text-gray-900 dark:text-gray-100">
                     {{ page.meeting_name }}
                 </h2>
-                <p class="text-sm text-gray-600 mt-1">
+                <p class="text-sm text-gray-600 mt-1 dark:text-gray-300">
                     {{ page.municipality_name }}, {{ page.state }}
                 </p>
             </div>
@@ -16,13 +16,13 @@
             </span>
         </div>
 
-        <div class="mt-3 flex items-center text-sm text-gray-500 space-x-4">
+        <div class="mt-3 flex items-center text-sm text-gray-500 space-x-4 dark:text-gray-400">
             <span>{{ page.meeting_date|date:"F j, Y" }}</span>
             <span>Page {{ page.page_number }}</span>
         </div>
 
         {% if page.text %}
-            <div class="mt-4 text-sm text-gray-700 line-clamp-4">
+            <div class="mt-4 text-sm text-gray-700 line-clamp-4 dark:text-gray-300">
                 {{ page.text|truncatewords:50 }}
             </div>
         {% endif %}
@@ -30,7 +30,7 @@
         <a href="{% civic_url 'https://'|add:subdomain|add:'.civic.band/'|add:table|add:'/'|add:page.meeting_name|add:'/'|add:page.meeting_date|date:'Y-m-d' medium='clip' campaign='clip_preview' content='view_link' %}"
            target="_blank"
            rel="noopener noreferrer"
-           class="mt-3 inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800">
+           class="mt-3 inline-flex items-center text-sm text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">
             View on civic.band
             <svg class="ml-1 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
@@ -45,12 +45,12 @@
 
         <!-- Set Selection -->
         <div>
-            <label for="set" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="set" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
                 Add to research set
             </label>
             <select name="set"
                     id="set"
-                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm dark:border-gray-700">
                 {% for project in projects %}
                     {% for result_set in project.sets.all %}
                         <option value="{{ result_set.id }}"{% if forloop.parentloop.first and forloop.first %} selected{% endif %}>
@@ -69,26 +69,26 @@
 
         <!-- Note -->
         <div>
-            <label for="note" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="note" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
                 Note <span class="text-gray-400 font-normal">(optional)</span>
             </label>
             <textarea name="note"
                       id="note"
                       rows="3"
                       placeholder="Add a note about why you're adding this page..."
-                      class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"></textarea>
+                      class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm dark:border-gray-700"></textarea>
         </div>
 
         <!-- Codes -->
         <div>
-            <label for="codes" class="block text-sm font-medium text-gray-700 mb-1">
+            <label for="codes" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
                 Codes <span class="text-gray-400 font-normal">(optional, Ctrl/Cmd-click for several)</span>
             </label>
             <select name="codes"
                     id="codes"
                     multiple
                     size="3"
-                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm dark:border-gray-700">
                 {% for project in projects %}
                     {% for code in project.active_codes %}
                         <option value="{{ code.name }}">{{ project.name }} / {{ code.name }}</option>
@@ -98,9 +98,9 @@
         </div>
 
         <!-- Actions -->
-        <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-200">
+        <div class="flex items-center justify-end gap-3 pt-4 border-t border-gray-200 dark:border-gray-800">
             <a href="{% civic_url 'https://'|add:subdomain|add:'.civic.band' medium='clip' campaign='clip_preview' content='cancel_button' %}"
-               class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+               class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
                 Cancel
             </a>
             <button type="submit"

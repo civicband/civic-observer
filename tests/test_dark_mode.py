@@ -153,3 +153,13 @@ def test_research_secondary_pages_have_dark_variants():
             TEMPLATES / "research/partials/codebook_tree.html",
         ]
     )
+
+
+def test_account_and_clip_pages_have_dark_variants():
+    assert_dark_variants(
+        [
+            *sorted((TEMPLATES / "notifications").rglob("*.html")),
+            *sorted((TEMPLATES / "apikeys").rglob("*.html")),
+            *sorted((TEMPLATES / "clip").rglob("*.html")),
+        ]
+    )

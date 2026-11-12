@@ -1,29 +1,29 @@
 <div class="text-center">
-    <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100">
-        <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div class="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-green-100 dark:bg-green-950">
+        <svg class="h-6 w-6 text-green-600 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
         </svg>
     </div>
-    <h3 class="mt-4 text-lg font-semibold text-gray-900">API Key Created</h3>
-    <p class="mt-2 text-sm text-red-600 font-medium">Copy this key now. You won't be able to see it again!</p>
+    <h3 class="mt-4 text-lg font-semibold text-gray-900 dark:text-gray-100">API Key Created</h3>
+    <p class="mt-2 text-sm text-red-600 font-medium dark:text-red-400">Copy this key now. You won't be able to see it again!</p>
 
-    <div class="mt-4 p-3 bg-gray-100 rounded-md">
+    <div class="mt-4 p-3 bg-gray-100 rounded-md dark:bg-gray-800">
         <code id="api-key-value" class="text-sm font-mono break-all">{{ raw_key }}</code>
     </div>
 
     <div class="mt-4 flex justify-center gap-3">
         <button type="button"
                 onclick="navigator.clipboard.writeText('{{ raw_key }}'); this.textContent = 'Copied!'"
-                class="px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100">
+                class="px-4 py-2 text-sm font-medium text-indigo-600 bg-indigo-50 border border-indigo-200 rounded-md hover:bg-indigo-100 dark:bg-indigo-950 dark:border-indigo-800 dark:text-indigo-400 dark:hover:bg-indigo-900">
             Copy to Clipboard
         </button>
         <a href="{% url 'apikeys:download' %}"
-           class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+           class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
             Download as File
         </a>
     </div>
 
     <div class="mt-6">
-        <a href="{% url 'apikeys:list' %}" class="text-sm text-indigo-600 hover:text-indigo-800">Done</a>
+        <a href="{% url 'apikeys:list' %}" class="text-sm text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">Done</a>
     </div>
 </div>
