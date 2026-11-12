@@ -15,7 +15,7 @@
         <div class="sm:flex sm:items-center sm:justify-between">
             <div>
                 <h1 class="text-3xl font-bold tracking-tight text-gray-900">Ignore rules</h1>
-                <p class="mt-2 text-sm text-gray-600">Ignore rules apply matching pages across every existing and future set. Manual decisions always win. They do not create a new set. Changes apply in the background; refresh to see updated counts.</p>
+                <p class="mt-2 text-sm text-gray-600">Ignore rules apply matching pages across every existing and future set. Manual decisions always win. They do not create a new set. Rule changes apply in the background; status updates automatically while a rule is running.</p>
                 {% if ignored_total %}
                     <p class="mt-2 text-sm text-gray-600">{{ ignored_total }} page{{ ignored_total|pluralize }} currently ignored by rules.</p>
                 {% endif %}
@@ -28,7 +28,9 @@
             </div>
         </div>
 
-        <div class="mt-8 space-y-4">
+        <div id="rule-list"
+             {% if has_pending %}hx-get="{% url 'research:rule-list' project.id %}" hx-trigger="every 2s" hx-select="#rule-list" hx-swap="outerHTML"{% endif %}
+             class="mt-8 space-y-4">
             {% for row in rule_rows %}
                 {% with rule=row.rule %}
                     <div class="bg-white shadow rounded-lg border border-gray-200 p-6">
@@ -41,7 +43,25 @@
                                     {% else %}
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">Inactive</span>
                                     {% endif %}
+                                    {% if rule.last_job_status == "queued" or rule.last_job_status == "running" %}
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800">
+                                            <svg class="h-3.5 w-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                                            </svg>
+                                            {% if rule.last_job_action == "revert" %}Reverting…{% else %}Applying…{% endif %}
+                                        </span>
+                                    {% elif rule.last_job_status == "succeeded" %}
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800">
+                                            {% if rule.last_job_action == "revert" %}Reverted{% else %}Applied{% endif %} · {{ rule.last_job_count|default:0 }} page{{ rule.last_job_count|default:0|pluralize }}
+                                        </span>
+                                    {% elif rule.last_job_status == "failed" %}
+                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Failed</span>
+                                    {% endif %}
                                 </div>
+                                {% if rule.last_job_status == "failed" and rule.last_job_error %}
+                                    <p class="mt-1 text-xs text-red-600">{{ rule.last_job_error|truncatewords:30 }}</p>
+                                {% endif %}
                                 {% if rule.reason %}
                                     <p class="mt-1 text-sm text-gray-600">{{ rule.reason }}</p>
                                 {% endif %}

@@ -88,6 +88,16 @@ class Code(TimeStampedModel):
 
 
 class IgnoreRule(TimeStampedModel):
+    class JobAction(models.TextChoices):
+        APPLY = "apply", "Apply"
+        REVERT = "revert", "Revert"
+
+    class JobStatus(models.TextChoices):
+        QUEUED = "queued", "Queued"
+        RUNNING = "running", "Running"
+        SUCCEEDED = "succeeded", "Succeeded"
+        FAILED = "failed", "Failed"
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     project = models.ForeignKey(
         Project, on_delete=models.CASCADE, related_name="ignore_rules"
@@ -96,6 +106,16 @@ class IgnoreRule(TimeStampedModel):
     predicate = models.JSONField(default=dict)
     reason = models.CharField(max_length=500, blank=True)
     is_active = models.BooleanField(default=True)
+    last_job_id = models.CharField(max_length=64, blank=True, default="")
+    last_job_action = models.CharField(
+        max_length=10, choices=JobAction, blank=True, default=""
+    )
+    last_job_status = models.CharField(
+        max_length=10, choices=JobStatus, blank=True, default=""
+    )
+    last_job_error = models.TextField(blank=True, default="")
+    last_job_count = models.IntegerField(null=True, blank=True)
+    last_job_finished_at = models.DateTimeField(null=True, blank=True)
 
     class Meta:
         ordering = ["-created"]

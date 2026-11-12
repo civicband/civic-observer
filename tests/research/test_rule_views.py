@@ -305,3 +305,207 @@ class TestRuleViews:
         )
 
         assert "Make ignore rule" in response.content.decode()
+
+
+@pytest.mark.django_db
+class TestRuleJobStatusViews:
+    def _project(self):
+        user = UserFactory()
+        return user, ProjectFactory(owner=user)
+
+    def test_create_redirects_to_status_and_marks_queued(self, client):
+        user, project = self._project()
+        client.force_login(user)
+
+        with patch("django_rq.get_queue") as get_queue:
+            get_queue.return_value.enqueue.return_value.id = "job-123"
+            response = client.post(
+                reverse("research:rule-create", args=[project.id]),
+                {"name": "CA", "states": "CA", "action": "save"},
+            )
+
+        rule = IgnoreRule.objects.get(project=project)
+        assert response.status_code == 302
+        assert response["Location"] == reverse(
+            "research:rule-status", args=[project.id, rule.id]
+        )
+        assert rule.last_job_action == "apply"
+        assert rule.last_job_status == "queued"
+        assert rule.last_job_id == "job-123"
+        assert rule.last_job_error == ""
+        assert rule.last_job_count is None
+        assert rule.last_job_finished_at is None
+
+    def test_create_enqueue_failure_marks_failed(self, client):
+        user, project = self._project()
+        client.force_login(user)
+
+        with patch("django_rq.get_queue") as get_queue:
+            get_queue.return_value.enqueue.side_effect = RuntimeError("redis down")
+            response = client.post(
+                reverse("research:rule-create", args=[project.id]),
+                {"name": "CA", "states": "CA", "action": "save"},
+            )
+
+        rule = IgnoreRule.objects.get(project=project)
+        assert response.status_code == 302
+        assert rule.last_job_status == "failed"
+        assert "redis down" in rule.last_job_error
+        assert rule.last_job_finished_at is not None
+
+    def test_toggle_off_redirects_and_marks_queued_revert(self, client):
+        user, project = self._project()
+        rule = IgnoreRuleFactory(project=project, is_active=True)
+        client.force_login(user)
+
+        with (
+            patch("research.views.apply_rule_to_project_task"),
+            patch("research.views.revert_rule_task"),
+            patch("django_rq.get_queue") as get_queue,
+        ):
+            get_queue.return_value.enqueue.return_value.id = "job-revert"
+            response = client.post(
+                reverse("research:rule-toggle", args=[project.id, rule.id])
+            )
+
+        rule.refresh_from_db()
+        assert response.status_code == 302
+        assert response["Location"] == reverse(
+            "research:rule-status", args=[project.id, rule.id]
+        )
+        assert rule.last_job_action == "revert"
+        assert rule.last_job_status == "queued"
+        assert rule.last_job_id == "job-revert"
+
+    def test_toggle_on_redirects_and_marks_queued_apply(self, client):
+        user, project = self._project()
+        rule = IgnoreRuleFactory(project=project, is_active=False)
+        client.force_login(user)
+
+        with (
+            patch("research.views.apply_rule_to_project_task"),
+            patch("research.views.revert_rule_task"),
+            patch("django_rq.get_queue") as get_queue,
+        ):
+            get_queue.return_value.enqueue.return_value.id = "job-apply"
+            response = client.post(
+                reverse("research:rule-toggle", args=[project.id, rule.id])
+            )
+
+        rule.refresh_from_db()
+        assert response.status_code == 302
+        assert response["Location"] == reverse(
+            "research:rule-status", args=[project.id, rule.id]
+        )
+        assert rule.last_job_action == "apply"
+        assert rule.last_job_status == "queued"
+        assert rule.last_job_id == "job-apply"
+
+    def test_status_page_requires_login(self, client):
+        _, project = self._project()
+        rule = IgnoreRuleFactory(project=project)
+
+        response = client.get(
+            reverse("research:rule-status", args=[project.id, rule.id])
+        )
+
+        assert response.status_code == 302
+
+    def test_status_page_owner_scoped(self, client):
+        user, project = self._project()
+        rule = IgnoreRuleFactory(project=ProjectFactory())
+        client.force_login(user)
+
+        response = client.get(
+            reverse("research:rule-status", args=[project.id, rule.id])
+        )
+
+        assert response.status_code == 404
+
+    def test_status_page_shows_running(self, client):
+        user, project = self._project()
+        rule = IgnoreRuleFactory(
+            project=project,
+            last_job_action="apply",
+            last_job_status="running",
+        )
+        client.force_login(user)
+
+        response = client.get(
+            reverse("research:rule-status", args=[project.id, rule.id])
+        )
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert "Applying rule" in content
+        assert 'hx-trigger="every 2s"' in content
+
+    def test_status_page_shows_success_count(self, client):
+        user, project = self._project()
+        rule = IgnoreRuleFactory(
+            project=project,
+            last_job_action="apply",
+            last_job_status="succeeded",
+            last_job_count=3,
+        )
+        client.force_login(user)
+
+        response = client.get(
+            reverse("research:rule-status", args=[project.id, rule.id])
+        )
+
+        content = response.content.decode()
+        assert "3 pages ignored" in content
+        assert 'hx-trigger="every 2s"' not in content
+
+    def test_status_page_shows_failure(self, client):
+        user, project = self._project()
+        rule = IgnoreRuleFactory(
+            project=project,
+            last_job_action="apply",
+            last_job_status="failed",
+            last_job_error="boom",
+        )
+        client.force_login(user)
+
+        response = client.get(
+            reverse("research:rule-status", args=[project.id, rule.id])
+        )
+
+        content = response.content.decode()
+        assert "Apply failed" in content
+        assert "boom" in content
+        assert 'hx-trigger="every 2s"' not in content
+
+    def test_rule_list_polls_while_rule_pending(self, client):
+        user, project = self._project()
+        IgnoreRuleFactory(
+            project=project,
+            last_job_action="apply",
+            last_job_status="queued",
+        )
+        client.force_login(user)
+
+        response = client.get(reverse("research:rule-list", args=[project.id]))
+
+        content = response.content.decode()
+        assert "Applying" in content
+        assert 'hx-trigger="every 2s"' in content
+        assert 'hx-select="#rule-list"' in content
+
+    def test_rule_list_does_not_poll_when_done(self, client):
+        user, project = self._project()
+        IgnoreRuleFactory(
+            project=project,
+            last_job_action="apply",
+            last_job_status="succeeded",
+            last_job_count=2,
+        )
+        client.force_login(user)
+
+        response = client.get(reverse("research:rule-list", args=[project.id]))
+
+        content = response.content.decode()
+        assert "Applied" in content
+        assert "2 pages" in content
+        assert 'hx-trigger="every 2s"' not in content

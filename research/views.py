@@ -16,6 +16,7 @@ from django.http import (
 from django.shortcuts import get_object_or_404, redirect, render
 from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.utils.text import slugify
 from django.views import View
@@ -141,13 +142,52 @@ def _ignore_reasons(result_set: ResultSet) -> list[str]:
     )
 
 
-def _enqueue_rule_task(task, rule_id, actor_id=None) -> None:
+def _enqueue_rule_task(task, rule_id, actor_id=None):
     import django_rq
 
     queue = django_rq.get_queue(settings.RESEARCH_QUEUE)
-    queue.enqueue(
+    return queue.enqueue(
         task, rule_id, actor_id=actor_id, job_timeout=settings.RESEARCH_JOB_TIMEOUT
     )
+
+
+def _queue_rule_job(rule, action, task, actor_id) -> None:
+    rule.last_job_action = action
+    rule.last_job_status = IgnoreRule.JobStatus.QUEUED
+    rule.last_job_error = ""
+    rule.last_job_count = None
+    rule.last_job_finished_at = None
+    rule.last_job_id = ""
+    rule.save(
+        update_fields=[
+            "last_job_action",
+            "last_job_status",
+            "last_job_error",
+            "last_job_count",
+            "last_job_finished_at",
+            "last_job_id",
+            "modified",
+        ]
+    )
+    try:
+        job = _enqueue_rule_task(task, rule.id, actor_id)
+    except Exception as exc:
+        rule.last_job_status = IgnoreRule.JobStatus.FAILED
+        rule.last_job_error = str(exc)
+        rule.last_job_finished_at = timezone.now()
+        rule.save(
+            update_fields=[
+                "last_job_status",
+                "last_job_error",
+                "last_job_finished_at",
+                "modified",
+            ]
+        )
+        return
+
+    job_id = getattr(job, "id", "")
+    if isinstance(job_id, str) and job_id:
+        IgnoreRule.objects.filter(pk=rule.pk).update(last_job_id=job_id[:64])
 
 
 def _export_filename(result_set: ResultSet) -> str:
@@ -924,6 +964,11 @@ class IgnoreRuleListView(LoginRequiredMixin, ListView):
         context["project"] = self.project
         context["rule_rows"] = rows
         context["ignored_total"] = sum(ignored_counts.values())
+        context["has_pending"] = any(
+            row["rule"].last_job_status
+            in {IgnoreRule.JobStatus.QUEUED, IgnoreRule.JobStatus.RUNNING}
+            for row in rows
+        )
         return context
 
     @staticmethod
@@ -1060,8 +1105,36 @@ class IgnoreRuleCreateView(LoginRequiredMixin, View):
             actor=request.user,
             payload={"name": rule.name, "predicate": rule.predicate, "reason": reason},
         )
-        _enqueue_rule_task(apply_rule_to_project_task, rule.id, request.user.id)
-        return redirect("research:rule-list", project=project_obj.id)
+        _queue_rule_job(
+            rule,
+            IgnoreRule.JobAction.APPLY,
+            apply_rule_to_project_task,
+            request.user.id,
+        )
+        return redirect("research:rule-status", project=project_obj.id, rule=rule.id)
+
+
+class IgnoreRuleStatusView(LoginRequiredMixin, View):
+    template_name = "research/rules/status.html"
+    partial_template_name = "research/rules/partials/status.html"
+
+    def get(self, request, project, rule):
+        project_obj = get_object_or_404(Project, id=project, owner=request.user)
+        rule_obj = get_object_or_404(IgnoreRule, id=rule, project=project_obj)
+        pending = rule_obj.last_job_status in {
+            IgnoreRule.JobStatus.QUEUED,
+            IgnoreRule.JobStatus.RUNNING,
+        }
+        template = (
+            self.partial_template_name
+            if request.headers.get("HX-Request")
+            else self.template_name
+        )
+        return render(
+            request,
+            template,
+            {"project": project_obj, "rule": rule_obj, "pending": pending},
+        )
 
 
 class IgnoreRuleToggleView(LoginRequiredMixin, View):
@@ -1082,10 +1155,15 @@ class IgnoreRuleToggleView(LoginRequiredMixin, View):
             },
         )
         if rule_obj.is_active:
-            _enqueue_rule_task(apply_rule_to_project_task, rule_obj.id, request.user.id)
+            action = IgnoreRule.JobAction.APPLY
+            task = apply_rule_to_project_task
         else:
-            _enqueue_rule_task(revert_rule_task, rule_obj.id, request.user.id)
-        return redirect("research:rule-list", project=project_obj.id)
+            action = IgnoreRule.JobAction.REVERT
+            task = revert_rule_task
+        _queue_rule_job(rule_obj, action, task, request.user.id)
+        return redirect(
+            "research:rule-status", project=project_obj.id, rule=rule_obj.id
+        )
 
 
 class IgnoreRuleDeleteView(LoginRequiredMixin, View):
