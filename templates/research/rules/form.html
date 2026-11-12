@@ -4,70 +4,70 @@
 
 {% block content %}
     <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <nav class="text-sm text-gray-500 mb-2">
-            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600">Research</a>
+        <nav class="text-sm text-gray-500 mb-2 dark:text-gray-400">
+            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">Research</a>
             <span class="mx-2">/</span>
-            <a href="{% url 'research:project-detail' project.id %}" class="hover:text-indigo-600">{{ project.name }}</a>
+            <a href="{% url 'research:project-detail' project.id %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">{{ project.name }}</a>
             <span class="mx-2">/</span>
-            <a href="{% url 'research:rule-list' project.id %}" class="hover:text-indigo-600">Ignore rules</a>
+            <a href="{% url 'research:rule-list' project.id %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">Ignore rules</a>
             <span class="mx-2">/</span>
-            <span class="text-gray-900">New rule</span>
+            <span class="text-gray-900 dark:text-gray-100">New rule</span>
         </nav>
 
-        <h1 class="text-3xl font-bold tracking-tight text-gray-900">New ignore rule</h1>
-        <p class="mt-2 text-sm text-gray-600">Matching unreviewed pages across this project will be ignored. Rules apply to every existing and future set and do not create a new set. Manual decisions always win.</p>
+        <h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">New ignore rule</h1>
+        <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">Matching unreviewed pages across this project will be ignored. Rules apply to every existing and future set and do not create a new set. Manual decisions always win.</p>
 
         {% if error %}
-            <div class="mt-4 rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-700">{{ error }}</div>
+            <div class="mt-4 rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-700 dark:bg-red-950 dark:border-red-800 dark:text-red-300">{{ error }}</div>
         {% endif %}
 
-        <form method="post" action="{% url 'research:rule-create' project.id %}" class="mt-6 bg-white shadow rounded-lg border border-gray-200 p-6 space-y-4">
+        <form method="post" action="{% url 'research:rule-create' project.id %}" class="mt-6 bg-white shadow rounded-lg border border-gray-200 p-6 space-y-4 dark:bg-gray-900 dark:border-gray-800">
             {% csrf_token %}
             <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div class="sm:col-span-2">
-                    <label for="rule-name" class="block text-sm font-medium text-gray-700">Name</label>
+                    <label for="rule-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
                     <input type="text" name="name" id="rule-name" required value="{{ initial.name }}"
-                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                 </div>
                 <div class="sm:col-span-2">
-                    <label for="rule-reason" class="block text-sm font-medium text-gray-700">Reason</label>
+                    <label for="rule-reason" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Reason</label>
                     <input type="text" name="reason" id="rule-reason" value="{{ initial.reason }}"
-                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                 </div>
                 <div>
-                    <label for="rule-text" class="block text-sm font-medium text-gray-700">Search text</label>
+                    <label for="rule-text" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Search text</label>
                     <input type="text" name="text" id="rule-text" value="{{ initial.text }}"
-                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                 </div>
                 <div>
-                    <label for="rule-meeting-name" class="block text-sm font-medium text-gray-700">Meeting name</label>
+                    <label for="rule-meeting-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Meeting name</label>
                     <input type="text" name="meeting_name" id="rule-meeting-name" value="{{ initial.meeting_name }}"
-                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                 </div>
                 <div>
-                    <label for="rule-states" class="block text-sm font-medium text-gray-700">States (comma separated)</label>
+                    <label for="rule-states" class="block text-sm font-medium text-gray-700 dark:text-gray-300">States (comma separated)</label>
                     <input type="text" name="states" id="rule-states" value="{{ initial.states }}" placeholder="CA, OR"
-                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                 </div>
                 <div>
-                    <label for="rule-municipality" class="block text-sm font-medium text-gray-700">Municipality IDs (comma separated)</label>
+                    <label for="rule-municipality" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Municipality IDs (comma separated)</label>
                     <input type="text" name="municipality" id="rule-municipality" value="{{ initial.municipality }}"
-                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                 </div>
                 <div>
-                    <label for="rule-date-from" class="block text-sm font-medium text-gray-700">Date from</label>
+                    <label for="rule-date-from" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Date from</label>
                     <input type="date" name="date_from" id="rule-date-from" value="{{ initial.date_from }}"
-                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                 </div>
                 <div>
-                    <label for="rule-date-to" class="block text-sm font-medium text-gray-700">Date to</label>
+                    <label for="rule-date-to" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Date to</label>
                     <input type="date" name="date_to" id="rule-date-to" value="{{ initial.date_to }}"
-                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                           class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                 </div>
                 <div>
-                    <label for="rule-document-type" class="block text-sm font-medium text-gray-700">Document type</label>
+                    <label for="rule-document-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Document type</label>
                     <select name="document_type" id="rule-document-type"
-                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                            class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                         <option value="all"{% if initial.document_type == "all" or not initial.document_type %} selected{% endif %}>All</option>
                         <option value="agenda"{% if initial.document_type == "agenda" %} selected{% endif %}>Agenda</option>
                         <option value="minutes"{% if initial.document_type == "minutes" %} selected{% endif %}>Minutes</option>
@@ -76,33 +76,33 @@
             </div>
             <div class="flex items-center gap-2">
                 <button type="submit" name="action" value="preview"
-                        class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">Preview</button>
+                        class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">Preview</button>
                 <button type="submit" name="action" value="save"
                         class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">Save rule</button>
             </div>
         </form>
 
         {% if preview %}
-            <div class="mt-8 bg-white shadow rounded-lg border border-gray-200 p-6">
-                <h2 class="text-lg font-medium text-gray-900">Preview</h2>
+            <div class="mt-8 bg-white shadow rounded-lg border border-gray-200 p-6 dark:bg-gray-900 dark:border-gray-800">
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">Preview</h2>
                 {% if preview.error %}
-                    <div class="mt-4 rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-700">{{ preview.error }}</div>
+                    <div class="mt-4 rounded-md bg-red-50 border border-red-200 p-4 text-sm text-red-700 dark:bg-red-950 dark:border-red-800 dark:text-red-300">{{ preview.error }}</div>
                 {% endif %}
-                <p class="mt-1 text-sm text-gray-600">{{ preview.total }} unreviewed page{{ preview.total|pluralize }} would be ignored.</p>
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">{{ preview.total }} unreviewed page{{ preview.total|pluralize }} would be ignored.</p>
                 {% if preview.counts %}
-                    <ul class="mt-4 space-y-1 text-sm text-gray-700">
+                    <ul class="mt-4 space-y-1 text-sm text-gray-700 dark:text-gray-300">
                         {% for row in preview.counts %}
                             <li>{{ row.name }}: {{ row.count }}</li>
                         {% endfor %}
                     </ul>
                 {% endif %}
                 {% if preview.samples %}
-                    <h3 class="mt-6 text-sm font-medium text-gray-900">Samples</h3>
+                    <h3 class="mt-6 text-sm font-medium text-gray-900 dark:text-gray-100">Samples</h3>
                     <ul class="mt-2 space-y-3">
                         {% for sample in preview.samples %}
-                            <li class="border-t border-gray-100 pt-3">
-                                <p class="text-sm text-gray-900">{{ sample.meeting_name }}{% if sample.meeting_date %} · {{ sample.meeting_date }}{% endif %}{% if sample.page_number %} · Page {{ sample.page_number }}{% endif %}</p>
-                                <p class="mt-1 text-xs text-gray-500">{{ sample.text|truncatewords:30 }}</p>
+                            <li class="border-t border-gray-100 pt-3 dark:border-gray-800">
+                                <p class="text-sm text-gray-900 dark:text-gray-100">{{ sample.meeting_name }}{% if sample.meeting_date %} · {{ sample.meeting_date }}{% endif %}{% if sample.page_number %} · Page {{ sample.page_number }}{% endif %}</p>
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{{ sample.text|truncatewords:30 }}</p>
                             </li>
                         {% endfor %}
                     </ul>

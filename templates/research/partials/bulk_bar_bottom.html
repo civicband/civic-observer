@@ -1,10 +1,10 @@
 {% if lens_count %}
     <div class="mt-2 mb-2 flex items-center justify-between gap-2">
-        <span class="text-xs text-gray-500">
+        <span class="text-xs text-gray-500 dark:text-gray-400">
             {{ lens_count }} item{{ lens_count|pluralize }} in this view · select pages to bulk edit
         </span>
         <button type="button" onclick="toggleAllItems(true)"
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-indigo-200 text-xs font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50">
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-indigo-200 text-xs font-medium rounded-md text-indigo-700 bg-white hover:bg-indigo-50 dark:bg-gray-900 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-950">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
             </svg>
@@ -12,13 +12,13 @@
         </button>
     </div>
     <div id="bulk-selection-bottom" data-selection-bar
-         class="mt-4 flex-wrap items-center gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3 shadow-sm"
+         class="mt-4 flex-wrap items-center gap-3 rounded-lg border border-indigo-200 bg-indigo-50 p-3 shadow-sm dark:bg-indigo-950 dark:border-indigo-800"
          style="display: none">
-        <span class="text-sm font-medium text-indigo-900">
+        <span class="text-sm font-medium text-indigo-900 dark:text-indigo-100">
             <span data-selection-count>0</span> selected
         </span>
         <button type="button" onclick="clearSelection()"
-                class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
             <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
             </svg>

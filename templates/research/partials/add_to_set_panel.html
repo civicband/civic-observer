@@ -1,7 +1,7 @@
-<div id="add-to-set-panel-{{ page.id }}" class="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4">
+<div id="add-to-set-panel-{{ page.id }}" class="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4 dark:bg-gray-900 dark:border-gray-800">
     {% if saved %}
-        <div class="flex items-center gap-2 text-sm text-gray-600">
-            <svg class="w-5 h-5 text-indigo-600" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
+        <div class="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
+            <svg class="w-5 h-5 text-indigo-600 dark:text-indigo-400" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
                 <path d="M5 4a2 2 0 012-2h6a2 2 0 012 2v14l-5-2.5L5 18V4z"></path>
             </svg>
             <span>
@@ -10,12 +10,12 @@
         </div>
         <button type="button"
                 onclick="document.getElementById('add-to-set-panel-{{ page.id|escapejs }}').innerHTML = ''"
-                class="mt-2 text-sm text-gray-500 hover:text-gray-700">
+                class="mt-2 text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200 dark:hover:text-gray-300">
             Close
         </button>
     {% else %}
         {% if error %}
-            <p class="mb-2 text-sm text-red-700">{{ error }}</p>
+            <p class="mb-2 text-sm text-red-700 dark:text-red-300">{{ error }}</p>
         {% endif %}
         <form hx-post="{% url 'research:add-to-set' %}"
               hx-target="#add-to-set-panel-{{ page.id }}"
@@ -25,12 +25,12 @@
 
             <div class="space-y-3">
                 <div>
-                    <label for="add-set-{{ page.id }}" class="block text-sm font-medium text-gray-700 mb-1">
+                    <label for="add-set-{{ page.id }}" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
                         Add to set
                     </label>
                     <select name="set"
                             id="add-set-{{ page.id }}"
-                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                         <option value="{% if default_set %}{{ default_set.id }}{% endif %}">
                             {% if default_set %}{{ default_set.project.name }} / {{ default_set.name }}{% else %}My research / Saved pages (will be created){% endif %}
                         </option>
@@ -45,25 +45,25 @@
                 </div>
 
                 <div>
-                    <label for="add-note-{{ page.id }}" class="block text-sm font-medium text-gray-700 mb-1">
+                    <label for="add-note-{{ page.id }}" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
                         Note <span class="text-gray-400 font-normal">(optional)</span>
                     </label>
                     <textarea name="note"
                               id="add-note-{{ page.id }}"
                               rows="2"
                               placeholder="Add a note about why you're adding this page..."
-                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm"></textarea>
+                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"></textarea>
                 </div>
 
                 <div>
-                    <label for="add-codes-{{ page.id }}" class="block text-sm font-medium text-gray-700 mb-1">
+                    <label for="add-codes-{{ page.id }}" class="block text-sm font-medium text-gray-700 mb-1 dark:text-gray-300">
                         Codes <span class="text-gray-400 font-normal">(optional, Ctrl/Cmd-click for several)</span>
                     </label>
                     <select name="codes"
                             id="add-codes-{{ page.id }}"
                             multiple
                             size="3"
-                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm">
+                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                         {% for project in projects %}
                             {% for code in project.active_codes %}
                                 <option value="{{ code.name }}">{{ project.name }} / {{ code.name }}</option>
@@ -76,7 +76,7 @@
             <div class="mt-3 flex items-center justify-end gap-2">
                 <button type="button"
                         onclick="document.getElementById('add-to-set-panel-{{ page.id|escapejs }}').innerHTML = ''"
-                        class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                        class="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
                     Cancel
                 </button>
                 <button type="submit"

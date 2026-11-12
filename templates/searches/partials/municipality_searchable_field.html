@@ -10,7 +10,7 @@
            id="{{ field_id }}">
 
     <!-- Label -->
-    <label for="{{ field_id }}_display" class="block text-sm font-medium text-gray-700">
+    <label for="{{ field_id }}_display" class="block text-sm font-medium text-gray-700 dark:text-gray-300">
         {{ field_label }}
     </label>
 
@@ -23,7 +23,7 @@
                @focus="isOpen = true"
                @click.away="closeDropdown()"
                placeholder="Search municipalities..."
-               class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
+               class="block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700"
                autocomplete="off">
 
         <!-- Search icon -->
@@ -42,13 +42,13 @@
          x-transition:leave="transition ease-in duration-75"
          x-transition:leave-start="transform opacity-100 scale-100"
          x-transition:leave-end="transform opacity-0 scale-95"
-         class="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none"
+         class="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none dark:bg-gray-900"
          style="display: none;">
 
         <!-- Loading state -->
-        <div x-show="isLoading" class="px-3 py-2 text-gray-500 text-sm">
+        <div x-show="isLoading" class="px-3 py-2 text-gray-500 text-sm dark:text-gray-400">
             <div class="flex items-center">
-                <svg class="animate-spin -ml-1 mr-3 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
+                <svg class="animate-spin -ml-1 mr-3 h-4 w-4 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                 </svg>
@@ -72,12 +72,12 @@
 
     <!-- Help text -->
     {% if field_help_text %}
-        <p class="mt-1 text-sm text-gray-500">{{ field_help_text }}</p>
+        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">{{ field_help_text }}</p>
     {% endif %}
 
     <!-- Error display -->
     {% if field_errors %}
-        <p class="mt-1 text-sm text-red-600">{{ field_errors.0 }}</p>
+        <p class="mt-1 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ field_errors.0 }}</p>
     {% endif %}
 </div>
 

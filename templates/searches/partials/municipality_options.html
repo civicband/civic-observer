@@ -1,13 +1,13 @@
 {% if municipalities %}
     {% for municipality in municipalities %}
-        <div class="px-3 py-2 cursor-pointer hover:bg-blue-50 {% if municipality.id|stringformat:'s' == selected_id %}bg-blue-100{% endif %}"
+        <div class="px-3 py-2 cursor-pointer hover:bg-blue-50 dark:hover:bg-blue-950 {% if municipality.id|stringformat:'s' == selected_id %}bg-blue-100 dark:bg-blue-950{% endif %}"
              @click="$dispatch('municipality-selected', {id: '{{ municipality.id }}', name: '{{ municipality.name }}, {{ municipality.state }}'})">
-            <div class="font-medium text-gray-900">{{ municipality.name }}</div>
-            <div class="text-sm text-gray-500">{{ municipality.state }} • {{ municipality.kind|title }}</div>
+            <div class="font-medium text-gray-900 dark:text-gray-100">{{ municipality.name }}</div>
+            <div class="text-sm text-gray-500 dark:text-gray-400">{{ municipality.state }} • {{ municipality.kind|title }}</div>
         </div>
     {% endfor %}
 {% else %}
-    <div class="px-3 py-2 text-gray-500 text-sm">
+    <div class="px-3 py-2 text-gray-500 text-sm dark:text-gray-400">
         {% if query %}
             No municipalities found for "{{ query }}"
         {% else %}

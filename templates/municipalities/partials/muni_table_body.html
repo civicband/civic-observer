@@ -1,22 +1,22 @@
 {% load utm %}
 {% for muni in object_list %}
-    <tr class="hover:bg-gray-50 transition-colors duration-150">
+    <tr class="hover:bg-gray-50 transition-colors duration-150 dark:hover:bg-gray-800">
         <td class="px-6 py-4 whitespace-nowrap">
             <a href="{% civic_url 'https://'|add:muni.subdomain|add:'.civic.band' medium='municipalities' campaign='municipality_list' content='name_link' %}"
-               class="text-indigo-600 hover:text-indigo-700 font-medium transition-colors duration-200"
+               class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 dark:text-indigo-300 font-medium transition-colors duration-200"
                target="_blank"
                rel="noopener">
                 {{ muni.name }}
             </a>
         </td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ muni.state }}</td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">{{ muni.kind }}</td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{{ muni.state }}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">{{ muni.kind }}</td>
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-900 dark:text-gray-100">
+            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
                 {{ muni.pages }} pages
             </span>
         </td>
-        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400">
             {% if muni.last_updated %}
                 {{ muni.last_updated|timesince }} ago
             {% else %}
@@ -27,34 +27,34 @@
             <div class="flex items-center space-x-2">
                 <!-- Primary: Visit Site -->
                 <a href="{% civic_url 'https://'|add:muni.subdomain|add:'.civic.band' medium='municipalities' campaign='municipality_list' content='visit_button' %}"
-                   class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
+                   class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 dark:hover:bg-indigo-500 transition-colors"
                    target="_blank"
                    rel="noopener">
                     Visit Site
                 </a>
                 <!-- Secondary: Create Search -->
                 <a href="{% url 'searches:savedsearch-create' %}?municipality={{ muni.pk }}"
-                   class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                   class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
                     Create Search
                 </a>
                 {% if user.is_staff %}
                     <!-- Staff menu -->
                     <div x-data="{ open: false }" class="relative">
                         <button @click="open = !open"
-                                class="p-1.5 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100">
+                                class="p-1.5 text-gray-400 hover:text-gray-600 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800">
                             <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
                                 <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z"/>
                             </svg>
                         </button>
                         <div x-show="open"
                              @click.outside="open = false"
-                             class="absolute right-0 z-10 mt-1 w-32 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5">
+                             class="absolute right-0 z-10 mt-1 w-32 bg-white rounded-md shadow-lg ring-1 ring-black ring-opacity-5 dark:bg-gray-900">
                             <a href="{% url 'munis:muni-update' muni.pk %}"
-                               class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                               class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800">
                                 Edit
                             </a>
                             <a href="{% url 'munis:muni-delete' muni.pk %}"
-                               class="block px-4 py-2 text-sm text-red-600 hover:bg-gray-100">
+                               class="block px-4 py-2 text-sm text-red-600 dark:text-red-200 hover:bg-gray-100 dark:hover:bg-gray-800 dark:text-red-400">
                                 Delete
                             </a>
                         </div>
@@ -65,7 +65,7 @@
     </tr>
 {% empty %}
     <tr>
-        <td colspan="6" class="px-6 py-12 text-center text-gray-500">
+        <td colspan="6" class="px-6 py-12 text-center text-gray-500 dark:text-gray-400">
             No municipalities match your search. Try adjusting your filters.
         </td>
     </tr>

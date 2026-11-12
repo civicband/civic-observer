@@ -1,14 +1,14 @@
 {% if result_set.status == "ready" %}
     <div id="set-status"
-         class="mt-8 bg-white shadow rounded-lg border border-gray-200"
+         class="mt-8 bg-white shadow rounded-lg border border-gray-200 dark:bg-gray-900 dark:border-gray-800"
          hx-get="{% url 'research:set-detail' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}{% endif %}"
          hx-trigger="load"
          hx-select="#research-set"
          hx-target="#set-status"
          hx-swap="outerHTML">
         <div class="px-4 py-5 sm:p-6">
-            <h2 class="text-lg font-medium text-gray-900">{{ result_set.get_status_display }}</h2>
-            <p class="mt-1 text-sm text-gray-600">This set is ready. Loading the results now.</p>
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ result_set.get_status_display }}</h2>
+            <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">This set is ready. Loading the results now.</p>
             <a href="{% url 'research:set-detail' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}{% endif %}"
                class="mt-4 inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700">
                 View results
@@ -16,37 +16,37 @@
         </div>
     </div>
 {% elif result_set.status == "too_large" or result_set.status == "failed" %}
-    <div id="set-status" class="mt-8 bg-white shadow rounded-lg border border-red-200">
+    <div id="set-status" class="mt-8 bg-white shadow rounded-lg border border-red-200 dark:bg-gray-900 dark:border-red-800">
         <div class="px-4 py-5 sm:p-6">
-            <h2 class="text-lg font-medium text-red-800">{{ result_set.get_status_display }}</h2>
+            <h2 class="text-lg font-medium text-red-800 dark:text-red-200">{{ result_set.get_status_display }}</h2>
             {% if result_set.error %}
-                <p class="mt-2 text-sm text-red-700">{{ result_set.error }}</p>
+                <p class="mt-2 text-sm text-red-700 dark:text-red-300">{{ result_set.error }}</p>
             {% endif %}
-            <p class="mt-3 text-sm text-gray-600">
+            <p class="mt-3 text-sm text-gray-600 dark:text-gray-300">
                 Try narrowing the query by state, meeting name, document type, or date range,
                 then create a new set.
             </p>
             <a href="{% url 'research:project-detail' result_set.project_id %}"
-               class="mt-4 inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+               class="mt-4 inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
                 Back to project
             </a>
         </div>
     </div>
 {% else %}
     <div id="set-status"
-         class="mt-8 bg-white shadow rounded-lg border border-gray-200"
+         class="mt-8 bg-white shadow rounded-lg border border-gray-200 dark:bg-gray-900 dark:border-gray-800"
          hx-get="{% url 'research:set-status' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}{% endif %}"
          hx-trigger="every 2s"
          hx-swap="outerHTML">
         <div class="px-4 py-5 sm:p-6">
             <div class="flex items-center gap-3">
-                <svg class="h-5 w-5 animate-spin text-indigo-600" fill="none" viewBox="0 0 24 24">
+                <svg class="h-5 w-5 animate-spin text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24">
                     <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
                     <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
                 </svg>
-                <h2 class="text-lg font-medium text-gray-900">{{ result_set.get_status_display }}</h2>
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ result_set.get_status_display }}</h2>
             </div>
-            <p class="mt-2 text-sm text-gray-600">
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
                 This set is being built. The page refreshes automatically.
             </p>
         </div>

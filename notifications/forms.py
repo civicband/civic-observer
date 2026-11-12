@@ -13,7 +13,9 @@ class DigestSubscriptionForm(forms.ModelForm):
         queryset=Muni.objects.all().order_by("name"),
         empty_label="Select a municipality...",
         widget=forms.Select(
-            attrs={"class": "mt-1 block w-full rounded-md border-gray-300 shadow-sm"}
+            attrs={
+                "class": "mt-1 block w-full rounded-md border-gray-300 shadow-sm dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700"
+            }
         ),
     )
 
@@ -31,12 +33,12 @@ class NotificationChannelForm(forms.ModelForm):
         widgets = {
             "platform": forms.Select(
                 attrs={
-                    "class": "mt-1 block w-full rounded-md border-gray-300 shadow-sm"
+                    "class": "mt-1 block w-full rounded-md border-gray-300 shadow-sm dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700"
                 }
             ),
             "handle": forms.TextInput(
                 attrs={
-                    "class": "mt-1 block w-full rounded-md border-gray-300 shadow-sm",
+                    "class": "mt-1 block w-full rounded-md border-gray-300 shadow-sm dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700",
                     "placeholder": "Enter username or webhook URL",
                 }
             ),

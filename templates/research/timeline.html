@@ -5,22 +5,22 @@
 
 {% block content %}
     <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <nav class="text-sm text-gray-500 mb-2">
-            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600">Research</a>
+        <nav class="text-sm text-gray-500 mb-2 dark:text-gray-400">
+            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">Research</a>
             <span class="mx-2">/</span>
-            <a href="{% url 'research:project-detail' project.id %}" class="hover:text-indigo-600">{{ project.name }}</a>
+            <a href="{% url 'research:project-detail' project.id %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">{{ project.name }}</a>
             <span class="mx-2">/</span>
-            <span class="text-gray-900">Timeline</span>
+            <span class="text-gray-900 dark:text-gray-100">Timeline</span>
         </nav>
 
         <div class="sm:flex sm:items-center sm:justify-between">
             <div>
-                <h1 class="text-3xl font-bold tracking-tight text-gray-900">Timeline</h1>
-                <p class="mt-2 text-sm text-gray-600">Memos and audit events for this project, newest first. Showing the latest 200 entries.</p>
+                <h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Timeline</h1>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">Memos and audit events for this project, newest first. Showing the latest 200 entries.</p>
             </div>
             <div class="mt-4 sm:mt-0">
                 <a href="{% url 'research:project-detail' project.id %}"
-                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
                     Back to project
                 </a>
             </div>
@@ -29,17 +29,17 @@
         {% if timeline %}
             <ul class="mt-6 space-y-4">
                 {% for entry in timeline %}
-                    <li class="bg-white shadow rounded-lg border border-gray-200 p-4">
+                    <li class="bg-white shadow rounded-lg border border-gray-200 p-4 dark:bg-gray-900 dark:border-gray-800">
                         {% if entry.kind == "memo" %}
                             <div class="flex items-start justify-between gap-4">
-                                <div class="prose prose-sm max-w-none text-sm text-gray-700">
+                                <div class="prose prose-sm max-w-none text-sm text-gray-700 dark:text-gray-300">
                                     {{ entry.memo.body|research_markdown }}
                                 </div>
-                                <div class="flex-shrink-0 text-xs text-gray-500">
+                                <div class="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">
                                     {{ entry.created|date:"M j, Y g:i A" }}
                                 </div>
                             </div>
-                            <div class="mt-2 flex items-center justify-between gap-2 text-xs text-gray-500">
+                            <div class="mt-2 flex items-center justify-between gap-2 text-xs text-gray-500 dark:text-gray-400">
                                 <span>
                                     Memo
                                     {% if entry.memo.author %}by {{ entry.memo.author.get_full_name|default:entry.memo.author.username }}{% endif %}
@@ -49,24 +49,24 @@
                                 </span>
                                 <form method="post" action="{% url 'research:memo-delete' project.id entry.memo.id %}">
                                     {% csrf_token %}
-                                    <button type="submit" class="text-red-600 hover:text-red-800">Delete</button>
+                                    <button type="submit" class="text-red-600 hover:text-red-800 dark:text-red-400">Delete</button>
                                 </form>
                             </div>
                         {% else %}
                             <div class="flex items-start justify-between gap-4">
-                                <span class="text-sm font-medium text-gray-900">{{ entry.event.verb }}</span>
-                                <span class="flex-shrink-0 text-xs text-gray-500">{{ entry.created|date:"M j, Y g:i A" }}</span>
+                                <span class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ entry.event.verb }}</span>
+                                <span class="flex-shrink-0 text-xs text-gray-500 dark:text-gray-400">{{ entry.created|date:"M j, Y g:i A" }}</span>
                             </div>
                             {% if entry.event.actor %}
-                                <p class="mt-1 text-xs text-gray-500">by {{ entry.event.actor.get_full_name|default:entry.event.actor.username }}</p>
+                                <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">by {{ entry.event.actor.get_full_name|default:entry.event.actor.username }}</p>
                             {% endif %}
                         {% endif %}
                     </li>
                 {% endfor %}
             </ul>
         {% else %}
-            <div class="mt-6 text-center py-12 bg-white rounded-lg border border-gray-200">
-                <p class="text-gray-500">No activity yet.</p>
+            <div class="mt-6 text-center py-12 bg-white rounded-lg border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
+                <p class="text-gray-500 dark:text-gray-400">No activity yet.</p>
             </div>
         {% endif %}
     </div>

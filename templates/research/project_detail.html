@@ -5,53 +5,53 @@
 
 {% block content %}
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <nav class="text-sm text-gray-500 mb-2">
-            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600">Research</a>
+        <nav class="text-sm text-gray-500 mb-2 dark:text-gray-400">
+            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">Research</a>
             <span class="mx-2">/</span>
-            <span class="text-gray-900">{{ project.name }}</span>
+            <span class="text-gray-900 dark:text-gray-100">{{ project.name }}</span>
         </nav>
 
         <div class="sm:flex sm:items-center sm:justify-between">
             <div>
-                <h1 class="text-3xl font-bold tracking-tight text-gray-900">{{ project.name }}</h1>
+                <h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">{{ project.name }}</h1>
                 {% if project.description %}
-                    <p class="mt-2 text-sm text-gray-600">{{ project.description }}</p>
+                    <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{{ project.description }}</p>
                 {% endif %}
                 {% if ignored_total %}
-                    <p class="mt-2 text-sm text-gray-600">{{ ignored_total }} ignored page{{ ignored_total|pluralize }} across sets.</p>
+                    <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{{ ignored_total }} ignored page{{ ignored_total|pluralize }} across sets.</p>
                 {% endif %}
-                <p class="mt-1 text-sm text-gray-500">Ignore rules apply across every existing and future set; they do not create a new set.</p>
+                <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Ignore rules apply across every existing and future set; they do not create a new set.</p>
             </div>
             <div class="mt-4 sm:mt-0 flex flex-wrap items-center gap-2">
                 <a href="{% url 'research:project-timeline' project.id %}"
-                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
                     Timeline
                 </a>
                 <a href="{% url 'research:codebook' project.id %}"
-                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
                     Codebook
                 </a>
                 <a href="{% url 'research:rule-list' project.id %}"
-                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
                     Ignore rules
                 </a>
                 <a href="{% url 'research:methods' project.id %}"
-                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+                   class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
                     Methods
                 </a>
             </div>
         </div>
 
-        <div class="mt-8 bg-white shadow rounded-lg border border-gray-200">
+        <div class="mt-8 bg-white shadow rounded-lg border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
             <div class="px-4 py-5 sm:p-6">
-                <h2 class="text-lg font-medium text-gray-900">New memo</h2>
-                <p class="mt-1 text-sm text-gray-600">Capture a thought, question, or decision about this project. Markdown is supported.</p>
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">New memo</h2>
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">Capture a thought, question, or decision about this project. Markdown is supported.</p>
                 <form method="post" action="{% url 'research:memo-create' project.id %}" class="mt-5 space-y-4">
                     {% csrf_token %}
                     <div>
-                        <label for="memo-body" class="block text-sm font-medium text-gray-700">Memo</label>
+                        <label for="memo-body" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Memo</label>
                         <textarea name="body" id="memo-body" rows="3" required
-                                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm"></textarea>
+                                  class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"></textarea>
                     </div>
                     <div>
                         <button type="submit"
@@ -63,56 +63,56 @@
             </div>
         </div>
 
-        <div class="mt-8 bg-white shadow rounded-lg border border-gray-200">
+        <div class="mt-8 bg-white shadow rounded-lg border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
             <div class="px-4 py-5 sm:p-6">
-                <h2 class="text-lg font-medium text-gray-900">New set</h2>
-                <p class="mt-1 text-sm text-gray-600">Freeze a search into a result set you can browse and code.</p>
+                <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">New set</h2>
+                <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">Freeze a search into a result set you can browse and code.</p>
                 <form method="post" action="{% url 'research:set-create' project.id %}" class="mt-5 space-y-4">
                     {% csrf_token %}
                     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
                         <div>
-                            <label for="set-name" class="block text-sm font-medium text-gray-700">Name</label>
+                            <label for="set-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
                             <input type="text" name="name" id="set-name" required
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                         </div>
                         <div>
-                            <label for="set-q" class="block text-sm font-medium text-gray-700">Search text</label>
+                            <label for="set-q" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Search text</label>
                             <input type="text" name="q" id="set-q"
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                         </div>
                         <div>
-                            <label for="set-meeting-name" class="block text-sm font-medium text-gray-700">Meeting name</label>
+                            <label for="set-meeting-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Meeting name</label>
                             <input type="text" name="meeting_name" id="set-meeting-name"
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                         </div>
                         <div>
-                            <label for="set-states" class="block text-sm font-medium text-gray-700">States (comma separated)</label>
+                            <label for="set-states" class="block text-sm font-medium text-gray-700 dark:text-gray-300">States (comma separated)</label>
                             <input type="text" name="states" id="set-states" placeholder="CA, OR"
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                         </div>
                         <div>
-                            <label for="set-municipality" class="block text-sm font-medium text-gray-700">Municipality IDs (comma separated)</label>
+                            <label for="set-municipality" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Municipality IDs (comma separated)</label>
                             <input type="text" name="municipality" id="set-municipality"
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                         </div>
                         <div>
-                            <label for="set-document-type" class="block text-sm font-medium text-gray-700">Document type</label>
+                            <label for="set-document-type" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Document type</label>
                             <select name="document_type" id="set-document-type"
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                                 <option value="all">All</option>
                                 <option value="agenda">Agenda</option>
                                 <option value="minutes">Minutes</option>
                             </select>
                         </div>
                         <div>
-                            <label for="set-date-from" class="block text-sm font-medium text-gray-700">Date from</label>
+                            <label for="set-date-from" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Date from</label>
                             <input type="date" name="date_from" id="set-date-from"
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                         </div>
                         <div>
-                            <label for="set-date-to" class="block text-sm font-medium text-gray-700">Date to</label>
+                            <label for="set-date-to" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Date to</label>
                             <input type="date" name="date_to" id="set-date-to"
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm">
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
                         </div>
                     </div>
                     <div>
@@ -126,29 +126,29 @@
         </div>
 
         <div class="mt-8">
-            <h2 class="text-lg font-medium text-gray-900">Sets</h2>
+            <h2 class="text-lg font-medium text-gray-900 dark:text-gray-100">Sets</h2>
             {% if sets %}
                 <div class="mt-4 space-y-4">
                     {% for result_set in sets %}
-                        <div class="bg-white overflow-hidden shadow rounded-lg border border-gray-200">
+                        <div class="bg-white overflow-hidden shadow rounded-lg border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                             <div class="px-4 py-5 sm:p-6">
                                 <div class="flex items-start justify-between">
                                     <div class="flex-1 min-w-0">
                                         <div class="flex items-center gap-3">
-                                            <h3 class="text-lg font-medium leading-6 text-gray-900">
-                                                <a href="{% url 'research:set-detail' project.id result_set.id %}" class="hover:text-indigo-600">{{ result_set.name }}</a>
+                                            <h3 class="text-lg font-medium leading-6 text-gray-900 dark:text-gray-100">
+                                                <a href="{% url 'research:set-detail' project.id result_set.id %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">{{ result_set.name }}</a>
                                             </h3>
                                             {% if result_set.status == "ready" %}
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">Ready</span>
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200">Ready</span>
                                             {% elif result_set.status == "failed" %}
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Failed</span>
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200">Failed</span>
                                             {% elif result_set.status == "too_large" %}
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800">Too large</span>
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200">Too large</span>
                                             {% else %}
-                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">{{ result_set.get_status_display }}</span>
+                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800 dark:bg-yellow-950 dark:text-yellow-200">{{ result_set.get_status_display }}</span>
                                             {% endif %}
                                         </div>
-                                        <div class="mt-2 flex items-center gap-4 text-sm text-gray-500">
+                                        <div class="mt-2 flex items-center gap-4 text-sm text-gray-500 dark:text-gray-400">
                                             <span>
                                                 {% if result_set.status == "too_large" %}
                                                     at least {{ result_set.item_count }} page{{ result_set.item_count|pluralize }}
@@ -162,7 +162,7 @@
                                     </div>
                                     <div class="ml-4 flex-shrink-0">
                                         <a href="{% url 'research:set-detail' project.id result_set.id %}"
-                                           class="inline-flex items-center justify-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                                           class="inline-flex items-center justify-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
                                             View
                                         </a>
                                     </div>
@@ -172,9 +172,9 @@
                     {% endfor %}
                 </div>
             {% else %}
-                <div class="mt-4 text-center py-12 bg-white rounded-lg border border-gray-200">
-                    <h3 class="text-lg font-medium text-gray-900">No sets yet</h3>
-                    <p class="mt-2 text-gray-500">Create your first set above.</p>
+                <div class="mt-4 text-center py-12 bg-white rounded-lg border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
+                    <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">No sets yet</h3>
+                    <p class="mt-2 text-gray-500 dark:text-gray-400">Create your first set above.</p>
                 </div>
             {% endif %}
         </div>

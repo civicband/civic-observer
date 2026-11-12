@@ -165,6 +165,8 @@ STATIC_ROOT: Path = BASE_DIR / "static"
 _STATIC_DIR = BASE_DIR / "frontend"
 STATICFILES_DIRS: list[Path] = [_STATIC_DIR] if _STATIC_DIR.exists() else []
 
+TAILWIND_CLI_SRC_CSS = "frontend/css/source.css"
+
 STATICFILES_STORAGE: str = "whitenoise.storage.CompressedManifestStaticFilesStorage"
 
 MEDIA_URL = "/media/"
