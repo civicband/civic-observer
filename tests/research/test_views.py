@@ -1188,10 +1188,43 @@ class TestReviewView:
         response = client.get(self._url(result_set))
 
         content = response.content.decode()
-        assert first.page.page_image_thumbnail_url in content
         assert first.page.page_image_url in content
+        assert first.page.page_image_thumbnail_url not in content
         assert "cursor-zoom-in" in content
         assert 'referrerpolicy="no-referrer"' in content
+
+    def test_review_page_uses_wider_container(self, client):
+        user, result_set, _, _ = self._set_with_items()
+        client.force_login(user)
+
+        response = client.get(self._url(result_set))
+
+        content = response.content.decode()
+        assert "max-w-7xl" in content
+        assert "max-w-4xl" not in content
+
+    def test_review_card_uses_responsive_grid(self, client):
+        user, result_set, _, _ = self._set_with_items()
+        client.force_login(user)
+
+        response = client.get(self._url(result_set))
+
+        assert (
+            "xl:grid-cols-[minmax(0,1fr)_minmax(768px,1fr)]"
+            in response.content.decode()
+        )
+
+    def test_review_text_preserves_line_breaks(self, client):
+        user, result_set, first, _ = self._set_with_items()
+        first.page.text = "Line one\nLine two"
+        first.page.save()
+        client.force_login(user)
+
+        response = client.get(self._url(result_set))
+
+        content = response.content.decode()
+        assert "whitespace-pre-wrap" in content
+        assert "break-words" in content
 
     def test_action_buttons_use_distinct_colors(self, client):
         user, result_set, _, _ = self._set_with_items()
