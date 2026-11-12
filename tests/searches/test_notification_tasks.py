@@ -277,6 +277,41 @@ class TestCheckSavedSearchesAfterIngest:
         check_saved_searches(municipality_id=doc.municipality_id)
         assert len(mail.outbox) == 1
 
+    def test_concurrent_check_does_not_double_notify(self, monkeypatch):
+        """
+        If another worker advances the cutoff between our read and our claim,
+        this worker must not send a duplicate notification.
+        """
+        from django.utils import timezone
+
+        from searches import services
+        from searches.models import SavedSearch
+        from searches.tasks import check_saved_search_for_updates
+
+        doc = MeetingDocumentFactory()
+        search = SearchFactory(search_term="budget")
+        search.municipalities.add(doc.municipality)
+        saved_search = SavedSearchFactory(
+            search=search, notification_frequency="immediate"
+        )
+        MeetingPageFactory(document=doc, text="budget hearing")
+
+        real = services.search_new_pages
+
+        def racy(search_obj, cutoff):
+            # Simulate a concurrent worker claiming this cutoff window first.
+            SavedSearch.objects.filter(id=saved_search.id).update(
+                last_checked_for_new_pages=timezone.now()
+            )
+            return real(search_obj, cutoff)
+
+        monkeypatch.setattr(services, "search_new_pages", racy)
+
+        result = check_saved_search_for_updates(saved_search.id)
+
+        assert result["status"] == "already_checked"
+        assert len(mail.outbox) == 0
+
 
 @pytest.mark.django_db
 class TestNotificationEdgeCases:

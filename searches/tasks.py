@@ -10,7 +10,7 @@ import logging
 from django.db.models import Q
 from django.utils import timezone
 
-from .models import SavedSearch
+from .models import SavedSearch, Search
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +23,18 @@ def check_saved_search_for_updates(saved_search_id) -> dict[str, str | int]:
     multiple users sharing one Search are each notified independently and one
     user's check cannot consume new pages on another user's behalf.
 
+    Delivery is at-most-once: the cutoff is claimed before the send, so a
+    worker that crashes after claiming but before sending does not retry that
+    batch. This mirrors the digest path and is deliberate — sending before the
+    claim reintroduces the duplicate emails this claim exists to prevent.
+
     Args:
         saved_search_id: ID of the SavedSearch to check
 
     Returns:
         Dict with status information:
         - status: "not_found" | "no_new_results" | "notified" | "pending"
+          | "already_checked"
         - saved_search_id: The ID that was checked
         - new_results_count: Number of new results (if applicable)
         - action: Description of action taken
@@ -48,21 +54,54 @@ def check_saved_search_for_updates(saved_search_id) -> dict[str, str | int]:
         }
 
     search = saved_search.search
-    new_pages, total = search_new_pages(search, saved_search.last_checked_for_new_pages)
+    prior_cutoff = saved_search.last_checked_for_new_pages
+    new_pages_qs, total = search_new_pages(search, prior_cutoff)
 
-    # Advance this saved search's own cutoff, and refresh Search-level tracking.
+    # Freeze the result set before claiming the cutoff so a page ingested
+    # concurrently is never counted in two batches.
+    new_pages = list(new_pages_qs)
+    new_results_count = len(new_pages)
+
     now = timezone.now()
-    saved_search.last_checked_for_new_pages = now
-    saved_search.last_checked = now
-    saved_search.save(
-        update_fields=["last_checked_for_new_pages", "last_checked", "modified"]
+
+    # Atomic claim: only the worker that observes ``prior_cutoff`` and advances
+    # it may notify. check_saved_searches is enqueued once per document type
+    # (agenda + minutes) and both jobs run on separate workers, so two workers
+    # routinely read the same cutoff. The conditional UPDATE serializes them:
+    # under READ COMMITTED the loser re-checks the predicate against the new row
+    # version, matches zero rows, and skips.
+    claim = SavedSearch.objects.filter(id=saved_search.id)
+    if prior_cutoff is None:
+        claim = claim.filter(last_checked_for_new_pages__isnull=True)
+    else:
+        claim = claim.filter(last_checked_for_new_pages=prior_cutoff)
+    claimed = claim.update(
+        last_checked_for_new_pages=now,
+        last_checked=now,
+        modified=now,
     )
-    search.last_result_count = total
-    search.last_fetched = now
-    search.save(update_fields=["last_result_count", "last_fetched", "modified"])
+
+    # Refresh Search-level tracking (last-writer-wins; not used for dedup).
+    Search.objects.filter(id=search.id).update(
+        last_result_count=total,
+        last_fetched=now,
+        modified=now,
+    )
+
+    if claimed == 0:
+        logger.info(
+            f"SavedSearch {saved_search.id} cutoff already advanced by another "
+            f"worker; skipping duplicate notification"
+        )
+        return {
+            "status": "already_checked",
+            "saved_search_id": str(saved_search.id),
+            "new_results_count": new_results_count,
+            "action": "Cutoff already advanced by another worker",
+        }
 
     # If no new results, nothing to do
-    if not new_pages.exists():
+    if new_results_count == 0:
         logger.debug(
             f"No new results for SavedSearch {saved_search.id} ({saved_search.name})"
         )
@@ -73,7 +112,6 @@ def check_saved_search_for_updates(saved_search_id) -> dict[str, str | int]:
             "action": "No new results found",
         }
 
-    new_results_count = new_pages.count()
     logger.info(
         f"Found {new_results_count} new results for SavedSearch {saved_search.id} ({saved_search.name})"
     )
@@ -128,6 +166,7 @@ def check_saved_searches(municipality_id=None) -> dict[str, int]:
         - searches_checked: Total number of saved searches checked
         - emails_sent: Number of immediate notification emails sent
         - pending_marked: Number of digest searches flagged with pending results
+        - already_checked: Number skipped because another worker claimed them
         - errors: Number of errors encountered
     """
     saved_searches = SavedSearch.objects.select_related("search", "user")
@@ -142,6 +181,7 @@ def check_saved_searches(municipality_id=None) -> dict[str, int]:
 
     emails_sent = 0
     pending_marked = 0
+    already_checked = 0
     errors = 0
 
     for saved_search in saved_searches:
@@ -150,6 +190,8 @@ def check_saved_searches(municipality_id=None) -> dict[str, int]:
             emails_sent += 1
         elif result["status"] == "pending":
             pending_marked += 1
+        elif result["status"] == "already_checked":
+            already_checked += 1
         elif result["status"] == "not_found":
             errors += 1
 
@@ -162,6 +204,7 @@ def check_saved_searches(municipality_id=None) -> dict[str, int]:
         "searches_checked": total_count,
         "emails_sent": emails_sent,
         "pending_marked": pending_marked,
+        "already_checked": already_checked,
         "errors": errors,
     }
 
@@ -324,7 +367,7 @@ def _send_to_notification_channels(saved_search, new_pages) -> None:
 
     Args:
         saved_search: The SavedSearch that matched
-        new_pages: QuerySet of new MeetingPage objects
+        new_pages: List of new MeetingPage objects
     """
     from notifications.services import dispatch_to_all_channels
 
@@ -347,11 +390,11 @@ def _send_to_notification_channels(saved_search, new_pages) -> None:
 
 def _format_channel_message(saved_search, new_pages) -> str:
     """Format notification message for non-email channels."""
-    count = new_pages.count()
+    count = len(new_pages)
     search_name = saved_search.name
 
     if count == 1:
-        page = new_pages.first()
+        page = new_pages[0]
         return (
             f'🔔 New result for "{search_name}"\n\n'
             f"Meeting: {page.document.meeting_name}\n"
