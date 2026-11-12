@@ -111,3 +111,12 @@ def test_homepage_renders_dark_shell(client):
     assert "dark:text-gray-100" in content
     assert "dark:bg-gray-900" in content
     assert "dark:border-gray-800" in content
+
+
+def test_meeting_pages_have_dark_variants():
+    assert_dark_variants(
+        [
+            TEMPLATES / "meetings/meeting_search.html",
+            TEMPLATES / "meetings/partials/search_results.html",
+        ]
+    )
