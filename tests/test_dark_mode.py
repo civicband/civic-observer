@@ -88,3 +88,26 @@ def test_base_template_ships_theme_bootstrap_and_toggle(client):
 
 def test_base_template_dark_variants():
     assert_dark_variants([TEMPLATES / "base.html"])
+
+
+def test_public_pages_have_dark_variants():
+    assert_dark_variants(
+        [
+            TEMPLATES / "homepage.html",
+            TEMPLATES / "login.html",
+            TEMPLATES / "api.html",
+            TEMPLATES / "stagedoor_approval_needed.html",
+            TEMPLATES / "stagedoor_token_input.html",
+        ]
+    )
+
+
+@pytest.mark.django_db
+def test_homepage_renders_dark_shell(client):
+    response = client.get(reverse("homepage"))
+    content = response.content.decode()
+
+    assert "dark:bg-gray-950" in content
+    assert "dark:text-gray-100" in content
+    assert "dark:bg-gray-900" in content
+    assert "dark:border-gray-800" in content
