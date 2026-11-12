@@ -1,4 +1,5 @@
 import uuid
+from dataclasses import replace
 from datetime import date
 
 from django.conf import settings
@@ -96,6 +97,14 @@ def _list_uuid_values(params, key: str) -> tuple[uuid.UUID, ...]:
         except ValueError:
             continue
     return tuple(values)
+
+
+def _review_lens(params) -> tuple[Lens, bool]:
+    """Parse review filters, defaulting to unreviewed-only."""
+    lens = Lens.from_querydict(params)
+    if "disposition" not in params:
+        lens = replace(lens, dispositions=("u",))
+    return lens, set(lens.dispositions) == {"u", "r"}
 
 
 def _date_value(value: str | None) -> date | None:
@@ -474,6 +483,9 @@ class SetDetailView(LoginRequiredMixin, DetailView):
 
         context["lens"] = lens
         context["querystring"] = lens.to_querystring()
+        context["review_querystring"] = replace(
+            lens, dispositions=("u",)
+        ).to_querystring(include_dispositions=True)
         context["items"] = []
         context["next_cursor"] = None
         context["facets"] = {}
@@ -663,7 +675,11 @@ class DispositionView(LoginRequiredMixin, View):
         )
         disposition = request.POST.get("disposition", "")
         reason = request.POST.get("reason", "")
-        lens = Lens.from_querydict(QueryDict(request.POST.get("lens", "")))
+        lens_query = request.POST.get("lens", "")
+        if request.POST.get("next") == "review":
+            lens, _ = _review_lens(QueryDict(lens_query))
+        else:
+            lens = Lens.from_querydict(QueryDict(lens_query))
         try:
             dispose_item(set_item, disposition, actor=request.user, reason=reason)
         except ValueError:
@@ -676,7 +692,9 @@ class DispositionView(LoginRequiredMixin, View):
         context = {
             "result_set": result_set,
             "lens": lens,
-            "querystring": lens.to_querystring(),
+            "querystring": lens.to_querystring(
+                include_dispositions=request.POST.get("next") == "review"
+            ),
             "item": set_item,
             "ignore_reasons": _ignore_reasons(result_set),
         }
@@ -815,11 +833,17 @@ class UndoView(LoginRequiredMixin, View):
         set_item.page_obj = MeetingPage.objects.in_bulk([set_item.page_id]).get(  # type: ignore[attr-defined]
             set_item.page_id
         )
-        lens = Lens.from_querydict(QueryDict(request.POST.get("lens", "")))
+        lens_query = request.POST.get("lens", "")
+        if request.POST.get("next") == "review":
+            lens, _ = _review_lens(QueryDict(lens_query))
+        else:
+            lens = Lens.from_querydict(QueryDict(lens_query))
         context = {
             "result_set": result_set,
             "lens": lens,
-            "querystring": lens.to_querystring(),
+            "querystring": lens.to_querystring(
+                include_dispositions=request.POST.get("next") == "review"
+            ),
             "item": set_item,
             "ignore_reasons": _ignore_reasons(result_set),
         }
@@ -837,7 +861,7 @@ class ReviewView(LoginRequiredMixin, View):
             project_id=project,
             project__owner=request.user,
         )
-        lens = Lens.from_querydict(request.GET)
+        lens, review_all = _review_lens(request.GET)
         after = request.GET.get("after") or None
         before = request.GET.get("before") or None
         try:
@@ -850,7 +874,14 @@ class ReviewView(LoginRequiredMixin, View):
             {
                 "result_set": result_set,
                 "lens": lens,
-                "querystring": lens.to_querystring(),
+                "querystring": lens.to_querystring(include_dispositions=True),
+                "review_all": review_all,
+                "unreviewed_querystring": replace(
+                    lens, dispositions=("u",)
+                ).to_querystring(include_dispositions=True),
+                "all_querystring": replace(
+                    lens, dispositions=("u", "r")
+                ).to_querystring(include_dispositions=True),
                 "item": item,
                 "cursor": cursor,
                 "ignore_reasons": _ignore_reasons(result_set),

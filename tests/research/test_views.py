@@ -305,6 +305,17 @@ class TestSetDetailView:
         assert "1 ignored" in content
         assert "?disposition=i" in content
 
+    def test_review_link_defaults_to_unreviewed(self, client):
+        user, project, result_set = self._ready_set()
+        SetItemFactory(result_set=result_set, disposition="u")
+
+        client.force_login(user)
+        response = client.get(
+            reverse("research:set-detail", args=[project.id, result_set.id])
+        )
+
+        assert "disposition=u" in response.content.decode()
+
     def test_renders_selection_bar_and_item_checkboxes(self, client):
         user, project, result_set = self._ready_set()
         item = SetItemFactory(
@@ -1128,6 +1139,48 @@ class TestReviewView:
         assert response.status_code == 200
         assert "review-card" in response.content.decode()
 
+    def test_review_defaults_to_unreviewed_only(self, client):
+        user, result_set, first, second = self._set_with_items()
+        first.disposition = "r"
+        first.save()
+        client.force_login(user)
+
+        response = client.get(self._url(result_set))
+
+        content = response.content.decode()
+        assert "second page text" in content
+        assert "first page text" not in content
+
+    def test_review_offers_link_to_include_relevant(self, client):
+        user, result_set, _, _ = self._set_with_items()
+        client.force_login(user)
+
+        response = client.get(self._url(result_set))
+
+        assert "Include relevant" in response.content.decode()
+
+    def test_review_preserves_explicit_disposition_in_navigation(self, client):
+        user, result_set, first, _ = self._set_with_items()
+        first.disposition = "r"
+        first.save()
+        client.force_login(user)
+
+        response = client.get(self._url(result_set), {"disposition": "u,r"})
+
+        content = response.content.decode()
+        assert "first page text" in content
+        assert "disposition=u%2Cr" in content
+
+    def test_keyboard_shortcuts_include_arrow_keys(self, client):
+        user, result_set, _, _ = self._set_with_items()
+        client.force_login(user)
+
+        response = client.get(self._url(result_set))
+
+        content = response.content.decode()
+        assert "arrowleft" in content
+        assert "arrowright" in content
+
     def test_renders_page_image(self, client):
         user, result_set, first, _ = self._set_with_items()
         client.force_login(user)
@@ -1231,6 +1284,23 @@ class TestReviewView:
 
         assert response.status_code == 200
         assert "second page text" in response.content.decode()
+
+    def test_disposition_next_preserves_explicit_disposition(self, client):
+        user, result_set, first, _ = self._set_with_items()
+        first.disposition = "r"
+        first.save()
+        client.force_login(user)
+
+        response = client.post(
+            reverse(
+                "research:item-disposition",
+                args=[result_set.project_id, result_set.id, first.id],
+            ),
+            {"disposition": "r", "lens": "disposition=u%2Cr", "next": "review"},
+        )
+
+        assert response.status_code == 200
+        assert "disposition=u%2Cr" in response.content.decode()
 
     def test_undo_next_returns_item(self, client):
         user, result_set, first, _ = self._set_with_items()
