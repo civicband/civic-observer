@@ -157,11 +157,11 @@ class Lens:
             order=data.get("order", "rank"),
         )
 
-    def to_querystring(self) -> str:
+    def to_querystring(self, *, include_dispositions: bool = False) -> str:
         pairs: list[tuple[str, str]] = []
         if self.text:
             pairs.append(("q", self.text))
-        if self.dispositions != DEFAULT_DISPOSITIONS:
+        if include_dispositions or self.dispositions != DEFAULT_DISPOSITIONS:
             pairs.append(("disposition", ",".join(self.dispositions)))
         if self.states:
             pairs.append(("state", ",".join(self.states)))

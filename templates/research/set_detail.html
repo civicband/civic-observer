@@ -35,7 +35,7 @@
                 {% endif %}
             </div>
             <div class="mt-4 sm:mt-0 flex flex-wrap items-center gap-2">
-                <a href="{% url 'research:set-review' result_set.project_id result_set.id %}{% if querystring %}?{{ querystring }}{% endif %}"
+                <a href="{% url 'research:set-review' result_set.project_id result_set.id %}{% if review_querystring %}?{{ review_querystring }}{% endif %}"
                    class="inline-flex items-center gap-1.5 px-4 py-2 border border-indigo-200 text-sm font-medium rounded-md shadow-sm text-indigo-700 bg-indigo-50 hover:bg-indigo-100">
                     <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>

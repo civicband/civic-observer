@@ -79,6 +79,15 @@ def test_to_querystring_emits_only_non_defaults():
     assert Lens(dispositions=("i",)).to_querystring() == "disposition=i"
 
 
+def test_to_querystring_can_include_explicit_dispositions():
+    lens = Lens(text="housing", dispositions=("u", "r"), states=("CA",))
+
+    assert (
+        lens.to_querystring(include_dispositions=True)
+        == "q=housing&disposition=u%2Cr&state=CA"
+    )
+
+
 def test_empty_dispositions_round_trip():
     lens = Lens(dispositions=())
 

@@ -15,9 +15,22 @@
             <span class="text-gray-900">Review</span>
         </nav>
 
-        <div class="flex items-center justify-between">
+        <div class="flex items-center justify-between gap-4">
             <h1 class="text-2xl font-bold tracking-tight text-gray-900">Review</h1>
-            <p class="text-sm text-gray-500">j/k move · r relevant · i ignore · u unreviewed</p>
+            <div class="flex flex-wrap items-center justify-end gap-3">
+                <p class="text-sm text-gray-500">j/k or ←/→ move · r relevant · i ignore · u unreviewed</p>
+                {% if review_all %}
+                    <a href="{% url 'research:set-review' result_set.project_id result_set.id %}{% if unreviewed_querystring %}?{{ unreviewed_querystring }}{% endif %}"
+                       class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-indigo-200 text-xs font-medium rounded-md text-indigo-700 bg-indigo-50 hover:bg-indigo-100">
+                        Unreviewed only
+                    </a>
+                {% else %}
+                    <a href="{% url 'research:set-review' result_set.project_id result_set.id %}{% if all_querystring %}?{{ all_querystring }}{% endif %}"
+                       class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-indigo-200 text-xs font-medium rounded-md text-indigo-700 bg-indigo-50 hover:bg-indigo-100">
+                        Include relevant
+                    </a>
+                {% endif %}
+            </div>
         </div>
 
         <div class="mt-6">
@@ -37,12 +50,19 @@
                     if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) {
                         return;
                     }
-                    if (event.target.tagName === "INPUT" || event.target.tagName === "TEXTAREA") {
+                    if (
+                        event.target.tagName === "INPUT" ||
+                        event.target.tagName === "TEXTAREA" ||
+                        event.target.tagName === "SELECT" ||
+                        event.target.isContentEditable
+                    ) {
                         return;
                     }
                     const targets = {
                         j: "review-next",
                         k: "review-prev",
+                        arrowleft: "review-prev",
+                        arrowright: "review-next",
                         r: "review-relevant",
                         i: "review-ignore",
                         u: "review-unreviewed",
