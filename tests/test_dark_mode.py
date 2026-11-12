@@ -120,3 +120,7 @@ def test_meeting_pages_have_dark_variants():
             TEMPLATES / "meetings/partials/search_results.html",
         ]
     )
+
+
+def test_municipality_pages_have_dark_variants():
+    assert_dark_variants(sorted((TEMPLATES / "municipalities").rglob("*.html")))

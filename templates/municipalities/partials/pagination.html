@@ -2,7 +2,7 @@
     <nav class="flex items-center justify-center space-x-2 mt-8" aria-label="Pagination">
         {% if page_obj.has_previous %}
             <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}"
-               class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+               class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800"
                hx-get="{% url 'munis:muni-list' %}?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.previous_page_number }}"
                hx-target="#muni-results"
                hx-push-url="true">
@@ -21,7 +21,7 @@
                 </span>
             {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
                 <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}"
-                   class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                   class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800"
                    hx-get="{% url 'munis:muni-list' %}?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}"
                    hx-target="#muni-results"
                    hx-push-url="true">
@@ -29,20 +29,20 @@
                 </a>
             {% elif num == 1 or num == page_obj.paginator.num_pages %}
                 <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}"
-                   class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                   class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800"
                    hx-get="{% url 'munis:muni-list' %}?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ num }}"
                    hx-target="#muni-results"
                    hx-push-url="true">
                     {{ num }}
                 </a>
             {% elif num == page_obj.number|add:'-3' or num == page_obj.number|add:'3' %}
-                <span class="px-2 py-2 text-gray-500">...</span>
+                <span class="px-2 py-2 text-gray-500 dark:text-gray-400">...</span>
             {% endif %}
         {% endfor %}
 
         {% if page_obj.has_next %}
             <a href="?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}"
-               class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+               class="px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800"
                hx-get="{% url 'munis:muni-list' %}?{% for key, value in request.GET.items %}{% if key != 'page' %}{{ key }}={{ value }}&{% endif %}{% endfor %}page={{ page_obj.next_page_number }}"
                hx-target="#muni-results"
                hx-push-url="true">

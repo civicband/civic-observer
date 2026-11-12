@@ -7,7 +7,7 @@
                    name="q"
                    value="{{ request.GET.q|default:'' }}"
                    placeholder="Search by municipality name..."
-                   class="w-full pr-4 py-3 pl-12 text-gray-900 placeholder-gray-500 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                   class="w-full pr-4 py-3 pl-12 text-gray-900 placeholder-gray-500 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-900 dark:text-gray-100 dark:placeholder-gray-400 dark:border-gray-700"
                    hx-get="{% url 'munis:muni-list' %}"
                    hx-trigger="input changed delay:300ms"
                    hx-target="#muni-results"
@@ -25,7 +25,7 @@
     <div class="flex flex-wrap items-center justify-center gap-4">
         <!-- State Filter -->
         <select name="state"
-                class="px-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                class="px-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700"
                 hx-get="{% url 'munis:muni-list' %}"
                 hx-trigger="change"
                 hx-target="#muni-results"
@@ -39,7 +39,7 @@
 
         <!-- Type Filter -->
         <select name="kind"
-                class="px-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                class="px-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700"
                 hx-get="{% url 'munis:muni-list' %}"
                 hx-trigger="change"
                 hx-target="#muni-results"
@@ -53,7 +53,7 @@
 
         <!-- Activity Filter -->
         <select name="activity"
-                class="px-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500"
+                class="px-4 py-2 text-sm border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700"
                 hx-get="{% url 'munis:muni-list' %}"
                 hx-trigger="change"
                 hx-target="#muni-results"
@@ -68,14 +68,14 @@
         <!-- Clear Filters -->
         {% if request.GET.q or request.GET.state or request.GET.kind or request.GET.activity %}
             <a href="{% url 'munis:muni-list' %}"
-               class="text-sm text-indigo-600 hover:text-indigo-800 underline">
+               class="text-sm text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 dark:text-indigo-200 underline">
                 Clear filters
             </a>
         {% endif %}
     </div>
 
     <!-- Results Count -->
-    <div class="text-center text-sm text-gray-600">
+    <div class="text-center text-sm text-gray-600 dark:text-gray-300">
         Showing {{ page_obj.paginator.count }} of {{ total_count }} municipalities
     </div>
 </div>

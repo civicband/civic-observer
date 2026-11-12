@@ -42,12 +42,12 @@
                  }">
         <div class="sm:flex sm:items-center sm:justify-between">
             <div>
-                <h1 class="text-3xl font-bold tracking-tight text-gray-900">Municipalities</h1>
-                <p class="mt-2 text-sm text-gray-600">Explore municipal sites across the CivicBand network</p>
+                <h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">Municipalities</h1>
+                <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">Explore municipal sites across the CivicBand network</p>
             </div>
             {% if user.is_staff %}
                 <div class="mt-4 sm:mt-0">
-                    <a href="{% url 'munis:muni-create' %}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                    <a href="{% url 'munis:muni-create' %}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 dark:hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
                         <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                         </svg>
@@ -67,17 +67,14 @@
                     <div class="-mx-4 -my-2 overflow-x-auto sm:-mx-6 lg:-mx-8">
                         <div class="inline-block min-w-full py-2 align-middle sm:px-6 lg:px-8">
                             <div class="overflow-hidden shadow-lg ring-1 ring-gray-200 rounded-xl">
-                                <table class="min-w-full divide-y divide-gray-200">
-                                    <thead class="bg-gray-50">
+                                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
+                                    <thead class="bg-gray-50 dark:bg-gray-900">
                                         <tr>
-                                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide dark:text-gray-300">
                                                 <button @click="sort('name')"
-                                                        class="group inline-flex items-center space-x-1 text-xs font-semibold text-gray-700 uppercase tracking-wide hover:text-gray-900 focus:outline-none">
+                                                        class="group inline-flex items-center space-x-1 text-xs font-semibold text-gray-700 uppercase tracking-wide hover:text-gray-900 focus:outline-none dark:text-gray-300 dark:hover:text-white">
                                                     <span>Name</span>
-                                                    <span class="ml-1" :class="{
-                                                                               'text-gray-400': getSortIcon('name') === 'sort-none',
-                                                                               'text-gray-700': getSortIcon('name') !== 'sort-none'
-                                                                               }">
+                                                    <span class="ml-1" :class="{ 'text-gray-400': getSortIcon('name') === 'sort-none', 'text-gray-700': getSortIcon('name') !== 'sort-none' }">
                                                         <svg x-show="getSortIcon('name') === 'sort-none'" class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                                             <path d="M5 12a1 1 0 102 0V6.414l1.293 1.293a1 1 0 001.414-1.414l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L5 6.414V12zM15 8a1 1 0 10-2 0v5.586l-1.293-1.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L15 13.586V8z"/>
                                                         </svg>
@@ -90,14 +87,11 @@
                                                     </span>
                                                 </button>
                                             </th>
-                                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide dark:text-gray-300">
                                                 <button @click="sort('state')"
-                                                        class="group inline-flex items-center space-x-1 text-xs font-semibold text-gray-700 uppercase tracking-wide hover:text-gray-900 focus:outline-none">
+                                                        class="group inline-flex items-center space-x-1 text-xs font-semibold text-gray-700 uppercase tracking-wide hover:text-gray-900 focus:outline-none dark:text-gray-300 dark:hover:text-white">
                                                     <span>State</span>
-                                                    <span class="ml-1" :class="{
-                                                                               'text-gray-400': getSortIcon('state') === 'sort-none',
-                                                                               'text-gray-700': getSortIcon('state') !== 'sort-none'
-                                                                               }">
+                                                    <span class="ml-1" :class="{ 'text-gray-400': getSortIcon('state') === 'sort-none', 'text-gray-700': getSortIcon('state') !== 'sort-none' }">
                                                         <svg x-show="getSortIcon('state') === 'sort-none'" class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                                             <path d="M5 12a1 1 0 102 0V6.414l1.293 1.293a1 1 0 001.414-1.414l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L5 6.414V12zM15 8a1 1 0 10-2 0v5.586l-1.293-1.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L15 13.586V8z"/>
                                                         </svg>
@@ -110,14 +104,11 @@
                                                     </span>
                                                 </button>
                                             </th>
-                                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide dark:text-gray-300">
                                                 <button @click="sort('kind')"
-                                                        class="group inline-flex items-center space-x-1 text-xs font-semibold text-gray-700 uppercase tracking-wide hover:text-gray-900 focus:outline-none">
+                                                        class="group inline-flex items-center space-x-1 text-xs font-semibold text-gray-700 uppercase tracking-wide hover:text-gray-900 focus:outline-none dark:text-gray-300 dark:hover:text-white">
                                                     <span>Kind</span>
-                                                    <span class="ml-1" :class="{
-                                                                               'text-gray-400': getSortIcon('kind') === 'sort-none',
-                                                                               'text-gray-700': getSortIcon('kind') !== 'sort-none'
-                                                                               }">
+                                                    <span class="ml-1" :class="{ 'text-gray-400': getSortIcon('kind') === 'sort-none', 'text-gray-700': getSortIcon('kind') !== 'sort-none' }">
                                                         <svg x-show="getSortIcon('kind') === 'sort-none'" class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                                             <path d="M5 12a1 1 0 102 0V6.414l1.293 1.293a1 1 0 001.414-1.414l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L5 6.414V12zM15 8a1 1 0 10-2 0v5.586l-1.293-1.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L15 13.586V8z"/>
                                                         </svg>
@@ -130,14 +121,11 @@
                                                     </span>
                                                 </button>
                                             </th>
-                                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide dark:text-gray-300">
                                                 <button @click="sort('pages')"
-                                                        class="group inline-flex items-center space-x-1 text-xs font-semibold text-gray-700 uppercase tracking-wide hover:text-gray-900 focus:outline-none">
+                                                        class="group inline-flex items-center space-x-1 text-xs font-semibold text-gray-700 uppercase tracking-wide hover:text-gray-900 focus:outline-none dark:text-gray-300 dark:hover:text-white">
                                                     <span>Pages</span>
-                                                    <span class="ml-1" :class="{
-                                                                               'text-gray-400': getSortIcon('pages') === 'sort-none',
-                                                                               'text-gray-700': getSortIcon('pages') !== 'sort-none'
-                                                                               }">
+                                                    <span class="ml-1" :class="{ 'text-gray-400': getSortIcon('pages') === 'sort-none', 'text-gray-700': getSortIcon('pages') !== 'sort-none' }">
                                                         <svg x-show="getSortIcon('pages') === 'sort-none'" class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                                             <path d="M5 12a1 1 0 102 0V6.414l1.293 1.293a1 1 0 001.414-1.414l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L5 6.414V12zM15 8a1 1 0 10-2 0v5.586l-1.293-1.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L15 13.586V8z"/>
                                                         </svg>
@@ -150,14 +138,11 @@
                                                     </span>
                                                 </button>
                                             </th>
-                                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide dark:text-gray-300">
                                                 <button @click="sort('saved_searches')"
-                                                        class="group inline-flex items-center space-x-1 text-xs font-semibold text-gray-700 uppercase tracking-wide hover:text-gray-900 focus:outline-none">
+                                                        class="group inline-flex items-center space-x-1 text-xs font-semibold text-gray-700 uppercase tracking-wide hover:text-gray-900 focus:outline-none dark:text-gray-300 dark:hover:text-white">
                                                     <span>Saved Searches</span>
-                                                    <span class="ml-1" :class="{
-                                                                               'text-gray-400': getSortIcon('saved_searches') === 'sort-none',
-                                                                               'text-gray-700': getSortIcon('saved_searches') !== 'sort-none'
-                                                                               }">
+                                                    <span class="ml-1" :class="{ 'text-gray-400': getSortIcon('saved_searches') === 'sort-none', 'text-gray-700': getSortIcon('saved_searches') !== 'sort-none' }">
                                                         <svg x-show="getSortIcon('saved_searches') === 'sort-none'" class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                                             <path d="M5 12a1 1 0 102 0V6.414l1.293 1.293a1 1 0 001.414-1.414l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L5 6.414V12zM15 8a1 1 0 10-2 0v5.586l-1.293-1.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L15 13.586V8z"/>
                                                         </svg>
@@ -170,14 +155,11 @@
                                                     </span>
                                                 </button>
                                             </th>
-                                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide dark:text-gray-300">
                                                 <button @click="sort('last_updated')"
-                                                        class="group inline-flex items-center space-x-1 text-xs font-semibold text-gray-700 uppercase tracking-wide hover:text-gray-900 focus:outline-none">
+                                                        class="group inline-flex items-center space-x-1 text-xs font-semibold text-gray-700 uppercase tracking-wide hover:text-gray-900 focus:outline-none dark:text-gray-300 dark:hover:text-white">
                                                     <span>Last Updated</span>
-                                                    <span class="ml-1" :class="{
-                                                                               'text-gray-400': getSortIcon('last_updated') === 'sort-none',
-                                                                               'text-gray-700': getSortIcon('last_updated') !== 'sort-none'
-                                                                               }">
+                                                    <span class="ml-1" :class="{ 'text-gray-400': getSortIcon('last_updated') === 'sort-none', 'text-gray-700': getSortIcon('last_updated') !== 'sort-none' }">
                                                         <svg x-show="getSortIcon('last_updated') === 'sort-none'" class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
                                                             <path d="M5 12a1 1 0 102 0V6.414l1.293 1.293a1 1 0 001.414-1.414l-3-3a1 1 0 00-1.414 0l-3 3a1 1 0 001.414 1.414L5 6.414V12zM15 8a1 1 0 10-2 0v5.586l-1.293-1.293a1 1 0 00-1.414 1.414l3 3a1 1 0 001.414 0l3-3a1 1 0 00-1.414-1.414L15 13.586V8z"/>
                                                         </svg>
@@ -190,18 +172,18 @@
                                                     </span>
                                                 </button>
                                             </th>
-                                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide">Actions</th>
+                                            <th scope="col" class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wide dark:text-gray-300">Actions</th>
                                         </tr>
                                     </thead>
-                                    <tbody id="muni-table-body" class="bg-white divide-y divide-gray-200">
+                                    <tbody id="muni-table-body" class="bg-white divide-y divide-gray-200 dark:bg-gray-900 dark:divide-gray-800">
                                         {% include 'municipalities/partials/muni_table_body.html' %}
                                     </tbody>
                                 </table>
                             <!-- Loading indicator -->
-                                <div id="loading-indicator" class="htmx-indicator absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center">
+                                <div id="loading-indicator" class="htmx-indicator absolute inset-0 bg-white bg-opacity-75 flex items-center justify-center dark:bg-gray-900">
                                     <div class="flex items-center space-x-2">
                                         <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-indigo-600"></div>
-                                        <span class="text-sm text-gray-600">Sorting...</span>
+                                        <span class="text-sm text-gray-600 dark:text-gray-300">Sorting...</span>
                                     </div>
                                 </div>
                             </div>
@@ -213,27 +195,27 @@
                 <div class="mt-8 md:hidden space-y-4">
                     {% load utm %}
                     {% for muni in page_obj %}
-                        <div class="bg-white shadow-lg rounded-xl p-6 border border-gray-200">
+                        <div class="bg-white shadow-lg rounded-xl p-6 border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
                             <div class="flex items-start justify-between mb-4">
                                 <div class="flex-1">
                                     <a href="{% civic_url 'https://'|add:muni.subdomain|add:'.civic.band' medium='municipalities' campaign='municipality_list' content='name_link' %}"
-                                       class="text-lg font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
+                                       class="text-lg font-semibold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 dark:text-indigo-300 transition-colors"
                                        target="_blank"
                                        rel="noopener">
                                         {{ muni.name }}
                                     </a>
-                                    <div class="mt-1 text-sm text-gray-600">
+                                    <div class="mt-1 text-sm text-gray-600 dark:text-gray-300">
                                         {{ muni.state }} &bull; {{ muni.kind }}
                                     </div>
                                 </div>
                             </div>
 
                             <div class="flex flex-wrap gap-2 mb-4">
-                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800">
+                                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200">
                                     {{ muni.pages }} pages
                                 </span>
                                 {% if muni.last_updated %}
-                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 text-blue-800">
+                                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-blue-100 dark:bg-blue-950 text-blue-800 dark:text-blue-200 dark:text-blue-200">
                                         {{ muni.last_updated|timesince }} ago
                                     </span>
                                 {% endif %}
@@ -241,23 +223,23 @@
 
                             <div class="flex flex-col gap-2">
                                 <a href="{% civic_url 'https://'|add:muni.subdomain|add:'.civic.band' medium='municipalities' campaign='municipality_list' content='visit_button' %}"
-                                   class="inline-flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 transition-colors"
+                                   class="inline-flex items-center justify-center px-4 py-2.5 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 dark:hover:bg-indigo-500 transition-colors"
                                    target="_blank"
                                    rel="noopener">
                                     Visit Site
                                 </a>
                                 <a href="{% url 'searches:savedsearch-create' %}?municipality={{ muni.pk }}"
-                                   class="inline-flex items-center justify-center px-4 py-2.5 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors">
+                                   class="inline-flex items-center justify-center px-4 py-2.5 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 transition-colors dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
                                     Create Search
                                 </a>
                                 {% if user.is_staff %}
                                     <div class="grid grid-cols-2 gap-2">
                                         <a href="{% url 'munis:muni-update' muni.pk %}"
-                                           class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
+                                           class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300">
                                             Edit
                                         </a>
                                         <a href="{% url 'munis:muni-delete' muni.pk %}"
-                                           class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-red-600 bg-red-50 rounded-md hover:bg-red-100">
+                                           class="inline-flex items-center justify-center px-4 py-2 text-sm font-medium text-red-600 dark:text-red-200 bg-red-50 dark:bg-red-950 rounded-md hover:bg-red-100 dark:hover:bg-red-900">
                                             Delete
                                         </a>
                                     </div>
@@ -265,7 +247,7 @@
                             </div>
                         </div>
                     {% empty %}
-                        <div class="text-center py-8 text-gray-500">
+                        <div class="text-center py-8 text-gray-500 dark:text-gray-400">
                             No municipalities match your search.
                         </div>
                     {% endfor %}
@@ -279,11 +261,11 @@
                 <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"></path>
                 </svg>
-                <h3 class="mt-4 text-lg font-medium text-gray-900">No municipalities yet</h3>
-                <p class="mt-2 text-gray-500">Get started by adding your first municipality to monitor.</p>
+                <h3 class="mt-4 text-lg font-medium text-gray-900 dark:text-gray-100">No municipalities yet</h3>
+                <p class="mt-2 text-gray-500 dark:text-gray-400">Get started by adding your first municipality to monitor.</p>
                 {% if user.is_staff %}
                     <div class="mt-6">
-                        <a href="{% url 'munis:muni-create' %}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
+                        <a href="{% url 'munis:muni-create' %}" class="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-indigo-600 hover:bg-indigo-700 dark:hover:bg-indigo-500 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200">
                             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
                             </svg>
