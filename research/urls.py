@@ -26,6 +26,11 @@ urlpatterns = [
         name="rule-list",
     ),
     path(
+        "<uuid:project>/rules/<uuid:rule>/status/",
+        views.IgnoreRuleStatusView.as_view(),
+        name="rule-status",
+    ),
+    path(
         "<uuid:project>/rules/new/",
         views.IgnoreRuleCreateView.as_view(),
         name="rule-create",

@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+
+{% block title %}Rule status - {{ rule.name }} - {{ project.name }} - Research - CivicObserver{% endblock %}
+
+{% block content %}
+    <div class="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <nav class="text-sm text-gray-500 mb-2">
+            <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600">Research</a>
+            <span class="mx-2">/</span>
+            <a href="{% url 'research:project-detail' project.id %}" class="hover:text-indigo-600">{{ project.name }}</a>
+            <span class="mx-2">/</span>
+            <a href="{% url 'research:rule-list' project.id %}" class="hover:text-indigo-600">Ignore rules</a>
+            <span class="mx-2">/</span>
+            <span class="text-gray-900">Status</span>
+        </nav>
+
+        <h1 class="text-3xl font-bold tracking-tight text-gray-900">{{ rule.name }}</h1>
+        <p class="mt-2 text-sm text-gray-600">This rule runs in the background. Status updates automatically.</p>
+
+        {% include "research/rules/partials/status.html" %}
+    </div>
+{% endblock content %}

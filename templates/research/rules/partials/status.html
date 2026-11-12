@@ -1,0 +1,48 @@
+{% with action=rule.last_job_action status=rule.last_job_status %}
+    <div id="rule-status"
+         {% if pending %}hx-get="{% url 'research:rule-status' project.id rule.id %}" hx-trigger="every 2s" hx-swap="outerHTML"{% endif %}
+         class="mt-6 bg-white shadow rounded-lg border border-gray-200 p-6">
+        {% if status == "queued" or status == "running" %}
+            <div class="flex items-center gap-3">
+                <svg class="h-5 w-5 animate-spin text-indigo-600" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                </svg>
+                <h2 class="text-lg font-medium text-gray-900">
+                    {% if action == "revert" %}Reverting rule…{% else %}Applying rule…{% endif %}
+                </h2>
+            </div>
+            <p class="mt-2 text-sm text-gray-600">This page updates automatically while the job runs.</p>
+        {% elif status == "succeeded" %}
+            <div class="flex items-center gap-3">
+                <svg class="h-5 w-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                </svg>
+                <h2 class="text-lg font-medium text-gray-900">
+                    {% if action == "revert" %}Rule reverted{% else %}Rule applied{% endif %}
+                </h2>
+            </div>
+            <p class="mt-2 text-sm text-gray-600">{{ rule.last_job_count|default:0 }} page{{ rule.last_job_count|default:0|pluralize }} {% if action == "revert" %}restored to unreviewed{% else %}ignored{% endif %}.</p>
+        {% elif status == "failed" %}
+            <div class="flex items-center gap-3">
+                <svg class="h-5 w-5 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M10.29 3.86l-8.47 14.14A1 1 0 002.68 19.5h18.64a1 1 0 00.86-1.5L13.71 3.86a1 1 0 00-1.72 0z"></path>
+                </svg>
+                <h2 class="text-lg font-medium text-gray-900">
+                    {% if action == "revert" %}Revert failed{% else %}Apply failed{% endif %}
+                </h2>
+            </div>
+            {% if rule.last_job_error %}
+                <p class="mt-2 text-sm text-red-700">{{ rule.last_job_error|truncatewords:40 }}</p>
+            {% endif %}
+        {% else %}
+            <h2 class="text-lg font-medium text-gray-900">No recent job</h2>
+            <p class="mt-2 text-sm text-gray-600">This rule has not run yet.</p>
+        {% endif %}
+
+        <a href="{% url 'research:rule-list' project.id %}"
+           class="mt-4 inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50">
+            Back to rules
+        </a>
+    </div>
+{% endwith %}

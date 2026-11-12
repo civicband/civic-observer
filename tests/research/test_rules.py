@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -486,3 +487,85 @@ class TestStatementTimeout:
             "set_config('statement_timeout'" in query["sql"]
             for query in queries.captured_queries
         )
+
+
+@pytest.mark.django_db
+class TestRuleJobStatusTasks:
+    def _queued_rule(self, project, action):
+        rule = IgnoreRule.objects.create(
+            project=project,
+            name="California",
+            predicate=QuerySpec(states=("CA",)).canonical(),
+        )
+        rule.last_job_action = action
+        rule.last_job_status = "queued"
+        rule.save(update_fields=["last_job_action", "last_job_status"])
+        return rule
+
+    def test_apply_task_marks_succeeded_with_count(self):
+        project, _, _, _, _, _ = _project_with_sets()
+        actor = UserFactory()
+        rule = self._queued_rule(project, "apply")
+
+        apply_rule_to_project_task(rule.id, actor.id)
+
+        rule.refresh_from_db()
+        assert rule.last_job_status == "succeeded"
+        assert rule.last_job_action == "apply"
+        assert rule.last_job_count == 1
+        assert rule.last_job_error == ""
+        assert rule.last_job_finished_at is not None
+
+    def test_revert_task_marks_succeeded_with_count(self):
+        project, _, _, ca_item, _, _ = _project_with_sets()
+        rule = IgnoreRule.objects.create(
+            project=project,
+            name="California",
+            predicate=QuerySpec(states=("CA",)).canonical(),
+        )
+        apply_rule_to_project(rule)
+        rule.last_job_action = "revert"
+        rule.last_job_status = "queued"
+        rule.save(update_fields=["last_job_action", "last_job_status"])
+
+        revert_rule_task(rule.id)
+
+        rule.refresh_from_db()
+        ca_item.refresh_from_db()
+        assert rule.last_job_status == "succeeded"
+        assert rule.last_job_action == "revert"
+        assert rule.last_job_count == 1
+        assert rule.last_job_finished_at is not None
+        assert ca_item.disposition == "u"
+
+    def test_apply_task_marks_failed_on_error(self):
+        project, *_ = _project_with_sets()
+        rule = self._queued_rule(project, "apply")
+
+        with patch(
+            "research.rules.apply_rule_to_project",
+            side_effect=RuntimeError("boom"),
+        ):
+            with pytest.raises(RuntimeError, match="boom"):
+                apply_rule_to_project_task(rule.id)
+
+        rule.refresh_from_db()
+        assert rule.last_job_status == "failed"
+        assert rule.last_job_error == "boom"
+        assert rule.last_job_finished_at is not None
+
+    def test_stale_job_does_not_overwrite_newer_status(self):
+        project, _, _, ca_item, _, _ = _project_with_sets()
+        rule = self._queued_rule(project, "apply")
+        rule.last_job_id = "new-job"
+        rule.save(update_fields=["last_job_id"])
+
+        with patch("rq.get_current_job", return_value=SimpleNamespace(id="old-job")):
+            apply_rule_to_project_task(rule.id)
+
+        rule.refresh_from_db()
+        ca_item.refresh_from_db()
+        assert rule.last_job_status == "queued"
+        assert rule.last_job_id == "new-job"
+        assert ca_item.disposition == "u"
+        assert not AuditEvent.objects.filter(verb="rule.applied").exists()
