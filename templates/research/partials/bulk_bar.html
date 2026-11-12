@@ -24,65 +24,20 @@
             </svg>
             Clear
         </button>
-        <form id="bulk-selected-form"
-              hx-post="{% url 'research:set-bulk' result_set.project_id result_set.id %}"
-              hx-target="#bulk-confirm" hx-swap="innerHTML"
-              autocomplete="off"
-              class="flex flex-wrap items-center gap-2">
-            {% csrf_token %}
-            <input type="hidden" name="lens" value="{{ querystring }}">
-            <input type="hidden" name="confirm_id" value="bulk-confirm">
-            <button type="submit" name="disposition" value="r"
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-emerald-600 hover:bg-emerald-700">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
-                </svg>
-                Accept
-            </button>
-            <input type="text" name="reason" placeholder="Reason (optional)"
-                   list="ignore-reasons"
-                   class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
-            <button type="submit" name="disposition" value="i"
-                    class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-rose-600 hover:bg-rose-700">
-                <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                </svg>
-                Ignore
-            </button>
-            {% if codes %}
-                <select name="code" class="rounded-md border-gray-300 text-xs shadow-sm">
-                    <option value="">Apply code…</option>
-                    {% for code in codes %}
-                        <option value="{{ code.id }}">{{ code.name }}</option>
-                    {% endfor %}
-                </select>
-                <button type="submit" name="apply_code" value="1"
-                        class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5a2 2 0 011.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A2 2 0 013 12V7a4 4 0 014-4z"></path>
-                    </svg>
-                    Apply code
-                </button>
-            {% endif %}
-        </form>
+        {% include "research/partials/bulk_action_forms.html" with confirm_id="bulk-confirm" %}
     </div>
     <div id="bulk-confirm"></div>
     <script>
         function selectedItemInputs() {
-            return Array.from(document.querySelectorAll('input[type="checkbox"][name="item_ids"]'));
+            return Array.from(document.querySelectorAll('input.bulk-item-checkbox[name="item_ids"]'));
         }
         function updateSelectionBar() {
-            const selected = selectedItemInputs()
-                .filter((input) => input.checked)
-                .map((input) => input.value);
+            const selected = selectedItemInputs().filter((input) => input.checked);
             document.querySelectorAll('[data-selection-bar]').forEach((bar) => {
                 bar.style.display = selected.length > 0 ? 'flex' : 'none';
                 bar.querySelectorAll('[data-selection-count]').forEach((countEl) => {
                     countEl.textContent = selected.length;
                 });
-            });
-            document.querySelectorAll('[data-bulk-item-ids]').forEach((input) => {
-                input.value = selected.join(',');
             });
         }
         function toggleAllItems(checked) {

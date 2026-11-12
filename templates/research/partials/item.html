@@ -2,10 +2,10 @@
      x-data="{ expanded: false, lightbox: false }"
      @keydown.escape.window="lightbox = false">
     <div class="flex items-start gap-3">
-        <input type="checkbox" name="item_ids" value="{{ item.id }}" form="bulk-selected-form"
+        <input type="checkbox" name="item_ids" value="{{ item.id }}"
                autocomplete="off"
                onchange="updateSelectionBar()"
-               class="mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+               class="bulk-item-checkbox mt-1 h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
                aria-label="Select page">
         <div class="flex-1 min-w-0">
             {% if item.page_obj %}
