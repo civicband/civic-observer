@@ -291,6 +291,22 @@ class TestSetDetailView:
         assert "States" in content
         assert "CA" in content
 
+    def test_renders_civic_band_link(self, client):
+        user, project, result_set = self._ready_set()
+        muni = MuniFactory(subdomain="alameda.ca")
+        document = MeetingDocumentFactory(municipality=muni, document_type="agenda")
+        page = MeetingPageFactory(document=document)
+        SetItemFactory(result_set=result_set, page=page, rank=2.0)
+
+        client.force_login(user)
+        response = client.get(
+            reverse("research:set-detail", args=[project.id, result_set.id])
+        )
+
+        content = response.content.decode()
+        assert "View on CivicBand" in content
+        assert "alameda.ca.civic.band/meetings/agendas/" in content
+
     def test_shows_ignored_count_and_link(self, client):
         user, project, result_set = self._ready_set()
         SetItemFactory(result_set=result_set, disposition="i")
@@ -1160,6 +1176,16 @@ class TestReviewView:
         response = client.get(self._url(result_set))
 
         assert "Include relevant" in response.content.decode()
+
+    def test_review_renders_civic_band_link(self, client):
+        user, result_set, first, _ = self._set_with_items()
+        client.force_login(user)
+
+        response = client.get(self._url(result_set))
+
+        content = response.content.decode()
+        assert "View on CivicBand" in content
+        assert "civic.band/meetings/" in content
 
     def test_review_preserves_explicit_disposition_in_navigation(self, client):
         user, result_set, first, _ = self._set_with_items()

@@ -215,3 +215,51 @@ class TestMeetingPageImageURLs:
         assert page.page_image_url.endswith(
             "/alameda.ca/agendas/CityCouncil/2024-01-15/1.png?width=800"
         )
+
+
+@pytest.mark.django_db
+class TestMeetingPageCivicBandURL:
+    @pytest.fixture
+    def muni(self):
+        return Muni.objects.create(
+            subdomain="alameda.ca",
+            name="Alameda",
+            state="CA",
+            country="US",
+            kind="city",
+        )
+
+    @pytest.fixture
+    def document(self, muni):
+        return MeetingDocument.objects.create(
+            municipality=muni,
+            meeting_name="CityCouncil",
+            meeting_date=date(2024, 1, 15),
+            document_type="agenda",
+        )
+
+    def test_uses_denormalized_fields(self, document):
+        page = MeetingPage.objects.create(
+            id="abc123",
+            document=document,
+            page_number=1,
+            municipality_subdomain="alameda.ca",
+            document_type="agenda",
+        )
+
+        assert (
+            page.civic_band_url
+            == "https://alameda.ca.civic.band/meetings/agendas/abc123"
+        )
+
+    def test_falls_back_to_document(self, document):
+        page = MeetingPage.objects.create(
+            id="abc123",
+            document=document,
+            page_number=1,
+        )
+
+        assert (
+            page.civic_band_url
+            == "https://alameda.ca.civic.band/meetings/agendas/abc123"
+        )

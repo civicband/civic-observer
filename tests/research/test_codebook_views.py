@@ -229,6 +229,21 @@ class TestPageCodingPartial:
         assert "Housing" in content
         assert "Worth revisiting" in content
 
+    def test_links_to_civic_band(self, client):
+        user = _login(client)
+        project = ProjectFactory(owner=user)
+        page = MeetingPageFactory()
+        result_set = ResultSetFactory(project=project)
+        SetItemFactory(result_set=result_set, page=page)
+
+        response = client.get(
+            reverse("research:page-coding", args=[project.id, page.id])
+        )
+
+        content = response.content.decode()
+        assert "View on CivicBand" in content
+        assert "civic.band/meetings/" in content
+
     def test_apply_code_to_page(self, client):
         user = _login(client)
         project = ProjectFactory(owner=user)

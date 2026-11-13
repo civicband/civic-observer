@@ -1,3 +1,4 @@
+{% load utm %}
 <div id="review-card" class="item-card bg-white shadow rounded-lg border border-gray-200 p-6 dark:bg-gray-900 dark:border-gray-800"
      x-data="{ lightbox: false }"
      @keydown.escape.window="lightbox = false">
@@ -121,6 +122,21 @@
                         Undo
                     </button>
                 </form>
+            {% endif %}
+            {% if item.page_obj %}
+                {% with page_url=item.page_obj.civic_band_url %}
+                    {% if page_url %}
+                        <a href="{% civic_url page_url medium='research' campaign='review' content='view_page' %}"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                            <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14"></path>
+                            </svg>
+                            View on CivicBand
+                        </a>
+                    {% endif %}
+                {% endwith %}
             {% endif %}
         </div>
         <div class="mt-4 flex items-center justify-between">

@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% load research_markdown %}
+{% load research_markdown utm %}
 
 {% block title %}Timeline - {{ project.name }} - Research - CivicObserver{% endblock %}
 
@@ -45,7 +45,19 @@
                                     {% if entry.memo.author %}by {{ entry.memo.author.get_full_name|default:entry.memo.author.username }}{% endif %}
                                     {% if entry.memo.result_set %}· set {{ entry.memo.result_set.name }}{% endif %}
                                     {% if entry.memo.code %}· code {{ entry.memo.code.name }}{% endif %}
-                                    {% if entry.memo.page %}· page {{ entry.memo.page.page_number }}{% endif %}
+                                    {% if entry.memo.page %}
+                                        · page
+                                        {% with page_url=entry.memo.page.civic_band_url %}
+                                            {% if page_url %}
+                                                <a href="{% civic_url page_url medium='research' campaign='timeline' content='view_page' %}"
+                                                   target="_blank"
+                                                   rel="noopener noreferrer"
+                                                   class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">{{ entry.memo.page.page_number }}</a>
+                                            {% else %}
+                                                {{ entry.memo.page.page_number }}
+                                            {% endif %}
+                                        {% endwith %}
+                                    {% endif %}
                                 </span>
                                 <form method="post" action="{% url 'research:memo-delete' project.id entry.memo.id %}">
                                     {% csrf_token %}
