@@ -30,7 +30,7 @@
                     </label>
                     <select name="set"
                             id="add-set-{{ page.id }}"
-                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
                         <option value="{% if default_set %}{{ default_set.id }}{% endif %}">
                             {% if default_set %}{{ default_set.project.name }} / {{ default_set.name }}{% else %}My research / Saved pages (will be created){% endif %}
                         </option>
@@ -52,7 +52,7 @@
                               id="add-note-{{ page.id }}"
                               rows="2"
                               placeholder="Add a note about why you're adding this page..."
-                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"></textarea>
+                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"></textarea>
                 </div>
 
                 <div>
@@ -63,7 +63,7 @@
                             id="add-codes-{{ page.id }}"
                             multiple
                             size="3"
-                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                            class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
                         {% for project in projects %}
                             {% for code in project.active_codes %}
                                 <option value="{{ code.name }}">{{ project.name }} / {{ code.name }}</option>

@@ -19,7 +19,7 @@ DARK_PAIRS = {
     "text-gray-600": ("dark:text-gray-3",),
     "text-gray-500": ("dark:text-gray-4",),
     "border-gray-200": ("dark:border-gray-8",),
-    "border-gray-300": ("dark:border-gray-7",),
+    "border-gray-300": ("dark:border-gray-7", "dark:border-gray-6"),
     "divide-gray-200": ("dark:divide-gray-8",),
     "divide-gray-300": ("dark:divide-gray-7",),
     "hover:bg-gray-50": ("dark:hover:bg-gray-8", "dark:hover:bg-gray-9"),
@@ -277,9 +277,9 @@ def test_form_widgets_have_dark_classes(form_class):
                 if not any(token.startswith("dark:border-") for token in tokens):
                     missing.append((form_class.__name__, field_name, classes))
                 continue
-            if not any(token.startswith("dark:bg-") for token in tokens) or not any(
-                token.startswith("dark:text-") for token in tokens
-            ):
+            if "dark:bg-gray-900" in tokens or "dark:bg-gray-800" not in tokens:
+                missing.append((form_class.__name__, field_name, classes))
+            if not any(token.startswith("dark:text-") for token in tokens):
                 missing.append((form_class.__name__, field_name, classes))
     assert not missing, missing
 
@@ -341,8 +341,8 @@ def test_visible_form_controls_have_dark_surface():
                 continue
             classes = class_match.group(1)
             tokens = set(classes.split())
-            if not any(token.startswith("dark:bg-") for token in tokens) or not any(
-                token.startswith("dark:text-") for token in tokens
-            ):
+            if "dark:bg-gray-900" in tokens or "dark:bg-gray-800" not in tokens:
+                missing.append(f"{relative}: <{tag_name}> {classes}")
+            if not any(token.startswith("dark:text-") for token in tokens):
                 missing.append(f"{relative}: <{tag_name}> {classes}")
     assert not missing, "Missing dark form surface:\n" + "\n".join(sorted(missing))

@@ -50,7 +50,7 @@
             </label>
             <select name="set"
                     id="set"
-                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
                 {% for project in projects %}
                     {% for result_set in project.sets.all %}
                         <option value="{{ result_set.id }}"{% if forloop.parentloop.first and forloop.first %} selected{% endif %}>
@@ -76,7 +76,7 @@
                       id="note"
                       rows="3"
                       placeholder="Add a note about why you're adding this page..."
-                      class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"></textarea>
+                      class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"></textarea>
         </div>
 
         <!-- Codes -->
@@ -88,7 +88,7 @@
                     id="codes"
                     multiple
                     size="3"
-                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                    class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
                 {% for project in projects %}
                     {% for code in project.active_codes %}
                         <option value="{{ code.name }}">{{ project.name }} / {{ code.name }}</option>

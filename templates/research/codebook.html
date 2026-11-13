@@ -34,12 +34,12 @@
                         <div>
                             <label for="code-name" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
                             <input type="text" name="name" id="code-name" required
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
                         </div>
                         <div>
                             <label for="code-parent" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Parent</label>
                             <select name="parent" id="code-parent"
-                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
                                 <option value="">None (root code)</option>
                                 {% for node in tree %}
                                     <option value="{{ node.code.id }}">{{ node.code.name }}</option>
@@ -49,22 +49,22 @@
                         <div>
                             <label for="code-color" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Color</label>
                             <input type="color" name="color" id="code-color" value="#6366f1"
-                                   class="mt-1 block h-9 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                                   class="mt-1 block h-9 w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
                         </div>
                         <div>
                             <label for="code-definition" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Definition</label>
                             <input type="text" name="definition" id="code-definition"
-                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                                   class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
                         </div>
                         <div>
                             <label for="code-inclusion" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Apply when</label>
                             <textarea name="inclusion" id="code-inclusion" rows="2"
-                                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"></textarea>
+                                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"></textarea>
                         </div>
                         <div>
                             <label for="code-exclusion" class="block text-sm font-medium text-gray-700 dark:text-gray-300">Do not apply when</label>
                             <textarea name="exclusion" id="code-exclusion" rows="2"
-                                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"></textarea>
+                                      class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"></textarea>
                         </div>
                     </div>
                     <div>
@@ -85,7 +85,7 @@
                     {% csrf_token %}
                     <input type="hidden" name="next" value="{% url 'research:codebook' project.id %}">
                     <textarea name="body" rows="2" required placeholder="Notes on definitions, boundaries, or decisions"
-                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100"></textarea>
+                              class="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"></textarea>
                     <button type="submit"
                             class="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700">
                         Add memo
@@ -96,7 +96,7 @@
                         {% csrf_token %}
                         <input type="hidden" name="code" value="{{ code.id }}">
                         <input type="text" name="body" required placeholder="Memo for {{ code.name }}"
-                               class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-100">
+                               class="rounded-md border-gray-300 text-xs shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
                         <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">Add code memo</button>
                     </form>
                 {% endfor %}
