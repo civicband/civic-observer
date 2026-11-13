@@ -3,7 +3,7 @@
 {% block title %}Review {{ result_set.name }} - Research - CivicObserver{% endblock %}
 
 {% block content %}
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8"
+    <div class="max-w-7xl xl:max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-8 py-8"
          x-data="reviewKeyboard()" @keydown.window="handle($event)">
         <nav class="text-sm text-gray-500 mb-2 dark:text-gray-400">
             <a href="{% url 'research:project-list' %}" class="hover:text-indigo-600 dark:hover:text-indigo-400">Research</a>
