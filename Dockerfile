@@ -8,6 +8,12 @@ ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
+# Install build dependencies for packages without Python 3.15 wheels
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
 COPY pyproject.toml uv.lock /tmp/
 WORKDIR /tmp
 
