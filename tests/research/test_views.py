@@ -1203,6 +1203,7 @@ class TestReviewView:
 
         content = response.content.decode()
         assert "max-w-7xl" in content
+        assert "xl:max-w-[1600px]" in content
         assert "max-w-4xl" not in content
 
     def test_review_card_uses_responsive_grid(self, client):
@@ -1211,10 +1212,8 @@ class TestReviewView:
 
         response = client.get(self._url(result_set))
 
-        assert (
-            "xl:grid-cols-[minmax(0,1fr)_minmax(768px,1fr)]"
-            in response.content.decode()
-        )
+        assert "xl:grid-cols-2" in response.content.decode()
+        assert "minmax(768px,1fr)" not in response.content.decode()
 
     def test_review_text_preserves_line_breaks(self, client):
         user, result_set, first, _ = self._set_with_items()
