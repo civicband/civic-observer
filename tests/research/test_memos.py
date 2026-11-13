@@ -264,6 +264,17 @@ class TestMemoViews:
         assert "A project note" in content
         assert "set.materialized" in content
 
+    def test_project_timeline_links_to_civic_band_page(self, client):
+        user = _login(client)
+        project = ProjectFactory(owner=user)
+        page = MeetingPageFactory()
+        project.memos.create(body="A page note", author=user, page=page)
+
+        response = client.get(reverse("research:project-timeline", args=[project.id]))
+
+        content = response.content.decode()
+        assert "civic.band/meetings/" in content
+
     def test_project_detail_links_to_timeline_without_rendering_it(self, client):
         user = _login(client)
         project = ProjectFactory(owner=user)

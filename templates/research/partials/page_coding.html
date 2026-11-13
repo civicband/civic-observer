@@ -1,8 +1,20 @@
-{% load research_markdown %}
+{% load research_markdown utm %}
 <div id="page-coding-{{ page.id }}" class="mt-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:bg-gray-900 dark:border-gray-800">
     <div class="flex items-center justify-between">
         <h4 class="text-sm font-medium text-gray-900 dark:text-gray-100">Codes</h4>
-        <span class="text-xs text-gray-500 dark:text-gray-400">Page {{ page.page_number }}</span>
+        <div class="flex items-center gap-3">
+            <span class="text-xs text-gray-500 dark:text-gray-400">Page {{ page.page_number }}</span>
+            {% with page_url=page.civic_band_url %}
+                {% if page_url %}
+                    <a href="{% civic_url page_url medium='research' campaign='page_coding' content='view_page' %}"
+                       target="_blank"
+                       rel="noopener noreferrer"
+                       class="text-xs font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">
+                        View on CivicBand
+                    </a>
+                {% endif %}
+            {% endwith %}
+        </div>
     </div>
 
     {% if codes %}

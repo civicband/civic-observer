@@ -122,6 +122,20 @@ class MeetingPage(TimeStampedModel):
         return "agendas" if self.document_type == "agenda" else "minutes"
 
     @property
+    def civic_band_url(self) -> str:
+        subdomain = self.municipality_subdomain
+        document = self.document if self.document_id else None
+        if not subdomain and document:
+            subdomain = document.municipality.subdomain
+        if not subdomain:
+            return ""
+        document_type = self.document_type
+        if not document_type and document:
+            document_type = document.document_type
+        table = "agendas" if document_type == "agenda" else "minutes"
+        return f"https://{subdomain}.civic.band/meetings/{table}/{self.id}"
+
+    @property
     def page_image_url(self) -> str:
         return self._page_image_url(width=800)
 
