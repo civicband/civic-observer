@@ -8,7 +8,7 @@ class APIKeyCreateForm(forms.Form):
         max_length=255,
         widget=forms.TextInput(
             attrs={
-                "class": "block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700",
+                "class": "block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600",
                 "placeholder": "e.g., Production Server",
             }
         ),
@@ -18,7 +18,7 @@ class APIKeyCreateForm(forms.Form):
         widget=forms.DateTimeInput(
             attrs={
                 "type": "datetime-local",
-                "class": "block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700",
+                "class": "block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600",
             }
         ),
     )
@@ -29,7 +29,7 @@ class APIKeyCreateForm(forms.Form):
         help_text="Uncheck to limit this key to specific sites.",
         widget=forms.CheckboxInput(
             attrs={
-                "class": "h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-700 dark:text-indigo-400",
+                "class": "h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 dark:border-gray-600 dark:text-indigo-400",
             }
         ),
     )
@@ -42,7 +42,7 @@ class APIKeyCreateForm(forms.Form):
         ),
         widget=forms.TextInput(
             attrs={
-                "class": "block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-900 dark:text-gray-100 dark:border-gray-700",
+                "class": "block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600",
                 "placeholder": "alameda.ca, oakland.ca",
             }
         ),

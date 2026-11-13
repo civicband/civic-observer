@@ -59,7 +59,7 @@
                                 <input type="text" name="{{ form.subdomain.name }}"
                                        value="{{ form.subdomain.value|default:'' }}"
                                        id="{{ form.subdomain.id_for_label }}"
-                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.subdomain.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900"
+                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.subdomain.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-600 dark:bg-gray-800"
                                        placeholder="e.g., berkeley">
                                 {% if form.subdomain.errors %}
                                     <div class="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
@@ -84,7 +84,7 @@
                             <input type="text" name="{{ form.name.name }}"
                                    value="{{ form.name.value|default:'' }}"
                                    id="{{ form.name.id_for_label }}"
-                                   class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.name.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900"
+                                   class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.name.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-600 dark:bg-gray-800"
                                    placeholder="e.g., City of Berkeley">
                             {% if form.name.errors %}
                                 <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.name.errors.0 }}</p>
@@ -101,7 +101,7 @@
                                 <input type="text" name="{{ form.state.name }}"
                                        value="{{ form.state.value|default:'' }}"
                                        id="{{ form.state.id_for_label }}"
-                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.state.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900"
+                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.state.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-600 dark:bg-gray-800"
                                        placeholder="e.g., CA">
                                 {% if form.state.errors %}
                                     <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.state.errors.0 }}</p>
@@ -115,7 +115,7 @@
                                 <input type="text" name="{{ form.country.name }}"
                                        value="{{ form.country.value|default:'' }}"
                                        id="{{ form.country.id_for_label }}"
-                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.country.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900"
+                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.country.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-600 dark:bg-gray-800"
                                        placeholder="e.g., US">
                                 {% if form.country.errors %}
                                     <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.country.errors.0 }}</p>
@@ -132,7 +132,7 @@
                                 <input type="text" name="{{ form.kind.name }}"
                                        value="{{ form.kind.value|default:'' }}"
                                        id="{{ form.kind.id_for_label }}"
-                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.kind.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900"
+                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.kind.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-600 dark:bg-gray-800"
                                        placeholder="e.g., city">
                                 {% if form.kind.errors %}
                                     <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.kind.errors.0 }}</p>
@@ -145,7 +145,7 @@
                                 <input type="number" name="{{ form.pages.name }}"
                                        value="{{ form.pages.value|default:'' }}"
                                        id="{{ form.pages.id_for_label }}"
-                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.pages.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900"
+                                       class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.pages.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-600 dark:bg-gray-800"
                                        placeholder="e.g., 150">
                                 {% if form.pages.errors %}
                                     <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.pages.errors.0 }}</p>
@@ -161,7 +161,7 @@
                             <input type="datetime-local" name="{{ form.last_updated.name }}"
                                    value="{{ form.last_updated.value|default:'' }}"
                                    id="{{ form.last_updated.id_for_label }}"
-                                   class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.last_updated.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900">
+                                   class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.last_updated.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-600 dark:bg-gray-800">
                             {% if form.last_updated.errors %}
                                 <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.last_updated.errors.0 }}</p>
                             {% endif %}
@@ -187,7 +187,7 @@
                             <input type="number" step="any" name="{{ form.latitude.name }}"
                                    value="{{ form.latitude.value|default:'' }}"
                                    id="{{ form.latitude.id_for_label }}"
-                                   class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.latitude.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900"
+                                   class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.latitude.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-600 dark:bg-gray-800"
                                    placeholder="e.g., 37.8715">
                             {% if form.latitude.errors %}
                                 <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.latitude.errors.0 }}</p>
@@ -200,7 +200,7 @@
                             <input type="number" step="any" name="{{ form.longitude.name }}"
                                    value="{{ form.longitude.value|default:'' }}"
                                    id="{{ form.longitude.id_for_label }}"
-                                   class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.longitude.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900"
+                                   class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.longitude.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-600 dark:bg-gray-800"
                                    placeholder="e.g., -122.2730">
                             {% if form.longitude.errors %}
                                 <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.longitude.errors.0 }}</p>
@@ -225,7 +225,7 @@
                         <textarea name="{{ form.popup_data.name }}"
                                   id="{{ form.popup_data.id_for_label }}"
                                   rows="6"
-                                  class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm font-mono{% if form.popup_data.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900"
+                                  class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm font-mono{% if form.popup_data.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-600 dark:bg-gray-800"
                                   placeholder='{"key": "value"}'>{{ form.popup_data.value|default:'' }}</textarea>
                         {% if form.popup_data.errors %}
                             <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.popup_data.errors.0 }}</p>

@@ -59,7 +59,7 @@
                             <input type="text" name="{{ form.name.name }}"
                                    value="{{ form.name.value|default:'' }}"
                                    id="{{ form.name.id_for_label }}"
-                                   class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.name.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900"
+                                   class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.name.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 placeholder-red-300 dark:placeholder-red-400 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-600 dark:bg-gray-800"
                                    placeholder="e.g., Berkeley Planning Commission Meetings">
                             {% if form.name.errors %}
                                 <p class="mt-2 text-sm text-red-600 dark:text-red-200 dark:text-red-400">{{ form.name.errors.0 }}</p>
@@ -75,7 +75,7 @@
                             </label>
                             <select name="{{ form.search.name }}"
                                     id="{{ form.search.id_for_label }}"
-                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.search.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-700 dark:bg-gray-900">
+                                    class="block w-full rounded-md border-gray-300 shadow-sm focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm{% if form.search.errors %} border-red-300 dark:border-red-700 text-red-900 dark:text-red-100 focus:ring-red-500 dark:focus:ring-red-400 focus:border-red-500 dark:focus:border-red-400{% endif %} dark:border-gray-600 dark:bg-gray-800">
                                 <option value="">Select a search configuration...</option>
                                 {% for choice in form.search.field.queryset %}
                                     <option value="{{ choice.pk }}" {% if form.search.value == choice.pk|stringformat:"s" %}selected{% endif %}>

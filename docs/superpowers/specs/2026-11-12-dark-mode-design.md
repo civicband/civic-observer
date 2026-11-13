@@ -127,9 +127,9 @@ Use dark neutrals for surfaces and text, keeping indigo as the primary accent.
 | Faint text | `text-gray-400` | `dark:text-gray-500` |
 | Neutral hover | `hover:bg-gray-50` | `dark:hover:bg-gray-800` |
 | Neutral hover text | `hover:text-gray-900` | `dark:hover:text-white` |
-| Input surface | `bg-white` | `dark:bg-gray-900` |
+| Input surface | `bg-white` | `dark:bg-gray-800` |
 | Input text | `text-gray-900` | `dark:text-gray-100` |
-| Input border | `border-gray-300` | `dark:border-gray-700` |
+| Input border | `border-gray-300` | `dark:border-gray-600` |
 
 Additional rules:
 
