@@ -1,3 +1,4 @@
+{% load utm %}
 {% for node in tree %}
     <div class="bg-white shadow rounded-lg border border-gray-200 p-6 dark:bg-gray-900 dark:border-gray-800">
         <div class="flex items-start justify-between gap-4">
@@ -24,6 +25,16 @@
                     {% if exemplar.page and exemplar.page.text %}
                         <blockquote class="mt-3 border-l-4 border-indigo-200 pl-3 text-sm italic text-gray-600 dark:text-gray-300 dark:border-indigo-800">
                             {{ exemplar.page.text }}
+                            {% with page_url=exemplar.page.civic_band_url %}
+                                {% if page_url %}
+                                    <a href="{% civic_url page_url medium='research' campaign='codebook' content='view_page' %}"
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                       class="not-italic text-xs font-medium text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">
+                                        View on CivicBand
+                                    </a>
+                                {% endif %}
+                            {% endwith %}
                         </blockquote>
                     {% endif %}
                 {% endfor %}
