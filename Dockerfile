@@ -2,7 +2,7 @@
 # Stage 1: Builder - Install dependencies
 # ------------------------------------------------------------
 
-FROM python:3.15-slim-bookworm AS builder
+FROM python:3.14-slim-bookworm AS builder
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -54,7 +54,7 @@ RUN python manage.py collectstatic --noinput --skip-checks
 # Stage 3: Release - Final production image
 # ------------------------------------------------------------
 
-FROM python:3.15-slim-bookworm AS release
+FROM python:3.14-slim-bookworm AS release
 
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
 ENV PYTHONDONTWRITEBYTECODE=1
@@ -71,7 +71,7 @@ RUN groupadd --gid 1000 app && \
     useradd --uid 1000 --gid 1000 --create-home --shell /bin/bash app
 
 # Copy Python packages from builder
-COPY --from=builder /usr/local/lib/python3.15/site-packages /usr/local/lib/python3.15/site-packages
+COPY --from=builder /usr/local/lib/python3.14/site-packages /usr/local/lib/python3.14/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code
