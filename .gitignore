@@ -93,4 +93,11 @@ tailwindcss/
 # Git worktrees
 .worktrees/
 
+# Raw CivicBand Watch planning inputs (contain private feed data/secrets)
+_civic_band_watch/
+cb_watch.zip
+
+# Local external data cache
+.cache/
+
 tailwind.css
