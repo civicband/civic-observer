@@ -3,6 +3,7 @@ from typing import Any
 
 import factory
 from django.contrib.auth import get_user_model
+from django.utils import timezone
 from factory.django import DjangoModelFactory
 
 import research.models
@@ -11,6 +12,15 @@ from meetings.models import MeetingDocument, MeetingPage
 from municipalities.models import Muni
 from notifications.models import NotificationChannel
 from searches.models import SavedSearch, Search
+from watch.models import (
+    IngestRun,
+    MeetingHit,
+    Mention,
+    Place,
+    Subreddit,
+    Thread,
+    ThreadPlace,
+)
 
 User = get_user_model()
 
@@ -230,3 +240,87 @@ class AuditEventFactory(DjangoModelFactory):
     project = factory.SubFactory(ProjectFactory)  # type: ignore
     verb = "set.materialized"
     payload = factory.LazyFunction(dict)  # type: ignore
+
+
+class PlaceFactory(DjangoModelFactory):
+    class Meta:
+        model = Place
+
+    canonical_key = factory.Sequence(lambda n: f"us:place:test{n:07d}")  # type: ignore
+    name = "Testville"
+    place_type = "city"
+    state = "CA"
+    country = "US"
+
+
+class PlaceWithMuniFactory(PlaceFactory):
+    muni = factory.SubFactory(MuniFactory)  # type: ignore
+    muni_link_status = "auto"
+
+
+class SubredditFactory(DjangoModelFactory):
+    class Meta:
+        model = Subreddit
+
+    name = factory.Sequence(lambda n: f"sub{n}")  # type: ignore
+    kind = "general"
+    confidence = "low"
+    source = "gazetteer"
+
+
+class ThreadFactory(DjangoModelFactory):
+    class Meta:
+        model = Thread
+
+    key = factory.Sequence(lambda n: f"reddit:test/{n}")  # type: ignore
+    title = "Test thread"
+    first_seen = factory.LazyFunction(timezone.now)  # type: ignore
+    last_seen = factory.LazyFunction(timezone.now)  # type: ignore
+
+
+class MentionFactory(DjangoModelFactory):
+    class Meta:
+        model = Mention
+
+    id = factory.Sequence(lambda n: f"F5BOT-alert-1-{n}")  # type: ignore
+    url = "https://www.reddit.com/r/test/comments/abc/"
+    kind = "post"
+    site = "reddit"
+    thread = factory.SubFactory(ThreadFactory)  # type: ignore
+    published_at = factory.LazyFunction(timezone.now)  # type: ignore
+
+
+class ThreadPlaceFactory(DjangoModelFactory):
+    class Meta:
+        model = ThreadPlace
+
+    thread = factory.SubFactory(ThreadFactory)  # type: ignore
+    place = factory.SubFactory(PlaceFactory)  # type: ignore
+    role = "subject"
+    confidence = "high"
+    source = "subreddit"
+
+
+class MeetingHitFactory(DjangoModelFactory):
+    class Meta:
+        model = MeetingHit
+
+    thread = factory.SubFactory(ThreadFactory)  # type: ignore
+    place = factory.SubFactory(PlaceFactory)  # type: ignore
+    page_id = "page-1"
+    query_hash = "0" * 64
+    meeting_date = date(2024, 1, 15)
+
+
+class IngestRunFactory(DjangoModelFactory):
+    class Meta:
+        model = IngestRun
+
+    started_at = factory.LazyFunction(timezone.now)  # type: ignore
+    finished_at = factory.LazyFunction(timezone.now)  # type: ignore
+    source = "test"
+    pages = 1
+    seen = 0
+    new = 0
+    skipped = 0
+    error = ""
