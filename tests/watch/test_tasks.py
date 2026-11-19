@@ -38,7 +38,7 @@ def test_enrich_stub_returns_thread_id():
     }
 
 
-def test_tasks_module_exposes_rq_entrypoint():
+def test_tasks_module_reexports_enrich_thread():
     from watch import tasks
 
     assert tasks.enrich_thread is enrichment.enrich_thread
@@ -76,6 +76,15 @@ def test_enqueue_enrichment_uses_default_queue(monkeypatch):
     )
 
 
+def test_enqueue_enrichment_tolerates_queue_returning_none(monkeypatch):
+    class FakeQueue:
+        def enqueue(self, func, *args, **kwargs):
+            return None
+
+    monkeypatch.setattr(django_rq, "get_queue", lambda name: FakeQueue())
+    assert ingest.enqueue_enrichment("thread-id") is None
+
+
 def test_enqueue_failure_does_not_break_ingest(monkeypatch, caplog):
     break_rq(monkeypatch)
     with caplog.at_level(logging.ERROR, logger="watch.ingest"):
@@ -104,12 +113,35 @@ def test_ingest_page_enqueues_once_per_changed_thread(monkeypatch):
         ]
     }
     assert ingest.ingest_page(page) == (0, 3, 0)
-    expected = [
-        str(thread_id)
-        for thread_id in Thread.objects.order_by("key").values_list("id", flat=True)
-    ]
-    assert enqueued == expected
+    expected = {
+        str(thread_id) for thread_id in Thread.objects.values_list("id", flat=True)
+    }
+    assert len(enqueued) == 2
+    assert set(enqueued) == expected
     assert all(isinstance(thread_id, str) for thread_id in enqueued)
+
+
+@pytest.mark.django_db
+def test_poll_feed_enqueues_after_each_page(monkeypatch):
+    enqueued: list[str] = []
+    monkeypatch.setattr(ingest, "enqueue_enrichment", enqueued.append)
+    pages = {
+        "one": {"items": [item("alert-1")], "next_url": "two"},
+        "two": {"items": [item("alert-2", post_id="def456")]},
+    }
+
+    def fetch(url):
+        if url == "two":
+            # The first page is stored and enqueued before page two is fetched.
+            assert len(enqueued) == 1
+        return pages[url]
+
+    assert ingest.poll_feed("one", fetch=fetch) == ingest.IngestStats(2, 0, 2)
+    expected = {
+        str(thread_id) for thread_id in Thread.objects.values_list("id", flat=True)
+    }
+    assert len(enqueued) == 2
+    assert set(enqueued) == expected
 
 
 @pytest.mark.django_db

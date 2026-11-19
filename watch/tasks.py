@@ -1,8 +1,9 @@
-"""RQ task entry points for the watch app.
+"""Compatibility shim exposing watch tasks.
 
-Workers import task functions from this module, which keeps the job surface
-separate from ``watch.ingest``. Importing it must stay side-effect free so an
-enqueue failure can never affect an ingest transaction.
+The ingest path enqueues ``watch.enrichment.enrich_thread`` directly, so this
+module simply re-exports it for callers that prefer to import task functions
+from ``watch.tasks``. Importing it stays side-effect free so enqueue problems
+can never affect an ingest transaction.
 """
 
 from watch.enrichment import enrich_thread
