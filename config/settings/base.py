@@ -44,6 +44,7 @@ LOCAL_APPS: list[str] = [
     "analytics",
     "clip",
     "research",
+    "watch",
 ]
 
 INSTALLED_APPS: list[str] = DJANGO_APPS + THIRD_PARTY_APPS + LOCAL_APPS
@@ -234,6 +235,11 @@ BLUESKY_BOT_HANDLE = env.str("BLUESKY_BOT_HANDLE", "")
 BLUESKY_BOT_PASSWORD = env.str("BLUESKY_BOT_PASSWORD", "")
 MASTODON_ACCESS_TOKEN = env.str("MASTODON_ACCESS_TOKEN", "")
 MASTODON_INSTANCE_URL = env.str("MASTODON_INSTANCE_URL", "https://mastodon.social")
+
+# CivicBand Watch
+F5BOT_FEED_URL = env.str("F5BOT_FEED_URL", "")
+WATCH_DATA_DIR = env.str("WATCH_DATA_DIR", str(BASE_DIR / ".cache" / "watch"))
+WATCH_INGEST_LOCK_SECONDS = env.int("WATCH_INGEST_LOCK_SECONDS", 3600)
 
 # Umami Analytics
 UMAMI_ENABLED: bool = False
