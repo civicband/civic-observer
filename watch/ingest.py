@@ -1,11 +1,16 @@
 """Ingest f5bot feed pages into watch threads and mentions."""
 
 import json
+import logging
 import re
+import threading
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 
+import django_rq
 import httpx
+from django.conf import settings
 from django.db import DataError, transaction
 from django.utils import timezone
 
@@ -21,11 +26,54 @@ class IngestStats:
     skipped: int = 0
 
 
+@contextmanager
+def acquire_ingest_lock():
+    lock = django_rq.get_connection("default").lock(
+        "watch:ingest", timeout=settings.WATCH_INGEST_LOCK_SECONDS, blocking=False
+    )
+    acquired = lock.acquire()
+    try:
+        yield acquired
+    finally:
+        if acquired:
+            lock.release()
+
+
+@contextmanager
+def _hide_http_logs():
+    # HTTPX logs full request URLs at INFO; httpcore traces may log them at DEBUG.
+    # Filter only this thread while fetching so unrelated HTTP logs are unaffected.
+    thread_id = threading.get_ident()
+    loggers = [
+        logging.getLogger(name)
+        for name in (
+            "httpx",
+            "httpcore.connection",
+            "httpcore.http11",
+            "httpcore.http2",
+            "httpcore.proxy",
+            "httpcore.socks",
+        )
+    ]
+
+    def not_this_thread(record):
+        return record.thread != thread_id
+
+    for logger in loggers:
+        logger.addFilter(not_this_thread)
+    try:
+        yield
+    finally:
+        for logger in loggers:
+            logger.removeFilter(not_this_thread)
+
+
 def fetch_json(url: str, *, client: httpx.Client | None = None) -> dict:
     if client is None:
         with httpx.Client() as owned_client:
             return fetch_json(url, client=owned_client)
-    response = client.get(url)
+    with _hide_http_logs():
+        response = client.get(url)
     response.raise_for_status()
     return response.json()
 
