@@ -1,3 +1,5 @@
+from datetime import timedelta
+
 import pytest
 from django.utils import timezone
 
@@ -67,7 +69,7 @@ def test_json_defaults_are_independent():
 
 @pytest.mark.django_db
 def test_ordering_and_muted_country_created_timestamp():
-    older = ThreadFactory(last_seen=timezone.now() - timezone.timedelta(days=1))
+    older = ThreadFactory(last_seen=timezone.now() - timedelta(days=1))
     newer = ThreadFactory(last_seen=timezone.now())
     assert list(Thread.objects.all()) == [newer, older]
     muted = MutedCountry.objects.create(pk="US")

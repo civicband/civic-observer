@@ -31,6 +31,28 @@ def test_command_ingests_file_without_lock(monkeypatch):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    "extra",
+    [
+        ["--feed-url", "https://example.test/feed"],
+        ["--max-pages", "1"],
+    ],
+)
+def test_file_cannot_be_combined_with_feed_options(extra):
+    with pytest.raises(
+        CommandError, match="--file cannot be combined with --feed-url or --max-pages"
+    ):
+        call_command(
+            "ingest_f5bot",
+            "--file",
+            str(FIXTURES / "f5bot_page_1.json"),
+            *extra,
+            "--no-lock",
+        )
+    assert not IngestRun.objects.exists()
+
+
+@pytest.mark.django_db
 def test_command_skips_when_lock_held(monkeypatch):
     from watch import ingest
 

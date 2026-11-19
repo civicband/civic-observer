@@ -60,6 +60,7 @@ feed errors.
 ### 5. Verify
 
 - `IngestRun` shows a recent successful run with no error.
+- A run with `new=0`, `skipped>0`, and `error=""` is the signal to check the f5bot feed format.
 - Threads and mentions appear in the admin. Mentions and ingest runs are
   read-only; `raw_json` is available on a mention's detail page but is not
   shown in the changelist.

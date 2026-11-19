@@ -13,6 +13,7 @@ import httpx
 from django.conf import settings
 from django.db import DataError, transaction
 from django.utils import timezone
+from redis.exceptions import LockError
 
 from watch.enrichment import enrich_thread
 from watch.models import IngestRun, Mention, Subreddit, Thread
@@ -39,7 +40,12 @@ def acquire_ingest_lock():
         yield acquired
     finally:
         if acquired:
-            lock.release()
+            try:
+                lock.release()
+            except LockError as exc:
+                # A long backfill can outlive the lock; that must not turn an
+                # otherwise committed run into a traceback.
+                logger.warning("Could not release ingest lock: %s", type(exc).__name__)
 
 
 @contextmanager
@@ -106,6 +112,13 @@ def _enqueue_changed_threads(thread_ids: list[str]) -> None:
         enqueue_enrichment(thread_id)
 
 
+def _safe_item_id(item: dict) -> str:
+    raw = item.get("id") if isinstance(item, dict) else None
+    if isinstance(raw, str) and raw.strip():
+        return raw
+    return "<missing id>"
+
+
 @transaction.atomic
 def _ingest_page(
     page: dict, *, created_ids: set[str]
@@ -120,6 +133,10 @@ def _ingest_page(
                 isinstance(item.get(field), str) and item[field].strip()
                 for field in ("id", "url")
             ):
+                logger.warning(
+                    "Skipping feed item %s: missing or blank id/url",
+                    _safe_item_id(item),
+                )
                 skipped += 1
                 continue
             date = item.get("date_published")
@@ -137,19 +154,33 @@ def _ingest_page(
                 )
             except (TypeError, ValueError):
                 published_at = None
-        except Exception:
+        except Exception as exc:
             # Malformed input should not discard the rest of the page.
+            logger.warning(
+                "Skipping feed item %s during parse: %s: %s",
+                _safe_item_id(item),
+                type(exc).__name__,
+                exc,
+            )
             skipped += 1
             continue
         if row["site"] != "reddit":
+            logger.debug("Skipping non-Reddit item %s", row["id"])
             skipped += 1
             continue
         if row["id"] in page_ids or row["id"] in created_ids:
+            logger.debug("Skipping duplicate item %s", row["id"])
             skipped += 1
             continue
         try:
             stored_thread_id = _store_item(item, row, published_at)
-        except (DataError, ValueError):
+        except (DataError, ValueError) as exc:
+            logger.warning(
+                "Skipping feed item %s during store: %s: %s",
+                row["id"],
+                type(exc).__name__,
+                exc,
+            )
             skipped += 1
             continue
         page_ids.add(row["id"])

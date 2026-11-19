@@ -1,5 +1,5 @@
 import pytest
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, models, transaction
 
 from meetings.models import MeetingPage
 from tests.factories import (
@@ -38,6 +38,12 @@ def test_meeting_hit_accepts_missing_page():
     hit = MeetingHitFactory(page_id="missing-page")
     assert not MeetingPage.objects.filter(pk="missing-page").exists()
     assert MeetingHit.objects.get(pk=hit.pk).page_id == "missing-page"
+
+
+def test_meeting_hit_page_has_no_database_constraint():
+    field = MeetingHit._meta.get_field("page")
+    assert field.remote_field.on_delete is models.DO_NOTHING
+    assert field.db_constraint is False  # type: ignore[attr-defined]
 
 
 @pytest.mark.django_db
