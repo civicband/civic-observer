@@ -97,7 +97,7 @@ def enqueue_enrichment(thread_id: str) -> str | None:
         # A missing or unreachable queue must never fail or roll back the ingest.
         logger.exception("Could not enqueue enrichment for thread %s", thread_id)
         return None
-    return job.id
+    return getattr(job, "id", None)
 
 
 def _enqueue_changed_threads(thread_ids: list[str]) -> None:
