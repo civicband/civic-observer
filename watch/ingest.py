@@ -14,8 +14,11 @@ from django.conf import settings
 from django.db import DataError, transaction
 from django.utils import timezone
 
+from watch.enrichment import enrich_thread
 from watch.models import IngestRun, Mention, Subreddit, Thread
 from watch.parsing import parse_item
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
@@ -79,14 +82,38 @@ def fetch_json(url: str, *, client: httpx.Client | None = None) -> dict:
 
 
 def ingest_page(page: dict) -> tuple[int, int, int]:
-    return _ingest_page(page, created_ids=set())
+    seen, new, skipped, changed_threads = _ingest_page(page, created_ids=set())
+    _enqueue_changed_threads(changed_threads)
+    return seen, new, skipped
+
+
+def enqueue_enrichment(thread_id: str) -> str | None:
+    """Queue enrichment for a thread without letting queue errors break ingest."""
+    try:
+        job = django_rq.get_queue("default").enqueue(
+            enrich_thread, str(thread_id), job_timeout=120
+        )
+    except Exception:
+        # A missing or unreachable queue must never fail or roll back the ingest.
+        logger.exception("Could not enqueue enrichment for thread %s", thread_id)
+        return None
+    return job.id
+
+
+def _enqueue_changed_threads(thread_ids: list[str]) -> None:
+    # A page can touch the same thread many times; enrich each one once.
+    for thread_id in dict.fromkeys(thread_ids):
+        enqueue_enrichment(thread_id)
 
 
 @transaction.atomic
-def _ingest_page(page: dict, *, created_ids: set[str]) -> tuple[int, int, int]:
+def _ingest_page(
+    page: dict, *, created_ids: set[str]
+) -> tuple[int, int, int, list[str]]:
     seen = new = skipped = 0
     page_ids: set[str] = set()
     new_ids: set[str] = set()
+    changed_threads: list[str] = []
     for item in page.get("items") or []:
         try:
             if not all(
@@ -121,24 +148,25 @@ def _ingest_page(page: dict, *, created_ids: set[str]) -> tuple[int, int, int]:
             skipped += 1
             continue
         try:
-            created = _store_item(item, row, published_at)
+            stored_thread_id = _store_item(item, row, published_at)
         except (DataError, ValueError):
             skipped += 1
             continue
         page_ids.add(row["id"])
-        if created:
-            new_ids.add(row["id"])
-            new += 1
-        else:
+        if stored_thread_id is None:
             seen += 1
+            continue
+        changed_threads.append(stored_thread_id)
+        new_ids.add(row["id"])
+        new += 1
     created_ids.update(new_ids)
-    return seen, new, skipped
+    return seen, new, skipped, changed_threads
 
 
 @transaction.atomic
-def _store_item(item: dict, row: dict, published_at: datetime | None) -> bool:
+def _store_item(item: dict, row: dict, published_at: datetime | None) -> str | None:
     if Mention.objects.filter(pk=row["id"]).exists():
-        return False
+        return None
     observed_at = published_at or timezone.now()
     subreddit = None
     if row["subreddit"]:
@@ -162,7 +190,7 @@ def _store_item(item: dict, row: dict, published_at: datetime | None) -> bool:
     # Serialize updates to an existing thread, including the duplicate check.
     thread = Thread.objects.select_for_update().get(pk=thread.pk)
     if Mention.objects.filter(pk=row["id"]).exists():
-        return False
+        return None
 
     Mention.objects.create(
         id=row["id"],
@@ -202,7 +230,7 @@ def _store_item(item: dict, row: dict, published_at: datetime | None) -> bool:
             "modified",
         ]
     )
-    return True
+    return str(thread.pk)
 
 
 def _poll_feed_pages(feed_url: str, *, fetch, max_pages: int):
@@ -211,7 +239,12 @@ def _poll_feed_pages(feed_url: str, *, fetch, max_pages: int):
     url = feed_url
     while url and pages < max_pages:
         page = fetch(url)
-        page_seen, page_new, page_skipped = _ingest_page(page, created_ids=created_ids)
+        page_seen, page_new, page_skipped, changed_threads = _ingest_page(
+            page, created_ids=created_ids
+        )
+        # Enqueue after the page transaction commits so a rollback cannot leave
+        # jobs pointing at threads that were never stored.
+        _enqueue_changed_threads(changed_threads)
         pages += 1
         seen += page_seen
         new += page_new
