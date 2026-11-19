@@ -4,7 +4,8 @@ from pathlib import Path
 
 import httpx
 import pytest
-from django.db import DataError
+from django.db import OperationalError
+from django.db.models.signals import pre_save
 
 from watch.ingest import IngestStats, fetch_json, ingest_page, poll_feed, run_ingest
 from watch.models import IngestRun, Mention, Subreddit, Thread
@@ -27,6 +28,17 @@ def item(alert_id, *, date="2026-01-01T00:00:00Z", title="First title"):
         "group": "group",
         "tags": ["civic", "Reddit Posts"],
     }
+
+
+def fail_mention_create(monkeypatch, alert_id):
+    create = Mention.objects.create
+
+    def fail_for_id(**kwargs):
+        if kwargs["id"] == alert_id:
+            raise OperationalError("database unavailable")
+        return create(**kwargs)
+
+    monkeypatch.setattr(Mention.objects, "create", fail_for_id)
 
 
 @pytest.mark.django_db
@@ -58,9 +70,23 @@ def test_second_ingest_is_idempotent():
 @pytest.mark.django_db
 def test_duplicate_in_same_page_does_not_inflate_thread():
     post = item("alert-1")
-    assert ingest_page({"items": [post, post]}) == (1, 1, 0)
+    assert ingest_page({"items": [post, post]}) == (0, 1, 1)
     assert Mention.objects.count() == 1
     assert Thread.objects.get().mention_count == 1
+    assert ingest_page({"items": [post, post]}) == (1, 0, 1)
+
+
+@pytest.mark.django_db
+def test_poll_continues_past_duplicates_created_in_current_ingest():
+    post = item("alert-1")
+    pages = {
+        "one": {"items": [post, post], "next_url": "two"},
+        "two": {"items": [post, item("alert-2")], "next_url": "three"},
+        "three": {"items": [item("alert-3")]},
+    }
+    assert poll_feed("one", fetch=pages.__getitem__) == IngestStats(3, 0, 3, 2)
+    assert Mention.objects.count() == 3
+    assert Thread.objects.get().mention_count == 3
 
 
 @pytest.mark.django_db
@@ -86,6 +112,46 @@ def test_fields_timestamps_and_existing_subreddit_are_preserved():
         "resident",
         "group",
     )
+
+
+@pytest.mark.django_db
+def test_attaches_subreddit_to_existing_thread_without_one():
+    when = datetime(2026, 1, 1, tzinfo=UTC)
+    thread = Thread.objects.create(
+        key="reddit:testtown/abc123", first_seen=when, last_seen=when
+    )
+    assert ingest_page({"items": [item("alert-1")]}) == (0, 1, 0)
+    thread.refresh_from_db()
+    assert thread.subreddit.name == "testtown"
+    assert thread.subreddit.kind == "general"
+    assert thread.mention_count == 1
+
+
+@pytest.mark.django_db
+def test_rollup_does_not_overwrite_a_triage_update():
+    when = datetime(2026, 1, 1, tzinfo=UTC)
+    snoozed_until = datetime(2026, 3, 1, tzinfo=UTC)
+    thread = Thread.objects.create(
+        key="reddit:testtown/abc123", first_seen=when, last_seen=when
+    )
+
+    def edit_triage(sender, instance, **kwargs):
+        Thread.objects.filter(pk=instance.pk).update(
+            status=Thread.Status.SNOOZED,
+            notes="Edited during ingest",
+            snoozed_until=snoozed_until,
+        )
+
+    pre_save.connect(edit_triage, sender=Thread, weak=False)
+    try:
+        assert ingest_page({"items": [item("alert-1")]}) == (0, 1, 0)
+    finally:
+        pre_save.disconnect(edit_triage, sender=Thread)
+    thread.refresh_from_db()
+    assert thread.status == Thread.Status.SNOOZED
+    assert thread.notes == "Edited during ingest"
+    assert thread.snoozed_until == snoozed_until
+    assert thread.mention_count == 1
 
 
 @pytest.mark.django_db
@@ -141,12 +207,27 @@ def test_malformed_items_are_skipped_and_invalid_dates_are_normalized():
 
 
 @pytest.mark.django_db
-def test_database_failure_rolls_back_whole_page():
-    with pytest.raises(DataError):
-        ingest_page({"items": [item("alert-1"), item("x" * 256)]})
+def test_database_failure_rolls_back_whole_page(monkeypatch):
+    fail_mention_create(monkeypatch, "alert-2")
+    with pytest.raises(OperationalError):
+        ingest_page({"items": [item("alert-1"), item("alert-2")]})
     assert Mention.objects.count() == 0
     assert Thread.objects.count() == 0
     assert Subreddit.objects.count() == 0
+
+
+@pytest.mark.django_db
+def test_oversized_item_is_skipped_without_leaving_partial_rows():
+    bad = item("x" * 256)
+    bad["url"] = "https://www.reddit.com/r/OtherTown/comments/abc123/example/"
+    assert ingest_page({"items": [item("alert-1"), bad, item("alert-2")]}) == (
+        0,
+        2,
+        1,
+    )
+    assert set(Mention.objects.values_list("id", flat=True)) == {"alert-1", "alert-2"}
+    assert Thread.objects.get().mention_count == 2
+    assert not Subreddit.objects.filter(name="othertown").exists()
 
 
 @pytest.mark.django_db
@@ -250,15 +331,16 @@ def test_run_ingest_preserves_completed_page_counts_when_fetch_fails():
 
 
 @pytest.mark.django_db
-def test_run_ingest_does_not_count_rolled_back_page():
+def test_run_ingest_does_not_count_rolled_back_page(monkeypatch):
+    fail_mention_create(monkeypatch, "alert-3")
     pages = {
         "one": {"items": [item("alert-1")], "next_url": "two"},
-        "two": {"items": [item("alert-2"), item("x" * 256)]},
+        "two": {"items": [item("alert-2"), item("alert-3")]},
     }
     run = run_ingest("one", fetch=pages.__getitem__)
     run.refresh_from_db()
     assert (run.pages, run.seen, run.new, run.skipped) == (1, 0, 1, 0)
-    assert run.error.startswith("DataError:")
+    assert run.error.startswith("OperationalError:")
     assert set(Mention.objects.values_list("id", flat=True)) == {"alert-1"}
     assert Thread.objects.get().mention_count == 1
 

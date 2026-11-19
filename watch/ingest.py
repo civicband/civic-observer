@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import httpx
-from django.db import transaction
+from django.db import DataError, transaction
 from django.utils import timezone
 
 from watch.models import IngestRun, Mention, Subreddit, Thread
@@ -30,9 +30,15 @@ def fetch_json(url: str, *, client: httpx.Client | None = None) -> dict:
     return response.json()
 
 
-@transaction.atomic
 def ingest_page(page: dict) -> tuple[int, int, int]:
+    return _ingest_page(page, created_ids=set())
+
+
+@transaction.atomic
+def _ingest_page(page: dict, *, created_ids: set[str]) -> tuple[int, int, int]:
     seen = new = skipped = 0
+    page_ids: set[str] = set()
+    new_ids: set[str] = set()
     for item in page.get("items") or []:
         try:
             if not all(
@@ -63,75 +69,101 @@ def ingest_page(page: dict) -> tuple[int, int, int]:
         if row["site"] != "reddit":
             skipped += 1
             continue
-        if Mention.objects.filter(pk=row["id"]).exists():
-            seen += 1
+        if row["id"] in page_ids or row["id"] in created_ids:
+            skipped += 1
             continue
+        try:
+            created = _store_item(item, row, published_at)
+        except (DataError, ValueError):
+            skipped += 1
+            continue
+        page_ids.add(row["id"])
+        if created:
+            new_ids.add(row["id"])
+            new += 1
+        else:
+            seen += 1
+    created_ids.update(new_ids)
+    return seen, new, skipped
 
-        observed_at = published_at or timezone.now()
-        subreddit = None
-        if row["subreddit"]:
-            subreddit, _ = Subreddit.objects.get_or_create(
-                name=row["subreddit"].lower(),
-                defaults={
-                    "kind": Subreddit.Kind.GENERAL,
-                    "source": "",
-                    "confidence": "",
-                },
-            )
-        thread, _ = Thread.objects.get_or_create(
-            key=row["thread_key"],
+
+@transaction.atomic
+def _store_item(item: dict, row: dict, published_at: datetime | None) -> bool:
+    if Mention.objects.filter(pk=row["id"]).exists():
+        return False
+    observed_at = published_at or timezone.now()
+    subreddit = None
+    if row["subreddit"]:
+        subreddit, _ = Subreddit.objects.get_or_create(
+            name=row["subreddit"].lower(),
             defaults={
-                "subreddit": subreddit,
-                "title": row["post_title"],
-                "first_seen": observed_at,
-                "last_seen": observed_at,
+                "kind": Subreddit.Kind.GENERAL,
+                "source": "",
+                "confidence": "",
             },
         )
-        # Serialize updates to an existing thread, including the duplicate check.
-        thread = Thread.objects.select_for_update().get(pk=thread.pk)
-        if Mention.objects.filter(pk=row["id"]).exists():
-            seen += 1
-            continue
+    thread, _ = Thread.objects.get_or_create(
+        key=row["thread_key"],
+        defaults={
+            "subreddit": subreddit,
+            "title": row["post_title"],
+            "first_seen": observed_at,
+            "last_seen": observed_at,
+        },
+    )
+    # Serialize updates to an existing thread, including the duplicate check.
+    thread = Thread.objects.select_for_update().get(pk=thread.pk)
+    if Mention.objects.filter(pk=row["id"]).exists():
+        return False
 
-        Mention.objects.create(
-            id=row["id"],
-            thread=thread,
-            alert_num=row["alert_num"],
-            url=row["url"],
-            site=row["site"],
-            kind=row["kind"] or Mention.Kind.OTHER,
-            source_tag=row["source_tag"] or "",
-            keyword=row["keyword"] or "",
-            subreddit_name=row["subreddit"] or "",
-            post_id=row["post_id"] or "",
-            comment_id=row["comment_id"] or "",
-            post_title=row["post_title"],
-            snippet_text=row["snippet_text"],
-            snippet_html=row["snippet_html"],
-            highlights=json.loads(row["highlights"]),
-            author=row["author"] or "",
-            grp=row["grp"] or "",
-            published_at=published_at,
-            raw_json=item,
-        )
-        if thread.subreddit_id is None and subreddit is not None:
-            thread.subreddit = subreddit
-        if not thread.title:
-            thread.title = row["post_title"]
-        thread.first_seen = min(thread.first_seen, observed_at)
-        thread.last_seen = max(thread.last_seen, observed_at)
-        thread.mention_count += 1
-        thread.save()
-        new += 1
-    return seen, new, skipped
+    Mention.objects.create(
+        id=row["id"],
+        thread=thread,
+        alert_num=row["alert_num"],
+        url=row["url"],
+        site=row["site"],
+        kind=row["kind"] or Mention.Kind.OTHER,
+        source_tag=row["source_tag"] or "",
+        keyword=row["keyword"] or "",
+        subreddit_name=row["subreddit"] or "",
+        post_id=row["post_id"] or "",
+        comment_id=row["comment_id"] or "",
+        post_title=row["post_title"],
+        snippet_text=row["snippet_text"],
+        snippet_html=row["snippet_html"],
+        highlights=json.loads(row["highlights"]),
+        author=row["author"] or "",
+        grp=row["grp"] or "",
+        published_at=published_at,
+        raw_json=item,
+    )
+    if thread.subreddit_id is None and subreddit is not None:
+        thread.subreddit = subreddit
+    if not thread.title:
+        thread.title = row["post_title"]
+    thread.first_seen = min(thread.first_seen, observed_at)
+    thread.last_seen = max(thread.last_seen, observed_at)
+    thread.mention_count += 1
+    thread.save(
+        update_fields=[
+            "subreddit",
+            "title",
+            "first_seen",
+            "last_seen",
+            "mention_count",
+            "modified",
+        ]
+    )
+    return True
 
 
 def _poll_feed_pages(feed_url: str, *, fetch, max_pages: int):
     pages = seen = new = skipped = 0
+    created_ids: set[str] = set()
     url = feed_url
     while url and pages < max_pages:
         page = fetch(url)
-        page_seen, page_new, page_skipped = ingest_page(page)
+        page_seen, page_new, page_skipped = _ingest_page(page, created_ids=created_ids)
         pages += 1
         seen += page_seen
         new += page_new
