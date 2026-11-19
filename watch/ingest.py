@@ -34,7 +34,32 @@ def fetch_json(url: str, *, client: httpx.Client | None = None) -> dict:
 def ingest_page(page: dict) -> tuple[int, int, int]:
     seen = new = skipped = 0
     for item in page.get("items") or []:
-        row = parse_item(item)
+        try:
+            if not all(
+                isinstance(item.get(field), str) and item[field].strip()
+                for field in ("id", "url")
+            ):
+                skipped += 1
+                continue
+            date = item.get("date_published")
+            parse_input = (
+                {**item, "date_published": None}
+                if date is not None and not isinstance(date, str)
+                else item
+            )
+            row = parse_item(parse_input)
+            try:
+                published_at = (
+                    datetime.fromisoformat(row["published_at"])
+                    if row["published_at"]
+                    else None
+                )
+            except (TypeError, ValueError):
+                published_at = None
+        except Exception:
+            # Malformed input should not discard the rest of the page.
+            skipped += 1
+            continue
         if row["site"] != "reddit":
             skipped += 1
             continue
@@ -42,9 +67,6 @@ def ingest_page(page: dict) -> tuple[int, int, int]:
             seen += 1
             continue
 
-        published_at = (
-            datetime.fromisoformat(row["published_at"]) if row["published_at"] else None
-        )
         observed_at = published_at or timezone.now()
         subreddit = None
         if row["subreddit"]:
@@ -104,20 +126,27 @@ def ingest_page(page: dict) -> tuple[int, int, int]:
     return seen, new, skipped
 
 
-def poll_feed(feed_url: str, *, fetch=fetch_json, max_pages: int = 20) -> IngestStats:
+def _poll_feed_pages(feed_url: str, *, fetch, max_pages: int):
     pages = seen = new = skipped = 0
     url = feed_url
     while url and pages < max_pages:
         page = fetch(url)
-        pages += 1
         page_seen, page_new, page_skipped = ingest_page(page)
+        pages += 1
         seen += page_seen
         new += page_new
         skipped += page_skipped
+        yield IngestStats(pages=pages, seen=seen, new=new, skipped=skipped)
         if page_seen or not page.get("items"):
             break
         url = page.get("next_url")
-    return IngestStats(pages=pages, seen=seen, new=new, skipped=skipped)
+
+
+def poll_feed(feed_url: str, *, fetch=fetch_json, max_pages: int = 20) -> IngestStats:
+    stats = IngestStats(pages=0, seen=0, new=0)
+    for page_stats in _poll_feed_pages(feed_url, fetch=fetch, max_pages=max_pages):
+        stats = page_stats
+    return stats
 
 
 def run_ingest(
@@ -127,20 +156,21 @@ def run_ingest(
     run = IngestRun.objects.create(
         source=source if source in {"feed", "file"} else "feed"
     )
+    stats = IngestStats(pages=0, seen=0, new=0)
     try:
-        stats = poll_feed(feed_url, fetch=fetch, max_pages=max_pages)
+        for page_stats in _poll_feed_pages(feed_url, fetch=fetch, max_pages=max_pages):
+            stats = page_stats
+    except Exception as exc:
+        # Pagination URLs can contain the same secrets with different parameters.
+        message = re.sub(r"https?://[^\s'\"<>]+", "[feed url redacted]", str(exc))
+        if feed_url:
+            message = message.replace(feed_url, "[feed url redacted]")
+        run.error = f"{type(exc).__name__}: {message}"
+    finally:
         run.pages = stats.pages
         run.seen = stats.seen
         run.new = stats.new
         run.skipped = stats.skipped
-    except Exception as exc:
-        message = (
-            str(exc).replace(feed_url, "[feed url redacted]") if feed_url else str(exc)
-        )
-        # Pagination URLs can contain the same secrets with different parameters.
-        message = re.sub(r"https?://[^\s'\"<>]+", "[feed url redacted]", message)
-        run.error = f"{type(exc).__name__}: {message}"
-    finally:
         run.finished_at = timezone.now()
         run.save()
     return run

@@ -4,6 +4,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from django.db import DataError
 
 from watch.ingest import IngestStats, fetch_json, ingest_page, poll_feed, run_ingest
 from watch.models import IngestRun, Mention, Subreddit, Thread
@@ -102,9 +103,47 @@ def test_reddit_item_without_subreddit_or_publication_date():
 
 
 @pytest.mark.django_db
-def test_invalid_item_rolls_back_whole_page():
-    with pytest.raises(ValueError):
-        ingest_page({"items": [item("alert-1"), item("alert-2", date="invalid")]})
+def test_malformed_items_are_skipped_and_invalid_dates_are_normalized():
+    missing_id = item("alert-missing")
+    del missing_id["id"]
+    blank_id = item("")
+    missing_url = item("alert-no-url")
+    del missing_url["url"]
+    broken_tags = item("alert-broken-tags")
+    broken_tags["tags"] = [123]
+    blank_content = item("alert-3")
+    blank_content["content_html"] = ""
+    non_string_date = item("alert-4", date=123)
+
+    page = {
+        "items": [
+            item("alert-1"),
+            missing_id,
+            blank_id,
+            missing_url,
+            broken_tags,
+            item("alert-2", date="invalid"),
+            blank_content,
+            non_string_date,
+        ]
+    }
+    assert ingest_page(page) == (0, 4, 4)
+    assert set(Mention.objects.values_list("id", flat=True)) == {
+        "alert-1",
+        "alert-2",
+        "alert-3",
+        "alert-4",
+    }
+    assert Mention.objects.get(pk="alert-2").published_at is None
+    assert Mention.objects.get(pk="alert-4").published_at is None
+    assert Mention.objects.get(pk="alert-3").snippet_text == ""
+    assert Thread.objects.get().mention_count == 4
+
+
+@pytest.mark.django_db
+def test_database_failure_rolls_back_whole_page():
+    with pytest.raises(DataError):
+        ingest_page({"items": [item("alert-1"), item("x" * 256)]})
     assert Mention.objects.count() == 0
     assert Thread.objects.count() == 0
     assert Subreddit.objects.count() == 0
@@ -185,6 +224,43 @@ def test_run_ingest_records_error_redacting_url_and_source():
     assert run.error == "ValueError: could not fetch [feed url redacted]"
     assert url not in run.source
     assert "SECRET" not in run.source
+
+
+@pytest.mark.django_db
+def test_run_ingest_preserves_completed_page_counts_when_fetch_fails():
+    feed_url = "https://f5bot.com/feed?a=SECRET&h=SECRET"
+    next_url = feed_url + "&page=2&token=OTHER_SECRET"
+    missing_url = item("alert-no-url")
+    del missing_url["url"]
+
+    def fetch(url):
+        if url == feed_url:
+            return {"items": [item("alert-1"), missing_url], "next_url": next_url}
+        assert url == next_url
+        raise ValueError(f"could not fetch {url}")
+
+    run = run_ingest(feed_url, fetch=fetch)
+    run.refresh_from_db()
+    assert (run.pages, run.seen, run.new, run.skipped) == (1, 0, 1, 1)
+    assert run.finished_at is not None
+    assert run.error.startswith("ValueError: could not fetch")
+    assert "SECRET" not in run.error
+    assert "OTHER_SECRET" not in run.error
+    assert Mention.objects.filter(pk="alert-1").exists()
+
+
+@pytest.mark.django_db
+def test_run_ingest_does_not_count_rolled_back_page():
+    pages = {
+        "one": {"items": [item("alert-1")], "next_url": "two"},
+        "two": {"items": [item("alert-2"), item("x" * 256)]},
+    }
+    run = run_ingest("one", fetch=pages.__getitem__)
+    run.refresh_from_db()
+    assert (run.pages, run.seen, run.new, run.skipped) == (1, 0, 1, 0)
+    assert run.error.startswith("DataError:")
+    assert set(Mention.objects.values_list("id", flat=True)) == {"alert-1"}
+    assert Thread.objects.get().mention_count == 1
 
 
 def test_fetch_json_uses_client_and_checks_status():
