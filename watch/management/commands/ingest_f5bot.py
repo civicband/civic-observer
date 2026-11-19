@@ -17,11 +17,17 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser):
         parser.add_argument("--file", action="append", default=[])
-        parser.add_argument("--max-pages", type=int, default=20)
+        parser.add_argument("--max-pages", type=int, default=None)
         parser.add_argument("--feed-url")
         parser.add_argument("--no-lock", action="store_true")
 
     def handle(self, *args, **options):
+        if options["file"] and (
+            options["feed_url"] or options["max_pages"] is not None
+        ):
+            raise CommandError(
+                "--file cannot be combined with --feed-url or --max-pages"
+            )
         lock = nullcontext(True) if options["no_lock"] else ingest.acquire_ingest_lock()
         # A missing lock context also denotes an unavailable lock.
         with lock if lock is not None else nullcontext(False) as acquired:
@@ -39,7 +45,12 @@ class Command(BaseCommand):
                 url = options["feed_url"] or settings.F5BOT_FEED_URL
                 if not url:
                     raise CommandError("F5BOT_FEED_URL is not set")
-                run = ingest.run_ingest(url, max_pages=options["max_pages"])
+                run = ingest.run_ingest(
+                    url,
+                    max_pages=20
+                    if options["max_pages"] is None
+                    else options["max_pages"],
+                )
                 if run.error:
                     raise CommandError("Feed ingest failed; see IngestRun for details")
 

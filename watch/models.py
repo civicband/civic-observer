@@ -73,6 +73,10 @@ class Place(TimeStampedModel):
             ),
         ]
 
+    def __str__(self):
+        """Return a concise admin label."""
+        return f"{self.name} ({self.state})" if self.state else self.name
+
 
 class Subreddit(TimeStampedModel):
     class Kind(models.TextChoices):
@@ -105,6 +109,10 @@ class Subreddit(TimeStampedModel):
     muted = models.BooleanField(default=False, db_index=True)
     reviewed_at = models.DateTimeField(null=True, blank=True)
     note = models.TextField(blank=True)
+
+    def __str__(self):
+        """Return a concise admin label."""
+        return f"r/{self.name}"
 
 
 class Thread(TimeStampedModel):
@@ -142,6 +150,10 @@ class Thread(TimeStampedModel):
                 fields=["subreddit", "last_seen"], name="watch_thread_sub_seen_idx"
             ),
         ]
+
+    def __str__(self):
+        """Return a concise admin label."""
+        return self.title or self.key
 
 
 class Mention(models.Model):
@@ -183,6 +195,10 @@ class Mention(models.Model):
                 fields=["keyword", "published_at"], name="watch_mention_key_pub_idx"
             ),
         ]
+
+    def __str__(self):
+        """Return a concise admin label."""
+        return self.post_title or self.id
 
 
 class PlaceAlias(TimeStampedModel):

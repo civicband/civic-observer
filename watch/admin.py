@@ -149,7 +149,7 @@ class IngestRunAdmin(admin.ModelAdmin):
         "skipped",
         "error",
     ]
-    list_filter = ["source"]
+    search_fields = ["source"]
     readonly_fields = [field.name for field in IngestRun._meta.fields]
     ordering = ["-started_at"]
 
