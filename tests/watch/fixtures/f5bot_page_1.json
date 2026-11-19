@@ -1,0 +1,659 @@
+{
+  "version": "https://jsonfeed.org/version/1.1",
+  "title": "F5Bot Alert Feed",
+  "home_page_url": "https://f5bot.com/",
+  "description": "Recent keyword alerts from F5Bot.",
+  "items": [
+    {
+      "id": "F5BOT-alert-12259-138151022",
+      "url": "https://www.reddit.com/r/sandiego/comments/1y059df/c/19svqg3v87cbo",
+      "title": "board of supervisors - Reddit Comments - Synthetic thread 1y059df",
+      "content_html": "Synthetic <strong>board of supervisors</strong> alert for thread 1y059df.",
+      "date_published": "2026-11-19T11:24:12-06:00",
+      "group": "",
+      "username": "user0001",
+      "tags": [
+        "board of supervisors",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138149555",
+      "url": "https://www.reddit.com/r/treelaw/comments/1y0btzf/c/19svqe0ia84it",
+      "title": "planning commission - Reddit Comments - Synthetic thread 1y0btzf",
+      "content_html": "Synthetic <strong>planning commission</strong> alert for thread 1y0btzf.",
+      "date_published": "2026-11-19T11:19:08-06:00",
+      "group": "",
+      "username": "user0002",
+      "tags": [
+        "planning commission",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138148107",
+      "url": "https://www.reddit.com/r/ChicoCA/comments/1y0eulg/1250unit_chico_barber_yard_housing_development/",
+      "title": "planning commission - Reddit Posts - Synthetic thread 1y0eulg",
+      "content_html": "Synthetic <strong>planning commission</strong> alert for thread 1y0eulg.",
+      "date_published": "2026-11-19T11:13:10-06:00",
+      "group": "",
+      "username": "user0003",
+      "tags": [
+        "planning commission",
+        "Reddit Posts"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138146412",
+      "url": "https://www.reddit.com/r/LosAngeles/comments/1y04xbs/c/19svpkb4je3sw",
+      "title": "board of supervisors - Reddit Comments - Synthetic thread 1y04xbs",
+      "content_html": "Synthetic <strong>board of supervisors</strong> alert for thread 1y04xbs.",
+      "date_published": "2026-11-19T11:07:12-06:00",
+      "group": "",
+      "username": "user0004",
+      "tags": [
+        "board of supervisors",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138144472",
+      "url": "https://www.reddit.com/r/ChesterCounty/comments/1y0di9h/c/19svpkb83zkrl",
+      "title": "planning commission - Reddit Comments - Synthetic thread 1y0di9h",
+      "content_html": "Synthetic <strong>planning commission</strong> alert for thread 1y0di9h.",
+      "date_published": "2026-11-19T10:59:36-06:00",
+      "group": "",
+      "username": "user0005",
+      "tags": [
+        "planning commission",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138138812",
+      "url": "https://www.reddit.com/r/ithaca/comments/1xzvhk7/c/19svoiaupxw3l",
+      "title": "planning board - Reddit Comments - Synthetic thread 1xzvhk7",
+      "content_html": "Synthetic <strong>planning board</strong> alert for thread 1xzvhk7.",
+      "date_published": "2026-11-19T10:36:14-06:00",
+      "group": "",
+      "username": "user0006",
+      "tags": [
+        "planning board",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138133695",
+      "url": "https://www.reddit.com/r/DevelopmentSLC/comments/1y0dbgv/1119_news_roundup/",
+      "title": "planning commission - Reddit Posts - Synthetic thread 1y0dbgv",
+      "content_html": "Synthetic <strong>planning commission</strong> alert for thread 1y0dbgv.",
+      "date_published": "2026-11-19T10:15:15-06:00",
+      "group": "",
+      "username": "user0007",
+      "tags": [
+        "planning commission",
+        "Reddit Posts"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138132949",
+      "url": "https://www.reddit.com/r/southcarolina/comments/1xz00ua/c/19svn8oqozbsy",
+      "title": "planning board - Reddit Comments - Synthetic thread 1xz00ua",
+      "content_html": "Synthetic <strong>planning board</strong> alert for thread 1xz00ua.",
+      "date_published": "2026-11-19T10:13:08-06:00",
+      "group": "",
+      "username": "user0008",
+      "tags": [
+        "planning board",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138132948",
+      "url": "https://www.reddit.com/r/southcarolina/comments/1xz00ua/c/19svn8oqozbsy",
+      "title": "planning commission - Reddit Comments - Synthetic thread 1xz00ua",
+      "content_html": "Synthetic <strong>planning commission</strong> alert for thread 1xz00ua.",
+      "date_published": "2026-11-19T10:13:08-06:00",
+      "group": "",
+      "username": "user0009",
+      "tags": [
+        "planning commission",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138127293",
+      "url": "https://www.reddit.com/r/Buffalo/comments/1y0cq1v/weekly_development_round_up_111926/",
+      "title": "planning board - Reddit Posts - Synthetic thread 1y0cq1v",
+      "content_html": "Synthetic <strong>planning board</strong> alert for thread 1y0cq1v.",
+      "date_published": "2026-11-19T09:52:11-06:00",
+      "group": "",
+      "username": "user0010",
+      "tags": [
+        "planning board",
+        "Reddit Posts"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138041309",
+      "url": "https://www.reddit.com/r/lovethissmug/comments/1xz5c8o/c/19sv4azjxjexu",
+      "title": "city council - Reddit Comments - Synthetic thread 1xz5c8o",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xz5c8o.",
+      "date_published": "2026-11-19T03:03:14-06:00",
+      "group": "",
+      "username": "user0011",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138041169",
+      "url": "https://www.reddit.com/r/LosAngeles/comments/1xzzze7/c/19sv4a4oxg6yt",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzzze7",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzzze7.",
+      "date_published": "2026-11-19T03:02:20-06:00",
+      "group": "",
+      "username": "user0012",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138040994",
+      "url": "https://www.reddit.com/r/irelandtransport/comments/1y02fyr/c/19sv48k3frqo2",
+      "title": "city council - Reddit Comments - Synthetic thread 1y02fyr",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1y02fyr.",
+      "date_published": "2026-11-19T03:01:23-06:00",
+      "group": "",
+      "username": "user0013",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138040972",
+      "url": "https://www.reddit.com/r/santaana/comments/1xsll07/c/19sv481dr5ptv",
+      "title": "city council - Reddit Comments - Synthetic thread 1xsll07",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xsll07.",
+      "date_published": "2026-11-19T03:01:23-06:00",
+      "group": "",
+      "username": "user0014",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138040899",
+      "url": "https://www.reddit.com/r/transgender/comments/1y04s06/bella_sankey_leader_of_brighton_hove_city_council/",
+      "title": "city council - Reddit Posts - Synthetic thread 1y04s06",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1y04s06.",
+      "date_published": "2026-11-19T03:01:22-06:00",
+      "group": "",
+      "username": "user0015",
+      "tags": [
+        "city council",
+        "Reddit Posts"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138040593",
+      "url": "https://www.reddit.com/r/LoveBelfast/comments/1y04qzl/giants_park_adventure_park_approved_for_north/",
+      "title": "city council - Reddit Posts - Synthetic thread 1y04qzl",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1y04qzl.",
+      "date_published": "2026-11-19T02:59:08-06:00",
+      "group": "",
+      "username": "user0016",
+      "tags": [
+        "city council",
+        "Reddit Posts"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138040504",
+      "url": "https://www.reddit.com/r/Portland/comments/1xzpvjl/c/19sv42pz9r4ch",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzpvjl",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzpvjl.",
+      "date_published": "2026-11-19T02:58:19-06:00",
+      "group": "",
+      "username": "user0017",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138038173",
+      "url": "https://www.reddit.com/r/galway/comments/1y04jr2/city_council_to_bring_back_normal_parking_meters/",
+      "title": "city council - Reddit Posts - Synthetic thread 1y04jr2",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1y04jr2.",
+      "date_published": "2026-11-19T02:45:10-06:00",
+      "group": "",
+      "username": "user0018",
+      "tags": [
+        "city council",
+        "Reddit Posts"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138038167",
+      "url": "https://www.reddit.com/r/LosAngeles/comments/1xzzze7/c/19sv3b0ylrmmb",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzzze7",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzzze7.",
+      "date_published": "2026-11-19T02:45:09-06:00",
+      "group": "",
+      "username": "user0019",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138037669",
+      "url": "https://www.reddit.com/r/LosAngeles/comments/1xzzze7/c/19sv3bue3p6ir",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzzze7",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzzze7.",
+      "date_published": "2026-11-19T02:41:09-06:00",
+      "group": "",
+      "username": "user0020",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138037661",
+      "url": "https://www.reddit.com/r/LosAngeles/comments/1xzzze7/c/19sv3bpcbu6o1",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzzze7",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzzze7.",
+      "date_published": "2026-11-19T02:41:09-06:00",
+      "group": "",
+      "username": "user0021",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138036696",
+      "url": "https://www.reddit.com/r/LosAngeles/comments/1xzzze7/c/19sv32hzohbgg",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzzze7",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzzze7.",
+      "date_published": "2026-11-19T02:35:11-06:00",
+      "group": "",
+      "username": "user0022",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138035406",
+      "url": "https://www.reddit.com/r/brisbane/comments/1y04b5a/can_i_get_away_with_tree_pruning_brisbane_wide_or/",
+      "title": "city council - Reddit Posts - Synthetic thread 1y04b5a",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1y04b5a.",
+      "date_published": "2026-11-19T02:28:09-06:00",
+      "group": "",
+      "username": "user0023",
+      "tags": [
+        "city council",
+        "Reddit Posts"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138034839",
+      "url": "https://www.reddit.com/r/palmsprings/comments/1xzpt0b/c/19sv2jzh03eo0",
+      "title": "board of supervisors - Reddit Comments - Synthetic thread 1xzpt0b",
+      "content_html": "Synthetic <strong>board of supervisors</strong> alert for thread 1xzpt0b.",
+      "date_published": "2026-11-19T02:24:55-06:00",
+      "group": "",
+      "username": "user0024",
+      "tags": [
+        "board of supervisors",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138032888",
+      "url": "https://www.reddit.com/r/Butte/comments/1y03utp/c/19sv1zwxuoahx",
+      "title": "city council - Reddit Comments - Synthetic thread 1y03utp",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1y03utp.",
+      "date_published": "2026-11-19T02:11:13-06:00",
+      "group": "",
+      "username": "user0025",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138032115",
+      "url": "https://www.reddit.com/r/lacrossewi/comments/1xzmuvk/c/19sv1s2zc1pia",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzmuvk",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzmuvk.",
+      "date_published": "2026-11-19T02:06:10-06:00",
+      "group": "",
+      "username": "user0026",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138031654",
+      "url": "https://www.reddit.com/r/galway/comments/1xzsxru/c/19sv1nqve8n7o",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzsxru",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzsxru.",
+      "date_published": "2026-11-19T02:04:14-06:00",
+      "group": "",
+      "username": "user0027",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138031352",
+      "url": "https://www.reddit.com/r/Mafia/comments/1y03xdv/calabria_copmayor_arrested_he_was_at_the_service/",
+      "title": "city council - Reddit Posts - Synthetic thread 1y03xdv",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1y03xdv.",
+      "date_published": "2026-11-19T02:03:20-06:00",
+      "group": "",
+      "username": "user0028",
+      "tags": [
+        "city council",
+        "Reddit Posts"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138028803",
+      "url": "https://www.reddit.com/r/auckland/comments/1xzzm26/c/19sv10m4amq1x",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzzm26",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzzm26.",
+      "date_published": "2026-11-19T01:49:20-06:00",
+      "group": "",
+      "username": "user0029",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138028426",
+      "url": "https://www.reddit.com/r/LosAngeles/comments/1xzzze7/c/19sv0wzbos7cy",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzzze7",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzzze7.",
+      "date_published": "2026-11-19T01:47:11-06:00",
+      "group": "",
+      "username": "user0030",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138026086",
+      "url": "https://www.reddit.com/r/LosAngeles/comments/1xzzze7/c/19sv0czimdu82",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzzze7",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzzze7.",
+      "date_published": "2026-11-19T01:34:11-06:00",
+      "group": "",
+      "username": "user0031",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138025251",
+      "url": "https://www.reddit.com/r/SFV/comments/1xztun1/c/19sv050culmv8",
+      "title": "city council - Reddit Comments - Synthetic thread 1xztun1",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xztun1.",
+      "date_published": "2026-11-19T01:29:11-06:00",
+      "group": "",
+      "username": "user0032",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138023115",
+      "url": "https://www.reddit.com/r/LosAngeles/comments/1xzzze7/c/19suzm60eja69",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzzze7",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzzze7.",
+      "date_published": "2026-11-19T01:18:10-06:00",
+      "group": "",
+      "username": "user0033",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138022706",
+      "url": "https://www.reddit.com/r/brum/comments/1y038ha/birmingham_city_council_wins_legal_fight_against/",
+      "title": "city council - Reddit Posts - Synthetic thread 1y038ha",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1y038ha.",
+      "date_published": "2026-11-19T01:16:11-06:00",
+      "group": "",
+      "username": "user0034",
+      "tags": [
+        "city council",
+        "Reddit Posts"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138022156",
+      "url": "https://www.reddit.com/r/TrueUnpopularOpinion/comments/1xzj4pt/c/19suze2xc01z8",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzj4pt",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzj4pt.",
+      "date_published": "2026-11-19T01:13:12-06:00",
+      "group": "",
+      "username": "user0035",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138022120",
+      "url": "https://www.reddit.com/r/TheUnitedKingdomNews/comments/1y036yq/birmingham_city_council_wins_legal_fight_against/",
+      "title": "city council - Reddit Posts - Synthetic thread 1y036yq",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1y036yq.",
+      "date_published": "2026-11-19T01:13:12-06:00",
+      "group": "",
+      "username": "user0036",
+      "tags": [
+        "city council",
+        "Reddit Posts"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138021461",
+      "url": "https://www.reddit.com/r/AskReddit/comments/1xzl1iz/c/19suz8rbhwa0y",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzl1iz",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzl1iz.",
+      "date_published": "2026-11-19T01:09:32-06:00",
+      "group": "",
+      "username": "user0037",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138020649",
+      "url": "https://www.reddit.com/r/WestSeattleWA/comments/1xzuvmr/c/19suz223wd64h",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzuvmr",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzuvmr.",
+      "date_published": "2026-11-19T01:05:20-06:00",
+      "group": "",
+      "username": "user0038",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138020035",
+      "url": "https://www.reddit.com/r/LosAngeles/comments/1xzzze7/c/19suywyv2sbpg",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzzze7",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzzze7.",
+      "date_published": "2026-11-19T01:02:29-06:00",
+      "group": "",
+      "username": "user0039",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138019006",
+      "url": "https://www.reddit.com/r/pics/comments/1xzhhke/c/19suyq0d13whs",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzhhke",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzhhke.",
+      "date_published": "2026-11-19T00:58:10-06:00",
+      "group": "",
+      "username": "user0040",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138014976",
+      "url": "https://www.reddit.com/r/RanchoCordova/comments/1xyopgg/c/19stjmadefow0",
+      "title": "city council - Reddit Comments - Synthetic thread 1xyopgg",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xyopgg.",
+      "date_published": "2026-11-19T00:50:06-06:00",
+      "group": "",
+      "username": "user0041",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138014970",
+      "url": "https://www.reddit.com/r/bullcity/comments/1xzdu02/c/19suycrm30kbl",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzdu02",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzdu02.",
+      "date_published": "2026-11-19T00:49:13-06:00",
+      "group": "",
+      "username": "user0042",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138014958",
+      "url": "https://www.reddit.com/r/bullcity/comments/1xzdu02/c/19suycnjsgnac",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzdu02",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzdu02.",
+      "date_published": "2026-11-19T00:49:12-06:00",
+      "group": "",
+      "username": "user0043",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138013892",
+      "url": "https://www.reddit.com/r/AllDayArizona/comments/1y02rji/c/19suy6o0lm6wy",
+      "title": "board of supervisors - Reddit Comments - Synthetic thread 1y02rji",
+      "content_html": "Synthetic <strong>board of supervisors</strong> alert for thread 1y02rji.",
+      "date_published": "2026-11-19T00:46:09-06:00",
+      "group": "",
+      "username": "user0044",
+      "tags": [
+        "board of supervisors",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138013891",
+      "url": "https://www.reddit.com/r/DesertStateStuff/comments/1y02rj1/c/19suy6miaburn",
+      "title": "board of supervisors - Reddit Comments - Synthetic thread 1y02rj1",
+      "content_html": "Synthetic <strong>board of supervisors</strong> alert for thread 1y02rj1.",
+      "date_published": "2026-11-19T00:46:09-06:00",
+      "group": "",
+      "username": "user0045",
+      "tags": [
+        "board of supervisors",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138012753",
+      "url": "https://www.reddit.com/r/LosAngeles/comments/1xzzze7/c/19suy3tgjym9w",
+      "title": "city council - Reddit Comments - Synthetic thread 1xzzze7",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xzzze7.",
+      "date_published": "2026-11-19T00:44:33-06:00",
+      "group": "",
+      "username": "user0046",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138012073",
+      "url": "https://www.reddit.com/r/McKinney/comments/1xynqwj/c/19suxvucwcaxt",
+      "title": "city council - Reddit Comments - Synthetic thread 1xynqwj",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1xynqwj.",
+      "date_published": "2026-11-19T00:39:15-06:00",
+      "group": "",
+      "username": "user0047",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138011853",
+      "url": "https://www.reddit.com/r/Seattle/comments/1y02h2g/c/19suxsymd58u9",
+      "title": "city council - Reddit Comments - Synthetic thread 1y02h2g",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1y02h2g.",
+      "date_published": "2026-11-19T00:37:11-06:00",
+      "group": "",
+      "username": "user0048",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138010527",
+      "url": "https://www.reddit.com/r/pnwdaily/comments/1y02gk8/new_kptv_fox_12_oregon_upload_north_plains_city/",
+      "title": "city council - Reddit Posts - Synthetic thread 1y02gk8",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1y02gk8.",
+      "date_published": "2026-11-19T00:27:39-06:00",
+      "group": "",
+      "username": "user0049",
+      "tags": [
+        "city council",
+        "Reddit Posts"
+      ]
+    },
+    {
+      "id": "F5BOT-alert-12259-138010461",
+      "url": "https://www.reddit.com/r/pnwdaily/comments/1y02gk8/c/19suxcfcwzoo4",
+      "title": "city council - Reddit Comments - Synthetic thread 1y02gk8",
+      "content_html": "Synthetic <strong>city council</strong> alert for thread 1y02gk8.",
+      "date_published": "2026-11-19T00:27:38-06:00",
+      "group": "",
+      "username": "user0050",
+      "tags": [
+        "city council",
+        "Reddit Comments"
+      ]
+    }
+  ],
+  "next_url": "fixture:page-2"
+}
