@@ -90,7 +90,15 @@
                             {% include "watch/partials/meeting_hits.html" with hits=place.meeting_hits %}
 
                             <form class="mt-4 flex flex-wrap items-center gap-2"
+                                  method="post"
+                                  action="{% url 'watch:action' thread.pk %}"
+                                  hx-post="{% url 'watch:action' thread.pk %}"
+                                  hx-target="#triage-card"
+                                  hx-swap="innerHTML"
                                   data-action="edit_query">
+                                {% csrf_token %}
+                                <input type="hidden" name="action" value="edit_query">
+                                <input type="hidden" name="place_id" value="{{ place.place_id }}">
                                 <label class="sr-only" for="query-{{ place.pk }}">Search query for {{ place.place.name }}</label>
                                 <input id="query-{{ place.pk }}"
                                        type="text"
@@ -99,9 +107,35 @@
                                        placeholder="Search query"
                                        class="flex-1 min-w-0 rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-400">
                                 <button type="submit"
-                                        disabled
-                                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
                                     Run search
+                                </button>
+                            </form>
+
+                            <form class="mt-3 flex flex-wrap items-center gap-2"
+                                  method="post"
+                                  action="{% url 'watch:place-correct' thread.pk %}"
+                                  hx-post="{% url 'watch:place-correct' thread.pk %}"
+                                  hx-target="#triage-card"
+                                  hx-swap="innerHTML">
+                                {% csrf_token %}
+                                <input type="hidden" name="place_id" value="{{ place.place_id }}">
+                                <label class="sr-only" for="matched-{{ place.pk }}">Alias or matched text for {{ place.place.name }}</label>
+                                <input id="matched-{{ place.pk }}"
+                                       type="text"
+                                       name="matched_text"
+                                       placeholder="Alias / matched text"
+                                       class="flex-1 min-w-0 rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-400">
+                                <label class="sr-only" for="role-{{ place.pk }}">Role for {{ place.place.name }}</label>
+                                <select id="role-{{ place.pk }}"
+                                        name="role"
+                                        class="rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                                    <option value="subject" selected>Subject</option>
+                                    <option value="mentioned">Mentioned</option>
+                                </select>
+                                <button type="submit"
+                                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                                    Correct place
                                 </button>
                             </form>
                         </div>
@@ -118,12 +152,21 @@
                                 <div class="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300"
                                      data-place="{{ place.pk }}">
                                     <span>{{ place.place.name }}{% if place.place.state %}, {{ place.place.state }}{% endif %}</span>
-                                    <button type="button"
-                                            disabled
-                                            data-action="promote"
-                                            class="font-medium text-indigo-600 hover:text-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed dark:text-indigo-400 dark:hover:text-indigo-300">
-                                        Promote
-                                    </button>
+                                    <form class="inline-flex"
+                                          method="post"
+                                          action="{% url 'watch:action' thread.pk %}"
+                                          hx-post="{% url 'watch:action' thread.pk %}"
+                                          hx-target="#triage-card"
+                                          hx-swap="innerHTML"
+                                          data-action="promote">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="action" value="promote">
+                                        <input type="hidden" name="place_id" value="{{ place.place_id }}">
+                                        <button type="submit"
+                                                class="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">
+                                            Promote
+                                        </button>
+                                    </form>
                                 </div>
                             {% endfor %}
                         </div>
@@ -133,42 +176,98 @@
         </div>
 
         <div class="mt-6 flex flex-wrap items-center gap-2 border-t border-gray-200 pt-4 dark:border-gray-800">
-            <button type="button"
-                    disabled
-                    data-action="replied"
-                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
-                Replied
-            </button>
-            <button type="button"
-                    disabled
-                    data-action="dismiss"
-                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
-                Dismiss
-            </button>
-            <button type="button"
-                    disabled
-                    data-action="snooze"
-                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
-                Snooze
-            </button>
-            <button type="button"
-                    disabled
-                    data-action="backlog"
-                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
-                Backlog
-            </button>
-            <button type="button"
-                    disabled
-                    data-action="mute_subreddit"
-                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
-                Mute subreddit
-            </button>
-            <button type="button"
-                    disabled
-                    data-action="mute_country"
-                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
-                Mute country
-            </button>
+            <form class="inline-flex"
+                  method="post"
+                  action="{% url 'watch:action' thread.pk %}"
+                  hx-post="{% url 'watch:action' thread.pk %}"
+                  hx-target="#triage-card"
+                  hx-swap="innerHTML"
+                  data-action="replied">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="replied">
+                <button type="submit"
+                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                    Replied
+                </button>
+            </form>
+            <form class="inline-flex"
+                  method="post"
+                  action="{% url 'watch:action' thread.pk %}"
+                  hx-post="{% url 'watch:action' thread.pk %}"
+                  hx-target="#triage-card"
+                  hx-swap="innerHTML"
+                  data-action="dismiss">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="dismiss">
+                <button type="submit"
+                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                    Dismiss
+                </button>
+            </form>
+            <form class="inline-flex items-center gap-1"
+                  method="post"
+                  action="{% url 'watch:action' thread.pk %}"
+                  hx-post="{% url 'watch:action' thread.pk %}"
+                  hx-target="#triage-card"
+                  hx-swap="innerHTML"
+                  data-action="snooze">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="snooze">
+                <label class="sr-only" for="snooze-days">Snooze days</label>
+                <input id="snooze-days"
+                       type="number"
+                       name="days"
+                       value="7"
+                       min="1"
+                       max="90"
+                       class="w-16 rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                <button type="submit"
+                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                    Snooze
+                </button>
+            </form>
+            <form class="inline-flex"
+                  method="post"
+                  action="{% url 'watch:action' thread.pk %}"
+                  hx-post="{% url 'watch:action' thread.pk %}"
+                  hx-target="#triage-card"
+                  hx-swap="innerHTML"
+                  data-action="backlog">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="backlog">
+                <button type="submit"
+                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                    Backlog
+                </button>
+            </form>
+            <form class="inline-flex"
+                  method="post"
+                  action="{% url 'watch:action' thread.pk %}"
+                  hx-post="{% url 'watch:action' thread.pk %}"
+                  hx-target="#triage-card"
+                  hx-swap="innerHTML"
+                  data-action="mute_subreddit">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="mute_subreddit">
+                <button type="submit"
+                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                    Mute subreddit
+                </button>
+            </form>
+            <form class="inline-flex"
+                  method="post"
+                  action="{% url 'watch:action' thread.pk %}"
+                  hx-post="{% url 'watch:action' thread.pk %}"
+                  hx-target="#triage-card"
+                  hx-swap="innerHTML"
+                  data-action="mute_country">
+                {% csrf_token %}
+                <input type="hidden" name="action" value="mute_country">
+                <button type="submit"
+                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                    Mute country
+                </button>
+            </form>
 
             <div class="ml-auto flex items-center gap-2">
                 {% if previous_thread %}
