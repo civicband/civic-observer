@@ -171,7 +171,9 @@ def test_government_rows_mark_counties_municipalities_townships(government_place
     }
     assert Place.objects.get(canonical_key="us:county:06001").is_government is True
     assert Place.objects.get(canonical_key="us:place:0600001").population == 20271
-    assert Place.objects.get(canonical_key="us:place:0600001").county.name == "Alameda"
+    county = Place.objects.get(canonical_key="us:place:0600001").county
+    assert county is not None
+    assert county.name == "Alameda"
 
 
 @pytest.mark.django_db
@@ -269,7 +271,9 @@ def test_school_districts_match_by_normalized_name(government_places):
     assert stats["unmatched_school"] == 0
     school = Place.objects.get(canonical_key="us:school:0600001")
     assert school.is_government is True
-    assert school.county.name == "Alameda"
+    county = school.county
+    assert county is not None
+    assert county.name == "Alameda"
 
 
 @pytest.mark.django_db

@@ -88,7 +88,9 @@ def test_wikidata_links_subreddit_to_place(wikidata_places):
 
     assert stats["linked"] == 1
     row = Subreddit.objects.get(name="bullcity")
-    assert row.place.name == "Durham"
+    place = row.place
+    assert place is not None
+    assert place.name == "Durham"
     assert row.source == "wikidata"
 
 
@@ -384,7 +386,9 @@ def test_command_loads_saved_response(wikidata_places):
     call_command("load_watch_wikidata", "--file", str(BINDINGS_FILE))
 
     assert Subreddit.objects.count() == 3
-    assert Subreddit.objects.get(name="bullcity").place.name == "Durham"
+    place = Subreddit.objects.get(name="bullcity").place
+    assert place is not None
+    assert place.name == "Durham"
     assert not Subreddit.objects.filter(name="durham").exists()
     assert not Subreddit.objects.filter(name="nowhere").exists()
 
