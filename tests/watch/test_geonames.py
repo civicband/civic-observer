@@ -102,6 +102,13 @@ def us_places(db):
         place_type=Place.PlaceType.CITY,
         state="AL",
     )
+    riverside = Place.objects.create(
+        canonical_key="us:place:0100005",
+        geoid="0100005",
+        name="Riverside",
+        place_type=Place.PlaceType.CITY,
+        state="AL",
+    )
     return {
         "henry": henry,
         "sangamon": sangamon,
@@ -113,6 +120,7 @@ def us_places(db):
         "springfield_city": springfield_city,
         "springfield_village": springfield_village,
         "nowhere": nowhere,
+        "riverside": riverside,
     }
 
 
@@ -142,19 +150,20 @@ def test_canadian_city_becomes_place_and_non_us_city_is_lookup(cities500_file):
 def test_loader_returns_stable_counts(cities500_file):
     first = load_geonames(cities500_file)
     assert first == {
-        "canadian_places": 3,
-        "non_us_cities": 7,
-        "aliases": 24,
+        "canadian_places": 4,
+        "non_us_cities": 8,
+        "aliases": 28,
+        "counties_filled": 0,
         "skipped": 3,
     }
-    assert NonUsCity.objects.count() == 7
-    assert NonUsCityAlias.objects.count() == 14
-    assert PlaceAlias.objects.filter(source=PlaceAlias.Source.GEONAMES).count() == 10
+    assert NonUsCity.objects.count() == 8
+    assert NonUsCityAlias.objects.count() == 15
+    assert PlaceAlias.objects.filter(source=PlaceAlias.Source.GEONAMES).count() == 13
 
     second = load_geonames(cities500_file)
     assert second == first
-    assert NonUsCity.objects.count() == 7
-    assert NonUsCityAlias.objects.count() == 14
+    assert NonUsCity.objects.count() == 8
+    assert NonUsCityAlias.objects.count() == 15
 
 
 @pytest.mark.django_db
@@ -181,18 +190,93 @@ def test_canadian_place_gets_aliases_and_lookup_row(cities500_file):
 
 
 @pytest.mark.django_db
-def test_min_population_includes_smaller_non_us_places(cities500_file):
-    stats = load_geonames(cities500_file, min_population=1000)
+def test_sub_threshold_canadian_row_still_becomes_place(cities500_file):
+    stats = load_geonames(cities500_file)
+
+    place = Place.objects.get(canonical_key="ca:city:6077243")
+    assert place.place_type == Place.PlaceType.CANADIAN_CITY
+    assert place.name == "Montréal"
+    assert place.population == 5000
+
+    # The same row is a lookup row and its normalized name folds the accent.
+    lookup = NonUsCity.objects.get(geoname_id=6077243)
+    assert lookup.normalized_name == "montreal"
+    assert alias_keys(lookup) == {"montreal"}
+
+    # A comparable non-Canadian row below the threshold is still skipped.
+    assert not NonUsCity.objects.filter(name="Smallville").exists()
+    assert stats["skipped"] == 3
+
+
+@pytest.mark.django_db
+def test_existing_aliases_with_same_key_and_kind_do_not_break_load(cities500_file):
+    place = Place.objects.create(
+        canonical_key="ca:city:6094817",
+        name="Ottawa",
+        legal_name="Ottawa",
+        place_type=Place.PlaceType.CANADIAN_CITY,
+        state="ON",
+        country="CA",
+    )
+    manual = PlaceAlias.objects.create(
+        place=place, key="ottawa", kind=PlaceAlias.Kind.NAME, source="manual"
+    )
+    wikidata = PlaceAlias.objects.create(
+        place=place,
+        key="ottawaontario",
+        kind=PlaceAlias.Kind.NAME_STATE_NAME,
+        source="wikidata",
+    )
+
+    stats = load_geonames(cities500_file)
+
+    # The two colliding generated aliases are skipped, not written twice.
+    assert stats["aliases"] == 26
+    assert PlaceAlias.objects.filter(pk=manual.pk).exists()
+    assert PlaceAlias.objects.filter(pk=wikidata.pk).exists()
+
+    ottawa = Place.objects.get(canonical_key="ca:city:6094817")
+    assert alias_keys(ottawa) == {
+        "ottawa",
+        "ottawaon",
+        "ottawaontario",
+        "outaouais",
+    }
+    assert set(
+        ottawa.aliases.filter(source=PlaceAlias.Source.GEONAMES).values_list(
+            "key", flat=True
+        )
+    ) == {"ottawaon", "outaouais"}
+
+
+@pytest.mark.django_db
+def test_min_population_includes_value_at_boundary(cities500_file):
+    stats = load_geonames(cities500_file, min_population=9000)
 
     assert stats == {
-        "canadian_places": 3,
-        "non_us_cities": 8,
-        "aliases": 25,
+        "canadian_places": 4,
+        "non_us_cities": 9,
+        "aliases": 29,
+        "counties_filled": 0,
         "skipped": 2,
     }
     smallville = NonUsCity.objects.get(name="Smallville")
     assert smallville.population == 9000
     assert alias_keys(smallville) == {"smallville"}
+
+
+@pytest.mark.django_db
+def test_min_population_excludes_value_below_boundary(cities500_file):
+    stats = load_geonames(cities500_file, min_population=9001)
+
+    assert stats == {
+        "canadian_places": 4,
+        "non_us_cities": 8,
+        "aliases": 28,
+        "counties_filled": 0,
+        "skipped": 3,
+    }
+    assert not NonUsCity.objects.filter(name="Smallville").exists()
 
 
 @pytest.mark.django_db
@@ -212,13 +296,14 @@ def test_us_rows_fill_county_without_creating_places(cities500_file, us_places):
 
     stats = load_geonames(cities500_file)
 
-    # Only the three Canadian rows create places; US rows are county backfill.
+    # Only the Canadian rows create places; US rows are county backfill.
     assert Place.objects.count() == place_count + stats["canadian_places"]
     assert Place.objects.filter(country="US").count() == place_count
     assert not NonUsCity.objects.filter(
-        geoname_id__in=[4829449, 4061300, 4049979, 4250542, 4061301]
+        geoname_id__in=[4829449, 4061300, 4061302, 4080001, 4080002, 4049979]
     ).exists()
-    assert stats["non_us_cities"] == 7
+    assert stats["non_us_cities"] == 8
+    assert stats["counties_filled"] == 2
 
     fairview = Place.objects.get(pk=us_places["fairview"].pk)
     assert fairview.county == us_places["henry"]
@@ -242,6 +327,24 @@ def test_us_rows_fill_county_without_creating_places(cities500_file, us_places):
 
 
 @pytest.mark.django_db
+def test_county_backfill_requires_agreeing_geonames_rows(cities500_file, us_places):
+    # Two Fairview rows point at the same county, so the county is written.
+    load_geonames(cities500_file)
+
+    fairview = Place.objects.get(pk=us_places["fairview"].pk)
+    assert fairview.county == us_places["henry"]
+
+
+@pytest.mark.django_db
+def test_county_backfill_ignores_disagreeing_geonames_rows(cities500_file, us_places):
+    # Two Riverside rows point at different counties, so the county stays null.
+    load_geonames(cities500_file)
+
+    riverside = Place.objects.get(pk=us_places["riverside"].pk)
+    assert riverside.county is None
+
+
+@pytest.mark.django_db
 def test_command_loads_source_dir(cities500_dir):
     stdout = StringIO()
 
@@ -252,10 +355,11 @@ def test_command_loads_source_dir(cities500_dir):
         stdout=stdout,
     )
 
-    assert Place.objects.filter(place_type=Place.PlaceType.CANADIAN_CITY).count() == 3
-    assert NonUsCity.objects.count() == 7
-    assert "canadian_places=3" in stdout.getvalue()
-    assert "non_us_cities=7" in stdout.getvalue()
+    assert Place.objects.filter(place_type=Place.PlaceType.CANADIAN_CITY).count() == 4
+    assert NonUsCity.objects.count() == 8
+    assert "canadian_places=4" in stdout.getvalue()
+    assert "non_us_cities=8" in stdout.getvalue()
+    assert "counties_filled=0" in stdout.getvalue()
 
 
 @pytest.mark.django_db
@@ -272,7 +376,7 @@ def test_command_passes_min_population(cities500_dir):
     )
 
     assert NonUsCity.objects.filter(name="Smallville").exists()
-    assert "non_us_cities=8" in stdout.getvalue()
+    assert "non_us_cities=9" in stdout.getvalue()
 
 
 @pytest.mark.django_db
@@ -292,8 +396,8 @@ def test_command_downloads_when_requested(cities500_file, monkeypatch):
     call_command("load_watch_geonames", "--download", stdout=stdout)
 
     assert calls
-    assert NonUsCity.objects.count() == 7
-    assert "non_us_cities=7" in stdout.getvalue()
+    assert NonUsCity.objects.count() == 8
+    assert "non_us_cities=8" in stdout.getvalue()
 
 
 def test_command_rejects_download_with_source_dir(cities500_dir):

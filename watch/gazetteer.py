@@ -707,6 +707,7 @@ GEONAMES_COUNT_KEYS: tuple[str, ...] = (
     "canadian_places",
     "non_us_cities",
     "aliases",
+    "counties_filled",
     "skipped",
 )
 
@@ -774,6 +775,7 @@ def load_geonames(
     path = Path(cities_path)
 
     county_cache: dict[str, Place | None] = {}
+    county_candidates: dict[tuple[str, str], dict[str, Place]] = {}
     county_index: dict[tuple[str, str], list[Place]] | None = None
     place_index: dict[tuple[str, str], list[Place]] | None = None
 
@@ -784,6 +786,9 @@ def load_geonames(
 
     with handle:
         for line in handle:
+            if not line.strip():
+                continue
+
             row = _parse_geoname_line(line)
             if row is None or row.feature_class != "P":
                 stats["skipped"] += 1
@@ -794,7 +799,7 @@ def load_geonames(
                     place_index = _build_us_place_index()
                 if county_index is None:
                     county_index = _build_county_index()
-                _fill_place_county(row, place_index, county_index, county_cache)
+                _record_place_county(row, county_index, county_cache, county_candidates)
                 continue
 
             if row.country == "CA":
@@ -815,6 +820,11 @@ def load_geonames(
             city = _upsert_non_us_city(row)
             stats["aliases"] += _refresh_non_us_aliases(city, row.alternatenames)
             stats["non_us_cities"] += 1
+
+    if place_index is not None:
+        stats["counties_filled"] = _apply_county_candidates(
+            place_index, county_candidates
+        )
 
     return stats
 
@@ -854,9 +864,23 @@ def build_geonames_aliases(
 
 
 def _refresh_geonames_place_aliases(place: Place, alternatenames: Iterable[str]) -> int:
-    """Replace generated GeoNames aliases for a Canadian place."""
+    """Replace generated GeoNames aliases for a Canadian place.
+
+    Aliases from other sources are preserved, including when one shares a
+    ``(key, kind)`` pair with a generated alias; the generated duplicate is
+    skipped rather than violating the unique constraint.
+    """
+    preserved = set(
+        place.aliases.exclude(source=PlaceAlias.Source.GEONAMES).values_list(
+            "key", "kind"
+        )
+    )
     place.aliases.filter(source=PlaceAlias.Source.GEONAMES).delete()
-    aliases = build_geonames_aliases(place, alternatenames)
+    aliases = [
+        alias
+        for alias in build_geonames_aliases(place, alternatenames)
+        if (alias.key, alias.kind) not in preserved
+    ]
     PlaceAlias.objects.bulk_create(aliases, batch_size=1000)
     return len(aliases)
 
@@ -1024,13 +1048,18 @@ def _county_from_admin2(
     return matches[0] if len(matches) == 1 else None
 
 
-def _fill_place_county(
+def _record_place_county(
     row: GeonamePlace,
-    place_index: dict[tuple[str, str], list[Place]],
     county_index: dict[tuple[str, str], list[Place]],
     county_cache: dict[str, Place | None],
+    county_candidates: dict[tuple[str, str], dict[str, Place]],
 ) -> None:
-    """Set ``county`` on the unique matching US place when it is still null."""
+    """Collect the county a US row points at for its name and state.
+
+    Nothing is written until every row has been read: two GeoNames rows with
+    the same name and state but different counties must leave the place's
+    county null rather than letting the first row win.
+    """
     if not row.admin1:
         return
 
@@ -1039,12 +1068,24 @@ def _fill_place_county(
         return
 
     key = (row.admin1, normalize_key(row.name))
-    matches = place_index.get(key, [])
-    if len(matches) != 1:
+    if not key[1]:
         return
+    county_candidates.setdefault(key, {})[county.canonical_key] = county
 
-    place = matches[0]
-    place.county = county
-    place.save(update_fields=["county", "modified"])
-    # A later GeoNames row with the same name must not overwrite this county.
-    place_index[key] = []
+
+def _apply_county_candidates(
+    place_index: dict[tuple[str, str], list[Place]],
+    county_candidates: dict[tuple[str, str], dict[str, Place]],
+) -> int:
+    """Write counties only where one place and one county are unambiguous."""
+    filled = 0
+    for key, candidates in county_candidates.items():
+        matches = place_index.get(key, [])
+        if len(matches) != 1 or len(candidates) != 1:
+            continue
+
+        place = matches[0]
+        place.county = next(iter(candidates.values()))
+        place.save(update_fields=["county", "modified"])
+        filled += 1
+    return filled
