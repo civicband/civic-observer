@@ -179,7 +179,7 @@ STOPWORDS: frozenset[str] = frozenset(
     }
 )
 
-_TERM_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9'’-]*")
+_TOKEN_RE = re.compile(r"[a-z0-9]+")
 _MAX_PHRASE_WORDS = 4
 _CAPITALIZED_RUN_RE = re.compile(r"[A-Z][A-Za-z'’-]*(?:\s+[A-Z][A-Za-z'’-]*)*")
 _DETERMINERS = frozenset({"a", "an", "the"})
@@ -188,25 +188,27 @@ _DETERMINERS = frozenset({"a", "an", "the"})
 def capitalized_phrases(text: str) -> list[str]:
     """Return contiguous capitalized phrases of one to four words, in order.
 
-    Each capitalized run is trimmed to at most four words (after dropping a
-    leading determiner such as ``The``) and expanded into the useful contiguous
-    forms: the full run, every suffix of at least two words, and the leading
-    two-word phrase.  ``Beverly Hills Planning Commission`` therefore yields
-    ``Beverly Hills`` and ``Planning Commission`` alongside the full name.
+    Each capitalized run is expanded into every contiguous sub-phrase of one
+    to four words (sliding windows) after dropping a leading determiner such
+    as ``The``.  Windows start at each word and grow one word at a time, so
+    the tail of a long run is preserved.  Duplicate phrases are removed
+    case-insensitively while keeping their first position.
     """
     phrases: list[str] = []
+    seen: set[str] = set()
     for match in _CAPITALIZED_RUN_RE.findall(text):
         words = match.split()
         if words and words[0].lower() in _DETERMINERS:
             words = words[1:]
-        words = words[:_MAX_PHRASE_WORDS]
-        if not words:
-            continue
-        phrases.append(" ".join(words))
-        for start in range(1, len(words) - 1):
-            phrases.append(" ".join(words[start:]))
-        if len(words) > 2:
-            phrases.append(" ".join(words[:2]))
+        for start in range(len(words)):
+            longest = min(_MAX_PHRASE_WORDS, len(words) - start)
+            for length in range(1, longest + 1):
+                phrase = " ".join(words[start : start + length])
+                key = phrase.lower()
+                if key in seen:
+                    continue
+                seen.add(key)
+                phrases.append(phrase)
     return phrases
 
 
@@ -277,16 +279,19 @@ def _banned_tokens(mentions: list[Mention], place: Place | None) -> set[str]:
     return banned
 
 
-def _normalized_tokens(text: str) -> set[str]:
-    """Return lower-case comparison tokens for ``text``."""
-    return {token.lower() for token in _TERM_RE.findall(text)}
+def _normalized_tokens(text: str) -> list[str]:
+    """Return lower-case alphanumeric tokens for ``text``.
+
+    Splitting on punctuation keeps possessive forms such as ``Chico's`` tied
+    to the banned token ``chico`` and splits hyphenated aliases consistently.
+    """
+    return _TOKEN_RE.findall(text.lower())
 
 
 def _query_terms(text: str, banned: set[str]) -> list[str]:
     """Return lower-case query terms from ``text``, minus noise and bans."""
     terms: list[str] = []
-    for token in _TERM_RE.findall(text):
-        key = token.lower()
+    for key in _normalized_tokens(text):
         if len(key) >= 3 and key not in STOPWORDS and key not in banned:
             terms.append(key)
     return terms

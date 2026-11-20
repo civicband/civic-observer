@@ -17,18 +17,26 @@ def test_capitalized_phrases_finds_named_entities():
     assert capitalized_phrases(
         "The Beverly Hills Planning Commission meets Tuesday."
     ) == [
-        "Beverly Hills Planning Commission",
-        "Hills Planning Commission",
-        "Planning Commission",
+        "Beverly",
         "Beverly Hills",
+        "Beverly Hills Planning",
+        "Beverly Hills Planning Commission",
+        "Hills",
+        "Hills Planning",
+        "Hills Planning Commission",
+        "Planning",
+        "Planning Commission",
+        "Commission",
         "Tuesday",
     ]
 
 
-def test_capitalized_phrases_never_exceed_four_words():
+def test_capitalized_phrases_cover_tail_of_long_runs():
     phrases = capitalized_phrases("Alpha Bravo Charlie Delta Echo Foxtrot")
     assert phrases
     assert all(len(phrase.split()) <= 4 for phrase in phrases)
+    assert "Delta Echo Foxtrot" in phrases
+    assert {"Delta", "Echo", "Foxtrot"} <= set(phrases)
 
 
 @pytest.mark.django_db
@@ -126,6 +134,28 @@ def test_query_excludes_place_alias_with_punctuation():
     )
     thread = ThreadFactory(title="St. Yuba budget")
     assert build_query(thread, place=place) == "budget"
+
+
+@pytest.mark.django_db
+def test_query_excludes_hyphenated_place_alias():
+    place = PlaceFactory(name="Marysville", state="CA")
+    PlaceAlias.objects.create(
+        place=place,
+        key="Yuba-Sutter",
+        kind=PlaceAlias.Kind.NAME,
+        source=PlaceAlias.Source.MANUAL,
+    )
+    thread = ThreadFactory(title="Yuba-Sutter budget")
+    assert build_query(thread, place=place) == "budget"
+
+
+@pytest.mark.django_db
+def test_query_bans_possessive_place_name():
+    place = PlaceFactory(name="Chico", state="CA")
+    thread = ThreadFactory(title="Chico's budget")
+    query = build_query(thread, place=place)
+    assert query == "budget"
+    assert "chico" not in query
 
 
 @pytest.mark.django_db
