@@ -6,7 +6,10 @@ import pytest
 from django.core.management import CommandError, call_command
 from django.utils import timezone
 
-from tests.watch.fixtures.classifier_places import create_classifier_places
+from tests.watch.fixtures.classifier_places import (
+    create_classifier_labels,
+    create_classifier_places,
+)
 from watch.classify import (
     REGIONS,
     Classification,
@@ -26,22 +29,58 @@ def classifier_places(db):
     return create_classifier_places()
 
 
+@pytest.fixture
+def classifier_labels(classifier_places):
+    return create_classifier_labels(classifier_places)
+
+
 def read_subreddits_csv(path):
     with path.open(newline="") as fh:
         return list(csv.DictReader(fh))
 
 
 @pytest.mark.django_db
-def test_classifier_reproduces_hand_labels_without_wrong_places(classifier_places):
-    wrong = []
-    for row in read_subreddits_csv(SUBREDDITS_CSV):
-        if row["kind"] in {"general", "region", "state", "non_us"}:
-            continue
-        result = classify_subreddit(row["subreddit"], use_manual=False)
-        expected = classifier_places.get(row["subreddit"])
-        if result.place and expected and result.place != expected:
-            wrong.append((row["subreddit"], result.place.name, expected.name))
-    assert wrong == []
+def test_classifier_reproduces_every_hand_label(classifier_places, classifier_labels):
+    rows = read_subreddits_csv(SUBREDDITS_CSV)
+    names = {row["subreddit"] for row in rows}
+
+    assert len(rows) == 63
+    assert names == set(classifier_labels)
+
+    for row in rows:
+        name = row["subreddit"]
+        expected = classifier_labels[name]
+        result = classify_subreddit(name, use_manual=False)
+
+        if expected["kind"] == "general":
+            assert result.kind == "general", (name, result)
+            assert result.place is None, (name, result)
+
+        elif expected["kind"] == "state":
+            assert result.kind == "state", (name, result)
+            assert result.state == expected["state"], (name, result)
+
+        elif expected["kind"] == "region":
+            assert result.kind == "region", (name, result)
+            assert result.state == expected["state"], (name, result)
+
+        elif expected["kind"] == "non_us":
+            if result.place is not None:
+                assert str(result.place.country) != "US", (name, result)
+            else:
+                assert result.kind == "non_us", (name, result)
+                assert result.country == expected["country"], (name, result)
+
+        elif expected["kind"] == "ambiguous":
+            # ``glendale``/``portland`` are truly ambiguous; a few manual-only
+            # rows simply have no generated alias and fall through.
+            assert result.place is None, (name, result)
+            if name not in {"sfv", "westseattlewa", "bullcity"}:
+                assert result.kind == "ambiguous", (name, result)
+
+        else:
+            assert result.kind == "place", (name, result)
+            assert result.place == expected["place"], (name, result)
 
 
 @pytest.mark.django_db
@@ -54,7 +93,6 @@ def test_classifier_matches_unambiguous_hand_labels(classifier_places):
         "ithaca": "Ithaca",
         "buffalo": "Buffalo",
         "santaana": "Santa Ana",
-        "portland": "Portland",
         "palmsprings": "Palm Springs",
         "butte": "Butte",
         "lacrossewi": "La Crosse",
@@ -89,6 +127,63 @@ def test_glendale_is_ambiguous(classifier_places):
     result = classify_subreddit("glendale", use_manual=False)
     assert result.kind == "ambiguous"
     assert result.place is None
+
+
+@pytest.mark.django_db
+def test_state_names_beat_same_named_places(classifier_places):
+    assert Place.objects.filter(name="Oregon").count() == 3
+
+    oregon = classify_subreddit("oregon", use_manual=False)
+    assert oregon.kind == "state"
+    assert oregon.state == "OR"
+    assert oregon.place is None
+
+    oregon_talk = classify_subreddit("oregontalk", use_manual=False)
+    assert oregon_talk.kind == "state"
+    assert oregon_talk.state == "OR"
+    assert oregon_talk.place is None
+
+
+@pytest.mark.django_db
+def test_bare_state_abbreviations_are_not_state_keys(classifier_places):
+    assert classify_subreddit("ca", use_manual=False).kind != "state"
+    assert classify_subreddit("or", use_manual=False).kind != "state"
+
+
+@pytest.mark.django_db
+def test_brisbane_resolves_to_australia_not_california(classifier_places):
+    assert Place.objects.filter(name="Brisbane", country="US").exists()
+
+    result = classify_subreddit("brisbane", use_manual=False)
+    assert result.kind == "non_us"
+    assert result.place is None
+    assert result.country == "AU"
+
+
+@pytest.mark.django_db
+def test_galway_resolves_to_ireland_not_new_york(classifier_places):
+    assert Place.objects.filter(name="Galway", country="US").exists()
+
+    result = classify_subreddit("galway", use_manual=False)
+    assert result.kind == "non_us"
+    assert result.place is None
+    assert result.country == "IE"
+
+
+@pytest.mark.django_db
+def test_portland_or_and_me_are_ambiguous(classifier_places):
+    result = classify_subreddit("portland", use_manual=False)
+    assert result.kind == "ambiguous"
+    assert result.place is None
+
+
+@pytest.mark.django_db
+def test_county_populations_participate_in_ambiguity(classifier_places):
+    county = Place.objects.get(canonical_key="us:county:42029")
+    assert Place.objects.filter(name="Chester", place_type="city").exists()
+
+    result = classify_subreddit("chester", use_manual=False)
+    assert result.place == county
 
 
 @pytest.mark.django_db
@@ -173,6 +268,12 @@ def test_state_and_region_layers(classifier_places):
     assert bay_area.kind == "region"
     assert bay_area.state == "CA"
     assert bay_area.note == "Bay Area"
+
+    pnw_daily = classify_subreddit("pnwdaily", use_manual=False)
+    assert pnw_daily.kind == "region"
+    assert pnw_daily.state == ""
+    assert pnw_daily.note == "Pacific Northwest"
+    assert pnw_daily.confidence == "high"
 
     assert REGIONS["dmv"] == (None, "DC/Maryland/Virginia")
     dmv = classify_subreddit("dmv", use_manual=False)
@@ -301,6 +402,11 @@ def test_classify_pending_skips_reviewed_and_manual_rows(classifier_places):
         source="manual",
         reviewed_at=timezone.now(),
     )
+    unreviewed_manual = Subreddit.objects.create(
+        name="buffalo",
+        kind="general",
+        source="manual",
+    )
 
     stats = classify_pending_subreddits()
 
@@ -308,9 +414,12 @@ def test_classify_pending_skips_reviewed_and_manual_rows(classifier_places):
     pending.refresh_from_db()
     reviewed.refresh_from_db()
     manual.refresh_from_db()
+    unreviewed_manual.refresh_from_db()
     assert pending.place == classifier_places["chicoca"]
     assert reviewed.place is None
     assert manual.place is None
+    assert unreviewed_manual.place is None
+    assert unreviewed_manual.reviewed_at is None
 
 
 @pytest.mark.django_db
