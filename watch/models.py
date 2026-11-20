@@ -232,6 +232,43 @@ class PlaceAlias(TimeStampedModel):
         ]
 
 
+class NonUsCity(models.Model):
+    geoname_id = models.BigIntegerField(unique=True)
+    name = models.CharField(max_length=255)
+    normalized_name = models.CharField(max_length=255, db_index=True)
+    country = CountryField()
+    admin1 = models.CharField(max_length=10, blank=True)
+    population = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        ordering = ["name"]
+        verbose_name = "non-US city"
+        verbose_name_plural = "non-US cities"
+
+    def __str__(self):
+        """Return a concise admin label."""
+        return f"{self.name} ({self.country})"
+
+
+class NonUsCityAlias(models.Model):
+    city = models.ForeignKey(
+        NonUsCity, on_delete=models.CASCADE, related_name="aliases"
+    )
+    key = models.CharField(max_length=255, db_index=True)
+
+    class Meta:
+        ordering = ["key"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["city", "key"], name="watch_nonuscityalias_unique"
+            )
+        ]
+
+    def __str__(self):
+        """Return a concise admin label."""
+        return self.key
+
+
 class PlaceMention(TimeStampedModel):
     class Method(models.TextChoices):
         BODY_PATTERN = "body_pattern", "Body pattern"

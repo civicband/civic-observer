@@ -18,8 +18,9 @@ from pathlib import Path
 import openpyxl
 from openpyxl.utils.exceptions import InvalidFileException
 
-from watch.models import Place, PlaceAlias
+from watch.models import NonUsCity, NonUsCityAlias, Place, PlaceAlias
 from watch.normalize import (
+    STATE_FIPS,
     clean_name,
     download,
     normalize_key,
@@ -691,3 +692,359 @@ def _extract_zip(archive: Path, directory: Path) -> list[Path]:
                 destination.write(source.read())
             written.append(target)
     return written
+
+
+# ---------------------------------------------------------------------------
+# GeoNames cities500
+# ---------------------------------------------------------------------------
+
+GEONAMES_CITIES_URL = "https://download.geonames.org/export/dump/cities500.zip"
+GEONAMES_CITIES_FILENAME = "cities500.txt"
+GEONAMES_COLUMN_COUNT = 19
+DEFAULT_MIN_POPULATION = 15000
+
+GEONAMES_COUNT_KEYS: tuple[str, ...] = (
+    "canadian_places",
+    "non_us_cities",
+    "aliases",
+    "skipped",
+)
+
+# GeoNames admin1 values are state or province codes, so US counties can be
+# resolved exactly from the state FIPS code plus the admin2 county FIPS code.
+_US_STATE_FIPS: dict[str, str] = {code: fips for fips, code in STATE_FIPS.items()}
+
+# Settlement types that can take a county from a GeoNames cities row. States,
+# counties, and school districts are excluded so an eponymous county or school
+# district does not make every city match ambiguous.
+_US_SETTLEMENT_TYPES: tuple[str, ...] = (
+    Place.PlaceType.CITY,
+    Place.PlaceType.TOWN,
+    Place.PlaceType.VILLAGE,
+    Place.PlaceType.CDP,
+    Place.PlaceType.COUNTY_SUBDIVISION,
+)
+
+
+@dataclass(frozen=True)
+class GeonamePlace:
+    """One parsed row from a GeoNames cities file."""
+
+    geoname_id: int
+    name: str
+    alternatenames: tuple[str, ...]
+    feature_class: str
+    country: str
+    admin1: str
+    admin2: str
+    latitude: float | None
+    longitude: float | None
+    population: int
+
+
+def geonames_path(directory: Path) -> Path:
+    """Return the expected path of ``cities500.txt`` inside ``directory``."""
+    return Path(directory) / GEONAMES_CITIES_FILENAME
+
+
+def download_geonames(directory: Path) -> Path:
+    """Download and extract the GeoNames cities file into ``directory``."""
+    archive = download(GEONAMES_CITIES_URL, "cities500.zip")
+    _extract_zip(archive, Path(directory))
+    target = geonames_path(directory)
+    if not target.is_file():
+        raise GazetteerError(
+            f"GeoNames archive did not contain {GEONAMES_CITIES_FILENAME}"
+        )
+    return target
+
+
+def load_geonames(
+    cities_path: Path, *, min_population: int = DEFAULT_MIN_POPULATION
+) -> dict[str, int]:
+    """Load GeoNames cities, returning row and alias counts.
+
+    Canadian cities become :class:`~watch.models.Place` rows and are also
+    stored as :class:`~watch.models.NonUsCity` rows so mute-by-country and
+    non-US lookup both work. Other non-US cities at or above ``min_population``
+    become lookup rows only. US rows never create places; they only fill a
+    missing county, matched by normalized name and state, from ``admin2``.
+    """
+    stats = dict.fromkeys(GEONAMES_COUNT_KEYS, 0)
+    path = Path(cities_path)
+
+    county_cache: dict[str, Place | None] = {}
+    county_index: dict[tuple[str, str], list[Place]] | None = None
+    place_index: dict[tuple[str, str], list[Place]] | None = None
+
+    try:
+        handle = path.open(encoding="utf-8-sig")
+    except OSError as exc:
+        raise GazetteerError(f"Cannot read GeoNames file {path}: {exc}") from exc
+
+    with handle:
+        for line in handle:
+            row = _parse_geoname_line(line)
+            if row is None or row.feature_class != "P":
+                stats["skipped"] += 1
+                continue
+
+            if row.country == "US":
+                if place_index is None:
+                    place_index = _build_us_place_index()
+                if county_index is None:
+                    county_index = _build_county_index()
+                _fill_place_county(row, place_index, county_index, county_cache)
+                continue
+
+            if row.country == "CA":
+                place = _upsert_canadian_place(row)
+                stats["aliases"] += _refresh_geonames_place_aliases(
+                    place, row.alternatenames
+                )
+                stats["canadian_places"] += 1
+                city = _upsert_non_us_city(row)
+                stats["aliases"] += _refresh_non_us_aliases(city, row.alternatenames)
+                stats["non_us_cities"] += 1
+                continue
+
+            if row.population < min_population:
+                stats["skipped"] += 1
+                continue
+
+            city = _upsert_non_us_city(row)
+            stats["aliases"] += _refresh_non_us_aliases(city, row.alternatenames)
+            stats["non_us_cities"] += 1
+
+    return stats
+
+
+def build_geonames_aliases(
+    place: Place, alternatenames: Iterable[str] = ()
+) -> list[PlaceAlias]:
+    """Return GeoNames aliases for a Canadian city.
+
+    Aliases cover the name, name plus province code and full name, and every
+    usable alternate name. Keys are deduplicated across kinds so an alternate
+    name that repeats the city name is not stored twice.
+    """
+    aliases: dict[str, PlaceAlias] = {}
+
+    def add(kind: str, value: str) -> None:
+        key = _alias_key(value)
+        if key and key not in aliases:
+            aliases[key] = PlaceAlias(
+                place=place, key=key, kind=kind, source=PlaceAlias.Source.GEONAMES
+            )
+
+    add(PlaceAlias.Kind.NAME, place.name)
+    if place.state:
+        add(PlaceAlias.Kind.NAME_STATE, f"{place.name} {place.state}")
+        try:
+            full_state = state_name(place.state)
+        except KeyError:
+            full_state = ""
+        if full_state:
+            add(PlaceAlias.Kind.NAME_STATE_NAME, f"{place.name} {full_state}")
+
+    for alternate in alternatenames:
+        add(PlaceAlias.Kind.VARIANT, alternate)
+
+    return list(aliases.values())
+
+
+def _refresh_geonames_place_aliases(place: Place, alternatenames: Iterable[str]) -> int:
+    """Replace generated GeoNames aliases for a Canadian place."""
+    place.aliases.filter(source=PlaceAlias.Source.GEONAMES).delete()
+    aliases = build_geonames_aliases(place, alternatenames)
+    PlaceAlias.objects.bulk_create(aliases, batch_size=1000)
+    return len(aliases)
+
+
+def _upsert_canadian_place(row: GeonamePlace) -> Place:
+    """Create or update the ``Place`` row for a Canadian city."""
+    place, _ = Place.objects.update_or_create(
+        canonical_key=f"ca:city:{row.geoname_id}",
+        defaults={
+            "name": row.name,
+            "legal_name": row.name,
+            "place_type": Place.PlaceType.CANADIAN_CITY,
+            "state": row.admin1,
+            "country": "CA",
+            "latitude": row.latitude,
+            "longitude": row.longitude,
+            "population": row.population,
+        },
+    )
+    return place
+
+
+def _upsert_non_us_city(row: GeonamePlace) -> NonUsCity:
+    """Create or update the lookup row for a non-US city."""
+    city, _ = NonUsCity.objects.update_or_create(
+        geoname_id=row.geoname_id,
+        defaults={
+            "name": row.name,
+            "normalized_name": normalize_key(row.name)[:255],
+            "country": row.country,
+            "admin1": row.admin1,
+            "population": row.population,
+        },
+    )
+    return city
+
+
+def _refresh_non_us_aliases(city: NonUsCity, alternatenames: Iterable[str]) -> int:
+    """Replace the lookup aliases for one non-US city."""
+    keys = _unique_alias_keys([city.name, *alternatenames])
+    city.aliases.all().delete()
+    NonUsCityAlias.objects.bulk_create(
+        [NonUsCityAlias(city=city, key=key) for key in keys],
+        batch_size=1000,
+    )
+    return len(keys)
+
+
+def _unique_alias_keys(values: Iterable[str]) -> list[str]:
+    """Return normalized, deduplicated alias keys in input order."""
+    keys: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        key = _alias_key(value)
+        if key and key not in seen:
+            seen.add(key)
+            keys.append(key)
+    return keys
+
+
+def _alias_key(value: str) -> str:
+    """Return a normalized alias key capped at the model field length."""
+    return normalize_key(value)[:255]
+
+
+def _parse_geoname_line(line: str) -> GeonamePlace | None:
+    """Parse one tab-separated GeoNames cities line.
+
+    Returns ``None`` for blank, malformed, or incomplete rows so a single bad
+    line does not abort a multi-hundred-thousand-row load.
+    """
+    text = line.rstrip("\r\n")
+    if not text.strip():
+        return None
+
+    fields = text.split("\t")
+    if len(fields) < GEONAMES_COLUMN_COUNT:
+        return None
+    try:
+        geoname_id = int(fields[0])
+    except ValueError:
+        return None
+
+    name = " ".join(fields[1].split())
+    country = fields[8].strip().upper()
+    if not name or len(country) != 2:
+        return None
+
+    alternatenames = tuple(
+        part.strip() for part in fields[3].split(",") if part.strip()
+    )
+    return GeonamePlace(
+        geoname_id=geoname_id,
+        name=name,
+        alternatenames=alternatenames,
+        feature_class=fields[6].strip().upper(),
+        country=country,
+        admin1=fields[10].strip().upper(),
+        admin2=fields[11].strip(),
+        latitude=_parse_float(fields[4]),
+        longitude=_parse_float(fields[5]),
+        population=_parse_geoname_population(fields[14]),
+    )
+
+
+def _parse_geoname_population(value: str) -> int:
+    """Return a non-negative population count from a GeoNames cell."""
+    try:
+        return max(0, int(value.strip() or 0))
+    except ValueError:
+        return 0
+
+
+def _build_us_place_index() -> dict[tuple[str, str], list[Place]]:
+    """Index US settlement places that have no county yet."""
+    index: dict[tuple[str, str], list[Place]] = {}
+    places = Place.objects.filter(
+        country="US",
+        county__isnull=True,
+        place_type__in=_US_SETTLEMENT_TYPES,
+    )
+    for place in places:
+        key = (place.state, normalize_key(place.name))
+        if key[1]:
+            index.setdefault(key, []).append(place)
+    return index
+
+
+def _build_county_index() -> dict[tuple[str, str], list[Place]]:
+    """Index county places by state and normalized name and legal name."""
+    index: dict[tuple[str, str], list[Place]] = {}
+    for county in Place.objects.filter(place_type=Place.PlaceType.COUNTY):
+        seen: set[str] = set()
+        for name in (county.name, county.legal_name):
+            key = normalize_key(name or "")
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            index.setdefault((county.state, key), []).append(county)
+    return index
+
+
+def _county_from_admin2(
+    row: GeonamePlace,
+    county_index: dict[tuple[str, str], list[Place]],
+    county_cache: dict[str, Place | None],
+) -> Place | None:
+    """Resolve a US row's ``admin2`` value to a loaded county, if unambiguous."""
+    if not row.admin1 or not row.admin2:
+        return None
+
+    admin2 = row.admin2.strip()
+    if admin2.isdigit():
+        state_fips = _US_STATE_FIPS.get(row.admin1)
+        if state_fips:
+            key = f"us:county:{state_fips}{admin2.zfill(3)}"
+            if key not in county_cache:
+                county_cache[key] = Place.objects.filter(canonical_key=key).first()
+            county = county_cache[key]
+            if county is not None:
+                return county
+
+    # Some exports use a county name instead of a FIPS code.
+    matches = county_index.get((row.admin1, normalize_key(admin2)), [])
+    return matches[0] if len(matches) == 1 else None
+
+
+def _fill_place_county(
+    row: GeonamePlace,
+    place_index: dict[tuple[str, str], list[Place]],
+    county_index: dict[tuple[str, str], list[Place]],
+    county_cache: dict[str, Place | None],
+) -> None:
+    """Set ``county`` on the unique matching US place when it is still null."""
+    if not row.admin1:
+        return
+
+    county = _county_from_admin2(row, county_index, county_cache)
+    if county is None:
+        return
+
+    key = (row.admin1, normalize_key(row.name))
+    matches = place_index.get(key, [])
+    if len(matches) != 1:
+        return
+
+    place = matches[0]
+    place.county = county
+    place.save(update_fields=["county", "modified"])
+    # A later GeoNames row with the same name must not overwrite this county.
+    place_index[key] = []

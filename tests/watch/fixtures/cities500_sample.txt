@@ -1,0 +1,15 @@
+6094817	Ottawa	Ottawa	Ottawa,Outaouais	45.41117	-75.69812	P	PPLA	CA		ON	10			812129	70	70	America/Toronto	2023-01-01
+5992500	Kingston	Kingston	Kingston	44.23153	-76.48604	P	PPL	CA		ON	07			132485	93	93	America/Toronto	2023-01-01
+6167865	Toronto	Toronto		43.70011	-79.4163	P	PPLA	CA		ON	10			2794356	76	76	America/Toronto	2023-01-01
+2643743	London	London	London,Londres,Londra,Λονδίνο	51.50853	-0.12574	P	PPLC	GB		ENG	H9			8961989	25	25	Europe/London	2023-01-01
+2630001	Smallville	Smallville		51.0	-0.1	P	PPL	GB		ENG	H9			9000	10	10	Europe/London	2023-01-01
+2964574	Dublin	Dublin	Dublin,Dubhlinn,Baile Atha Cliath	53.33306	-6.24889	P	PPLC	IE		L	10			1024027	8	8	Europe/Dublin	2023-01-01
+2655984	Belfast	Belfast	Belfast,Béal Feirste	54.59682	-5.93039	P	PPLA	GB		NIR	R3			333871	5	5	Europe/London	2023-01-01
+2193733	Auckland	Auckland	Auckland,Tamaki-makau-rau	-36.84853	174.76349	P	PPLA	NZ		E7				417910	21	21	Pacific/Auckland	2023-01-01
+4829449	Abbeville	Abbeville		31.57184	-85.25049	P	PPL	US		AL	067			2612	47	47	America/Chicago	2023-01-01
+4061300	Fairview	Fairview		31.0	-86.0	P	PPL	US		AL	067			1000			America/Chicago	2023-01-01
+4049979	Birmingham	Birmingham		33.52066	-86.80249	P	PPLA2	US		AL	Jefferson			200733			America/Chicago	2023-01-01
+4250542	Springfield	Springfield		39.80172	-89.64371	P	PPLA2	US		IL	167			114394	182	182	America/Chicago	2023-01-01
+4061301	Nowhere	Nowhere		32.0	-87.0	P	PPL	US		AL	999			500			America/Chicago	2023-01-01
+9999999	Lake Somewhere	Lake Somewhere		50.0	-80.0	L	LK	CA		ON				0			America/Toronto	2023-01-01
+8888888	Broken	Broken		1	2	P	PPL	GB		ENG	H9			100000			Europe/London
