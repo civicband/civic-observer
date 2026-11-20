@@ -11,8 +11,12 @@ from __future__ import annotations
 import csv
 import re
 import zipfile
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
+
+import openpyxl
+from openpyxl.utils.exceptions import InvalidFileException
 
 from watch.models import Place, PlaceAlias
 from watch.normalize import (
@@ -101,6 +105,10 @@ _KNOWN_SUFFIX_PATTERNS = tuple(
 
 class GazetteerError(ValueError):
     """Raised when a Gazetteer file cannot be parsed."""
+
+
+class GovernmentError(GazetteerError):
+    """Raised when a Census of Governments file cannot be read."""
 
 
 @dataclass(frozen=True)
@@ -399,6 +407,261 @@ def _parse_float(value: str | None) -> float | None:
         return float(value)
     except ValueError:
         return None
+
+
+# ---------------------------------------------------------------------------
+# Census of Governments
+# ---------------------------------------------------------------------------
+
+GOVERNMENT_FILENAME = "Govt_Units_2022_Final.xlsx"
+GOVERNMENT_SHEETS: tuple[str, ...] = ("General Purpose", "School District")
+GOVERNMENT_COUNT_KEYS: tuple[str, ...] = (
+    "county",
+    "municipal",
+    "township",
+    "school",
+    "unmatched_school",
+    "skipped",
+)
+
+UNIT_COUNTY = "1 - COUNTY"
+UNIT_MUNICIPAL = "2 - MUNICIPAL"
+UNIT_TOWNSHIP = "3 - TOWNSHIP"
+UNIT_SCHOOL = "SCHOOL DISTRICT"
+
+_UNIT_TYPE_BUCKET: dict[str, str] = {
+    UNIT_COUNTY: "county",
+    UNIT_MUNICIPAL: "municipal",
+    UNIT_TOWNSHIP: "township",
+    UNIT_SCHOOL: "school",
+}
+
+
+def government_key(unit_type: str, state: str, county: str, place: str) -> str | None:
+    """Return the canonical key a government unit row points at.
+
+    Returns ``None`` for unit types that have no direct Gazetteer match, such
+    as special districts, or when a required FIPS component is missing.
+    """
+    bucket = _UNIT_TYPE_BUCKET.get(_unit_type(unit_type))
+    state = (state or "").strip()
+    county = (county or "").strip()
+    place = (place or "").strip()
+
+    if bucket == "county" and state and county:
+        return f"us:county:{state}{county}"
+    if bucket == "municipal" and state and place:
+        return f"us:place:{state}{place}"
+    if bucket == "township" and state and county and place:
+        return f"us:cousub:{state}{county}{place}"
+    return None
+
+
+def load_government_rows(rows: Iterable[dict]) -> dict[str, int]:
+    """Flag Census of Governments units and fill population and county.
+
+    Rows are already-normalized dicts with ``unit_type``, ``fips_state``,
+    ``fips_county``, ``fips_place``, ``unit_name``, ``population``, and
+    ``is_active`` keys. Inactive rows, unknown unit types, and units without a
+    matching place are counted as ``skipped``. School districts that match no
+    place or more than one place are counted as ``unmatched_school``.
+    """
+    stats = dict.fromkeys(GOVERNMENT_COUNT_KEYS, 0)
+    school_index: dict[tuple[str, str], list[Place]] | None = None
+    county_cache: dict[str, Place | None] = {}
+
+    for row in rows:
+        if _cell(row, "is_active").upper() != "Y":
+            stats["skipped"] += 1
+            continue
+
+        unit_type = _cell(row, "unit_type")
+        bucket = _UNIT_TYPE_BUCKET.get(_unit_type(unit_type))
+        if bucket is None:
+            stats["skipped"] += 1
+            continue
+
+        if bucket == "school":
+            if school_index is None:
+                school_index = _build_school_index()
+            place = _match_school_district(row, school_index)
+            if place is None:
+                stats["unmatched_school"] += 1
+                continue
+        else:
+            key = government_key(
+                unit_type,
+                _fips(row, "fips_state", 2),
+                _fips(row, "fips_county", 3),
+                _fips(row, "fips_place", 5),
+            )
+            place = Place.objects.filter(canonical_key=key).first() if key else None
+            if place is None:
+                stats["skipped"] += 1
+                continue
+
+        _apply_government(place, row, county_cache)
+        stats[bucket] += 1
+
+    return stats
+
+
+def load_governments(xlsx_path: Path) -> dict[str, int]:
+    """Load the General Purpose and School District sheets of a units XLSX."""
+    return load_government_rows(_government_rows(Path(xlsx_path)))
+
+
+def _government_rows(path: Path) -> Iterator[dict]:
+    """Yield normalized rows from the supported sheets of a units XLSX."""
+    try:
+        workbook = openpyxl.load_workbook(path, read_only=True, data_only=True)
+    except (OSError, InvalidFileException, zipfile.BadZipFile) as exc:
+        raise GovernmentError(
+            f"Cannot read Census of Governments file {path}: {exc}"
+        ) from exc
+
+    try:
+        missing = [
+            name for name in GOVERNMENT_SHEETS if name not in workbook.sheetnames
+        ]
+        if missing:
+            raise GovernmentError(
+                f"Census of Governments file {path} is missing sheets: "
+                + ", ".join(missing)
+            )
+        for sheet_name in GOVERNMENT_SHEETS:
+            yield from _government_sheet_rows(
+                workbook[sheet_name], school=sheet_name == "School District"
+            )
+    finally:
+        workbook.close()
+
+
+def _government_sheet_rows(worksheet, *, school: bool) -> Iterator[dict]:
+    """Yield normalized rows from one worksheet."""
+    rows = worksheet.iter_rows(values_only=True)
+    header_values = next(rows, None)
+    if header_values is None:
+        raise GovernmentError(f"Government sheet {worksheet.title!r} is empty")
+
+    header = [
+        "" if value is None else str(value).strip().upper() for value in header_values
+    ]
+    for values in rows:
+        if not any(value not in (None, "") for value in values):
+            continue
+        raw = {name: value for name, value in zip(header, values, strict=False) if name}
+        yield {
+            "unit_type": UNIT_SCHOOL if school else _cell(raw, "UNIT_TYPE"),
+            "unit_name": _cell(raw, "UNIT_NAME"),
+            "fips_state": _cell(raw, "FIPS_STATE"),
+            "fips_county": _cell(raw, "FIPS_COUNTY"),
+            "fips_place": _cell(raw, "FIPS_PLACE"),
+            "population": _cell(raw, "POPULATION"),
+            "is_active": _cell(raw, "IS_ACTIVE"),
+        }
+
+
+def _unit_type(value: object) -> str:
+    """Return a whitespace-collapsed upper-case unit type."""
+    if value is None:
+        return ""
+    return " ".join(str(value).split()).upper()
+
+
+def _cell(row: dict, name: str) -> str:
+    """Return a stripped string cell, tolerating absent or blank cells."""
+    value = row.get(name)
+    if value is None:
+        return ""
+    if isinstance(value, float) and value.is_integer():
+        return str(int(value))
+    return str(value).strip()
+
+
+def _fips(row: dict, name: str, width: int) -> str:
+    """Return a zero-padded FIPS component, or an empty string."""
+    text = _cell(row, name)
+    if not text.isdigit():
+        return ""
+    return text.zfill(width)
+
+
+def _population(row: dict) -> int | None:
+    """Return a positive population count, or ``None`` when absent or zero."""
+    text = _cell(row, "population").replace(",", "")
+    if not text:
+        return None
+    try:
+        number = int(float(text))
+    except ValueError:
+        return None
+    return number if number > 0 else None
+
+
+def _state_abbreviation(fips_state: str) -> str:
+    """Return the USPS code for a state FIPS code, or an empty string."""
+    try:
+        return state_from_fips(fips_state)
+    except KeyError:
+        return ""
+
+
+def _school_name_key(name: str) -> str:
+    """Return the comparison key used to match school districts."""
+    return normalize_key(clean_name(name, suffix="school district"))
+
+
+def _build_school_index() -> dict[tuple[str, str], list[Place]]:
+    """Index school districts by state and normalized name."""
+    index: dict[tuple[str, str], list[Place]] = {}
+    schools = Place.objects.filter(place_type=Place.PlaceType.SCHOOL_DISTRICT)
+    for place in schools:
+        index.setdefault((place.state, _school_name_key(place.name)), []).append(place)
+    return index
+
+
+def _match_school_district(
+    row: dict, index: dict[tuple[str, str], list[Place]]
+) -> Place | None:
+    """Return the unique school district match for ``row``, if any."""
+    state = _state_abbreviation(_fips(row, "fips_state", 2))
+    key = _school_name_key(_cell(row, "unit_name"))
+    if not state or not key:
+        return None
+    matches = index.get((state, key), [])
+    return matches[0] if len(matches) == 1 else None
+
+
+def _apply_government(
+    place: Place, row: dict, county_cache: dict[str, Place | None]
+) -> None:
+    """Persist government flag, population, and county for ``place``."""
+    fields: dict[str, object] = {"is_government": True}
+    population = _population(row)
+    if population is not None:
+        fields["population"] = population
+    if place.place_type != Place.PlaceType.COUNTY:
+        county = _county_for_row(row, county_cache)
+        if county is not None:
+            fields["county"] = county
+
+    for name, value in fields.items():
+        setattr(place, name, value)
+    place.save(update_fields=[*fields, "modified"])
+
+
+def _county_for_row(row: dict, county_cache: dict[str, Place | None]) -> Place | None:
+    """Return the county place named by a row's FIPS codes, if one exists."""
+    state = _fips(row, "fips_state", 2)
+    county = _fips(row, "fips_county", 3)
+    if not state or not county:
+        return None
+
+    key = f"us:county:{state}{county}"
+    if key not in county_cache:
+        county_cache[key] = Place.objects.filter(canonical_key=key).first()
+    return county_cache[key]
 
 
 def download_gazetteer(*, year: int = 2026, directory: Path) -> list[Path]:
