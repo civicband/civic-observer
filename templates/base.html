@@ -188,6 +188,16 @@
                                            data-umami-event="nav_click"
                                            data-umami-event-destination="notifications">Notifications</a>
                                         {% if user.is_staff %}
+                                            <a href="{% url 'watch:triage' %}"
+                                               class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                               role="menuitem"
+                                               data-umami-event="nav_click"
+                                               data-umami-event-destination="triage">Triage</a>
+                                            <a href="{% url 'watch:backlog' %}"
+                                               class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+                                               role="menuitem"
+                                               data-umami-event="nav_click"
+                                               data-umami-event-destination="backlog">Backlog</a>
                                             <a href="{% url 'admin:index' %}"
                                                class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
                                                role="menuitem"
@@ -288,6 +298,8 @@
                                 <a href="{% url 'apikeys:list' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors" data-umami-event="nav_click" data-umami-event-destination="api_keys">API Keys</a>
                                 <a href="{% url 'notifications:channel-list' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors" data-umami-event="nav_click" data-umami-event-destination="notifications">Notifications</a>
                                 {% if user.is_staff %}
+                                    <a href="{% url 'watch:triage' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors" data-umami-event="nav_click" data-umami-event-destination="triage">Triage</a>
+                                    <a href="{% url 'watch:backlog' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors" data-umami-event="nav_click" data-umami-event-destination="backlog">Backlog</a>
                                     <a href="{% url 'admin:index' %}" class="block px-3 py-2 rounded-md text-base font-medium text-gray-600 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors" data-umami-event="nav_click" data-umami-event-destination="admin">Admin</a>
                                 {% endif %}
                                 <form method="post" action="{% url 'stagedoor:logout' %}">
