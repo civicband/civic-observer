@@ -100,7 +100,8 @@ class SubredditAdmin(admin.ModelAdmin):
 
     @admin.action(description="Accept suggested classification")
     def accept_suggestions(self, request, queryset):
-        queryset.update(reviewed_at=timezone.now())
+        now = timezone.now()
+        queryset.update(reviewed_at=now, modified=now)
 
 
 @admin.register(Thread)
