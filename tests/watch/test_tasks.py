@@ -30,11 +30,40 @@ def break_rq(monkeypatch):
 
 
 @pytest.mark.django_db
-def test_enrich_stub_returns_thread_id():
+def test_enrich_refreshes_thread_hits(monkeypatch):
+    thread = ThreadFactory()
+    monkeypatch.setattr("watch.enrichment.refresh_thread_hits", lambda t: 4)
+    assert enrichment.enrich_thread(str(thread.id)) == {
+        "status": "ok",
+        "thread_id": str(thread.id),
+        "hits": 4,
+    }
+
+
+@pytest.mark.django_db
+def test_enrich_passes_loaded_thread_to_refresh(monkeypatch):
+    thread = ThreadFactory()
+    seen = []
+
+    def fake_refresh(candidate):
+        seen.append(candidate)
+        return 0
+
+    monkeypatch.setattr("watch.enrichment.refresh_thread_hits", fake_refresh)
+
+    result = enrichment.enrich_thread(str(thread.id))
+
+    assert result["hits"] == 0
+    assert seen == [thread]
+
+
+@pytest.mark.django_db
+def test_enrich_with_no_subject_places_reports_zero_hits():
     thread = ThreadFactory()
     assert enrichment.enrich_thread(str(thread.id)) == {
-        "status": "stubbed",
+        "status": "ok",
         "thread_id": str(thread.id),
+        "hits": 0,
     }
 
 
@@ -45,9 +74,9 @@ def test_tasks_module_reexports_enrich_thread():
 
 
 @pytest.mark.django_db
-def test_enrich_stub_returns_unknown_thread_id_unchanged():
+def test_enrich_returns_not_found_for_unknown_thread():
     assert enrichment.enrich_thread("missing") == {
-        "status": "stubbed",
+        "status": "not_found",
         "thread_id": "missing",
     }
 
