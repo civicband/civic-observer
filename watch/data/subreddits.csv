@@ -2,7 +2,7 @@ subreddit,kind,place,state,county,confidence,muted,note
 sandiego,place,San Diego,CA,San Diego County,high,0,
 chicoca,place,Chico,CA,Butte County,high,0,
 losangeles,place,Los Angeles,CA,Los Angeles County,high,0,
-sfv,place,Los Angeles,CA,Los Angeles County,high,0,San Fernando Valley; mostly LA city but also Burbank/Glendale/San Fernando
+sfv,region,,CA,Los Angeles County,high,0,San Fernando Valley; LA County region; includes LA city neighborhoods plus Burbank/Glendale/San Fernando
 chestercounty,place,,PA,Chester County,medium,0,Chester County PA most likely; also exists in SC and TN
 ithaca,place,Ithaca,NY,Tompkins County,high,0,
 developmentslc,place,Salt Lake City,UT,Salt Lake County,high,0,

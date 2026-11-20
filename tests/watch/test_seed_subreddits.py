@@ -97,9 +97,9 @@ def test_seed_subreddits_preserves_labels_and_infers_countries(subreddit_places)
     seed_subreddits(SUBREDDITS_CSV)
 
     sfv = Subreddit.objects.get(name="sfv")
-    assert sfv.place == subreddit_places["los_angeles"]
+    assert sfv.place is None
     assert sfv.note.startswith("San Fernando Valley")
-    assert sfv.kind == "place"
+    assert sfv.kind == "region"
     assert sfv.state == "CA"
     assert sfv.confidence == "high"
     assert sfv.source == "manual"

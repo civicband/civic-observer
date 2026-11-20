@@ -83,7 +83,7 @@ def test_classifier_reproduces_every_hand_label(classifier_places, classifier_la
             # ``glendale``/``portland`` are truly ambiguous; a few manual-only
             # rows simply have no generated alias and fall through.
             assert result.place is None, (name, result)
-            if name not in {"sfv", "westseattlewa", "bullcity"}:
+            if name not in {"westseattlewa", "bullcity"}:
                 assert result.kind == "ambiguous", (name, result)
 
         else:

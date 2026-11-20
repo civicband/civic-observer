@@ -145,22 +145,27 @@ def seed_subreddits(csv_path: Path, *, refresh_labels: bool = False) -> dict[str
             if not name:
                 continue
 
+            kind = _cell(row, "kind")
             place_name = _cell(row, "place")
             county_name = _cell(row, "county")
             state = _cell(row, "state").upper()
             note = _cell(row, "note")
             muted = _truthy(_cell(row, "muted"))
 
-            place = resolve_manual_place(
-                place_name or None,
-                state or None,
-                county_name or None,
-            )
-            if (place_name or county_name) and place is None:
-                stats["unresolved"] += 1
+            # Only place rows resolve to a Place. Region/state/non-US rows
+            # must stay place-less even when the CSV carries a county hint.
+            place = None
+            if kind == "place":
+                place = resolve_manual_place(
+                    place_name or None,
+                    state or None,
+                    county_name or None,
+                )
+                if (place_name or county_name) and place is None:
+                    stats["unresolved"] += 1
 
             values: dict[str, object] = {
-                "kind": _cell(row, "kind"),
+                "kind": kind,
                 "place": place,
                 "state": state,
                 "country": infer_country(note),
