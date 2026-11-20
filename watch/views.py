@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import uuid
 from datetime import timedelta
 from typing import Any
@@ -14,7 +15,7 @@ from django.utils.decorators import method_decorator
 from django.views.generic import View
 
 from watch.forms import PlaceCorrectionForm, TriageActionForm
-from watch.lookup import refresh_thread_hits
+from watch.ingest import enqueue_enrichment
 from watch.models import (
     MeetingHit,
     MutedCountry,
@@ -36,6 +37,18 @@ from watch.scoring import (
 
 #: Partial swapped into ``#triage-card`` after an action or correction.
 TRIAGE_CARD_TEMPLATE = "watch/partials/triage_card.html"
+
+#: Actions that remove the thread from the queue and move the operator on.
+ADVANCING_ACTIONS = frozenset(
+    {
+        TriageActionForm.Action.REPLIED,
+        TriageActionForm.Action.DISMISS,
+        TriageActionForm.Action.BACKLOG,
+        TriageActionForm.Action.SNOOZE,
+    }
+)
+
+logger = logging.getLogger(__name__)
 
 
 def _is_htmx(request: HttpRequest) -> bool:
@@ -77,13 +90,21 @@ def _triage_context(thread: Thread | None) -> dict[str, Any]:
     }
 
 
-def _after_action(request: HttpRequest, thread: Thread) -> HttpResponse:
-    """Render the next card for htmx, or return to the queue for a plain form."""
+def _after_action(
+    request: HttpRequest, thread: Thread, *, advance: bool
+) -> HttpResponse:
+    """Render the htmx card to show, or return to the queue for a plain form.
+
+    Actions that take the thread out of the queue advance to the next thread;
+    actions that keep it queued re-render the current thread so the operator
+    can see the change.
+    """
     if _is_htmx(request):
+        shown = next_thread(thread.pk) if advance else thread
         return render(
             request,
             TRIAGE_CARD_TEMPLATE,
-            _triage_context(next_thread(thread.pk)),
+            _triage_context(shown),
         )
     return redirect("watch:triage")
 
@@ -116,7 +137,7 @@ class TriageView(View):
 
 @method_decorator(staff_member_required, name="dispatch")
 class TriageActionView(View):
-    """Apply one triage action to a thread and advance to the next card."""
+    """Apply one triage action to a thread and render the appropriate card."""
 
     def post(self, request: HttpRequest, thread_id: uuid.UUID) -> HttpResponse:
         thread = get_object_or_404(Thread, pk=thread_id)
@@ -127,7 +148,8 @@ class TriageActionView(View):
         error = self._apply(thread, form.cleaned_data)
         if error is not None:
             return HttpResponseBadRequest(error)
-        return _after_action(request, thread)
+        advance = form.cleaned_data["action"] in ADVANCING_ACTIONS
+        return _after_action(request, thread, advance=advance)
 
     def _apply(self, thread: Thread, data: dict[str, Any]) -> str | None:
         """Apply ``data['action']`` and return an error message, if any."""
@@ -159,15 +181,16 @@ class TriageActionView(View):
             place_id = data.get("place_id")
             if place_id is None:
                 return "A place is required to promote"
-            place = get_object_or_404(Place, pk=place_id)
-            ThreadPlace.objects.update_or_create(
-                thread=thread,
-                place=place,
-                defaults={
-                    "role": ThreadPlace.Role.SUBJECT,
-                    "confidence": ThreadPlace.Confidence.HIGH,
-                    "source": ThreadPlace.Source.MANUAL,
-                },
+            thread_place = ThreadPlace.objects.filter(
+                thread=thread, place_id=place_id
+            ).first()
+            if thread_place is None:
+                return "A valid place is required"
+            thread_place.role = ThreadPlace.Role.SUBJECT
+            thread_place.confidence = ThreadPlace.Confidence.HIGH
+            thread_place.source = ThreadPlace.Source.MANUAL
+            thread_place.save(
+                update_fields=["role", "confidence", "source", "modified"]
             )
         elif action == TriageActionForm.Action.EDIT_QUERY:
             return self._edit_query(thread, data)
@@ -181,7 +204,7 @@ class TriageActionView(View):
         thread.save(update_fields=["status", "snoozed_until", "modified"])
 
     def _edit_query(self, thread: Thread, data: dict[str, Any]) -> str | None:
-        """Persist a query override and refresh cached meeting hits."""
+        """Persist a query override and queue hit enrichment."""
         query = (data.get("query") or "").strip()
         if not query:
             return "A query is required"
@@ -192,7 +215,11 @@ class TriageActionView(View):
 
         thread_place.query_override = query
         thread_place.save(update_fields=["query_override", "modified"])
-        refresh_thread_hits(thread)
+        try:
+            enqueue_enrichment(str(thread.id))
+        except Exception:
+            # A missing or unreachable queue must not lose the saved query.
+            logger.exception("Could not enqueue enrichment for thread %s", thread.id)
         return None
 
     def _query_thread_place(
@@ -231,7 +258,8 @@ class PlaceCorrectionView(View):
                 "source": ThreadPlace.Source.MANUAL,
             },
         )
-        self._update_subreddit_label(thread, place)
+        if role == ThreadPlace.Role.SUBJECT:
+            self._update_subreddit_label(thread, place)
 
         matched_text = (form.cleaned_data.get("matched_text") or "").strip()
         alias_key = normalize_key(matched_text)
@@ -243,7 +271,7 @@ class PlaceCorrectionView(View):
                 defaults={"source": PlaceAlias.Source.MANUAL},
             )
 
-        return _after_action(request, thread)
+        return _after_action(request, thread, advance=False)
 
     def _update_subreddit_label(self, thread: Thread, place: Place) -> None:
         """Point a non-manual subreddit label at the corrected place."""

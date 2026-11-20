@@ -1,9 +1,11 @@
 """Tests for triage action and place-correction endpoints."""
 
+import uuid
 from datetime import timedelta
 from unittest.mock import Mock
 
 import pytest
+from django.test import Client
 from django.urls import reverse
 from django.utils import timezone
 
@@ -118,6 +120,28 @@ def test_mute_country_without_country_is_bad_request(admin_client):
 
 
 @pytest.mark.django_db
+def test_mute_country_leaves_thread_status_unchanged(admin_client):
+    thread = ThreadFactory(subreddit=SubredditFactory(country="IE"), status="backlog")
+
+    admin_client.post(action_url(thread), {"action": "mute_country"})
+
+    thread.refresh_from_db()
+    assert thread.status == "backlog"
+
+
+@pytest.mark.django_db
+def test_mute_country_falls_back_to_the_subreddit_place_country(admin_client):
+    place = PlaceFactory(country="CA")
+    subreddit = SubredditFactory(place=place)
+    thread = ThreadFactory(subreddit=subreddit)
+
+    admin_client.post(action_url(thread), {"action": "mute_country"})
+
+    assert MutedCountry.objects.filter(code="CA").exists()
+    assert thread not in queue_queryset()
+
+
+@pytest.mark.django_db
 def test_promote_makes_mentioned_place_a_manual_subject(admin_client):
     thread = ThreadFactory()
     place = PlaceFactory()
@@ -134,6 +158,22 @@ def test_promote_without_place_is_bad_request(admin_client):
     thread = ThreadFactory()
     response = admin_client.post(action_url(thread), {"action": "promote"})
     assert response.status_code == 400
+
+
+@pytest.mark.django_db
+def test_promote_rejects_a_place_from_another_thread(admin_client):
+    thread = ThreadFactory()
+    other_thread = ThreadFactory()
+    place = PlaceFactory()
+    ThreadPlaceFactory(thread=other_thread, place=place, role="mentioned")
+
+    response = admin_client.post(
+        action_url(thread), {"action": "promote", "place_id": place.id}
+    )
+
+    assert response.status_code == 400
+    assert not ThreadPlace.objects.filter(thread=thread, place=place).exists()
+    assert ThreadPlace.objects.get(thread=other_thread, place=place).role == "mentioned"
 
 
 @pytest.mark.django_db
@@ -160,7 +200,18 @@ def test_anonymous_cannot_post_action(client):
 
 
 @pytest.mark.django_db
-def test_action_htmx_returns_the_next_thread_card(admin_client):
+@pytest.mark.parametrize(
+    ("action", "payload"),
+    [
+        ("replied", {}),
+        ("dismiss", {}),
+        ("backlog", {}),
+        ("snooze", {"days": 3}),
+    ],
+)
+def test_terminal_actions_htmx_advance_to_the_next_thread(
+    admin_client, action, payload
+):
     first = ThreadFactory(title="First thread", last_seen=timezone.now())
     ThreadFactory(
         title="Second thread", last_seen=timezone.now() - timedelta(minutes=1)
@@ -168,7 +219,7 @@ def test_action_htmx_returns_the_next_thread_card(admin_client):
 
     response = admin_client.post(
         action_url(first),
-        {"action": "replied"},
+        {"action": action, **payload},
         HTTP_HX_REQUEST="true",
     )
 
@@ -191,12 +242,50 @@ def test_action_htmx_with_empty_queue_returns_empty_state(admin_client):
 
 
 @pytest.mark.django_db
-def test_edit_query_sets_override_and_refreshes_hits(admin_client, monkeypatch):
+@pytest.mark.parametrize(
+    ("action", "payload"),
+    [
+        ("promote", {}),
+        ("edit_query", {"query": "parks"}),
+        ("mute_subreddit", {}),
+        ("mute_country", {}),
+    ],
+)
+def test_stay_actions_htmx_rerender_the_current_thread(
+    admin_client, monkeypatch, action, payload
+):
+    monkeypatch.setattr("watch.views.enqueue_enrichment", Mock(return_value="job-1"))
+    subreddit = SubredditFactory(country="IE")
+    first = ThreadFactory(
+        title="Current thread",
+        subreddit=subreddit,
+        last_seen=timezone.now(),
+    )
+    ThreadFactory(title="Other thread", last_seen=timezone.now() - timedelta(minutes=1))
+    place = PlaceFactory()
+    ThreadPlaceFactory(thread=first, place=place, role="mentioned")
+    data = {"action": action, **payload}
+    if action in {"promote", "edit_query"}:
+        data["place_id"] = place.id
+
+    response = admin_client.post(action_url(first), data, HTTP_HX_REQUEST="true")
+
+    content = response.content.decode()
+    assert response.status_code == 200
+    assert "watch/partials/triage_card.html" in [t.name for t in response.templates]
+    assert "Current thread" in content
+    assert "Other thread" not in content
+
+
+@pytest.mark.django_db
+def test_edit_query_saves_override_and_enqueues_enrichment(admin_client, monkeypatch):
     thread = ThreadFactory()
     place = PlaceFactory()
     ThreadPlaceFactory(thread=thread, place=place, role="subject")
+    enqueue = Mock(return_value="job-1")
     refresh = Mock(return_value=0)
-    monkeypatch.setattr("watch.views.refresh_thread_hits", refresh)
+    monkeypatch.setattr("watch.views.enqueue_enrichment", enqueue)
+    monkeypatch.setattr("watch.lookup.refresh_thread_hits", refresh)
 
     response = admin_client.post(
         action_url(thread),
@@ -207,7 +296,27 @@ def test_edit_query_sets_override_and_refreshes_hits(admin_client, monkeypatch):
     assert response.status_code == 302
     assert thread_place.query_override == "budget 2026"
     assert build_query(thread, place=place) == "budget 2026"
-    refresh.assert_called_once_with(thread)
+    enqueue.assert_called_once_with(str(thread.id))
+    refresh.assert_not_called()
+
+
+@pytest.mark.django_db
+def test_edit_query_still_succeeds_when_enqueue_fails(admin_client, monkeypatch):
+    thread = ThreadFactory()
+    place = PlaceFactory()
+    ThreadPlaceFactory(thread=thread, place=place, role="subject")
+    enqueue = Mock(side_effect=RuntimeError("queue unavailable"))
+    monkeypatch.setattr("watch.views.enqueue_enrichment", enqueue)
+
+    response = admin_client.post(
+        action_url(thread),
+        {"action": "edit_query", "place_id": place.id, "query": "budget 2026"},
+    )
+
+    assert response.status_code == 302
+    thread_place = ThreadPlace.objects.get(thread=thread, place=place)
+    assert thread_place.query_override == "budget 2026"
+    enqueue.assert_called_once_with(str(thread.id))
 
 
 @pytest.mark.django_db
@@ -215,7 +324,7 @@ def test_edit_query_uses_the_only_subject_place_when_omitted(admin_client, monke
     thread = ThreadFactory()
     place = PlaceFactory()
     ThreadPlaceFactory(thread=thread, place=place, role="subject")
-    monkeypatch.setattr("watch.views.refresh_thread_hits", Mock(return_value=0))
+    monkeypatch.setattr("watch.views.enqueue_enrichment", Mock(return_value="job-1"))
 
     response = admin_client.post(
         action_url(thread), {"action": "edit_query", "query": "parks"}
@@ -235,8 +344,8 @@ def test_edit_query_without_place_when_multiple_subjects_is_bad_request(
     second = PlaceFactory()
     ThreadPlaceFactory(thread=thread, place=first, role="subject")
     ThreadPlaceFactory(thread=thread, place=second, role="subject")
-    refresh = Mock(return_value=0)
-    monkeypatch.setattr("watch.views.refresh_thread_hits", refresh)
+    enqueue = Mock(return_value="job-1")
+    monkeypatch.setattr("watch.views.enqueue_enrichment", enqueue)
 
     response = admin_client.post(
         action_url(thread), {"action": "edit_query", "query": "parks"}
@@ -244,7 +353,7 @@ def test_edit_query_without_place_when_multiple_subjects_is_bad_request(
 
     assert response.status_code == 400
     assert not ThreadPlace.objects.filter(query_override="parks").exists()
-    refresh.assert_not_called()
+    enqueue.assert_not_called()
 
 
 @pytest.mark.django_db
@@ -253,8 +362,8 @@ def test_edit_query_rejects_unknown_thread_place(admin_client, monkeypatch):
     other_thread = ThreadFactory()
     place = PlaceFactory()
     ThreadPlaceFactory(thread=other_thread, place=place, role="subject")
-    refresh = Mock(return_value=0)
-    monkeypatch.setattr("watch.views.refresh_thread_hits", refresh)
+    enqueue = Mock(return_value="job-1")
+    monkeypatch.setattr("watch.views.enqueue_enrichment", enqueue)
 
     response = admin_client.post(
         action_url(thread),
@@ -262,7 +371,7 @@ def test_edit_query_rejects_unknown_thread_place(admin_client, monkeypatch):
     )
 
     assert response.status_code == 400
-    refresh.assert_not_called()
+    enqueue.assert_not_called()
 
 
 @pytest.mark.django_db
@@ -271,8 +380,8 @@ def test_edit_query_requires_a_query(admin_client, monkeypatch, query):
     thread = ThreadFactory()
     place = PlaceFactory()
     ThreadPlaceFactory(thread=thread, place=place, role="subject")
-    refresh = Mock(return_value=0)
-    monkeypatch.setattr("watch.views.refresh_thread_hits", refresh)
+    enqueue = Mock(return_value="job-1")
+    monkeypatch.setattr("watch.views.enqueue_enrichment", enqueue)
 
     response = admin_client.post(
         action_url(thread),
@@ -280,7 +389,7 @@ def test_edit_query_requires_a_query(admin_client, monkeypatch, query):
     )
 
     assert response.status_code == 400
-    refresh.assert_not_called()
+    enqueue.assert_not_called()
 
 
 @pytest.mark.django_db
@@ -359,6 +468,83 @@ def test_correction_leaves_manual_subreddit_label_alone(admin_client):
 
 
 @pytest.mark.django_db
+def test_correction_with_mentioned_role_leaves_subreddit_alone(admin_client):
+    old_place = PlaceFactory(name="Oldville")
+    new_place = PlaceFactory(name="Newville")
+    subreddit = SubredditFactory(source="gazetteer", place=old_place, country="US")
+    thread = ThreadFactory(subreddit=subreddit)
+
+    admin_client.post(
+        correction_url(thread),
+        {
+            "place_id": new_place.id,
+            "role": "mentioned",
+            "matched_text": "Newville",
+        },
+    )
+
+    subreddit.refresh_from_db()
+    assert subreddit.place == old_place
+    assert subreddit.source == "gazetteer"
+    assert subreddit.reviewed_at is None
+    thread_place = ThreadPlace.objects.get(thread=thread, place=new_place)
+    assert thread_place.role == "mentioned"
+    assert thread_place.source == "manual"
+    assert PlaceAlias.objects.filter(place=new_place, key="newville").exists()
+
+
+@pytest.mark.django_db
+def test_second_correction_updates_the_thread_place_in_place(admin_client):
+    thread = ThreadFactory()
+    place = PlaceFactory()
+
+    admin_client.post(correction_url(thread), {"place_id": place.id, "role": "subject"})
+    admin_client.post(
+        correction_url(thread), {"place_id": place.id, "role": "mentioned"}
+    )
+
+    thread_places = ThreadPlace.objects.filter(thread=thread, place=place)
+    assert thread_places.count() == 1
+    assert thread_places.get().role == "mentioned"
+    assert thread_places.get().source == "manual"
+
+
+@pytest.mark.django_db
+def test_promote_preserves_an_existing_query_override(admin_client):
+    thread = ThreadFactory()
+    place = PlaceFactory()
+    ThreadPlaceFactory(
+        thread=thread,
+        place=place,
+        role="mentioned",
+        query_override="custom budget",
+    )
+
+    admin_client.post(action_url(thread), {"action": "promote", "place_id": place.id})
+
+    thread_place = ThreadPlace.objects.get(thread=thread, place=place)
+    assert thread_place.role == "subject"
+    assert thread_place.query_override == "custom budget"
+
+
+@pytest.mark.django_db
+def test_correction_preserves_an_existing_query_override(admin_client):
+    thread = ThreadFactory()
+    place = PlaceFactory()
+    ThreadPlaceFactory(
+        thread=thread,
+        place=place,
+        role="subject",
+        query_override="custom budget",
+    )
+
+    admin_client.post(correction_url(thread), {"place_id": place.id, "role": "subject"})
+
+    thread_place = ThreadPlace.objects.get(thread=thread, place=place)
+    assert thread_place.query_override == "custom budget"
+
+
+@pytest.mark.django_db
 def test_correction_requires_place(admin_client):
     thread = ThreadFactory()
     response = admin_client.post(correction_url(thread), {"role": "subject"})
@@ -373,7 +559,7 @@ def test_correction_rejects_get(admin_client):
 
 
 @pytest.mark.django_db
-def test_correction_htmx_returns_the_next_thread_card(admin_client):
+def test_correction_htmx_rerenders_the_current_thread(admin_client):
     first = ThreadFactory(title="First thread", last_seen=timezone.now())
     ThreadFactory(
         title="Second thread", last_seen=timezone.now() - timedelta(minutes=1)
@@ -388,9 +574,72 @@ def test_correction_htmx_returns_the_next_thread_card(admin_client):
 
     content = response.content.decode()
     assert response.status_code == 200
-    assert [t.name for t in response.templates] == ["watch/partials/triage_card.html"]
-    assert "Second thread" in content
+    assert "watch/partials/triage_card.html" in [t.name for t in response.templates]
+    assert "First thread" in content
+    assert "Second thread" not in content
     assert 'id="triage-card"' not in content
+
+
+@pytest.mark.django_db
+def test_action_requires_a_csrf_token(superuser):
+    client = Client(enforce_csrf_checks=True)
+    client.force_login(superuser)
+    thread = ThreadFactory()
+
+    rejected = client.post(action_url(thread), {"action": "replied"})
+    assert rejected.status_code == 403
+    thread.refresh_from_db()
+    assert thread.status == "new"
+
+    client.get(reverse("watch:triage"), {"thread": thread.pk})
+    token = client.cookies["csrftoken"].value
+    accepted = client.post(
+        action_url(thread),
+        {"action": "replied"},
+        HTTP_X_CSRFTOKEN=token,
+    )
+    assert accepted.status_code == 302
+    thread.refresh_from_db()
+    assert thread.status == "replied"
+
+
+@pytest.mark.django_db
+def test_authenticated_non_staff_cannot_post(authenticated_client):
+    thread = ThreadFactory()
+    place = PlaceFactory()
+
+    action_response = authenticated_client.post(
+        action_url(thread), {"action": "replied"}
+    )
+    correction_response = authenticated_client.post(
+        correction_url(thread), {"place_id": place.id, "role": "subject"}
+    )
+
+    assert action_response.status_code in {302, 403}
+    assert correction_response.status_code in {302, 403}
+    thread.refresh_from_db()
+    assert thread.status == "new"
+    assert not ThreadPlace.objects.filter(thread=thread).exists()
+
+
+@pytest.mark.django_db
+def test_unknown_thread_is_404_for_actions_and_corrections(admin_client):
+    unknown = uuid.uuid4()
+    place = PlaceFactory()
+
+    assert (
+        admin_client.post(
+            reverse("watch:action", args=[unknown]), {"action": "replied"}
+        ).status_code
+        == 404
+    )
+    assert (
+        admin_client.post(
+            reverse("watch:place-correct", args=[unknown]),
+            {"place_id": place.id, "role": "subject"},
+        ).status_code
+        == 404
+    )
 
 
 @pytest.mark.django_db
