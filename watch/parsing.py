@@ -47,13 +47,30 @@ def strip_title_prefix(title: str, keyword: str | None, source_tag: str | None) 
     return parts[2] if len(parts) == 3 else title
 
 
+def normalize_host(host: str) -> str:
+    """Lowercase a host and drop a ``:port`` suffix (but keep IPv6 literals)."""
+    host = (host or "").strip().lower()
+    if host.startswith("["):
+        return host
+    return host.split(":", 1)[0].rstrip(".")
+
+
+def host_matches(host: str, domain: str) -> bool:
+    """Match a domain exactly or as a dot-suffixed subdomain.
+
+    ``endswith(domain)`` alone would accept ``evilreddit.com`` and
+    ``reddit.com.evil.com``, so require the separator to be a literal dot.
+    """
+    return host == domain or host.endswith("." + domain)
+
+
 def classify_site(host: str) -> str:
-    host = host.lower()
-    if host.endswith("reddit.com") or host == "redd.it":
+    host = normalize_host(host)
+    if host_matches(host, "reddit.com") or host_matches(host, "redd.it"):
         return "reddit"
-    if host.endswith("ycombinator.com"):
+    if host_matches(host, "ycombinator.com"):
         return "hackernews"
-    if host.endswith("lobste.rs"):
+    if host_matches(host, "lobste.rs"):
         return "lobsters"
     return "other"
 
