@@ -5,8 +5,8 @@ A municipality is matched conservatively:
 1. The exact ``normalize_key(name + state)`` alias is tried first. The
    gazetteer loader writes a ``name_state`` alias for every place, so this
    path resolves the state ambiguity for real data. Two aliases can share a
-   key when a county's suffix-stripped name matches a city; city/town/village/
-   CDP candidates then win over the county before coordinates are considered.
+   key when a county's suffix-stripped name matches a city; settlement
+   candidates then win over the county before coordinates are considered.
 2. Failing that, places whose name exactly matches the muni name **and whose
    state matches the muni state** are used. A lone match links; several
    matches are resolved by coordinates closer than
@@ -30,6 +30,7 @@ from django.utils import timezone
 from municipalities.models import Muni
 from watch.models import Place
 from watch.normalize import normalize_key
+from watch.place_utils import prefer_settlement_types
 
 #: Largest latitude/longitude distance, in degrees, allowed to break a tie.
 MAX_TIE_BREAK_DEGREES = 0.25
@@ -38,17 +39,6 @@ MAX_TIE_BREAK_DEGREES = 0.25
 TIE_EPSILON = 1e-9
 
 STAT_KEYS: tuple[str, ...] = ("linked", "ambiguous", "no_match", "already")
-
-#: Place types that describe an incorporated municipality. They win over a
-#: county or school district sharing the same name+state alias key.
-_CIVIC_TYPES = frozenset(
-    {
-        Place.PlaceType.CITY,
-        Place.PlaceType.TOWN,
-        Place.PlaceType.VILLAGE,
-        Place.PlaceType.CDP,
-    }
-)
 
 _STATUS_AUTO = "auto"
 _STATUS_NO_MATCH = "no_match"
@@ -73,7 +63,7 @@ def match_muni(muni: Muni) -> tuple[Place | None, str]:
         # Every candidate is already owned by another muni.
         return None, _STATUS_AMBIGUOUS
 
-    available = _prefer_civic_types(available)
+    available = prefer_settlement_types(available)
     if len(available) == 1:
         return available[0], _STATUS_AUTO
 
@@ -153,12 +143,6 @@ def _name_matches(muni: Muni) -> list[Place]:
         .order_by("canonical_key")
     )
     return list(places)
-
-
-def _prefer_civic_types(candidates: list[Place]) -> list[Place]:
-    """Narrow candidates to cities/towns/villages/CDPs when any exist."""
-    civic = [place for place in candidates if place.place_type in _CIVIC_TYPES]
-    return civic or candidates
 
 
 def _closest_place(muni: Muni, candidates: list[Place]) -> Place | None:

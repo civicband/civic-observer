@@ -1,3 +1,4 @@
+from datetime import timedelta
 from io import StringIO
 from pathlib import Path
 
@@ -78,6 +79,7 @@ def test_seed_subreddits_resolves_places_and_counties(subreddit_places):
 
     assert stats["created"] == 63
     assert stats["updated"] == 0
+    assert stats["unchanged"] == 0
     assert stats["unresolved"] > 0
 
     chicoca = Subreddit.objects.get(name="chicoca")
@@ -126,21 +128,102 @@ def test_seed_is_idempotent_and_preserves_mute(subreddit_places):
     assert row.muted is True
     assert row.note == "memes"
     assert stats["created"] == 0
-    assert stats["updated"] == 63
+    assert stats["updated"] == 0
+    assert stats["unchanged"] == 63
 
 
 @pytest.mark.django_db
-def test_seed_keeps_existing_note_when_csv_note_is_blank(subreddit_places):
+def test_seed_preserves_operator_edits_by_default(subreddit_places):
+    seed_subreddits(SUBREDDITS_CSV)
+    reviewed_at = timezone.now() - timedelta(days=2)
+    Subreddit.objects.filter(name="chicoca").update(
+        note="operator note",
+        place=subreddit_places["glendale_ca"],
+        kind="general",
+        reviewed_at=reviewed_at,
+    )
+
+    stats = seed_subreddits(SUBREDDITS_CSV)
+
+    row = Subreddit.objects.get(name="chicoca")
+    assert row.note == "operator note"
+    assert row.place == subreddit_places["glendale_ca"]
+    assert row.kind == "general"
+    assert row.reviewed_at == reviewed_at
+    assert stats["updated"] == 0
+    assert stats["unchanged"] == 63
+
+
+@pytest.mark.django_db
+def test_seed_refresh_labels_forces_csv_values(subreddit_places):
+    seed_subreddits(SUBREDDITS_CSV)
+    old_reviewed_at = timezone.now() - timedelta(days=2)
+    Subreddit.objects.filter(name="chicoca").update(
+        note="operator note",
+        place=subreddit_places["glendale_ca"],
+        kind="general",
+        reviewed_at=old_reviewed_at,
+    )
+
+    stats = seed_subreddits(SUBREDDITS_CSV, refresh_labels=True)
+
+    row = Subreddit.objects.get(name="chicoca")
+    assert row.note == ""
+    assert row.place == subreddit_places["chico"]
+    assert row.kind == "place"
+    assert row.reviewed_at is not None
+    assert row.reviewed_at > old_reviewed_at
+    # A forced refresh re-stamps reviewed_at on every existing row.
+    assert stats["updated"] == 63
+    assert stats["unchanged"] == 0
+
+
+@pytest.mark.django_db
+def test_seed_refresh_labels_still_preserves_mute(subreddit_places):
+    seed_subreddits(SUBREDDITS_CSV)
+    Subreddit.objects.filter(name="lol").update(muted=True, note="memes")
+
+    seed_subreddits(SUBREDDITS_CSV, refresh_labels=True)
+
+    row = Subreddit.objects.get(name="lol")
+    assert row.muted is True
+    assert row.note == ""
+
+
+@pytest.mark.django_db
+def test_seed_keeps_existing_labels_when_csv_note_is_blank(subreddit_places):
     Subreddit.objects.create(name="sandiego", kind="general", note="operator note")
 
     seed_subreddits(SUBREDDITS_CSV)
 
     row = Subreddit.objects.get(name="sandiego")
     assert row.note == "operator note"
+    assert row.kind == "general"
+    assert row.place is None
+
+
+@pytest.mark.django_db
+def test_seed_refresh_fills_an_existing_blank_row(subreddit_places):
+    Subreddit.objects.create(name="sandiego", kind="general", note="operator note")
+
+    seed_subreddits(SUBREDDITS_CSV, refresh_labels=True)
+
+    row = Subreddit.objects.get(name="sandiego")
     assert row.kind == "place"
-    place = row.place
-    assert place is not None
-    assert place.name == "San Diego"
+    assert row.place == subreddit_places["san_diego"]
+
+
+@pytest.mark.django_db
+def test_seed_updates_existing_rows_case_insensitively(subreddit_places):
+    Subreddit.objects.create(name="ChicoCA", kind="general")
+
+    stats = seed_subreddits(SUBREDDITS_CSV, refresh_labels=True)
+
+    assert Subreddit.objects.count() == 63
+    row = Subreddit.objects.get(name="ChicoCA")
+    assert row.place == subreddit_places["chico"]
+    assert stats["created"] == 62
+    assert stats["updated"] == 1
 
 
 @pytest.mark.django_db
@@ -170,7 +253,11 @@ def test_resolve_manual_place_prefers_county_and_requires_unambiguous_name(
         ("Australia", "AU"),
         ("New Zealand", "NZ"),
         ("Canada", "CA"),
-        ("Vancouver BC (or Vancouver WA?)", None),
+        ("Vancouver BC (or Vancouver WA?)", "CA"),
+        ("Calgary, AB", "CA"),
+        ("Toronto ON", "CA"),
+        ("Montreal, Quebec", "CA"),
+        ("Halifax NS", "CA"),
         ("", None),
     ],
 )
@@ -206,6 +293,26 @@ def test_command_seeds_subreddits_and_aliases(subreddit_places):
     assert Subreddit.objects.count() == 63
     assert PlaceAlias.objects.filter(key="slc", source="manual").exists()
     assert "created=63" in stdout.getvalue()
+
+
+@pytest.mark.django_db
+def test_command_refresh_labels_flag(subreddit_places):
+    seed_subreddits(SUBREDDITS_CSV)
+    Subreddit.objects.filter(name="chicoca").update(kind="general", note="operator")
+    stdout = StringIO()
+
+    call_command(
+        "seed_watch_subreddits",
+        subreddits_csv=str(SUBREDDITS_CSV),
+        aliases_csv=str(ALIASES_CSV),
+        refresh_labels=True,
+        stdout=stdout,
+    )
+
+    row = Subreddit.objects.get(name="chicoca")
+    assert row.kind == "place"
+    assert row.note == ""
+    assert "updated=63" in stdout.getvalue()
 
 
 @pytest.mark.django_db

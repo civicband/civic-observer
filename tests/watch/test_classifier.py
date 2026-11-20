@@ -1,4 +1,5 @@
 import csv
+from datetime import timedelta
 from io import StringIO
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from tests.watch.fixtures.classifier_places import (
 from watch.classify import (
     REGIONS,
     Classification,
+    _country_hint,
     apply_classification,
     classify_pending_subreddits,
     classify_subreddit,
@@ -220,12 +222,63 @@ def test_non_us_matching_never_uses_substrings(classifier_places, subreddit):
 
 
 @pytest.mark.django_db
-def test_county_populations_participate_in_ambiguity(classifier_places):
+@pytest.mark.parametrize(
+    ("subreddit", "place_name"),
+    [
+        ("losangeles", "Los Angeles"),
+        ("sandiego", "San Diego"),
+        ("lacrossewi", "La Crosse"),
+        ("sanmateo", "San Mateo"),
+        ("alameda", "Alameda"),
+        ("monterey", "Monterey"),
+        ("sonoma", "Sonoma"),
+        ("orange", "Orange"),
+    ],
+)
+def test_settlement_wins_over_same_named_county(
+    classifier_places, subreddit, place_name
+):
+    assert Place.objects.filter(
+        name=f"{place_name} County", place_type=Place.PlaceType.COUNTY
+    ).exists()
+
+    result = classify_subreddit(subreddit, use_manual=False)
+
+    assert result.kind == "place", (subreddit, result)
+    assert result.place is not None, (subreddit, result)
+    assert result.place.name == place_name, (subreddit, result)
+    assert result.place.place_type != Place.PlaceType.COUNTY
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("subreddit", "place_name"),
+    [
+        ("cecilcounty", "Cecil County"),
+        ("alamedacounty", "Alameda County"),
+        ("orangecounty", "Orange County"),
+    ],
+)
+def test_county_only_names_resolve_to_the_county(
+    classifier_places, subreddit, place_name
+):
+    result = classify_subreddit(subreddit, use_manual=False)
+
+    assert result.kind == "place", (subreddit, result)
+    assert result.place is not None, (subreddit, result)
+    assert result.place.place_type == Place.PlaceType.COUNTY
+    assert result.place.name == place_name
+
+
+@pytest.mark.django_db
+def test_county_population_does_not_shadow_the_city(classifier_places):
+    city = Place.objects.get(name="Chester", place_type=Place.PlaceType.CITY)
     county = Place.objects.get(canonical_key="us:county:42029")
-    assert Place.objects.filter(name="Chester", place_type="city").exists()
+    assert (county.population or 0) > (city.population or 0)
 
     result = classify_subreddit("chester", use_manual=False)
-    assert result.place == county
+
+    assert result.place == city
 
 
 @pytest.mark.django_db
@@ -340,6 +393,29 @@ def test_affix_stripping_reaches_non_us_city_layer(classifier_places):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("key", "country"),
+    [
+        ("northernireland", "GB"),
+        ("northernirelandnews", "GB"),
+        ("housingireland", "IE"),
+        ("irelandtransport", "IE"),
+        ("theunitedkingdomnews", "GB"),
+    ],
+)
+def test_country_hints_match_whole_tokens(classifier_places, key, country):
+    assert _country_hint(key) == country
+
+
+@pytest.mark.django_db
+def test_northern_ireland_is_not_ireland(classifier_places):
+    result = classify_subreddit("northernirelandnews", use_manual=False)
+
+    assert result.country != "IE", result
+    assert result.kind in {"non_us", "general", "ambiguous"}, result
+
+
+@pytest.mark.django_db
 def test_blank_name_is_general(classifier_places):
     result = classify_subreddit("   ", use_manual=False)
     assert result.kind == "general"
@@ -384,11 +460,46 @@ def test_apply_classification_preserves_mute_and_existing_note(classifier_places
     assert subreddit.country == "US"
     assert subreddit.confidence == result.confidence
     assert subreddit.source == "gazetteer"
-    assert subreddit.reviewed_at is not None
+    # Classification is not review: the operator still owns reviewed_at.
+    assert subreddit.reviewed_at is None
+    assert subreddit.classified_at is not None
     assert subreddit.muted is True
     assert subreddit.note == "operator note"
 
     assert apply_classification(subreddit, result) is False
+
+
+@pytest.mark.django_db
+def test_apply_classification_keeps_operator_review_timestamp(classifier_places):
+    reviewed_at = timezone.now() - timedelta(days=3)
+    subreddit = Subreddit.objects.create(
+        name="chicoca",
+        kind="general",
+        source="gazetteer",
+        reviewed_at=reviewed_at,
+    )
+    result = classify_subreddit("chicoca", use_manual=False)
+
+    assert apply_classification(subreddit, result) is True
+    subreddit.refresh_from_db()
+    assert subreddit.reviewed_at == reviewed_at
+    assert subreddit.classified_at is not None
+
+
+@pytest.mark.django_db
+def test_apply_classification_updates_modified(classifier_places):
+    subreddit = Subreddit.objects.create(
+        name="chicoca", kind="general", source="gazetteer"
+    )
+    old = timezone.now() - timedelta(days=1)
+    Subreddit.objects.filter(pk=subreddit.pk).update(modified=old)
+    subreddit.refresh_from_db()
+    result = classify_subreddit("chicoca", use_manual=False)
+
+    assert apply_classification(subreddit, result) is True
+
+    subreddit.refresh_from_db()
+    assert subreddit.modified > old
 
 
 @pytest.mark.django_db
@@ -430,13 +541,21 @@ def test_apply_classification_clears_stale_place(classifier_places):
 
 
 @pytest.mark.django_db
-def test_classify_pending_skips_reviewed_and_manual_rows(classifier_places):
+def test_classify_pending_selects_unclassified_non_manual_rows(classifier_places):
     pending = Subreddit.objects.create(name="chicoca", kind="general", source="")
-    reviewed = Subreddit.objects.create(
+    # reviewed_at is an operator timestamp; it must not hide a row that has no
+    # classification suggestion yet.
+    reviewed_but_unclassified = Subreddit.objects.create(
         name="seattle",
         kind="general",
         source="gazetteer",
         reviewed_at=timezone.now(),
+    )
+    classified = Subreddit.objects.create(
+        name="buffalo",
+        kind="general",
+        source="gazetteer",
+        classified_at=timezone.now(),
     )
     manual = Subreddit.objects.create(
         name="sandiego",
@@ -444,45 +563,53 @@ def test_classify_pending_skips_reviewed_and_manual_rows(classifier_places):
         source="manual",
         reviewed_at=timezone.now(),
     )
-    unreviewed_manual = Subreddit.objects.create(
-        name="buffalo",
+    unclassified_manual = Subreddit.objects.create(
+        name="eugene",
         kind="general",
         source="manual",
     )
 
     stats = classify_pending_subreddits()
 
-    assert stats == {"checked": 1, "changed": 1, "unchanged": 0}
+    assert stats == {"checked": 2, "changed": 2, "unchanged": 0}
     pending.refresh_from_db()
-    reviewed.refresh_from_db()
+    reviewed_but_unclassified.refresh_from_db()
+    classified.refresh_from_db()
     manual.refresh_from_db()
-    unreviewed_manual.refresh_from_db()
+    unclassified_manual.refresh_from_db()
     assert pending.place == classifier_places["chicoca"]
-    assert reviewed.place is None
+    assert reviewed_but_unclassified.place == classifier_places["seattle"]
+    assert reviewed_but_unclassified.reviewed_at is not None
+    assert classified.place is None
     assert manual.place is None
-    assert unreviewed_manual.place is None
-    assert unreviewed_manual.reviewed_at is None
+    assert unclassified_manual.place is None
+    assert unclassified_manual.reviewed_at is None
 
 
 @pytest.mark.django_db
-def test_classify_pending_reclassify_reruns_non_manual_rows(classifier_places):
+def test_classify_pending_reclassify_reruns_classified_non_manual_rows(
+    classifier_places,
+):
     Subreddit.objects.create(
         name="chicoca",
         kind="general",
         source="gazetteer",
         reviewed_at=timezone.now(),
+        classified_at=timezone.now(),
     )
     Subreddit.objects.create(
         name="seattle",
         kind="general",
         source="gazetteer",
         reviewed_at=timezone.now(),
+        classified_at=timezone.now(),
     )
     Subreddit.objects.create(
         name="sandiego",
         kind="general",
         source="manual",
         reviewed_at=timezone.now(),
+        classified_at=timezone.now(),
     )
 
     stats = classify_pending_subreddits(reclassify=True, limit=2)
@@ -491,6 +618,21 @@ def test_classify_pending_reclassify_reruns_non_manual_rows(classifier_places):
     assert Subreddit.objects.get(name="chicoca").place is not None
     assert Subreddit.objects.get(name="seattle").place is not None
     assert Subreddit.objects.get(name="sandiego").place is None
+
+
+@pytest.mark.django_db
+def test_classify_pending_skips_already_classified_rows(classifier_places):
+    Subreddit.objects.create(
+        name="chicoca",
+        kind="general",
+        source="gazetteer",
+        classified_at=timezone.now(),
+    )
+
+    stats = classify_pending_subreddits()
+
+    assert stats == {"checked": 0, "changed": 0, "unchanged": 0}
+    assert Subreddit.objects.get(name="chicoca").place is None
 
 
 @pytest.mark.django_db

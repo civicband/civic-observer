@@ -16,6 +16,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterable
 
 import httpx
+from django.db.models import Q, QuerySet
 from django_countries import countries
 
 from watch.models import Place, PlaceAlias, Subreddit
@@ -73,11 +74,18 @@ def load_wikidata(
     stats = dict.fromkeys(STAT_KEYS, 0)
     payload = (fetch or _fetch_payload)(endpoint)
 
+    rows = parse_wikidata_bindings(payload)
     grouped: dict[str, list[dict]] = {}
-    for row in parse_wikidata_bindings(payload):
+    for row in rows:
         grouped.setdefault(row["subreddit"], []).append(row)
 
-    index = _PlaceIndex()
+    # Build the index from the binding labels only. Loading every place and
+    # alias in the gazetteer costs hundreds of megabytes once the real data is
+    # in place, and this loader only ever looks up these keys.
+    index = _PlaceIndex(
+        keys={normalize_key(row["place_name"]) for row in rows},
+        names={row["place_name"] for row in rows if row["place_name"]},
+    )
     for name, rows in grouped.items():
         if not name:
             stats["skipped"] += 1
@@ -200,11 +208,19 @@ def _fetch_payload(endpoint: str) -> dict:
 
 
 class _PlaceIndex:
-    """Lazily indexed place names and aliases for exact normalized matching."""
+    """Lazily indexed place names and aliases for exact normalized matching.
 
-    def __init__(self) -> None:
-        self._names: dict[str, list[Place]] | None = None
-        self._aliases: dict[str, list[Place]] | None = None
+    The index is scoped to the normalized keys and raw labels present in the
+    Wikidata bindings. Place names are queried with a case-insensitive label
+    filter; aliases are queried by ``key__in``. State and country filters are
+    still applied per binding in :meth:`match`.
+    """
+
+    def __init__(self, *, keys: Iterable[str], names: Iterable[str] = ()) -> None:
+        self._keys = frozenset(key for key in keys if key)
+        self._labels = frozenset(name for name in names if name)
+        self._name_map: dict[str, list[Place]] | None = None
+        self._alias_map: dict[str, list[Place]] | None = None
 
     def match(self, place_name: str, state: str, country_label: str) -> Place | None:
         """Return the one place matching ``place_name``, or ``None``.
@@ -241,19 +257,37 @@ class _PlaceIndex:
         return matches
 
     def _name_index(self) -> dict[str, list[Place]]:
-        if self._names is None:
-            self._names = _build_index(
-                (normalize_key(place.name), place) for place in Place.objects.all()
+        if self._name_map is None:
+            self._name_map = _build_index(
+                (normalize_key(place.name), place)
+                for place in _place_queryset(self._labels)
             )
-        return self._names
+        return self._name_map
 
     def _alias_index(self) -> dict[str, list[Place]]:
-        if self._aliases is None:
-            self._aliases = _build_index(
+        if self._alias_map is None:
+            self._alias_map = _build_index(
                 (normalize_key(alias.key), alias.place)
-                for alias in PlaceAlias.objects.select_related("place")
+                for alias in _alias_queryset(self._keys)
             )
-        return self._aliases
+        return self._alias_map
+
+
+def _place_queryset(labels: Iterable[str]) -> QuerySet[Place]:
+    """Return only places whose names could match the binding labels."""
+    values = [label for label in labels if label]
+    if not values:
+        return Place.objects.none()
+    query = Q()
+    for value in values:
+        query |= Q(name__iexact=value)
+    return Place.objects.filter(query)
+
+
+def _alias_queryset(keys: Iterable[str]) -> QuerySet[PlaceAlias]:
+    """Return only aliases whose normalized key appears in the bindings."""
+    values = sorted({key for key in keys if key})
+    return PlaceAlias.objects.filter(key__in=values).select_related("place")
 
 
 def _build_index(pairs: Iterable[tuple[str, Place]]) -> dict[str, list[Place]]:

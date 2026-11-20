@@ -32,6 +32,14 @@ class Command(BaseCommand):
             action="store_true",
             help="Seed subreddit labels without loading manual aliases.",
         )
+        parser.add_argument(
+            "--refresh-labels",
+            action="store_true",
+            help=(
+                "Overwrite existing note, place, kind, country, and reviewed_at "
+                "values with the CSV. Muted is always preserved."
+            ),
+        )
 
     def handle(self, *args, **options):
         subreddits_path = Path(options["subreddits_csv"])
@@ -43,7 +51,10 @@ class Command(BaseCommand):
             raise CommandError(f"Alias CSV not found: {aliases_path}")
 
         with transaction.atomic():
-            stats = seed_subreddits(subreddits_path)
+            stats = seed_subreddits(
+                subreddits_path,
+                refresh_labels=options["refresh_labels"],
+            )
             aliases = 0 if options["skip_aliases"] else seed_aliases(aliases_path)
 
         self.stdout.write(

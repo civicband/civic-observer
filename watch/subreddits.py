@@ -4,9 +4,11 @@ The CSV files in ``watch/data`` are version-controlled operator data: the
 subreddit labels capture the hand review of the 63-label set, and the alias
 file records nicknames that the generated Gazetteer aliases cannot infer.
 
-Seeding is idempotent. Re-running it refreshes the classifier fields from the
-CSV but never clears an operator mute or replaces an operator note with a
-blank value.
+Seeding is idempotent and does not destroy operator edits. Existing rows keep
+their ``note``, ``place``, ``kind``, ``country``, and ``reviewed_at`` values;
+only new rows take those values from the CSV. ``muted`` is always preserved,
+and ``--refresh-labels`` forces the CSV values back onto existing rows when an
+operator explicitly wants that.
 """
 
 from __future__ import annotations
@@ -19,7 +21,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from watch.models import Place, PlaceAlias, Subreddit
-from watch.normalize import normalize_key
+from watch.normalize import PROVINCE_NAMES, normalize_key
 
 DATA_DIR = Path(__file__).resolve().parent / "data"
 SUBREDDITS_CSV = DATA_DIR / "subreddits.csv"
@@ -44,6 +46,25 @@ _COUNTRY_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = (
     (re.compile(r"\bcanada\b", re.IGNORECASE), "CA"),
 )
 
+# Canadian province names and codes. Codes are matched case-sensitively so a
+# common word such as "on" is not read as Ontario.
+_PROVINCE_PATTERNS: tuple[tuple[re.Pattern[str], str], ...] = tuple(
+    (re.compile(rf"\b{re.escape(name)}\b", re.IGNORECASE), "CA")
+    for name in PROVINCE_NAMES.values()
+) + tuple(
+    (re.compile(rf"(?<![A-Za-z]){re.escape(code)}(?![A-Za-z])"), "CA")
+    for code in PROVINCE_NAMES
+)
+
+#: Fields that belong to the operator once a row exists.
+_PRESERVED_LABEL_FIELDS: tuple[str, ...] = (
+    "kind",
+    "place",
+    "country",
+    "reviewed_at",
+    "note",
+)
+
 _TRUE_VALUES = {"1", "true", "yes", "y", "x"}
 
 
@@ -51,7 +72,7 @@ def infer_country(note: str) -> str | None:
     """Return the ISO country code named in a manual note, if any."""
     if not note:
         return None
-    for pattern, code in _COUNTRY_PATTERNS:
+    for pattern, code in (*_COUNTRY_PATTERNS, *_PROVINCE_PATTERNS):
         if pattern.search(note):
             return code
     return None
@@ -102,13 +123,20 @@ def resolve_manual_place(
     return None
 
 
-def seed_subreddits(csv_path: Path) -> dict[str, int]:
+def seed_subreddits(csv_path: Path, *, refresh_labels: bool = False) -> dict[str, int]:
     """Upsert manual subreddit labels from ``csv_path``.
 
-    Returns counts of created and updated rows plus the number of rows that
-    named a place or county that could not be resolved unambiguously.
+    New rows take every CSV value. Existing rows keep the operator-owned
+    fields (``note``, ``place``, ``kind``, ``country``, and ``reviewed_at``)
+    unless ``refresh_labels`` is true. ``muted`` is preserved in every mode.
+    State, confidence, and source are refreshed from the CSV because they
+    describe the manual label rather than an operator decision.
+
+    Returns counts of created, updated, and unchanged rows plus the number of
+    rows that named a place or county that could not be resolved
+    unambiguously.
     """
-    stats = {"created": 0, "updated": 0, "unresolved": 0}
+    stats = {"created": 0, "updated": 0, "unchanged": 0, "unresolved": 0}
     now = timezone.now()
 
     with transaction.atomic():
@@ -131,7 +159,7 @@ def seed_subreddits(csv_path: Path) -> dict[str, int]:
             if (place_name or county_name) and place is None:
                 stats["unresolved"] += 1
 
-            defaults = {
+            values: dict[str, object] = {
                 "kind": _cell(row, "kind"),
                 "place": place,
                 "state": state,
@@ -139,22 +167,59 @@ def seed_subreddits(csv_path: Path) -> dict[str, int]:
                 "confidence": _cell(row, "confidence"),
                 "source": Subreddit.Source.MANUAL,
                 "reviewed_at": now,
-                "muted": muted,
                 "note": note,
             }
 
-            existing = Subreddit.objects.filter(name=name).first()
-            if existing is not None:
-                # Operator state wins over blank CSV values.
-                defaults["muted"] = existing.muted or muted
-                defaults["note"] = note or existing.note
-
-            _, created = Subreddit.objects.update_or_create(
-                name=name, defaults=defaults
+            # Match case-insensitively so an operator's "ChicoCA" row is the
+            # row this CSV line updates rather than a duplicate.
+            existing = (
+                Subreddit.objects.filter(name__iexact=name).order_by("name").first()
             )
-            stats["created" if created else "updated"] += 1
+            if existing is None:
+                Subreddit.objects.create(name=name, muted=muted, **values)
+                stats["created"] += 1
+                continue
+
+            fields: dict[str, object] = {
+                "state": values["state"],
+                "confidence": values["confidence"],
+                "source": values["source"],
+            }
+            if refresh_labels:
+                for field in _PRESERVED_LABEL_FIELDS:
+                    fields[field] = values[field]
+
+            target_muted = existing.muted or muted
+            if target_muted != existing.muted:
+                fields["muted"] = target_muted
+
+            changed = [
+                field
+                for field, value in fields.items()
+                if _field_differs(existing, field, value)
+            ]
+            if changed:
+                for field in changed:
+                    setattr(existing, field, fields[field])
+                existing.save(update_fields=[*changed, "modified"])
+                stats["updated"] += 1
+            else:
+                stats["unchanged"] += 1
 
     return stats
+
+
+def _field_differs(instance: Subreddit, field: str, value: object) -> bool:
+    """Return whether assigning ``value`` to ``field`` would change the row."""
+    if field == "place":
+        current = instance.place_id
+        wanted = value.pk if isinstance(value, Place) else None
+        return current != wanted
+    if field == "country":
+        current_country = str(instance.country) if instance.country else ""
+        wanted_country = str(value) if value else ""
+        return current_country != wanted_country
+    return getattr(instance, field) != value
 
 
 def seed_aliases(csv_path: Path) -> int:
