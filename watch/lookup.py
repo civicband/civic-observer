@@ -7,14 +7,18 @@ external NLP service, so the same thread always produces the same query.
 
 from __future__ import annotations
 
+import hashlib
 import re
 from datetime import date, timedelta
 from typing import TYPE_CHECKING
 
+from django.conf import settings
+from django.db import transaction
+from django.db.models import QuerySet
 from django.utils import timezone
 
 from searches import search_backends
-from watch.models import Mention, Place, Thread, ThreadPlace
+from watch.models import MeetingHit, Mention, Place, Thread, ThreadPlace
 
 if TYPE_CHECKING:
     from municipalities.models import Muni
@@ -301,6 +305,87 @@ def _search(
         date_from=date_from,
         limit=limit,
     )
+
+
+def query_hash(query: str) -> str:
+    """Return the stable digest used to identify a search query."""
+    return hashlib.sha256(query.encode()).hexdigest()
+
+
+def result_to_hit(thread: Thread, place: Place, query: str, result: dict) -> MeetingHit:
+    """Build an unsaved :class:`MeetingHit` from one search result dict."""
+    return MeetingHit(
+        thread=thread,
+        place=place,
+        page_id=result["id"],
+        query=query,
+        query_hash=query_hash(query),
+        rank=result.get("rank"),
+        snippet=result.get("snippet") or "",
+        meeting_name=result.get("meeting_name") or "",
+        meeting_date=result.get("meeting_date"),
+        document_type=result.get("document_type") or "",
+        civic_band_url=(
+            f"https://{result['subdomain']}.civic.band/meetings/"
+            f"{result['civic_band_table_name']}/{result['id']}"
+        ),
+        thumbnail_url=_thumbnail_url(result),
+    )
+
+
+def _thumbnail_url(result: dict) -> str:
+    """Return the CDN thumbnail for a result's page image, or ``""``."""
+    subdomain = result.get("subdomain")
+    page_image = result.get("page_image")
+    if not subdomain or not page_image:
+        return ""
+    path = page_image if page_image.startswith("/") else f"/{page_image}"
+    cdn_url = getattr(settings, "CDN_URL", "https://cdn.civic.band").rstrip("/")
+    return f"{cdn_url}/{subdomain}{path}?width=400"
+
+
+def refresh_thread_hits(thread: Thread) -> int:
+    """Search every covered subject place and cache its meeting hits.
+
+    Existing hits for each ``(thread, place)`` pair are replaced inside a
+    transaction, so repeated refreshes never leave stale or duplicate rows.
+    Places without a linked Muni are skipped.  Returns the number of hits
+    now stored for ``thread``.
+    """
+    total = 0
+    thread_places = (
+        ThreadPlace.objects.filter(
+            thread=thread,
+            role=ThreadPlace.Role.SUBJECT,
+            place__muni__isnull=False,
+        )
+        .select_related("place")
+        .order_by("pk")
+    )
+    for thread_place in thread_places:
+        place = thread_place.place
+        query = build_query(thread, place=place)
+        results = search_place(place, query)
+
+        seen: set[str] = set()
+        hits: list[MeetingHit] = []
+        for result in results:
+            page_id = result["id"]
+            if page_id in seen:
+                continue
+            seen.add(page_id)
+            hits.append(result_to_hit(thread, place, query, result))
+
+        with transaction.atomic():
+            MeetingHit.objects.filter(thread=thread, place=place).delete()
+            MeetingHit.objects.bulk_create(hits)
+        total += len(hits)
+    return total
+
+
+def meeting_hits_for(thread: Thread) -> QuerySet[MeetingHit]:
+    """Return ``thread``'s cached hits with their places loaded in one query."""
+    return MeetingHit.objects.filter(thread=thread).select_related("place")
 
 
 def _banned_tokens(mentions: list[Mention], place: Place | None) -> set[str]:
