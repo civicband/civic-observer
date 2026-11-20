@@ -108,9 +108,17 @@ def test_to_utc_iso(value, expected):
     ("host", "site"),
     [
         ("WWW.REDDIT.COM", "reddit"),
+        ("reddit.com", "reddit"),
+        ("old.reddit.com", "reddit"),
+        ("reddit.com:443", "reddit"),
         ("redd.it", "reddit"),
         ("news.ycombinator.com", "hackernews"),
         ("lobste.rs", "lobsters"),
+        ("evilreddit.com", "other"),
+        ("notycombinator.com", "other"),
+        ("reddit.com.evil.com", "other"),
+        ("ycombinator.com.evil.com", "other"),
+        ("evil-lobste.rs", "other"),
         ("example.com", "other"),
     ],
 )

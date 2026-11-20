@@ -49,6 +49,7 @@ def test_fixture_creates_88_mentions_and_69_threads():
     assert Thread.objects.count() == 69
     la = Thread.objects.get(key="reddit:losangeles/1xzzze7")
     assert la.mention_count == 16
+    assert la.subreddit is not None
     assert la.subreddit.name == "losangeles"
     assert (la.subreddit.kind, la.subreddit.source, la.subreddit.confidence) == (
         "general",
@@ -122,6 +123,7 @@ def test_attaches_subreddit_to_existing_thread_without_one():
     )
     assert ingest_page({"items": [item("alert-1")]}) == (0, 1, 0)
     thread.refresh_from_db()
+    assert thread.subreddit is not None
     assert thread.subreddit.name == "testtown"
     assert thread.subreddit.kind == "general"
     assert thread.mention_count == 1
