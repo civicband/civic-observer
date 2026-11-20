@@ -5,7 +5,12 @@ from pathlib import Path
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from watch.gazetteer import download_gazetteer, load_gazetteer
+from watch.gazetteer import (
+    GAZETTEER_STEMS,
+    download_gazetteer,
+    load_gazetteer,
+    missing_stems,
+)
 from watch.normalize import ensure_data_dir
 
 
@@ -20,7 +25,10 @@ class Command(BaseCommand):
         parser.add_argument(
             "--download",
             action="store_true",
-            help="Download and extract the Gazetteer zips into WATCH_DATA_DIR.",
+            help=(
+                "Download and extract the Gazetteer zips into WATCH_DATA_DIR. "
+                "Files are cached even with --dry-run."
+            ),
         )
         parser.add_argument(
             "--source-dir",
@@ -42,7 +50,10 @@ class Command(BaseCommand):
 
         if options["download"]:
             directory = ensure_data_dir()
-            self.stdout.write(f"Downloading {year} Gazetteer files...")
+            self.stdout.write(
+                f"Downloading {year} Gazetteer files into {directory} "
+                "(the cache is populated even with --dry-run)..."
+            )
             download_gazetteer(year=year, directory=directory)
             source_dir = directory
         elif not source_dir:
@@ -51,6 +62,19 @@ class Command(BaseCommand):
         directory = Path(source_dir)
         if not directory.is_dir():
             raise CommandError(f"Gazetteer source directory not found: {directory}")
+
+        missing = missing_stems(directory, year=year)
+        if len(missing) == len(GAZETTEER_STEMS):
+            raise CommandError(
+                f"No Gazetteer TSV files found in {directory}. "
+                "Use --download or --source-dir."
+            )
+        if missing:
+            self.stderr.write(
+                self.style.WARNING(
+                    "Missing Gazetteer files: " + ", ".join(sorted(missing))
+                )
+            )
 
         dry_run = options["dry_run"]
         try:
