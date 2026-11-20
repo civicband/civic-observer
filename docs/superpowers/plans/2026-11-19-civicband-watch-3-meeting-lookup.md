@@ -63,9 +63,10 @@ def test_capitalized_phrases_finds_named_entities():
     assert capitalized_phrases(
         "The Beverly Hills Planning Commission meets Tuesday."
     ) == [
-        "The Beverly Hills Planning Commission",
         "Beverly Hills Planning Commission",
+        "Hills Planning Commission",
         "Planning Commission",
+        "Beverly Hills",
         "Tuesday",
     ]
 
@@ -98,7 +99,7 @@ Expected: FAIL because `watch.lookup` does not exist.
 
 - [ ] **Step 3: Implement the query builder**
 
-Use `re.findall(r"[A-Z][A-Za-z'’-]*(?:\s+[A-Z][A-Za-z'’-]*){0,3}", text)` for phrases. Generate suffixes of each match so “Beverly Hills Planning Commission” also yields “Beverly Hills”, “Planning Commission”, etc. Do not use an LLM or an external NLP library.
+Use a capitalized run of at most four words and generate all contiguous subphrases up to four words, so “Beverly Hills Planning Commission” also yields “Beverly Hills”, “Planning Commission”, etc. Do not use an LLM or an external NLP library.
 
 - [ ] **Step 4: Run the tests to verify they pass**
 
