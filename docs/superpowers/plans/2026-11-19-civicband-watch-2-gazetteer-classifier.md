@@ -64,7 +64,7 @@ GNIS is not loaded in this milestone. The Gazetteer names plus GeoNames alternat
   - `normalize_key(value: str) -> str`: lower-case, Unicode NFKD, strip combining marks, keep ASCII letters and digits, remove all else.
   - `state_from_fips(fips: str) -> str`: two-digit FIPS to USPS abbreviation; raise `KeyError` for unknown.
   - `state_name(state: str) -> str`: USPS abbreviation to full name using `localflavor.us.us_states.STATES`; for Canadian province codes (AB, BC, MB, NB, NL, NS, NT, NU, ON, PE, QC, SK, YT) return the province name from a small `PROVINCE_NAMES` map.
-  - `clean_name(value: str) -> str`: collapse whitespace and strip a trailing ` city`, ` town`, ` village`, ` CDP`, ` county`, ` township`, ` school district`. `Place.name` stores this cleaned display name; aliases also include the uncleaned legal name.
+  - `clean_name(value: str, *, suffix: str | None = None) -> str`: collapse whitespace. With `suffix`, strip only that exact trailing legal suffix (case-insensitive). Without `suffix`, strip only unambiguous suffixes `county`, `township`, `school district`, `CDP`; never strip `city`, `town`, or `village` from a proper name such as Kansas City. `Place.name` uses the LSAD-specific suffix; aliases also include the uncleaned legal name.
   - `ensure_data_dir() -> Path`: create `settings.WATCH_DATA_DIR` and return it.
   - `download(url: str, filename: str, *, client: httpx.Client | None = None) -> Path`: reuse an existing non-empty file, otherwise download to `WATCH_DATA_DIR/filename` and return the path.
 
@@ -86,10 +86,12 @@ def test_state_helpers():
     assert state_name("CA") == "California"
 
 
-def test_clean_name_removes_legal_suffixes():
-    assert clean_name("Abbeville city") == "Abbeville"
+def test_clean_name_removes_only_explicit_or_unambiguous_suffixes():
+    assert clean_name("Kansas City") == "Kansas City"
+    assert clean_name("Abbeville city") == "Abbeville city"
+    assert clean_name("Abbeville city", suffix="city") == "Abbeville"
     assert clean_name("Cecil County") == "Cecil"
-    assert clean_name("East Windsor town") == "East Windsor"
+    assert clean_name("East Windsor town", suffix="town") == "East Windsor"
 ```
 
 - [ ] **Step 2: Run the tests to verify they fail**
@@ -183,7 +185,7 @@ For each file:
 - Read the TSV, skip blank lines, and use `GEOID`, `NAME`, `LSAD`, `INTPTLAT`, `INTPTLONG`, and `USPS` when present.
 - Map `place_type` from `LSAD`: `25` → `city`, `43`/`153` → `town`, `47` → `village`, `57` → `cdp`, `21`/`53` → `city`; default `city`.
 - Map county subdivisions to `county_subdivision`; school files to `school_district`; state files to `state`.
-- Set `Place.name=clean_name(NAME)` and keep `NAME` as a `PlaceAlias` with `kind="variant"`.
+- Set `Place.name=clean_name(NAME, suffix=LSAD_SUFFIX[LSAD])` and keep `NAME` as a `PlaceAlias` with `kind="variant"`. `LSAD_SUFFIX` maps 25→`city`, 43/153→`town`, 47→`village`, 57→`CDP`, county→`county`, county subdivision→`township`, school districts→`school district`.
 - Set `country="US"`, `state` from `USPS` or the first two GEOID digits via `state_from_fips`.
 - Parse `INTPTLAT`/`INTPTLONG` into floats when present.
 - Call `refresh_aliases`.
@@ -221,7 +223,7 @@ git commit -m "feat(watch): load census gazetteer places and aliases"
   - `1 - COUNTY`: `f"us:county:{state}{county}"`.
   - `2 - MUNICIPAL`: `f"us:place:{state}{place}"`.
   - `3 - TOWNSHIP`: `f"us:cousub:{state}{county}{place}"`.
-  - School districts: match `Place` where `place_type="school_district"`, `state=...`, and `normalize_key(clean_name(unit_name))` equals `normalize_key(clean_name(place.name))`. If zero or multiple match, count as `unmatched_school`.
+  - School districts: match `Place` where `place_type="school_district"`, `state=...`, and `normalize_key(clean_name(unit_name, suffix="school district"))` equals `normalize_key(clean_name(place.name, suffix="school district"))`. If zero or multiple match, count as `unmatched_school`.
 - On match: set `is_government=True`, `population` when positive, and `county` to the matching county `Place` when `place_type != "county"`. Skip `is_active` values other than `Y`.
 
 - [ ] **Step 1: Write the failing tests**
