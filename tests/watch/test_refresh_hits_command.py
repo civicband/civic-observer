@@ -2,6 +2,7 @@
 
 from datetime import timedelta
 from io import StringIO
+from uuid import UUID
 
 import pytest
 from django.core.management import CommandError, call_command
@@ -58,7 +59,41 @@ def test_refresh_command_accepts_repeated_thread_option(monkeypatch):
 
 
 @pytest.mark.django_db
-def test_refresh_command_reports_missing_thread_without_refreshing(monkeypatch):
+def test_refresh_command_reports_missing_thread_and_fails(monkeypatch):
+    refreshed = []
+    monkeypatch.setattr(COMMAND, lambda t: refreshed.append(t.id) or 0)
+    stderr = StringIO()
+
+    with pytest.raises(CommandError, match="No matching threads"):
+        call_command(
+            "refresh_watch_hits",
+            "--thread",
+            "00000000-0000-0000-0000-000000000000",
+            stderr=stderr,
+        )
+
+    assert refreshed == []
+    assert "not found" in stderr.getvalue().lower()
+
+
+@pytest.mark.django_db
+def test_refresh_command_reports_malformed_thread_id_and_fails(monkeypatch):
+    refreshed = []
+    monkeypatch.setattr(COMMAND, lambda t: refreshed.append(t.id) or 0)
+    stderr = StringIO()
+
+    with pytest.raises(CommandError, match="No matching threads"):
+        call_command("refresh_watch_hits", "--thread", "not-a-uuid", stderr=stderr)
+
+    assert refreshed == []
+    assert "not found" in stderr.getvalue().lower()
+
+
+@pytest.mark.django_db
+def test_refresh_command_refreshes_found_threads_when_some_are_missing(
+    monkeypatch, capsys
+):
+    thread = ThreadFactory()
     refreshed = []
     monkeypatch.setattr(COMMAND, lambda t: refreshed.append(t.id) or 0)
     stderr = StringIO()
@@ -66,24 +101,39 @@ def test_refresh_command_reports_missing_thread_without_refreshing(monkeypatch):
     call_command(
         "refresh_watch_hits",
         "--thread",
+        str(thread.id),
+        "--thread",
         "00000000-0000-0000-0000-000000000000",
         stderr=stderr,
     )
 
-    assert refreshed == []
+    assert refreshed == [thread.id]
     assert "not found" in stderr.getvalue().lower()
+    assert thread.key in capsys.readouterr().out
 
 
 @pytest.mark.django_db
-def test_refresh_command_reports_malformed_thread_id(monkeypatch):
+@pytest.mark.parametrize(
+    ("args", "message"),
+    [
+        (
+            ["--thread", "00000000-0000-0000-0000-000000000000", "--all"],
+            "--thread cannot be combined with --all",
+        ),
+        (
+            ["--thread", "00000000-0000-0000-0000-000000000000", "--limit", "1"],
+            "--limit can only be used with --all",
+        ),
+    ],
+)
+def test_refresh_command_rejects_incompatible_options(monkeypatch, args, message):
     refreshed = []
     monkeypatch.setattr(COMMAND, lambda t: refreshed.append(t.id) or 0)
-    stderr = StringIO()
 
-    call_command("refresh_watch_hits", "--thread", "not-a-uuid", stderr=stderr)
+    with pytest.raises(CommandError, match=message):
+        call_command("refresh_watch_hits", *args)
 
     assert refreshed == []
-    assert "not found" in stderr.getvalue().lower()
 
 
 @pytest.mark.django_db
@@ -129,6 +179,45 @@ def test_refresh_command_all_uses_covered_threads_newest_first(monkeypatch):
 
 
 @pytest.mark.django_db
+def test_refresh_command_all_breaks_ties_by_descending_id(monkeypatch):
+    seen = timezone.now()
+    lower = ThreadFactory(
+        id=UUID("00000000-0000-0000-0000-000000000001"), last_seen=seen
+    )
+    higher = ThreadFactory(
+        id=UUID("00000000-0000-0000-0000-000000000002"), last_seen=seen
+    )
+    _covered_subject(lower)
+    _covered_subject(higher)
+
+    refreshed = []
+    monkeypatch.setattr(COMMAND, lambda t: refreshed.append(t.id) or 0)
+
+    call_command("refresh_watch_hits", "--all")
+
+    assert refreshed == [higher.id, lower.id]
+
+
+@pytest.mark.django_db
+def test_refresh_command_all_refreshes_thread_with_two_covered_places_once(
+    monkeypatch, capsys
+):
+    thread = ThreadFactory()
+    _covered_subject(thread)
+    _covered_subject(thread)
+
+    refreshed = []
+    monkeypatch.setattr(COMMAND, lambda t: refreshed.append(t.id) or 1)
+
+    call_command("refresh_watch_hits", "--all")
+
+    assert refreshed == [thread.id]
+    out = capsys.readouterr().out
+    assert out.count(thread.key) == 1
+    assert "Refreshed 1 thread, 1 hits total" in out
+
+
+@pytest.mark.django_db
 def test_refresh_command_all_honours_limit(monkeypatch):
     now = timezone.now()
     threads = [ThreadFactory(last_seen=now - timedelta(days=n)) for n in range(3)]
@@ -153,8 +242,21 @@ def test_refresh_command_all_prints_summary(monkeypatch, capsys):
 
     out = capsys.readouterr().out
     assert "3 hits" in out
-    assert "1 threads" in out
-    assert "3 hits total" in out
+    assert "Refreshed 1 thread, 3 hits total" in out
+
+
+@pytest.mark.django_db
+def test_refresh_command_all_with_no_covered_threads_prints_summary(
+    monkeypatch, capsys
+):
+    refreshed = []
+    monkeypatch.setattr(COMMAND, lambda t: refreshed.append(t.id) or 0)
+
+    call_command("refresh_watch_hits", "--all")
+
+    assert refreshed == []
+    out = capsys.readouterr().out
+    assert out.strip() == "Refreshed 0 threads, 0 hits total"
 
 
 @pytest.mark.django_db
