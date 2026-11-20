@@ -7,7 +7,9 @@ matching, and display.
 
 from __future__ import annotations
 
+import os
 import re
+import tempfile
 import unicodedata
 from pathlib import Path
 
@@ -88,19 +90,14 @@ PROVINCE_NAMES: dict[str, str] = {
 }
 
 # localflavor exposes USPS choices, including DC and territories, as (code, name).
-STATE_NAMES: dict[str, str] = dict(USPS_CHOICES)
+# Materialize names as plain strings so callers never receive a lazy proxy.
+STATE_NAMES: dict[str, str] = {code: str(name) for code, name in USPS_CHOICES}
 
-_LEGAL_SUFFIXES = (
-    "school district",
-    "township",
-    "village",
-    "county",
-    "city",
-    "town",
-    "cdp",
-)
-_LEGAL_SUFFIX_RE = re.compile(
-    r"\s+(?:" + "|".join(re.escape(s) for s in _LEGAL_SUFFIXES) + r")$",
+# Suffixes that are unambiguous on their own. ``city``/``town``/``village`` are
+# not included: "Kansas City" is a name, not a city suffix.
+_DEFAULT_SUFFIXES = ("school district", "township", "county", "cdp")
+_DEFAULT_SUFFIX_RE = re.compile(
+    r"\s+(?:" + "|".join(re.escape(s) for s in _DEFAULT_SUFFIXES) + r")$",
     re.IGNORECASE,
 )
 
@@ -118,7 +115,7 @@ def normalize_key(value: str) -> str:
 
 def state_from_fips(fips: str) -> str:
     """Return the USPS abbreviation for a two-digit state FIPS code."""
-    return STATE_FIPS[fips]
+    return STATE_FIPS[str(fips).strip().zfill(2)]
 
 
 def state_name(state: str) -> str:
@@ -129,11 +126,27 @@ def state_name(state: str) -> str:
     return PROVINCE_NAMES[code]
 
 
-def clean_name(value: str) -> str:
-    """Collapse whitespace and strip trailing legal place-type suffixes."""
+def clean_name(value: str, *, suffix: str | None = None) -> str:
+    """Collapse whitespace and strip a legal place-type suffix.
+
+    Without ``suffix``, only unambiguous suffixes (county, township, school
+    district, CDP) are removed, so names such as "Kansas City" are preserved.
+    When ``suffix`` is provided, only that exact trailing suffix is removed.
+    """
     name = " ".join(value.split())
+    if suffix is None:
+        return _strip_repeatedly(name, _DEFAULT_SUFFIX_RE)
+
+    wanted = " ".join(suffix.split())
+    if not wanted:
+        return name
+    matcher = re.compile(rf"\s+{re.escape(wanted)}$", re.IGNORECASE)
+    return matcher.sub("", name).strip()
+
+
+def _strip_repeatedly(name: str, pattern: re.Pattern[str]) -> str:
     while True:
-        stripped = _LEGAL_SUFFIX_RE.sub("", name).strip()
+        stripped = pattern.sub("", name).strip()
         if stripped == name:
             return name
         name = stripped
@@ -165,16 +178,24 @@ def download(
         client = httpx.Client(follow_redirects=True, timeout=300.0)
 
     target.parent.mkdir(parents=True, exist_ok=True)
-    temporary = target.with_name(f"{target.name}.part")
+    descriptor, temporary_name = tempfile.mkstemp(
+        dir=target.parent,
+        prefix=f".{target.name}.",
+        suffix=".part",
+    )
+    temporary = Path(temporary_name)
     try:
-        with client.stream("GET", url) as response:
-            response.raise_for_status()
-            with temporary.open("wb") as handle:
-                for chunk in response.iter_bytes():
-                    handle.write(chunk)
-        temporary.replace(target)
+        try:
+            with os.fdopen(descriptor, "wb") as handle:
+                with client.stream("GET", url) as response:
+                    response.raise_for_status()
+                    for chunk in response.iter_bytes():
+                        handle.write(chunk)
+            os.replace(temporary, target)
+        except BaseException:
+            temporary.unlink(missing_ok=True)
+            raise
     finally:
-        temporary.unlink(missing_ok=True)
         if owns_client:
             client.close()
 

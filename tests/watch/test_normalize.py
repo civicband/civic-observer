@@ -1,10 +1,11 @@
-from pathlib import Path
+import json
 
 import httpx
 import pytest
 from django.conf import settings
 
 from watch.normalize import (
+    STATE_FIPS,
     clean_name,
     download,
     ensure_data_dir,
@@ -21,13 +22,47 @@ def test_normalize_key_strips_punctuation_and_case():
 
 def test_state_helpers():
     assert state_from_fips("06") == "CA"
+    assert state_from_fips("6") == "CA"
+    assert state_from_fips(" 6 ") == "CA"
     assert state_name("CA") == "California"
 
 
-def test_clean_name_removes_legal_suffixes():
-    assert clean_name("Abbeville city") == "Abbeville"
+def test_state_name_returns_plain_strings():
+    name = state_name("CA")
+    assert isinstance(name, str)
+    assert json.dumps({"s": name}) == '{"s": "California"}'
+
+
+def test_state_fips_table_shape_and_sentinels():
+    assert len(STATE_FIPS) == 52
+    assert state_from_fips("11") == "DC"
+    assert state_from_fips("72") == "PR"
+    assert state_from_fips("55") == "WI"
+
+
+def test_clean_name_strips_unambiguous_legal_suffixes():
     assert clean_name("Cecil County") == "Cecil"
-    assert clean_name("East Windsor town") == "East Windsor"
+    assert clean_name("East Windsor township") == "East Windsor"
+    assert clean_name("Springfield  school district") == "Springfield"
+    assert clean_name("Abbeville CDP") == "Abbeville"
+
+
+def test_clean_name_preserves_ambiguous_suffixes_by_default():
+    assert clean_name("Kansas City") == "Kansas City"
+    assert clean_name("Carson City") == "Carson City"
+    assert clean_name("Abbeville city") == "Abbeville city"
+    assert clean_name("East Windsor town") == "East Windsor town"
+
+
+def test_clean_name_strips_explicit_suffix():
+    assert clean_name("Kansas City city", suffix="city") == "Kansas City"
+    assert clean_name("Abbeville CITY", suffix="city") == "Abbeville"
+    assert clean_name("East Windsor town", suffix="town") == "East Windsor"
+    assert clean_name("Cecil County", suffix="county") == "Cecil"
+
+
+def test_clean_name_with_unmatched_explicit_suffix_is_unchanged():
+    assert clean_name("Kansas City", suffix="village") == "Kansas City"
 
 
 def test_state_from_fips_unknown_raises_key_error():
@@ -53,6 +88,10 @@ def test_state_name_unknown_raises_key_error():
 
 def test_normalize_key_keeps_digits():
     assert normalize_key("District 5") == "district5"
+
+
+def test_normalize_key_strips_combining_marks():
+    assert normalize_key("Montréal") == "montreal"
 
 
 def test_clean_name_collapses_whitespace():
@@ -155,14 +194,41 @@ def test_download_raises_for_error_status(monkeypatch, tmp_path):
     assert not (tmp_path / "missing.csv").exists()
 
 
-def test_download_returns_path_without_custom_client(monkeypatch, tmp_path):
-    """The module-level client path is exercised, but the network is not."""
+def test_download_stops_cleanly_when_body_stream_fails(monkeypatch, tmp_path):
+    monkeypatch.setattr(settings, "WATCH_DATA_DIR", str(tmp_path))
+    stale = tmp_path / "stale.part"
+    stale.write_text("leave me alone")
+
+    class BrokenStream(httpx.SyncByteStream):
+        def __iter__(self):
+            yield b"partial"
+            raise httpx.ReadError("connection dropped")
+
+    client = httpx.Client(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, stream=BrokenStream())
+        )
+    )
+
+    with pytest.raises(httpx.ReadError):
+        download("https://example.com/broken.csv", "broken.csv", client=client)
+
+    assert not (tmp_path / "broken.csv").exists()
+    assert sorted(p.name for p in tmp_path.iterdir()) == ["stale.part"]
+    assert stale.read_text() == "leave me alone"
+
+
+def test_download_cache_hit_does_not_construct_client(monkeypatch, tmp_path):
     monkeypatch.setattr(settings, "WATCH_DATA_DIR", str(tmp_path))
     existing = tmp_path / "cached.csv"
     existing.write_text("cached")
 
+    def factory(**kwargs: object) -> httpx.Client:
+        raise AssertionError("cache hit should not construct an HTTP client")
+
+    monkeypatch.setattr("watch.normalize.httpx.Client", factory)
+
     assert download("https://example.com/cached.csv", "cached.csv") == existing
-    assert isinstance(existing, Path)
 
 
 def test_download_creates_and_closes_default_client(monkeypatch, tmp_path):
