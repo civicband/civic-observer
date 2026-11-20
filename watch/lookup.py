@@ -124,7 +124,6 @@ STOPWORDS: frozenset[str] = frozenset(
         "this",
         "those",
         "through",
-        "title",
         "to",
         "too",
         "under",
@@ -181,31 +180,28 @@ STOPWORDS: frozenset[str] = frozenset(
 )
 
 _TERM_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9'’-]*")
-_CAPITALIZED_RE = re.compile(r"[A-Z][A-Za-z'’-]*(?:\s+[A-Z][A-Za-z'’-]*)*")
-_DETERMINERS = frozenset({"a", "an", "the"})
+_MAX_PHRASE_WORDS = 4
+_CAPITALIZED_RE = re.compile(
+    rf"[A-Z][A-Za-z'’-]*(?:\s+[A-Z][A-Za-z'’-]*){{0,{_MAX_PHRASE_WORDS - 1}}}"
+)
 
 
 def capitalized_phrases(text: str) -> list[str]:
-    """Return candidate proper-noun phrases from ``text``, in order.
+    """Return contiguous capitalized phrases of one to four words, in order.
 
-    Each run of capitalized words contributes the full run and its most
-    useful shorter forms: the run without a leading determiner (or its leading
-    two words), and its trailing two-word phrase.  Meeting documents often
-    refer to "The Beverly Hills Planning Commission" as "Beverly Hills
-    Planning Commission" or simply "Planning Commission".
+    Every capitalized match is windowed into all of its contiguous sub-phrases,
+    longest first at each starting word.  A match such as ``Beverly Hills
+    Planning Commission`` therefore yields the full name plus shorter forms
+    such as ``Beverly Hills`` and ``Planning Commission`` that a meeting
+    document is likely to use.
     """
     phrases: list[str] = []
     for match in _CAPITALIZED_RE.findall(text):
         words = match.split()
-        phrases.append(match)
-        if len(words) < 2:
-            continue
-        if words[0].lower() in _DETERMINERS:
-            phrases.append(" ".join(words[1:]))
-        elif len(words) > 2:
-            phrases.append(" ".join(words[:2]))
-        if len(words) > 2:
-            phrases.append(" ".join(words[-2:]))
+        for start in range(len(words)):
+            longest = min(_MAX_PHRASE_WORDS, len(words) - start)
+            for length in range(longest, 0, -1):
+                phrases.append(" ".join(words[start : start + length]))
     return phrases
 
 
@@ -226,8 +222,8 @@ def build_query(thread: Thread, *, place: Place | None = None) -> str:
         if override and override.strip():
             return override
 
-    mentions = list(thread.mentions.all())
-    banned = _banned_phrases(mentions, place)
+    mentions = list(thread.mentions.order_by("published_at", "pk"))
+    banned = _banned_tokens(mentions, place)
 
     texts: list[str] = []
     if thread.title:
@@ -259,31 +255,33 @@ def build_query(thread: Thread, *, place: Place | None = None) -> str:
     return fallback
 
 
-def _banned_phrases(mentions: list[Mention], place: Place | None) -> list[str]:
-    """Return alert keywords, the place name, and its alias keys."""
-    phrases = [
-        mention.keyword.strip() for mention in mentions if mention.keyword.strip()
-    ]
+def _banned_tokens(mentions: list[Mention], place: Place | None) -> set[str]:
+    """Return normalized tokens from alert keywords, the place, and its aliases.
+
+    Matching on tokens rather than on a regex keeps aliases containing
+    punctuation (for example ``St. Yuba``) working as intended.
+    """
+    texts = [mention.keyword for mention in mentions if mention.keyword.strip()]
     if place is not None:
-        phrases.append(place.name)
-        phrases.extend(place.aliases.values_list("key", flat=True))
-    return phrases
+        texts.append(place.name)
+        texts.extend(place.aliases.values_list("key", flat=True))
+
+    banned: set[str] = set()
+    for text in texts:
+        banned.update(_normalized_tokens(text))
+    return banned
 
 
-def _query_terms(text: str, banned: list[str]) -> list[str]:
-    """Return lower-case query terms from ``text`` with banned text removed."""
-    if banned:
-        pattern = re.compile(
-            r"\b(?:"
-            + "|".join(
-                re.escape(phrase) for phrase in sorted(banned, key=len, reverse=True)
-            )
-            + r")\b",
-            re.IGNORECASE,
-        )
-        text = pattern.sub(" ", text)
-    return [
-        token.lower()
-        for token in _TERM_RE.findall(text)
-        if len(token) >= 3 and token.lower() not in STOPWORDS
-    ]
+def _normalized_tokens(text: str) -> set[str]:
+    """Return lower-case comparison tokens for ``text``."""
+    return {token.lower() for token in _TERM_RE.findall(text)}
+
+
+def _query_terms(text: str, banned: set[str]) -> list[str]:
+    """Return lower-case query terms from ``text``, minus noise and bans."""
+    terms: list[str] = []
+    for token in _TERM_RE.findall(text):
+        key = token.lower()
+        if len(key) >= 3 and key not in STOPWORDS and key not in banned:
+            terms.append(key)
+    return terms
