@@ -181,27 +181,32 @@ STOPWORDS: frozenset[str] = frozenset(
 
 _TERM_RE = re.compile(r"[A-Za-z0-9][A-Za-z0-9'’-]*")
 _MAX_PHRASE_WORDS = 4
-_CAPITALIZED_RE = re.compile(
-    rf"[A-Z][A-Za-z'’-]*(?:\s+[A-Z][A-Za-z'’-]*){{0,{_MAX_PHRASE_WORDS - 1}}}"
-)
+_CAPITALIZED_RUN_RE = re.compile(r"[A-Z][A-Za-z'’-]*(?:\s+[A-Z][A-Za-z'’-]*)*")
+_DETERMINERS = frozenset({"a", "an", "the"})
 
 
 def capitalized_phrases(text: str) -> list[str]:
     """Return contiguous capitalized phrases of one to four words, in order.
 
-    Every capitalized match is windowed into all of its contiguous sub-phrases,
-    longest first at each starting word.  A match such as ``Beverly Hills
-    Planning Commission`` therefore yields the full name plus shorter forms
-    such as ``Beverly Hills`` and ``Planning Commission`` that a meeting
-    document is likely to use.
+    Each capitalized run is trimmed to at most four words (after dropping a
+    leading determiner such as ``The``) and expanded into the useful contiguous
+    forms: the full run, every suffix of at least two words, and the leading
+    two-word phrase.  ``Beverly Hills Planning Commission`` therefore yields
+    ``Beverly Hills`` and ``Planning Commission`` alongside the full name.
     """
     phrases: list[str] = []
-    for match in _CAPITALIZED_RE.findall(text):
+    for match in _CAPITALIZED_RUN_RE.findall(text):
         words = match.split()
-        for start in range(len(words)):
-            longest = min(_MAX_PHRASE_WORDS, len(words) - start)
-            for length in range(longest, 0, -1):
-                phrases.append(" ".join(words[start : start + length]))
+        if words and words[0].lower() in _DETERMINERS:
+            words = words[1:]
+        words = words[:_MAX_PHRASE_WORDS]
+        if not words:
+            continue
+        phrases.append(" ".join(words))
+        for start in range(1, len(words) - 1):
+            phrases.append(" ".join(words[start:]))
+        if len(words) > 2:
+            phrases.append(" ".join(words[:2]))
     return phrases
 
 

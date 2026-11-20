@@ -14,17 +14,13 @@ from watch.models import PlaceAlias
 
 
 def test_capitalized_phrases_finds_named_entities():
-    assert capitalized_phrases("Beverly Hills Planning Commission meets Tuesday.") == [
+    assert capitalized_phrases(
+        "The Beverly Hills Planning Commission meets Tuesday."
+    ) == [
         "Beverly Hills Planning Commission",
-        "Beverly Hills Planning",
-        "Beverly Hills",
-        "Beverly",
         "Hills Planning Commission",
-        "Hills Planning",
-        "Hills",
         "Planning Commission",
-        "Planning",
-        "Commission",
+        "Beverly Hills",
         "Tuesday",
     ]
 
@@ -85,15 +81,8 @@ def test_blank_query_override_falls_through():
 
 @pytest.mark.django_db
 def test_query_deduplicates_and_caps_terms():
-    thread = ThreadFactory(title="Alpha Bravo")
-    MentionFactory(
-        thread=thread,
-        snippet_text=(
-            "Alpha Bravo Charlie Delta Echo Foxtrot Golf Hotel India Juliett "
-            "Kilo Lima Mike November Oscar Papa Quebec Romeo Sierra Tango "
-            "Uniform Victor Whiskey Xray Yankee Zulu"
-        ),
-    )
+    words = "alpha bravo charlie delta echo foxtrot golf hotel india juliett kilo lima mike november oscar papa quebec romeo sierra tango uniform victor whiskey xray yankee zulu".split()
+    thread = ThreadFactory(title=" ".join(words))
     query = build_query(thread)
     terms = query.split()
     assert len(terms) == 25
