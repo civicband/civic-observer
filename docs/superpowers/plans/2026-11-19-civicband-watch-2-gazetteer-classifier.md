@@ -627,12 +627,12 @@ git commit -m "feat(watch): link municipalities to gazetteer places"
   5. Affix stripping with prefixes/suffixes `development`, `daily`, `news`, `talk`, `landlords`, `ask`, `r4r`, `jobs`; retry at `confidence="low"`. In this layer, check state/region keys before `PlaceAlias` so `oregontalk` returns state OR.
   6. Ambiguity rule: choose the most populous only when it is at least 10× the next; otherwise `kind="ambiguous"` and `place=None`.
   7. State and region names. `REGIONS` is a module constant: `{"bayarea": ("CA", "Bay Area"), "socal": ("CA", "Southern California"), "pnw": (None, "Pacific Northwest"), "pnwdaily": (None, "Pacific Northwest"), "dmv": (None, "DC/Maryland/Virginia")}`. State rows set `kind="state"` and `state`; region rows set `kind="region"` and `state` when known.
-  8. `NonUsCityAlias` match; if the city is Canadian and a `Place` with `country="CA"` matches, return `kind="place"`, otherwise `kind="non_us"` with `country`.
+  8. `NonUsCityAlias` exact alias match only, never substring containment; if the city is Canadian and a `Place` with `country="CA"` matches, return `kind="place"`, otherwise `kind="non_us"` with `country`.
   9. `kind="general"`, `confidence="low"`, `source="gazetteer"`.
 
 - [ ] **Step 1: Write the failing classifier tests**
 
-Use a fixture that creates the places needed for the 63-label set (Chico CA, Los Angeles CA, Salt Lake City UT, La Crosse WI, Fountain CO, Cecil County MD, Chester County PA, Glendale CA and AZ with populations, Seattle WA, Durham NC, McKinney TX, and the non-US cities London/Dublin/Belfast/Auckland). The fixture returns a dict mapping each subreddit name to the expected `Place` (or `None` for ambiguous/general rows). Add a module-level helper:
+Use a fixture that creates the places needed for the 63-label set (Chico CA, Los Angeles CA, Salt Lake City UT, La Crosse WI, Fountain CO, Cecil County MD, Chester County PA, Glendale CA and AZ with populations, Seattle WA, Durham NC, McKinney TX, and the non-US cities London/Dublin/Belfast/Auckland). Include competing Canadian and US namesakes for Richmond (BC/VA), Vancouver (BC/WA), Victoria (BC/TX), and Windsor (ON/CT) so the Canadian 10x rule is exercised. The fixture returns a dict mapping each subreddit name to the expected `Place` (or `None` for ambiguous/general rows). Add a module-level helper:
 
 ```python
 import csv

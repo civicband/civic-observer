@@ -65,10 +65,16 @@ def test_classifier_reproduces_every_hand_label(classifier_places, classifier_la
             assert result.state == expected["state"], (name, result)
 
         elif expected["kind"] == "non_us":
+            # A non-US hand label may fall through to general/ambiguous or a
+            # Canadian place, but it must never land on a US place.
+            assert result.kind in {"non_us", "general", "ambiguous"} or (
+                result.kind == "place"
+                and result.place is not None
+                and str(result.place.country) == "CA"
+            ), (name, result)
             if result.place is not None:
-                assert str(result.place.country) != "US", (name, result)
-            else:
-                assert result.kind == "non_us", (name, result)
+                assert str(result.place.country) == "CA", (name, result)
+            elif result.kind == "non_us":
                 assert result.country == expected["country"], (name, result)
 
         elif expected["kind"] == "ambiguous":
@@ -175,6 +181,42 @@ def test_portland_or_and_me_are_ambiguous(classifier_places):
     result = classify_subreddit("portland", use_manual=False)
     assert result.kind == "ambiguous"
     assert result.place is None
+
+
+@pytest.mark.django_db
+def test_canadian_cities_do_not_preempt_us_namesakes(classifier_places):
+    canadian = {
+        "richmond": ("Richmond", "BC"),
+        "vancouver": ("Vancouver", "BC"),
+        "victoria": ("Victoria", "BC"),
+        "windsor": ("Windsor", "ON"),
+    }
+    for subreddit, (name, province) in canadian.items():
+        assert Place.objects.filter(name=name, state=province, country="CA").exists(), (
+            subreddit
+        )
+        assert Place.objects.filter(name=name, country="US").exists(), subreddit
+
+        result = classify_subreddit(subreddit, use_manual=False)
+        assert result.kind == "ambiguous", (subreddit, result)
+        assert result.place is None, (subreddit, result)
+
+
+@pytest.mark.django_db
+def test_unopposed_canadian_alias_still_resolves_to_place(classifier_places):
+    result = classify_subreddit("victoriabc", use_manual=False)
+    assert result.kind == "place"
+    assert result.place is not None
+    assert result.place.name == "Victoria"
+    assert result.country == "CA"
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("subreddit", ["victoriassecret", "readinglist", "dorchester"])
+def test_non_us_matching_never_uses_substrings(classifier_places, subreddit):
+    result = classify_subreddit(subreddit, use_manual=False)
+    assert result.kind in {"general", "ambiguous"}, (subreddit, result)
+    assert result.place is None, (subreddit, result)
 
 
 @pytest.mark.django_db

@@ -73,6 +73,18 @@ _CITIES: tuple[tuple[str, str, str, int], ...] = (
     ("us:place:5559900", "Oregon", "WI", 9531),
     ("us:place:1756486", "Oregon", "IL", 3600),
     ("us:place:4213200", "Chester", "PA", 32605),
+    ("us:place:5174000", "Richmond", "VA", 226610),
+    ("us:place:5374100", "Vancouver", "WA", 190915),
+    ("us:place:4875428", "Victoria", "TX", 65702),
+    ("us:place:0997660", "Windsor", "CT", 29192),
+)
+
+#: ``(canonical_key, name, province, population)`` for Canadian cities.
+_CANADIAN_CITIES: tuple[tuple[str, str, str, int], ...] = (
+    ("ca:place:6173331", "Vancouver", "BC", 662248),
+    ("ca:place:5913490", "Richmond", "BC", 209937),
+    ("ca:place:5911606", "Victoria", "BC", 91867),
+    ("ca:place:6183235", "Windsor", "ON", 229660),
 )
 
 #: ``(canonical_key, name, state, population)`` for county rows.
@@ -88,6 +100,9 @@ _NON_US_CITIES: tuple[tuple[int, str, str, str, int], ...] = (
     (2655984, "Belfast", "GB", "NIR", 333871),
     (2193733, "Auckland", "NZ", "AUK", 417910),
     (6173331, "Vancouver", "CA", "BC", 662248),
+    (6122085, "Richmond", "CA", "BC", 209937),
+    (6174041, "Victoria", "CA", "BC", 91867),
+    (6182959, "Windsor", "CA", "ON", 229660),
     (2174003, "Brisbane", "AU", "QLD", 2560720),
     (2964180, "Galway", "IE", "C", 85400),
     (2655603, "Birmingham", "GB", "ENG", 1144919),
@@ -141,14 +156,16 @@ def create_classifier_places() -> dict[str, Place | None]:
             population=population,
         )
 
-    vancouver = _make_place(
-        "ca:place:6173331",
-        "Vancouver",
-        "BC",
-        place_type=Place.PlaceType.CANADIAN_CITY,
-        country="CA",
-        population=662248,
-    )
+    canadian: dict[tuple[str, str], Place] = {}
+    for canonical_key, name, province, population in _CANADIAN_CITIES:
+        canadian[(name, province)] = _make_place(
+            canonical_key,
+            name,
+            province,
+            place_type=Place.PlaceType.CANADIAN_CITY,
+            country="CA",
+            population=population,
+        )
 
     for key, name, state in _NICKNAMES:
         PlaceAlias.objects.create(
@@ -212,7 +229,7 @@ def create_classifier_places() -> dict[str, Place | None]:
         "iowacity": by_name[("Iowa City", "IA")],
         "eastpaloalto": by_name[("East Palo Alto", "CA")],
         "cecilcounty": by_name[("Cecil County", "MD")],
-        "vancouver": vancouver,
+        "vancouver": canadian[("Vancouver", "BC")],
     }
 
 
