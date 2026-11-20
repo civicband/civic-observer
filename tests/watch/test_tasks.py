@@ -74,10 +74,27 @@ def test_tasks_module_reexports_enrich_thread():
 
 
 @pytest.mark.django_db
-def test_enrich_returns_not_found_for_unknown_thread():
+def test_enrich_returns_not_found_for_unknown_thread(monkeypatch):
+    monkeypatch.setattr(
+        "watch.enrichment.refresh_thread_hits",
+        lambda t: pytest.fail("must not refresh a missing thread"),
+    )
     assert enrichment.enrich_thread("missing") == {
         "status": "not_found",
         "thread_id": "missing",
+    }
+
+
+@pytest.mark.django_db
+def test_enrich_returns_not_found_for_absent_uuid(monkeypatch):
+    thread_id = "00000000-0000-0000-0000-000000000000"
+    monkeypatch.setattr(
+        "watch.enrichment.refresh_thread_hits",
+        lambda t: pytest.fail("must not refresh a missing thread"),
+    )
+    assert enrichment.enrich_thread(thread_id) == {
+        "status": "not_found",
+        "thread_id": thread_id,
     }
 
 

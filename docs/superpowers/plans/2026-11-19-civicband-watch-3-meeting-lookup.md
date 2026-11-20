@@ -146,6 +146,7 @@ return backend.search_with_cache(
 ```
 
 - `search_place` first calls `_search` with `date_from=timezone.localdate() - timedelta(days=365)`, then retries with `date_from=None` only if the first result list is empty.
+- If `query.strip()` is empty, `search_place` returns `[]` without calling the backend.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -369,7 +370,7 @@ git commit -m "feat(watch): refresh meeting hits during enrichment"
 **Interfaces:**
 - Command options: `--thread UUID` (repeatable), `--all`, `--limit N`.
 - Without `--thread` or `--all`, print a warning and exit.
-- `--all` iterates threads with at least one covered subject place, ordered by `-last_seen`, up to `--limit`.
+- `--all` iterates threads that have at least one covered subject place or already have `MeetingHit` rows, ordered by `-last_seen`, up to `--limit`. Including threads with existing hits lets a run purge stale hits after a subject place is demoted or unlinked.
 
 - [ ] **Step 1: Write the failing test**
 
