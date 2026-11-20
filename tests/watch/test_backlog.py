@@ -1,5 +1,6 @@
 """Tests for the uncovered-place backlog, its ranking, and place notes."""
 
+import uuid
 from datetime import timedelta
 
 import pytest
@@ -15,7 +16,8 @@ from tests.factories import (
     ThreadFactory,
     ThreadPlaceFactory,
 )
-from watch.models import PlaceNote
+from watch.models import MutedCountry, PlaceNote
+from watch.scoring import BACKLOG_DAYS
 
 
 def _subject(place, *, subreddit=None, last_seen=None):
@@ -97,6 +99,16 @@ def test_backlog_ranks_larger_population_first_with_nulls_last(admin_client):
 
 
 @pytest.mark.django_db
+def test_backlog_falls_back_to_name_for_fully_tied_places(admin_client):
+    _subject(PlaceFactory(name="Beta", muni=None, population=500))
+    _subject(PlaceFactory(name="Alpha", muni=None, population=500))
+
+    response = admin_client.get(reverse("watch:backlog"))
+
+    assert [p.name for p in response.context["places"]] == ["Alpha", "Beta"]
+
+
+@pytest.mark.django_db
 def test_backlog_exposes_counts_samples_and_notes(admin_client):
     place = PlaceFactory(name="Sampleville", muni=None)
     old = _subject(place, last_seen=timezone.now() - timedelta(days=2)).thread
@@ -112,6 +124,64 @@ def test_backlog_exposes_counts_samples_and_notes(admin_client):
     assert [tp.thread for tp in row.sample_threads] == [newest, middle, old]
     assert fourth not in [tp.thread for tp in row.sample_threads]
     assert list(row.notes.all()) == [note]
+
+
+@pytest.mark.django_db
+def test_backlog_samples_skip_threads_outside_the_activity_window(admin_client):
+    place = PlaceFactory(muni=None)
+    recent = _subject(place)
+    stale = _subject(place, last_seen=timezone.now() - timedelta(days=BACKLOG_DAYS + 1))
+
+    response = admin_client.get(reverse("watch:backlog"))
+
+    row = response.context["places"][0]
+    assert row.subject_threads == 1
+    assert [tp.thread for tp in row.sample_threads] == [recent.thread]
+    assert stale.thread not in [tp.thread for tp in row.sample_threads]
+
+
+@pytest.mark.django_db
+def test_backlog_samples_skip_muted_subreddits(admin_client):
+    place = PlaceFactory(muni=None)
+    allowed = _subject(place, subreddit=SubredditFactory(name="allowed"))
+    _subject(place, subreddit=SubredditFactory(name="muted", muted=True))
+
+    response = admin_client.get(reverse("watch:backlog"))
+
+    row = response.context["places"][0]
+    assert row.subject_threads == 1
+    assert [tp.thread for tp in row.sample_threads] == [allowed.thread]
+
+
+@pytest.mark.django_db
+def test_backlog_samples_apply_country_mute_precedence(admin_client):
+    place = PlaceFactory(muni=None)
+    MutedCountry.objects.create(code="US")
+    allowed = _subject(place, subreddit=SubredditFactory(name="allowed", country="CA"))
+    muted = _subject(place, subreddit=SubredditFactory(name="muted", country="US"))
+
+    response = admin_client.get(reverse("watch:backlog"))
+
+    row = response.context["places"][0]
+    assert row.subject_threads == 1
+    assert row.subject_subreddits == 1
+    assert [tp.thread for tp in row.sample_threads] == [allowed.thread]
+    assert muted.thread not in [tp.thread for tp in row.sample_threads]
+
+
+@pytest.mark.django_db
+def test_backlog_orders_notes_newest_first(admin_client):
+    place = PlaceFactory(muni=None)
+    _subject(place)
+    older = PlaceNote.objects.create(place=place, text="Older")
+    PlaceNote.objects.filter(pk=older.pk).update(
+        created=timezone.now() - timedelta(days=1)
+    )
+    newer = PlaceNote.objects.create(place=place, text="Newer")
+
+    response = admin_client.get(reverse("watch:backlog"))
+
+    assert list(response.context["places"][0].notes.all()) == [newer, older]
 
 
 @pytest.mark.django_db
@@ -144,6 +214,19 @@ def test_backlog_empty_state(admin_client):
 
 
 @pytest.mark.django_db
+def test_backlog_reads_total_threads_only_for_the_full_page(admin_client):
+    place = PlaceFactory(muni=None)
+    _subject(place)
+    url = reverse("watch:backlog")
+
+    full = admin_client.get(url)
+    partial = admin_client.get(url, HTTP_HX_REQUEST="true")
+
+    assert "total_threads" in full.context
+    assert "total_threads" not in partial.context
+
+
+@pytest.mark.django_db
 def test_backlog_note_is_created(admin_client):
     place = PlaceFactory(muni=None)
     response = admin_client.post(
@@ -151,7 +234,8 @@ def test_backlog_note_is_created(admin_client):
         {"text": "Worth adding", "status": "open"},
     )
 
-    assert response.status_code in {200, 302}
+    assert response.status_code == 302
+    assert response.url == reverse("watch:backlog")
     note = place.notes.get()
     assert note.text == "Worth adding"
     assert note.status == PlaceNote.Status.OPEN
@@ -170,6 +254,7 @@ def test_backlog_note_htmx_refreshes_only_that_row(admin_client):
 
     assert response.status_code == 200
     assert [t.name for t in response.templates] == ["watch/partials/backlog_rows.html"]
+    assert "total_threads" not in response.context
     assert content.count("<tr") == 1
     assert "Refreshville" in content
     assert "Call the clerk" in content
@@ -185,6 +270,45 @@ def test_backlog_note_rejects_blank_text(admin_client):
     )
     assert response.status_code == 400
     assert not place.notes.exists()
+
+
+@pytest.mark.django_db
+def test_backlog_note_rejects_unknown_status(admin_client):
+    place = PlaceFactory(muni=None)
+    response = admin_client.post(
+        reverse("watch:backlog-note", args=[place.pk]),
+        {"text": "Sneaky", "status": "not-a-status"},
+    )
+    assert response.status_code == 400
+    assert not place.notes.exists()
+
+
+@pytest.mark.django_db
+def test_backlog_note_rejects_covered_place(admin_client):
+    place = PlaceWithMuniFactory()
+    response = admin_client.post(
+        reverse("watch:backlog-note", args=[place.pk]),
+        {"text": "Covered", "status": "open"},
+    )
+
+    assert response.status_code == 404
+    assert not place.notes.exists()
+
+
+@pytest.mark.django_db
+def test_backlog_note_rejects_unknown_place(admin_client):
+    response = admin_client.post(
+        reverse("watch:backlog-note", args=[uuid.uuid4()]),
+        {"text": "Nowhere", "status": "open"},
+    )
+    assert response.status_code == 404
+
+
+@pytest.mark.django_db
+def test_backlog_note_rejects_get(admin_client):
+    place = PlaceFactory(muni=None)
+    response = admin_client.get(reverse("watch:backlog-note", args=[place.pk]))
+    assert response.status_code == 405
 
 
 @pytest.mark.django_db

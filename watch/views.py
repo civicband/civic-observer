@@ -32,6 +32,7 @@ from watch.scoring import (
     BACKLOG_DAYS,
     backlog_queryset,
     backlog_thread_count,
+    country_allowed_q,
     next_thread,
     previous_thread,
     queue_queryset,
@@ -68,8 +69,9 @@ def _is_htmx(request: HttpRequest) -> bool:
 def _sample_thread_places():
     """Return the subject thread links shown as samples in a backlog row.
 
-    Mirrors the backlog's activity window and subreddit mute rules, and joins
-    the thread and subreddit so rendering a row costs no extra queries.
+    Mirrors the backlog's activity window, subreddit mute, and country mute
+    rules, and joins the thread and subreddit so rendering a row costs no
+    extra queries.
     """
     cutoff = timezone.now() - timedelta(days=BACKLOG_DAYS)
     return (
@@ -78,40 +80,38 @@ def _sample_thread_places():
             thread__last_seen__gte=cutoff,
         )
         .filter(Q(thread__subreddit__isnull=True) | Q(thread__subreddit__muted=False))
+        .filter(country_allowed_q("thread__subreddit"))
         .select_related("thread", "thread__subreddit")
         .order_by("-thread__last_seen", "-thread__id")
     )
 
 
 def _backlog_place_list(place_id: uuid.UUID | None = None) -> list[Place]:
-    """Return ranked backlog places with samples and notes prefetched."""
+    """Return ranked backlog places with sampled threads and notes prefetched."""
     queryset = backlog_queryset().prefetch_related(
         Prefetch(
             "thread_places",
-            queryset=_sample_thread_places(),
-            to_attr="sample_thread_places",
+            queryset=_sample_thread_places()[:SAMPLE_THREAD_LIMIT],
+            to_attr="sample_threads",
         ),
         Prefetch("notes", queryset=PlaceNote.objects.order_by("-created")),
     )
     if place_id is not None:
         queryset = queryset.filter(pk=place_id)
-
-    places = list(queryset)
-    for place in places:
-        # Convenience for the template: only the first few samples.
-        place.sample_threads = place.sample_thread_places[  # type: ignore[attr-defined]
-            :SAMPLE_THREAD_LIMIT
-        ]
-    return places
+    return list(queryset)
 
 
-def _backlog_context(places: list[Place]) -> dict[str, Any]:
+def _backlog_context(
+    places: list[Place], *, include_total: bool = False
+) -> dict[str, Any]:
     """Return the template context shared by the page, rows, and note view."""
-    return {
+    context: dict[str, Any] = {
         "places": places,
-        "total_threads": backlog_thread_count(),
         "note_statuses": PlaceNote.Status.choices,
     }
+    if include_total:
+        context["total_threads"] = backlog_thread_count()
+    return context
 
 
 def _triage_context(thread: Thread | None) -> dict[str, Any]:
@@ -351,10 +351,13 @@ class BacklogView(View):
 
     def get(self, request: HttpRequest) -> HttpResponse:
         places = _backlog_place_list()
-        template_name = (
-            self.partial_template_name if _is_htmx(request) else self.template_name
+        partial = _is_htmx(request)
+        template_name = self.partial_template_name if partial else self.template_name
+        return render(
+            request,
+            template_name,
+            _backlog_context(places, include_total=not partial),
         )
-        return render(request, template_name, _backlog_context(places))
 
 
 @method_decorator(staff_member_required, name="dispatch")
@@ -362,7 +365,7 @@ class BacklogNoteView(View):
     """Record a note about an uncovered place and refresh its backlog row."""
 
     def post(self, request: HttpRequest, place_id: uuid.UUID) -> HttpResponse:
-        place = get_object_or_404(Place, pk=place_id)
+        place = get_object_or_404(Place, pk=place_id, muni__isnull=True)
         form = PlaceNoteForm(request.POST)
         if not form.is_valid():
             return HttpResponseBadRequest("Invalid place note")
@@ -376,7 +379,8 @@ class BacklogNoteView(View):
 
         places = _backlog_place_list(place.pk)
         if not places:
-            # The note still saved; show it even if the place left the ranking.
+            # The note still saved; show it even if the place has no recent
+            # subject threads and therefore left the ranking.
             place.subject_threads = 0  # type: ignore[attr-defined]
             place.subject_subreddits = 0  # type: ignore[attr-defined]
             place.sample_threads = []  # type: ignore[attr-defined]

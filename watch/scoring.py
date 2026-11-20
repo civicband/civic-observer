@@ -64,7 +64,7 @@ def _muted_country_codes():
     return MutedCountry.objects.values("code")
 
 
-def _country_allowed_q(prefix: str) -> Q:
+def country_allowed_q(prefix: str) -> Q:
     """Return a condition matching threads not muted by country.
 
     The subreddit's explicit ``country`` wins, matching
@@ -129,7 +129,7 @@ def queue_queryset() -> QuerySet[Thread]:
             | Q(status=Thread.Status.SNOOZED, snoozed_until__lte=now)
         )
         .filter(Q(subreddit__isnull=True) | Q(subreddit__muted=False))
-        .filter(_country_allowed_q("subreddit"))
+        .filter(country_allowed_q("subreddit"))
     )
     return _annotate_score(eligible, now=now).order_by("-score", "-last_seen", "-id")
 
@@ -205,7 +205,7 @@ def backlog_queryset() -> QuerySet[Place]:
             Q(thread_places__thread__subreddit__isnull=True)
             | Q(thread_places__thread__subreddit__muted=False)
         )
-        & _country_allowed_q(prefix)
+        & country_allowed_q(prefix)
     )
 
     return (
@@ -225,6 +225,8 @@ def backlog_queryset() -> QuerySet[Place]:
             "-subject_threads",
             "-subject_subreddits",
             F("population").desc(nulls_last=True),
+            "name",
+            "pk",
         )
     )
 
@@ -243,7 +245,7 @@ def backlog_thread_count() -> int:
             last_seen__gte=cutoff,
         )
         .filter(Q(subreddit__isnull=True) | Q(subreddit__muted=False))
-        .filter(_country_allowed_q("subreddit"))
+        .filter(country_allowed_q("subreddit"))
         .distinct()
         .count()
     )
