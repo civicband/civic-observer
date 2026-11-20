@@ -8,6 +8,28 @@ from .models import Muni
 logger = logging.getLogger(__name__)
 
 
+class MuniWatchLinkFilter(admin.SimpleListFilter):
+    """Review surface for municipalities without a linked watch ``Place``.
+
+    The watch app only creates ``Place`` rows for candidates it can classify,
+    so a Muni that failed to match never appears in ``PlaceAdmin``'s review
+    filter. Review those municipalities here instead.
+    """
+
+    title = "watch link"
+    parameter_name = "watch_link"
+
+    def lookups(self, request, model_admin):
+        return (("linked", "Linked"), ("unlinked", "Unlinked"))
+
+    def queryset(self, request, queryset):
+        if self.value() == "linked":
+            return queryset.filter(watch_places__isnull=False).distinct()
+        if self.value() == "unlinked":
+            return queryset.filter(watch_places__isnull=True)
+        return queryset
+
+
 @admin.register(Muni)
 class MuniAdmin(admin.ModelAdmin):
     list_display = [
@@ -28,6 +50,7 @@ class MuniAdmin(admin.ModelAdmin):
         "created",
         "last_updated",
         "last_indexed",
+        MuniWatchLinkFilter,
     ]
     search_fields = ["name", "subdomain", "state"]
     readonly_fields = ["id", "created", "modified", "last_indexed"]

@@ -738,6 +738,7 @@ git commit -m "feat(watch): classify subreddits through gazetteer layers"
   - `PlaceAdmin` with autocomplete for `county`, `muni`; filters `place_type`, `state`, `is_government`, `muni_link_status`; search `name`, `geoid`, `canonical_key`.
   - A `Needs review` filter on `Subreddit` for `reviewed_at__isnull=True`.
   - A `Needs review` filter on `Place` for `muni_link_status__in=["unlinked", "no_match"]`.
+  - A `MuniWatchLinkFilter` on `municipalities.MuniAdmin` (`?watch_link=linked|unlinked`) using `watch_places__isnull`; this is the review surface for Munis with no matching Place. Do not modify the Muni model.
 
 - [ ] **Step 1: Write the failing admin tests**
 
