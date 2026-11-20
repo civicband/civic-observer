@@ -40,6 +40,10 @@ class Command(BaseCommand):
                 raise CommandError(
                     f"Cannot read Wikidata response {path}: {exc}"
                 ) from exc
+            if not _has_bindings(payload):
+                raise CommandError(
+                    f"Wikidata response {path} is missing a results.bindings list"
+                )
 
             def read_file(endpoint: str) -> dict:
                 return payload
@@ -55,3 +59,13 @@ class Command(BaseCommand):
         if options["dry_run"]:
             summary = f"dry-run {summary}"
         self.stdout.write(summary)
+
+
+def _has_bindings(payload: object) -> bool:
+    """Return whether ``payload`` is a SPARQL response with a binding list."""
+    if not isinstance(payload, dict):
+        return False
+    results = payload.get("results")
+    if not isinstance(results, dict):
+        return False
+    return isinstance(results.get("bindings"), list)

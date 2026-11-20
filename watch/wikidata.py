@@ -83,38 +83,46 @@ def load_wikidata(
             stats["skipped"] += 1
             continue
 
-        existing = Subreddit.objects.filter(name=name).first()
+        existing = Subreddit.objects.filter(name__iexact=name).first()
         if existing is not None and existing.source == Subreddit.Source.MANUAL:
             stats["skipped"] += 1
             continue
 
         # A single item can produce several SPARQL rows (for example one per
-        # P131 value). Only link when every row agrees on one place.
-        matches: dict[str, Place] = {}
+        # P131 value). The whole subreddit is unmatched unless every row
+        # resolves and all of them agree on exactly one place.
+        resolved: list[Place] = []
         for row in rows:
             place = index.match(
                 row["place_name"],
                 _state_code(row["state"]),
-                _country_code(row["country"]),
+                row["country"],
             )
-            if place is not None:
-                matches[str(place.pk)] = place
+            if place is None:
+                resolved = []
+                break
+            resolved.append(place)
 
-        if len(matches) != 1:
+        places = {str(place.pk) for place in resolved}
+        if len(places) != 1:
             stats["unmatched"] += 1
             continue
 
-        place = next(iter(matches.values()))
+        place = resolved[0]
         defaults: dict[str, object] = {
             "kind": Subreddit.Kind.PLACE,
             "place": place,
             "confidence": Subreddit.Confidence.HIGH,
             "source": Subreddit.Source.WIKIDATA,
-            "reviewed_at": None,
         }
         if place.state:
             defaults["state"] = place.state
-        Subreddit.objects.update_or_create(name=name, defaults=defaults)
+        if existing is None:
+            defaults["reviewed_at"] = None
+        Subreddit.objects.update_or_create(
+            name=existing.name if existing is not None else name,
+            defaults=defaults,
+        )
         stats["linked"] += 1
 
     return stats
@@ -198,25 +206,39 @@ class _PlaceIndex:
         self._names: dict[str, list[Place]] | None = None
         self._aliases: dict[str, list[Place]] | None = None
 
-    def match(self, place_name: str, state: str, country: str) -> Place | None:
+    def match(self, place_name: str, state: str, country_label: str) -> Place | None:
         """Return the one place matching ``place_name``, or ``None``.
 
         Exact normalized place names take precedence over aliases so a county's
-        stripped base alias cannot shadow an eponymous city. State and country
-        codes narrow the candidates when present; an empty code is ignored.
+        stripped base alias cannot shadow an eponymous city. When every name
+        candidate is filtered out by state or country, aliases are retried.
+        State and country codes narrow the candidates when present; an
+        unmapped state label is ignored, while a non-empty country label that
+        cannot be resolved is a hard non-match.
         """
         key = normalize_key(place_name)
         if not key:
             return None
 
-        matches = self._name_index().get(key) or self._alias_index().get(key, [])
+        country = _country_code(country_label)
+        if country_label and not country:
+            return None
+
+        matches = self._filter(self._name_index().get(key, []), state, country)
+        if not matches:
+            matches = self._filter(self._alias_index().get(key, []), state, country)
+
+        unique = {str(place.pk): place for place in matches}
+        return next(iter(unique.values())) if len(unique) == 1 else None
+
+    @staticmethod
+    def _filter(matches: list[Place], state: str, country: str) -> list[Place]:
+        """Narrow candidates by state and country codes when present."""
         if state:
             matches = [place for place in matches if place.state == state]
         if country:
             matches = [place for place in matches if str(place.country) == country]
-
-        unique = {str(place.pk): place for place in matches}
-        return next(iter(unique.values())) if len(unique) == 1 else None
+        return matches
 
     def _name_index(self) -> dict[str, list[Place]]:
         if self._names is None:
