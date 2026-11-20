@@ -185,6 +185,28 @@ def test_backlog_orders_notes_newest_first(admin_client):
 
 
 @pytest.mark.django_db
+def test_backlog_page_renders_at_most_three_samples(admin_client):
+    place = PlaceFactory(name="ManyThreads", muni=None)
+    for index in range(5):
+        ThreadPlaceFactory(
+            thread=ThreadFactory(
+                title=f"Sample thread {index}",
+                last_seen=timezone.now() - timedelta(minutes=index),
+            ),
+            place=place,
+            role="subject",
+        )
+
+    response = admin_client.get(reverse("watch:backlog"))
+    content = response.content.decode()
+
+    assert response.status_code == 200
+    assert len(response.context["places"][0].sample_threads) == 3
+    assert content.count("data-sample-thread=") == 3
+    assert "Sample thread 0" in content
+
+
+@pytest.mark.django_db
 def test_backlog_renders_ranking_table(admin_client):
     place = PlaceFactory(
         name="Sampleville",
