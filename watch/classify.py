@@ -368,18 +368,18 @@ def _non_us_override(
     if city.population < NON_US_MIN_POPULATION:
         return None
 
+    us_population = _best_us_alias_population(key)
+    if us_population is not None and (
+        us_population >= city.population / AMBIGUITY_RATIO
+    ):
+        return None
+
     if str(city.country) == "CA":
         place, ambiguous = _canadian_place(alias.key, city)
         if place is not None:
             return _place_classification(place, confidence)
         if ambiguous:
             return _ambiguous(confidence)
-    else:
-        us_population = _best_us_alias_population(key)
-        if us_population is not None and (
-            us_population >= city.population / AMBIGUITY_RATIO
-        ):
-            return None
 
     return _non_us_classification(city, confidence)
 
@@ -390,7 +390,7 @@ def _non_us_city(key: str, confidence: str) -> Classification | None:
     Canadian cities that also exist as gazetteer places resolve to the place;
     other cities stay ``non_us`` with their country code.
     """
-    alias = _best_non_us_alias(key) or _contained_non_us_alias(key)
+    alias = _best_non_us_alias(key)
     if alias is not None:
         city = alias.city
         if str(city.country) == "CA":
@@ -422,21 +422,6 @@ def _best_non_us_alias(key: str) -> NonUsCityAlias | None:
         .order_by("-city__population", "city__name")
         .first()
     )
-
-
-def _contained_non_us_alias(key: str) -> NonUsCityAlias | None:
-    """Return a non-US city alias embedded as a prefix or suffix of ``key``."""
-    candidates = {key[index:] for index in range(1, max(1, len(key) - 4))}
-    candidates |= {key[:index] for index in range(5, len(key))}
-    if not candidates:
-        return None
-
-    aliases = (
-        NonUsCityAlias.objects.filter(key__in=candidates)
-        .select_related("city")
-        .order_by("-city__population", "city__name")
-    )
-    return aliases.first()
 
 
 def _country_hint(key: str) -> str | None:
