@@ -620,12 +620,15 @@ git commit -m "feat(watch): link municipalities to gazetteer places"
 - Layer order, first match wins:
   1. Manual `Subreddit` row with `source="manual"` when `use_manual=True`.
   2. `Subreddit` row with `source="wikidata"`.
-  3. Exact `PlaceAlias.key` match; choose by population when unambiguous, otherwise return `kind="ambiguous"`.
-  4. Affix stripping with prefixes/suffixes `development`, `daily`, `news`, `talk`, `landlords`, `ask`, `r4r`, `jobs`; retry at `confidence="low"`.
-  5. Ambiguity rule: choose the most populous only when it is at least 10× the next; otherwise `kind="ambiguous"` and `place=None`.
-  6. State and region names. `REGIONS` is a module constant: `{"bayarea": ("CA", "Bay Area"), "socal": ("CA", "Southern California"), "pnw": (None, "Pacific Northwest"), "pnwdaily": (None, "Pacific Northwest"), "dmv": (None, "DC/Maryland/Virginia")}`. State rows set `kind="state"` and `state`; region rows set `kind="region"` and `state` when known.
-  7. `NonUsCityAlias` match; if the city is Canadian and a `Place` with `country="CA"` matches, return `kind="place"`, otherwise `kind="non_us"` with `country`.
-  8. `kind="general"`, `confidence="low"`, `source="gazetteer"`.
+  3. Strong non-place guard, required to satisfy the 63-label no-wrong-place constraint:
+     - exact raw state or region key (full state names only, not bare abbreviations);
+     - a `NonUsCityAlias` with population >= 15,000 when the best US alias candidate is absent or has population < non-US population / 10. This catches Brisbane AU vs Brisbane CA and Galway IE vs Galway NY.
+  4. Exact `PlaceAlias.key` match; choose by population when unambiguous, otherwise return `kind="ambiguous"`.
+  5. Affix stripping with prefixes/suffixes `development`, `daily`, `news`, `talk`, `landlords`, `ask`, `r4r`, `jobs`; retry at `confidence="low"`. In this layer, check state/region keys before `PlaceAlias` so `oregontalk` returns state OR.
+  6. Ambiguity rule: choose the most populous only when it is at least 10× the next; otherwise `kind="ambiguous"` and `place=None`.
+  7. State and region names. `REGIONS` is a module constant: `{"bayarea": ("CA", "Bay Area"), "socal": ("CA", "Southern California"), "pnw": (None, "Pacific Northwest"), "pnwdaily": (None, "Pacific Northwest"), "dmv": (None, "DC/Maryland/Virginia")}`. State rows set `kind="state"` and `state`; region rows set `kind="region"` and `state` when known.
+  8. `NonUsCityAlias` match; if the city is Canadian and a `Place` with `country="CA"` matches, return `kind="place"`, otherwise `kind="non_us"` with `country`.
+  9. `kind="general"`, `confidence="low"`, `source="gazetteer"`.
 
 - [ ] **Step 1: Write the failing classifier tests**
 
@@ -647,12 +650,29 @@ Then:
 def test_classifier_reproduces_hand_labels_without_wrong_places(classifier_places):
     wrong = []
     for row in read_subreddits_csv(Path("watch/data/subreddits.csv")):
-        if row["kind"] in {"general", "region", "state", "non_us"}:
-            continue
         result = classify_subreddit(row["subreddit"], use_manual=False)
-        expected = classifier_places.get(row["subreddit"])
-        if result.place and expected and result.place != expected:
-            wrong.append((row["subreddit"], result.place.name, expected.name))
+        expected = classifier_places[row["subreddit"]]
+        if row["kind"] == "general":
+            ok = result.kind == "general"
+        elif row["kind"] == "state":
+            ok = result.kind == "state" and result.state == row["state"]
+        elif row["kind"] == "region":
+            ok = result.kind == "region"
+        elif row["kind"] == "non_us":
+            ok = result.kind == "non_us" and not result.place
+        else:
+            ok = result.kind == "ambiguous" or (
+                result.kind == "place" and result.place == expected
+            )
+        if not ok:
+            wrong.append(
+                (
+                    row["subreddit"],
+                    result.kind,
+                    getattr(result.place, "name", None),
+                    expected,
+                )
+            )
     assert wrong == []
 
 
