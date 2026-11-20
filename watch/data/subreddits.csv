@@ -1,0 +1,64 @@
+subreddit,kind,place,state,county,confidence,muted,note
+sandiego,place,San Diego,CA,San Diego County,high,0,
+chicoca,place,Chico,CA,Butte County,high,0,
+losangeles,place,Los Angeles,CA,Los Angeles County,high,0,
+sfv,place,Los Angeles,CA,Los Angeles County,high,0,San Fernando Valley; mostly LA city but also Burbank/Glendale/San Fernando
+chestercounty,place,,PA,Chester County,medium,0,Chester County PA most likely; also exists in SC and TN
+ithaca,place,Ithaca,NY,Tompkins County,high,0,
+developmentslc,place,Salt Lake City,UT,Salt Lake County,high,0,
+buffalo,place,Buffalo,NY,Erie County,high,0,
+santaana,place,Santa Ana,CA,Orange County,high,0,
+portland,place,Portland,OR,Multnomah County,high,0,
+palmsprings,place,Palm Springs,CA,Riverside County,high,0,
+butte,place,Butte,MT,Silver Bow County,medium,0,Butte-Silver Bow consolidated city-county; could also mean Butte County CA
+lacrossewi,place,La Crosse,WI,La Crosse County,high,0,
+westseattlewa,place,Seattle,WA,King County,high,0,neighborhood sub
+seattle,place,Seattle,WA,King County,high,0,
+ranchocordova,place,Rancho Cordova,CA,Sacramento County,high,0,
+bullcity,place,Durham,NC,Durham County,high,0,
+mckinney,place,McKinney,TX,Collin County,high,0,
+fountaincolorado,place,Fountain,CO,El Paso County,high,0,
+littleton,place,Littleton,CO,Arapahoe County,medium,0,Littleton CO most likely; also MA and NH
+eugene,place,Eugene,OR,Lane County,high,0,
+sanmateo,place,San Mateo,CA,San Mateo County,medium,0,city or county
+glendale,place,Glendale,,,low,0,Glendale CA vs Glendale AZ - resolve from text
+iowacity,place,Iowa City,IA,Johnson County,high,0,
+eastpaloalto,place,East Palo Alto,CA,San Mateo County,high,0,
+cecilcounty,place,,MD,Cecil County,high,0,
+bayarea,region,,CA,,high,0,SF Bay Area - resolve place from text
+pnwdaily,region,,,,low,0,Pacific Northwest news - resolve from text
+southcarolina,state,,SC,,high,0,
+oregontalk,state,,OR,,medium,0,
+oregonorbegone,state,,OR,,medium,0,
+alldayarizona,state,,AZ,,medium,0,
+desertstatestuff,state,,AZ,,low,0,guess from name
+texas50501,state,,TX,,high,0,
+irelandtransport,non_us,,,,high,0,Ireland
+loveBelfast,non_us,,,,high,0,UK
+galway,non_us,,,,high,0,Ireland
+housingireland,non_us,,,,high,0,Ireland
+brisbane,non_us,,,,high,0,Australia
+aussiememes,non_us,,,,high,0,Australia
+auckland,non_us,,,,high,0,New Zealand
+brum,non_us,,,,high,0,Birmingham UK
+theunitedkingdomnews,non_us,,,,high,0,UK
+kingstonontario,non_us,,,,high,0,Canada
+vancouverlandlords,non_us,,,,medium,0,Vancouver BC (or Vancouver WA?)
+treelaw,general,,,,,0,topic sub; place usually in text
+transgender,general,,,,,0,
+trueunpopularopinion,general,,,,,0,
+askreddit,general,,,,,0,
+pics,general,,,,,0,
+lol,general,,,,,0,
+genz,general,,,,,0,
+mafia,general,,,,,0,
+kansascitychiefs,general,,,,,0,often KC/Missouri/Kansas stadium politics
+lovethissmug,general,,,,,0,
+thepaknarrative,general,,,,,0,
+workforsmartlife,general,,,,,0,
+luxuriousent,general,,,,,0,
+greenparty,general,,,,,0,
+comedyheaven,general,,,,,0,
+okbuddyretard,general,,,,,0,
+political_revolution,general,,,,,0,
+architecturalrevival,general,,,,,0,
