@@ -564,10 +564,19 @@ def test_link_muni_by_name_and_state():
 @pytest.mark.django_db
 def test_link_leaves_ambiguous_muni_in_review():
     muni = MuniFactory(name="Glendale", state="CA")
-    PlaceFactory(name="Glendale", state="AZ", canonical_key="us:place:0427824")
     PlaceFactory(name="Glendale", state="CA", canonical_key="us:place:0630000")
+    PlaceFactory(name="Glendale", state="CA", canonical_key="us:place:0699999")
     stats = link_munis()
     assert stats["linked"] == 0
+    assert Place.objects.filter(muni=muni).count() == 0
+
+
+@pytest.mark.django_db
+def test_same_name_in_another_state_is_no_match():
+    muni = MuniFactory(name="Chico", state="CA")
+    PlaceFactory(name="Chico", state="WA", canonical_key="us:place:5300000")
+    stats = link_munis()
+    assert stats["no_match"] == 1
     assert Place.objects.filter(muni=muni).count() == 0
 ```
 
