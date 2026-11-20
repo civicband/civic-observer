@@ -117,6 +117,9 @@ def test_refresh_replaces_hits_without_duplicates(monkeypatch):
     assert refresh_thread_hits(thread) == 3
     assert refresh_thread_hits(thread) == 3
     assert MeetingHit.objects.filter(thread=thread).count() == 3
+    assert (
+        refresh_thread_hits(thread) == MeetingHit.objects.filter(thread=thread).count()
+    )
     assert set(
         MeetingHit.objects.filter(thread=thread).values_list("page_id", flat=True)
     ) == {"page-0", "page-1", "page-2"}
@@ -146,6 +149,66 @@ def test_refresh_deduplicates_repeated_results(monkeypatch):
 
     assert refresh_thread_hits(thread) == 1
     assert MeetingHit.objects.filter(thread=thread).count() == 1
+
+
+@pytest.mark.django_db
+def test_refresh_purges_hits_for_demoted_place(monkeypatch):
+    thread = ThreadFactory()
+    place = PlaceWithMuniFactory()
+    thread_place = _subject(thread, place)
+    MeetingHitFactory(thread=thread, place=place, page_id="stale")
+    other = MeetingHitFactory(thread=ThreadFactory(), place=place, page_id="stale")
+
+    thread_place.role = ThreadPlace.Role.MENTIONED
+    thread_place.save(update_fields=["role"])
+    monkeypatch.setattr(
+        "searches.search_backends.get_search_backend",
+        lambda: pytest.fail("must not search"),
+    )
+
+    assert refresh_thread_hits(thread) == 0
+    assert MeetingHit.objects.filter(thread=thread).count() == 0
+    assert MeetingHit.objects.filter(pk=other.pk).exists()
+
+
+@pytest.mark.django_db
+def test_refresh_purges_hits_for_place_without_muni(monkeypatch):
+    thread = ThreadFactory()
+    place = PlaceWithMuniFactory()
+    _subject(thread, place)
+    MeetingHitFactory(thread=thread, place=place, page_id="stale")
+
+    place.muni = None
+    place.save(update_fields=["muni"])
+    monkeypatch.setattr(
+        "searches.search_backends.get_search_backend",
+        lambda: pytest.fail("must not search"),
+    )
+
+    assert refresh_thread_hits(thread) == 0
+    assert MeetingHit.objects.filter(thread=thread).count() == 0
+
+
+@pytest.mark.django_db
+def test_refresh_eager_loads_places_and_munis(monkeypatch, django_assert_num_queries):
+    thread = ThreadFactory()
+    for _ in range(2):
+        _subject(thread, PlaceWithMuniFactory())
+
+    def fake_build_query(thread, *, place):
+        return "budget"
+
+    def fake_search_place(place, query):
+        assert place.muni is not None
+        return []
+
+    monkeypatch.setattr("watch.lookup.build_query", fake_build_query)
+    monkeypatch.setattr("watch.lookup.search_place", fake_search_place)
+
+    # 1 subject query, 2 per-place deletes, 1 purge delete, plus SAVEPOINT/RELEASE;
+    # no lazy Muni loads.
+    with django_assert_num_queries(6):
+        assert refresh_thread_hits(thread) == 0
 
 
 @pytest.mark.django_db
