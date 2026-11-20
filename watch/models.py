@@ -29,6 +29,7 @@ class Place(TimeStampedModel):
     canonical_key = models.CharField(max_length=255, unique=True)
     geoid = models.CharField(max_length=20, null=True, blank=True)
     name = models.CharField(max_length=255, db_index=True)
+    legal_name = models.CharField(max_length=255, null=True, blank=True)
     place_type = models.CharField(max_length=32, choices=PlaceType)
     state = models.CharField(max_length=10, blank=True, db_index=True)
     country = CountryField(default="US")

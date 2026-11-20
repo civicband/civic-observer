@@ -1,13 +1,15 @@
 """Load Census Gazetteer files into typed :class:`~watch.models.Place` rows.
 
 The loader is idempotent: places are upserted by their namespaced
-``canonical_key`` and generated aliases are rebuilt on every run. Aliases that
-an operator created by hand (``source="manual"``) are never touched.
+``canonical_key`` and generated ``gazetteer`` aliases are rebuilt on every run.
+Aliases from other sources, including operator-created ``manual`` aliases, are
+never touched.
 """
 
 from __future__ import annotations
 
 import csv
+import re
 import zipfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -62,15 +64,43 @@ LSAD_PLACE_TYPE: dict[str, str] = {
     "53": Place.PlaceType.CITY,
 }
 
-# Suffix used for the type-specific alias ("abbevillecity", "autaugacounty").
+# Suffix used for the type-specific alias ("abbevillecity", "abilenetown").
 TYPE_ALIAS_SUFFIX: dict[str, str] = {
     Place.PlaceType.CITY: "city",
     Place.PlaceType.TOWN: "town",
     Place.PlaceType.VILLAGE: "village",
     Place.PlaceType.CDP: "cdp",
-    Place.PlaceType.COUNTY: "county",
-    Place.PlaceType.COUNTY_SUBDIVISION: "township",
 }
+
+# Legal suffixes found in official county and county-subdivision names. They
+# are stripped only when generating aliases, never from ``Place.name``:
+# "Baltimore city" and "Carson City" are official names.
+KNOWN_LEGAL_SUFFIXES: tuple[str, ...] = (
+    "county",
+    "parish",
+    "borough",
+    "census area",
+    "municipality",
+    "city",
+    "town",
+    "township",
+    "village",
+    "CDP",
+    "CCD",
+    "UT",
+    "city and borough",
+    "city and county",
+    "unified government",
+)
+
+_KNOWN_SUFFIX_PATTERNS = tuple(
+    re.compile(rf"\s+{re.escape(suffix)}$", re.IGNORECASE)
+    for suffix in sorted(KNOWN_LEGAL_SUFFIXES, key=len, reverse=True)
+)
+
+
+class GazetteerError(ValueError):
+    """Raised when a Gazetteer file cannot be parsed."""
 
 
 @dataclass(frozen=True)
@@ -82,19 +112,27 @@ class GazetteerDataset:
     key_prefix: str
     place_type: str | None
     suffix: str | None
+    # County and county-subdivision names are official and keep their suffix.
+    official_name: bool = False
 
 
 DATASETS: tuple[GazetteerDataset, ...] = (
     GazetteerDataset("state", "state", "us:state:", Place.PlaceType.STATE, None),
     GazetteerDataset(
-        "counties", "county", "us:county:", Place.PlaceType.COUNTY, "county"
+        "counties",
+        "county",
+        "us:county:",
+        Place.PlaceType.COUNTY,
+        None,
+        official_name=True,
     ),
     GazetteerDataset(
         "cousubs",
         "cousub",
         "us:cousub:",
         Place.PlaceType.COUNTY_SUBDIVISION,
-        "township",
+        None,
+        official_name=True,
     ),
     # Places derive their type and suffix from LSAD.
     GazetteerDataset("place", "place", "us:place:", None, None),
@@ -129,11 +167,20 @@ def gazetteer_path(source_dir: Path, stem: str, *, year: int = 2026) -> Path:
     return Path(source_dir) / f"{year}_Gaz_{stem}_national.txt"
 
 
+def missing_stems(source_dir: Path, *, year: int = 2026) -> list[str]:
+    """Return the dataset stems whose TSV is absent from ``source_dir``."""
+    return [
+        stem
+        for stem in GAZETTEER_STEMS
+        if not gazetteer_path(source_dir, stem, year=year).is_file()
+    ]
+
+
 def load_gazetteer(source_dir: Path, *, year: int = 2026) -> dict[str, int]:
     """Load every Gazetteer TSV in ``source_dir`` and return row counts.
 
-    Missing files are skipped, so tests and partial downloads can load only the
-    datasets they contain.
+    Missing files are skipped so partial downloads can load only the datasets
+    they contain. The management command reports which stems are missing.
     """
     counts = dict.fromkeys(COUNT_KEYS, 0)
     for dataset in DATASETS:
@@ -145,9 +192,8 @@ def load_gazetteer(source_dir: Path, *, year: int = 2026) -> dict[str, int]:
             if record is None:
                 continue
             geoid, fields = record
-            legal_name = fields.pop("legal_name")
             place = upsert_place(dataset.key_prefix + geoid, **fields)
-            refresh_aliases(place, legal_name=legal_name)
+            refresh_aliases(place)
             counts[dataset.count_key] += 1
     return counts
 
@@ -160,12 +206,13 @@ def upsert_place(canonical_key: str, **fields) -> Place:
     return place
 
 
-def build_aliases(place: Place, *, legal_name: str | None = None) -> list[PlaceAlias]:
+def build_aliases(place: Place) -> list[PlaceAlias]:
     """Return unsaved Gazetteer aliases for ``place``.
 
-    Includes the cleaned name, name plus state, name plus full state name, a
-    type-specific key when one applies, and the uncleaned legal name as a
-    ``variant`` alias.
+    Includes the display name, name plus state, name plus full state name, a
+    type-specific key when one applies, known-suffix-stripped bases for county
+    and county-subdivision names, and the legal name as a ``variant`` alias
+    when it differs from the display name.
     """
     aliases: dict[tuple[str, str], PlaceAlias] = {}
 
@@ -178,6 +225,7 @@ def build_aliases(place: Place, *, legal_name: str | None = None) -> list[PlaceA
 
     add(PlaceAlias.Kind.NAME, place.name)
 
+    full_state = ""
     if place.state:
         add(PlaceAlias.Kind.NAME_STATE, f"{place.name} {place.state}")
         try:
@@ -187,85 +235,113 @@ def build_aliases(place: Place, *, legal_name: str | None = None) -> list[PlaceA
         if full_state:
             add(PlaceAlias.Kind.NAME_STATE_NAME, f"{place.name} {full_state}")
 
-    type_suffix = TYPE_ALIAS_SUFFIX.get(place.place_type)
-    if type_suffix:
-        kind = (
-            PlaceAlias.Kind.NAME_COUNTY
-            if place.place_type == Place.PlaceType.COUNTY
-            else PlaceAlias.Kind.NAME_CITY
-        )
-        add(kind, f"{place.name} {type_suffix}")
+    if place.place_type in {
+        Place.PlaceType.COUNTY,
+        Place.PlaceType.COUNTY_SUBDIVISION,
+    }:
+        base_name = _strip_known_legal_suffix(place.name)
+        if normalize_key(base_name) != normalize_key(place.name):
+            add(PlaceAlias.Kind.NAME, base_name)
+            if place.state:
+                add(PlaceAlias.Kind.NAME_STATE, f"{base_name} {place.state}")
+                if full_state:
+                    add(
+                        PlaceAlias.Kind.NAME_STATE_NAME,
+                        f"{base_name} {full_state}",
+                    )
+    else:
+        type_suffix = TYPE_ALIAS_SUFFIX.get(place.place_type)
+        if type_suffix and not normalize_key(place.name).endswith(
+            normalize_key(type_suffix)
+        ):
+            add(PlaceAlias.Kind.NAME_CITY, f"{place.name} {type_suffix}")
 
-    if legal_name and normalize_key(legal_name) != normalize_key(place.name):
-        add(PlaceAlias.Kind.VARIANT, legal_name)
+    if place.legal_name and normalize_key(place.legal_name) != normalize_key(
+        place.name
+    ):
+        add(PlaceAlias.Kind.VARIANT, place.legal_name)
 
     return list(aliases.values())
 
 
-def refresh_aliases(place: Place, *, legal_name: str | None = None) -> int:
+def refresh_aliases(place: Place) -> int:
     """Replace generated aliases for ``place`` and return the number created.
 
-    Manual aliases survive. When ``legal_name`` is omitted, an existing
-    generated ``variant`` alias is retained so a plain refresh of a loaded place
-    keeps its uncleaned legal name.
+    Only ``source="gazetteer"`` aliases are replaced. Manual, GeoNames, and
+    Wikidata aliases survive, including when one shares a key and kind with a
+    generated alias.
     """
-    generated_variants: list[str] = []
-    if legal_name is None:
-        generated_variants = list(
-            place.aliases.filter(kind=PlaceAlias.Kind.VARIANT)
-            .exclude(source=PlaceAlias.Source.MANUAL)
-            .values_list("key", flat=True)
+    preserved_pairs = set(
+        place.aliases.exclude(source=PlaceAlias.Source.GAZETTEER).values_list(
+            "key", "kind"
         )
-    manual_pairs = set(
-        place.aliases.filter(source=PlaceAlias.Source.MANUAL).values_list("key", "kind")
     )
-    place.aliases.exclude(source=PlaceAlias.Source.MANUAL).delete()
-
-    aliases = build_aliases(place, legal_name=legal_name)
-    existing_pairs = {(alias.key, alias.kind) for alias in aliases}
-    for key in generated_variants:
-        pair = (key, PlaceAlias.Kind.VARIANT)
-        if key and pair not in existing_pairs:
-            aliases.append(
-                PlaceAlias(
-                    place=place,
-                    key=key,
-                    kind=PlaceAlias.Kind.VARIANT,
-                    source=PlaceAlias.Source.GAZETTEER,
-                )
-            )
-            existing_pairs.add(pair)
+    place.aliases.filter(source=PlaceAlias.Source.GAZETTEER).delete()
 
     aliases = [
-        alias for alias in aliases if (alias.key, alias.kind) not in manual_pairs
+        alias
+        for alias in build_aliases(place)
+        if (alias.key, alias.kind) not in preserved_pairs
     ]
     PlaceAlias.objects.bulk_create(aliases, batch_size=1000)
     return len(aliases)
 
 
+def _strip_known_legal_suffix(name: str) -> str:
+    """Return ``name`` without one trailing known legal suffix."""
+    normalized = " ".join(name.split())
+    for pattern in _KNOWN_SUFFIX_PATTERNS:
+        stripped = pattern.sub("", normalized).strip()
+        if stripped and stripped != normalized:
+            return stripped
+    return normalized
+
+
 def _read_rows(path: Path) -> list[dict[str, str]]:
-    """Read a Gazetteer TSV, supporting pipe or tab delimiters."""
-    with path.open(newline="", encoding="utf-8-sig") as handle:
-        header = ""
-        for line in handle:
-            if line.strip():
-                header = line
-                break
-        if not header:
-            return []
-        delimiter = "|" if "|" in header else "\t"
-        handle.seek(0)
-        reader = csv.DictReader(handle, delimiter=delimiter)
-        rows = []
-        for raw in reader:
-            row = {
-                str(key).strip(): (value or "").strip()
-                for key, value in raw.items()
-                if isinstance(key, str)
-            }
-            if any(row.values()):
-                rows.append(row)
-        return rows
+    """Parse a Gazetteer TSV with pipe or tab delimiters.
+
+    Leading blank lines are ignored. Raises :class:`GazetteerError` when the
+    file is empty, has no recognizable delimiter, or lacks the required header
+    columns.
+    """
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except OSError as exc:
+        raise GazetteerError(f"Cannot read Gazetteer file {path}: {exc}") from exc
+
+    lines = text.splitlines()
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    if not lines:
+        raise GazetteerError(f"Gazetteer file is empty: {path}")
+
+    header = lines[0]
+    if "|" in header:
+        delimiter = "|"
+    elif "\t" in header:
+        delimiter = "\t"
+    else:
+        raise GazetteerError(f"Cannot detect delimiter in Gazetteer file: {path}")
+
+    reader = csv.DictReader(lines, delimiter=delimiter)
+    fieldnames = {(name or "").strip() for name in reader.fieldnames or []}
+    if not {"GEOID", "NAME"} <= fieldnames:
+        raise GazetteerError(f"Gazetteer file {path} is missing GEOID or NAME columns")
+
+    rows: list[dict[str, str]] = []
+    for raw in reader:
+        if None in raw:
+            raise GazetteerError(
+                f"Gazetteer file {path} has a row with more fields than its header"
+            )
+        row = {
+            str(key).strip(): (value or "").strip()
+            for key, value in raw.items()
+            if isinstance(key, str)
+        }
+        if any(row.values()):
+            rows.append(row)
+    return rows
 
 
 def _place_record(
@@ -279,11 +355,22 @@ def _place_record(
 
     lsad = row.get("LSAD", "")
     if dataset.place_type is None:
-        place_type = LSAD_PLACE_TYPE.get(lsad, Place.PlaceType.CITY)
-        suffix = LSAD_SUFFIX.get(lsad)
+        place_type = LSAD_PLACE_TYPE.get(lsad)
+        if place_type is None:
+            # Unknown LSAD: keep the official name and fall back to city
+            # rather than silently stripping a suffix we cannot identify.
+            place_type = Place.PlaceType.CITY
+            name = " ".join(legal_name.split())
+        else:
+            name = clean_name(legal_name, suffix=LSAD_SUFFIX.get(lsad))
+    elif dataset.official_name:
+        # County and county-subdivision names are official ("Baltimore city",
+        # "Carson City"); strip legal suffixes only in aliases.
+        place_type = dataset.place_type
+        name = " ".join(legal_name.split())
     else:
         place_type = dataset.place_type
-        suffix = dataset.suffix
+        name = clean_name(legal_name, suffix=dataset.suffix)
 
     state = row.get("USPS", "").upper()
     if not state:
@@ -294,14 +381,13 @@ def _place_record(
 
     fields = {
         "geoid": geoid,
-        "name": clean_name(legal_name, suffix=suffix),
+        "name": name,
+        "legal_name": legal_name,
         "place_type": place_type,
         "state": state,
         "country": "US",
         "latitude": _parse_float(row.get("INTPTLAT")),
         "longitude": _parse_float(row.get("INTPTLONG")),
-        # Consumed by refresh_aliases and not persisted on Place.
-        "legal_name": legal_name,
     }
     return geoid, fields
 
