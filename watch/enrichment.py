@@ -1,15 +1,32 @@
 """Thread enrichment.
 
-Milestone 1 only needs the queue plumbing, so ``enrich_thread`` is a no-op
-stub. Later milestones replace only its body; the RQ task signature stays the
-same so queued jobs and the ingest path do not change.
+Enrichment currently refreshes the thread's cached meeting hits.  Later
+milestones add classification and extraction here; the RQ task signature stays
+the same so queued jobs and the ingest path do not change.
 """
+
+from django.core.exceptions import ValidationError
+
+from watch.lookup import refresh_thread_hits
+from watch.models import Thread
 
 
 def enrich_thread(thread_id: str) -> dict[str, str | int]:
-    """Return a placeholder result for a thread.
+    """Refresh meeting hits for one thread and report what happened.
 
-    Idempotent by design: it performs no writes and accepts any thread id,
-    including ones that do not (yet) exist.
+    Idempotent by design: a missing or malformed thread id is reported as
+    ``not_found`` rather than raising, and repeated runs replace the cached
+    hits in place.
     """
-    return {"status": "stubbed", "thread_id": str(thread_id)}
+    try:
+        thread = Thread.objects.filter(pk=thread_id).first()
+    except (ValidationError, ValueError):
+        thread = None
+    if thread is None:
+        return {"status": "not_found", "thread_id": thread_id}
+
+    return {
+        "status": "ok",
+        "thread_id": str(thread.id),
+        "hits": refresh_thread_hits(thread),
+    }
