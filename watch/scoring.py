@@ -229,6 +229,26 @@ def backlog_queryset() -> QuerySet[Place]:
     )
 
 
+def backlog_thread_count() -> int:
+    """Return the distinct threads behind the current backlog places.
+
+    A thread naming several uncovered places still counts once.
+    """
+    cutoff = timezone.now() - timedelta(days=BACKLOG_DAYS)
+    backlog_places = backlog_queryset().values("pk")
+    return (
+        Thread.objects.filter(
+            thread_places__role=ThreadPlace.Role.SUBJECT,
+            thread_places__place__in=backlog_places,
+            last_seen__gte=cutoff,
+        )
+        .filter(Q(subreddit__isnull=True) | Q(subreddit__muted=False))
+        .filter(_country_allowed_q("subreddit"))
+        .distinct()
+        .count()
+    )
+
+
 def thread_country(thread: Thread) -> str | None:
     """Return the thread's country code, from its subreddit or place."""
     subreddit = thread.subreddit

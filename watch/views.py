@@ -14,6 +14,7 @@ from django.views.generic import View
 from watch.models import MeetingHit, Thread, ThreadPlace
 from watch.scoring import (
     backlog_queryset,
+    backlog_thread_count,
     next_thread,
     previous_thread,
     queue_queryset,
@@ -92,12 +93,9 @@ class BacklogView(View):
 
     def get(self, request: HttpRequest) -> HttpResponse:
         places = list(backlog_queryset())
-        total_threads = sum(
-            int(getattr(place, "subject_threads", 0) or 0) for place in places
-        )
         context: dict[str, Any] = {
             "places": places,
-            "total_threads": total_threads,
+            "total_threads": backlog_thread_count(),
         }
         template_name = (
             self.partial_template_name if _is_htmx(request) else self.template_name
