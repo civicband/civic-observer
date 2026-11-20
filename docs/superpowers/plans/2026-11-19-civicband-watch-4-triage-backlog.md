@@ -153,7 +153,7 @@ git commit -m "feat(watch): rank triage queue and backlog"
 - Produces:
   - `TriageView` GET `/triage/` with optional `?thread=<uuid>`. Context: `thread`, `queue_count`, `meeting_hits_by_place`, `subject_places`, `mentioned_places`, `previous_thread`, `next_thread`.
   - `BacklogView` GET `/backlog/`. Context: `places`, `total_threads`.
-  - URL names `watch:triage`, `watch:backlog`, `watch:action`, `watch:backlog-note`, `watch:place-correct`.
+  - URL names `watch:triage`, `watch:backlog`. Tasks 4 and 5 add `watch:action`, `watch:place-correct`, and `watch:backlog-note`; Task 3 templates must not reverse those names until then.
 - `TriageView` renders `watch/triage.html` on a full request and `watch/partials/triage_card.html` on `HX-Request`.
 - `BacklogView` renders `watch/backlog.html` or `watch/partials/backlog_rows.html`.
 
