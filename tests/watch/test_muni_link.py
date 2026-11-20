@@ -37,14 +37,39 @@ def test_link_muni_by_name_and_state():
 @pytest.mark.django_db
 def test_link_leaves_ambiguous_muni_in_review():
     muni = MuniFactory(name="Glendale", state="CA")
-    PlaceFactory(name="Glendale", state="AZ", canonical_key="us:place:0427824")
-    PlaceFactory(name="Glendale", state="CA", canonical_key="us:place:0630000")
+    PlaceFactory(
+        name="Glendale",
+        state="CA",
+        canonical_key="us:place:0630000",
+        latitude=34.14,
+        longitude=-118.25,
+    )
+    PlaceFactory(
+        name="Glendale",
+        state="CA",
+        canonical_key="us:place:0630001",
+        latitude=34.20,
+        longitude=-118.30,
+    )
 
     stats = link_munis()
 
     assert stats["linked"] == 0
     assert stats["ambiguous"] == 1
     assert Place.objects.filter(muni=muni).count() == 0
+
+
+@pytest.mark.django_db
+def test_name_fallback_requires_the_muni_state():
+    MuniFactory(name="Chico", state="CA")
+    place = PlaceFactory(name="Chico", state="WA", canonical_key="us:place:5310000")
+
+    stats = link_munis()
+
+    place.refresh_from_db()
+    assert stats["no_match"] == 1
+    assert stats["linked"] == 0
+    assert place.muni is None
 
 
 @pytest.mark.django_db
@@ -61,7 +86,7 @@ def test_alias_key_wins_before_place_name():
 
 
 @pytest.mark.django_db
-def test_alias_key_breaks_a_name_tie():
+def test_alias_key_overrides_state_for_a_name_match():
     muni = MuniFactory(name="Glendale", state="CA")
     az = PlaceFactory(name="Glendale", state="AZ", canonical_key="us:place:0427824")
     PlaceFactory(name="Glendale", state="CA", canonical_key="us:place:0630000")
@@ -71,6 +96,31 @@ def test_alias_key_breaks_a_name_tie():
     matched, status = match_muni(muni)
 
     assert (matched, status) == (az, "auto")
+
+
+@pytest.mark.django_db
+def test_alias_collision_prefers_a_city_over_a_county():
+    muni = MuniFactory(name="Los Angeles", state="CA")
+    city = PlaceFactory(
+        name="Los Angeles",
+        state="CA",
+        place_type="city",
+        canonical_key="us:place:0644000",
+    )
+    county = PlaceFactory(
+        name="Los Angeles County",
+        state="CA",
+        place_type="county",
+        canonical_key="us:county:06037",
+    )
+    # The gazetteer gives the county a suffix-stripped "los angeles CA" alias,
+    # so both rows share the muni's key.
+    alias(city, "losangelesca", PlaceAlias.Kind.NAME_STATE)
+    alias(county, "losangelesca", PlaceAlias.Kind.NAME_STATE)
+
+    matched, status = match_muni(muni)
+
+    assert (matched, status) == (city, "auto")
 
 
 @pytest.mark.django_db
@@ -87,10 +137,10 @@ def test_coordinates_choose_the_closest_name_match():
     )
     PlaceFactory(
         name="Springfield",
-        state="OR",
-        canonical_key="us:place:4100001",
-        latitude=44.05,
-        longitude=-123.02,
+        state="CA",
+        canonical_key="us:place:0600002",
+        latitude=40.10,
+        longitude=-122.10,
     )
 
     matched, status = match_muni(muni)
@@ -112,10 +162,34 @@ def test_coordinates_farther_than_a_quarter_degree_stay_ambiguous():
     )
     PlaceFactory(
         name="Springfield",
-        state="OR",
-        canonical_key="us:place:4100001",
-        latitude=44.05,
-        longitude=-123.02,
+        state="CA",
+        canonical_key="us:place:0600002",
+        latitude=41.0,
+        longitude=-123.0,
+    )
+
+    matched, status = match_muni(muni)
+
+    assert matched is None
+    assert status == "ambiguous"
+
+
+@pytest.mark.django_db
+def test_equal_distance_candidates_stay_ambiguous():
+    muni = MuniFactory(name="Springfield", state="CA", latitude=39.0, longitude=-121.0)
+    PlaceFactory(
+        name="Springfield",
+        state="CA",
+        canonical_key="us:place:0600001",
+        latitude=39.1,
+        longitude=-121.0,
+    )
+    PlaceFactory(
+        name="Springfield",
+        state="CA",
+        canonical_key="us:place:0600002",
+        latitude=38.9,
+        longitude=-121.0,
     )
 
     matched, status = match_muni(muni)
@@ -130,7 +204,7 @@ def test_missing_coordinates_cannot_break_a_tie():
         name="Springfield", state="CA", latitude=39.72, longitude=-121.84
     )
     PlaceFactory(name="Springfield", state="CA", canonical_key="us:place:0600001")
-    PlaceFactory(name="Springfield", state="OR", canonical_key="us:place:4100001")
+    PlaceFactory(name="Springfield", state="CA", canonical_key="us:place:0600002")
 
     matched, status = match_muni(muni)
 
@@ -190,16 +264,59 @@ def test_muni_with_a_confirmed_place_is_counted_as_already():
 
 
 @pytest.mark.django_db
+def test_rerun_counts_auto_links_as_already():
+    muni = MuniFactory(name="Chico", state="CA")
+    place = PlaceFactory(name="Chico", state="CA", canonical_key="us:place:0613010")
+
+    first = link_munis()
+    place.refresh_from_db()
+    reviewed_at = place.muni_reviewed_at
+    second = link_munis()
+    place.refresh_from_db()
+
+    assert first["linked"] == 1
+    assert second == {"linked": 0, "ambiguous": 0, "no_match": 0, "already": 1}
+    assert place.muni == muni
+    assert place.muni_reviewed_at == reviewed_at
+
+
+@pytest.mark.django_db
+def test_an_owned_place_is_never_reassigned_to_a_competing_muni():
+    first = MuniFactory(name="Chico", state="CA", subdomain="alpha")
+    second = MuniFactory(name="Chico", state="CA", subdomain="beta")
+    place = PlaceFactory(name="Chico", state="CA", canonical_key="us:place:0613010")
+
+    run = link_munis()
+    place.refresh_from_db()
+    owner = place.muni
+    rerun = link_munis()
+    place.refresh_from_db()
+
+    assert run["linked"] == 1
+    assert run["ambiguous"] == 1
+    assert owner == first
+    assert rerun["linked"] == 0
+    assert rerun["already"] == 1
+    assert rerun["ambiguous"] == 1
+    assert place.muni == first
+    assert place.muni != second
+
+
+@pytest.mark.django_db
 def test_muni_rows_are_never_written():
     muni = MuniFactory(name="Chico", state="CA")
+    place = PlaceFactory(name="Chico", state="CA", canonical_key="us:place:0613010")
     before = muni.modified
+    muni_fields = type(muni).objects.values().get(pk=muni.pk)
 
     link_munis()
 
     muni.refresh_from_db()
+    place.refresh_from_db()
+    assert place.muni == muni
+    assert place.muni_link_status == "auto"
+    assert type(muni).objects.values().get(pk=muni.pk) == muni_fields
     assert muni.modified == before
-    assert muni.name == "Chico"
-    assert muni.state == "CA"
 
 
 @pytest.mark.django_db
@@ -213,6 +330,12 @@ def test_dry_run_reports_without_saving():
     assert stats["linked"] == 1
     assert place.muni is None
     assert place.muni_link_status == "unlinked"
+
+
+@pytest.mark.django_db
+def test_non_positive_limit_is_rejected():
+    with pytest.raises(ValueError, match="positive"):
+        link_munis(limit=0)
 
 
 @pytest.mark.django_db
