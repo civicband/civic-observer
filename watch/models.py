@@ -375,6 +375,11 @@ class MeetingHit(TimeStampedModel):
             ),
         ]
 
+    @property
+    def is_future(self) -> bool:
+        """Return whether the meeting date is after today."""
+        return bool(self.meeting_date and self.meeting_date > timezone.localdate())
+
 
 class IngestRun(TimeStampedModel):
     started_at = models.DateTimeField(default=timezone.now)
