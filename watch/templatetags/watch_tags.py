@@ -29,17 +29,25 @@ def _keywords(keywords: str | Iterable[str] | None) -> list[str]:
 def highlight_keywords(
     text: str | None, keywords: str | Iterable[str] | None
 ) -> SafeString:
-    """Escape ``text`` and wrap case-insensitive keyword matches in ``<mark>``."""
-    escaped = escape(text or "")
-    terms = sorted(
-        {escape(term) for term in _keywords(keywords)}, key=len, reverse=True
-    )
+    """Escape ``text`` and wrap case-insensitive keyword matches in ``<mark>``.
+
+    Matching happens against the raw text so keyword terms are never matched
+    inside an HTML entity. Each raw segment is escaped before it is emitted.
+    """
+    raw = text or ""
+    terms = sorted(set(_keywords(keywords)), key=len, reverse=True)
     if not terms:
-        return mark_safe(escaped)
+        return mark_safe(escape(raw))
 
     pattern = re.compile("|".join(re.escape(term) for term in terms), re.IGNORECASE)
-    highlighted = pattern.sub(lambda match: f"<mark>{match.group(0)}</mark>", escaped)
-    return mark_safe(highlighted)
+    parts: list[str] = []
+    cursor = 0
+    for match in pattern.finditer(raw):
+        parts.append(escape(raw[cursor : match.start()]))
+        parts.append(f"<mark>{escape(match.group(0))}</mark>")
+        cursor = match.end()
+    parts.append(escape(raw[cursor:]))
+    return mark_safe("".join(parts))
 
 
 @register.simple_tag

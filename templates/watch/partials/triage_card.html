@@ -1,208 +1,203 @@
 {% load watch_tags %}
-<div id="triage-card" data-thread="{{ thread.pk|default:'' }}">
-    {% if thread %}
-        <article class="bg-white shadow rounded-lg border border-gray-200 p-6 dark:bg-gray-900 dark:border-gray-800">
-            <div class="flex flex-wrap items-start justify-between gap-4">
-                <div class="min-w-0">
-                    <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ thread.title|default:"Untitled thread" }}</h2>
-                    <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
-                        {% if thread.subreddit %}
-                            <a href="https://www.reddit.com/r/{{ thread.subreddit.name }}/"
-                               target="_blank"
-                               rel="noopener noreferrer"
-                               class="text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">r/{{ thread.subreddit.name }}</a>
-                            <span>·</span>
-                        {% endif %}
-                        <span>{{ thread.last_seen|timesince }} ago</span>
+{% if thread %}
+    <article class="bg-white shadow rounded-lg border border-gray-200 p-6 dark:bg-gray-900 dark:border-gray-800"
+             data-thread="{{ thread.pk }}">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="min-w-0">
+                <h2 class="text-xl font-semibold text-gray-900 dark:text-gray-100">{{ thread.title|default:"Untitled thread" }}</h2>
+                <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
+                    {% if thread.subreddit %}
+                        <a href="https://www.reddit.com/r/{{ thread.subreddit.name }}/"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           class="text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">r/{{ thread.subreddit.name }}</a>
                         <span>·</span>
-                        <span>{{ thread.mention_count }} mention{{ thread.mention_count|pluralize }}</span>
-                    </div>
+                    {% endif %}
+                    <span>{{ thread.last_seen|timesince }} ago</span>
+                    <span>·</span>
+                    <span>{{ thread.mention_count }} mention{{ thread.mention_count|pluralize }}</span>
                 </div>
-                {% if thread.status == "replied" %}
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{{ thread.get_status_display }}</span>
-                {% elif thread.status == "dismissed" %}
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">{{ thread.get_status_display }}</span>
-                {% elif thread.status == "snoozed" %}
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200">{{ thread.get_status_display }}</span>
-                {% elif thread.status == "backlog" %}
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">{{ thread.get_status_display }}</span>
-                {% else %}
-                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200">{{ thread.get_status_display }}</span>
-                {% endif %}
             </div>
+            {% if thread.status == "replied" %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{{ thread.get_status_display }}</span>
+            {% elif thread.status == "dismissed" %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">{{ thread.get_status_display }}</span>
+            {% elif thread.status == "snoozed" %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200">{{ thread.get_status_display }}</span>
+            {% elif thread.status == "backlog" %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">{{ thread.get_status_display }}</span>
+            {% else %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-200">{{ thread.get_status_display }}</span>
+            {% endif %}
+        </div>
 
-            <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-                <section aria-labelledby="triage-mentions-heading">
-                    <h3 id="triage-mentions-heading"
-                        class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Mentions</h3>
-                    <div class="mt-3 space-y-3">
-                        {% for mention in thread.mentions.all %}
-                            <div class="rounded-md border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-800"
-                                 data-mention="{{ mention.pk }}">
-                                <div class="flex flex-wrap items-center justify-between gap-2">
-                                    {% if mention.keyword %}
-                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">{{ mention.keyword }}</span>
-                                    {% endif %}
-                                    {% if mention.published_at %}
-                                        <span class="text-xs text-gray-500 dark:text-gray-400">{{ mention.published_at|timesince }} ago</span>
-                                    {% endif %}
-                                </div>
-                                <p class="mt-2 text-sm leading-relaxed break-words whitespace-pre-wrap text-gray-700 dark:text-gray-300">{% highlight_keywords mention.snippet_text mention.keyword %}</p>
-                                <div class="mt-3 flex flex-wrap items-center gap-2">
-                                    {% if mention.url %}
-                                        <a href="{{ mention.url }}"
-                                           target="_blank"
-                                           rel="noopener noreferrer"
-                                           class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
-                                            View on Reddit
-                                        </a>
-                                    {% endif %}
-                                    {% if mention.author %}
-                                        <span class="text-xs text-gray-500 dark:text-gray-400">u/{{ mention.author }}</span>
-                                    {% endif %}
-                                </div>
+        <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <section aria-labelledby="triage-mentions-heading">
+                <h3 id="triage-mentions-heading"
+                    class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Mentions</h3>
+                <div class="mt-3 space-y-3">
+                    {% for mention in thread.mentions.all %}
+                        <div class="rounded-md border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-800"
+                             data-mention="{{ mention.pk }}">
+                            <div class="flex flex-wrap items-center justify-between gap-2">
+                                {% if mention.keyword %}
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">{{ mention.keyword }}</span>
+                                {% endif %}
+                                {% if mention.published_at %}
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ mention.published_at|timesince }} ago</span>
+                                {% endif %}
                             </div>
-                        {% empty %}
-                            <p class="text-sm text-gray-500 dark:text-gray-400">No mentions recorded.</p>
-                        {% endfor %}
-                    </div>
-                </section>
-
-                <section aria-labelledby="triage-meetings-heading">
-                    <h3 id="triage-meetings-heading"
-                        class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Meetings</h3>
-                    <div class="mt-3 space-y-5">
-                        {% for place in subject_places %}
-                            <div class="rounded-md border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900"
-                                 data-place="{{ place.pk }}">
-                                <div class="flex flex-wrap items-start justify-between gap-2">
-                                    <div class="min-w-0">
-                                        <h4 class="font-medium text-gray-900 dark:text-gray-100">{{ place.place.name }}</h4>
-                                        <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
-                                            {{ place.place.get_place_type_display }}
-                                            {% if place.place.state %}<span>·</span> {{ place.place.state }}{% endif %}
-                                            {% if place.place.muni %}<span>·</span> {{ place.place.muni.name }}{% endif %}
-                                        </p>
-                                    </div>
-                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">{{ place.get_role_display }}</span>
-                                </div>
-
-                                {% include "watch/partials/meeting_hits.html" with hits=place.meeting_hits %}
-
-                                <form class="mt-4 flex flex-wrap items-center gap-2" data-place="{{ place.pk }}">
-                                    <label class="sr-only" for="query-{{ place.pk }}">Search query for {{ place.place.name }}</label>
-                                    <input id="query-{{ place.pk }}"
-                                           type="text"
-                                           name="query"
-                                           value="{{ place.query_override }}"
-                                           placeholder="Search query"
-                                           data-action="edit-query"
-                                           data-place="{{ place.pk }}"
-                                           class="flex-1 min-w-0 rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-400">
-                                    <button type="button"
-                                            disabled
-                                            data-action="edit_query"
-                                            data-place="{{ place.pk }}"
-                                            class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
-                                        Run search
-                                    </button>
-                                </form>
-                            </div>
-                        {% empty %}
-                            <p class="text-sm text-gray-500 dark:text-gray-400">No subject places for this thread.</p>
-                        {% endfor %}
-                    </div>
-
-                    {% if mentioned_places %}
-                        <div class="mt-5">
-                            <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Mentioned places</h4>
-                            <div class="mt-2 flex flex-wrap gap-2">
-                                {% for place in mentioned_places %}
-                                    <div class="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300"
-                                         data-place="{{ place.pk }}">
-                                        <span>{{ place.place.name }}{% if place.place.state %}, {{ place.place.state }}{% endif %}</span>
-                                        <button type="button"
-                                                disabled
-                                                data-action="promote"
-                                                data-place="{{ place.pk }}"
-                                                class="font-medium text-indigo-600 hover:text-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed dark:text-indigo-400 dark:hover:text-indigo-300">
-                                            Promote
-                                        </button>
-                                    </div>
-                                {% endfor %}
+                            <p class="mt-2 text-sm leading-relaxed break-words whitespace-pre-wrap text-gray-700 dark:text-gray-300">{% highlight_keywords mention.snippet_text mention.keyword %}</p>
+                            <div class="mt-3 flex flex-wrap items-center gap-2">
+                                {% if mention.url %}
+                                    <a href="{{ mention.url }}"
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                       class="inline-flex items-center gap-1.5 px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                                        View on Reddit
+                                    </a>
+                                {% endif %}
+                                {% if mention.author %}
+                                    <span class="text-xs text-gray-500 dark:text-gray-400">u/{{ mention.author }}</span>
+                                {% endif %}
                             </div>
                         </div>
-                    {% endif %}
-                </section>
-            </div>
-
-            <div class="mt-6 flex flex-wrap items-center gap-2 border-t border-gray-200 pt-4 dark:border-gray-800">
-                <button type="button"
-                        disabled
-                        data-action="replied"
-                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
-                    Replied
-                </button>
-                <button type="button"
-                        disabled
-                        data-action="dismiss"
-                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
-                    Dismiss
-                </button>
-                <button type="button"
-                        disabled
-                        data-action="snooze"
-                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
-                    Snooze
-                </button>
-                <button type="button"
-                        disabled
-                        data-action="backlog"
-                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
-                    Backlog
-                </button>
-                <button type="button"
-                        disabled
-                        data-action="mute_subreddit"
-                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
-                    Mute subreddit
-                </button>
-                <button type="button"
-                        disabled
-                        data-action="mute_country"
-                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
-                    Mute country
-                </button>
-
-                <div class="ml-auto flex items-center gap-2">
-                    {% if previous_thread %}
-                        <a href="{% url 'watch:triage' %}?thread={{ previous_thread.pk }}"
-                           class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
-                            Previous
-                        </a>
-                    {% else %}
-                        <span class="inline-flex items-center px-3 py-1.5 border border-gray-200 text-xs font-medium rounded-md text-gray-400 dark:border-gray-800 dark:text-gray-500">
-                            Previous
-                        </span>
-                    {% endif %}
-                    {% if next_thread %}
-                        <a href="{% url 'watch:triage' %}?thread={{ next_thread.pk }}"
-                           class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
-                            Next
-                        </a>
-                    {% else %}
-                        <span class="inline-flex items-center px-3 py-1.5 border border-gray-200 text-xs font-medium rounded-md text-gray-400 dark:border-gray-800 dark:text-gray-500">
-                            Next
-                        </span>
-                    {% endif %}
+                    {% empty %}
+                        <p class="text-sm text-gray-500 dark:text-gray-400">No mentions recorded.</p>
+                    {% endfor %}
                 </div>
-            </div>
+            </section>
 
-            <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
-                j/k next · r replied · d dismiss · s snooze · b backlog · p promote · m mute subreddit · x mute country · e edit query · c copy citation
-            </p>
-        </article>
-    {% else %}
-        <p class="text-gray-500 dark:text-gray-400">No threads to triage.</p>
-    {% endif %}
-</div>
+            <section aria-labelledby="triage-meetings-heading">
+                <h3 id="triage-meetings-heading"
+                    class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Meetings</h3>
+                <div class="mt-3 space-y-5">
+                    {% for place in subject_places %}
+                        <div class="rounded-md border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900"
+                             data-place="{{ place.pk }}">
+                            <div class="flex flex-wrap items-start justify-between gap-2">
+                                <div class="min-w-0">
+                                    <h4 class="font-medium text-gray-900 dark:text-gray-100">{{ place.place.name }}</h4>
+                                    <p class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                                        {{ place.place.get_place_type_display }}
+                                        {% if place.place.state %}<span>·</span> {{ place.place.state }}{% endif %}
+                                        {% if place.place.muni %}<span>·</span> {{ place.place.muni.name }}{% endif %}
+                                    </p>
+                                </div>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">{{ place.get_role_display }}</span>
+                            </div>
+
+                            {% include "watch/partials/meeting_hits.html" with hits=place.meeting_hits %}
+
+                            <form class="mt-4 flex flex-wrap items-center gap-2"
+                                  data-action="edit_query">
+                                <label class="sr-only" for="query-{{ place.pk }}">Search query for {{ place.place.name }}</label>
+                                <input id="query-{{ place.pk }}"
+                                       type="text"
+                                       name="query"
+                                       value="{{ place.query_override }}"
+                                       placeholder="Search query"
+                                       class="flex-1 min-w-0 rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-400">
+                                <button type="submit"
+                                        disabled
+                                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                                    Run search
+                                </button>
+                            </form>
+                        </div>
+                    {% empty %}
+                        <p class="text-sm text-gray-500 dark:text-gray-400">No subject places for this thread.</p>
+                    {% endfor %}
+                </div>
+
+                {% if mentioned_places %}
+                    <div class="mt-5">
+                        <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Mentioned places</h4>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            {% for place in mentioned_places %}
+                                <div class="inline-flex items-center gap-2 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-xs text-indigo-700 dark:border-indigo-800 dark:bg-indigo-950 dark:text-indigo-300"
+                                     data-place="{{ place.pk }}">
+                                    <span>{{ place.place.name }}{% if place.place.state %}, {{ place.place.state }}{% endif %}</span>
+                                    <button type="button"
+                                            disabled
+                                            data-action="promote"
+                                            class="font-medium text-indigo-600 hover:text-indigo-500 disabled:opacity-50 disabled:cursor-not-allowed dark:text-indigo-400 dark:hover:text-indigo-300">
+                                        Promote
+                                    </button>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+            </section>
+        </div>
+
+        <div class="mt-6 flex flex-wrap items-center gap-2 border-t border-gray-200 pt-4 dark:border-gray-800">
+            <button type="button"
+                    disabled
+                    data-action="replied"
+                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                Replied
+            </button>
+            <button type="button"
+                    disabled
+                    data-action="dismiss"
+                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                Dismiss
+            </button>
+            <button type="button"
+                    disabled
+                    data-action="snooze"
+                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                Snooze
+            </button>
+            <button type="button"
+                    disabled
+                    data-action="backlog"
+                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                Backlog
+            </button>
+            <button type="button"
+                    disabled
+                    data-action="mute_subreddit"
+                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                Mute subreddit
+            </button>
+            <button type="button"
+                    disabled
+                    data-action="mute_country"
+                    class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                Mute country
+            </button>
+
+            <div class="ml-auto flex items-center gap-2">
+                {% if previous_thread %}
+                    <a href="{% url 'watch:triage' %}?thread={{ previous_thread.pk }}"
+                       class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                        Previous
+                    </a>
+                {% else %}
+                    <span class="inline-flex items-center px-3 py-1.5 border border-gray-200 text-xs font-medium rounded-md text-gray-400 dark:border-gray-800 dark:text-gray-500">
+                        Previous
+                    </span>
+                {% endif %}
+                {% if next_thread %}
+                    <a href="{% url 'watch:triage' %}?thread={{ next_thread.pk }}"
+                       class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                        Next
+                    </a>
+                {% else %}
+                    <span class="inline-flex items-center px-3 py-1.5 border border-gray-200 text-xs font-medium rounded-md text-gray-400 dark:border-gray-800 dark:text-gray-500">
+                        Next
+                    </span>
+                {% endif %}
+            </div>
+        </div>
+
+        <p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
+            j/k next · r replied · d dismiss · s snooze · b backlog · p promote · m mute subreddit · x mute country · e edit query · c copy citation
+        </p>
+    </article>
+{% else %}
+    <p class="text-gray-500 dark:text-gray-400">No threads to triage.</p>
+{% endif %}
