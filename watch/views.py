@@ -8,25 +8,28 @@ from datetime import timedelta
 from typing import Any
 
 from django.contrib.admin.views.decorators import staff_member_required
+from django.db.models import Prefetch, Q
 from django.http import Http404, HttpRequest, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.generic import View
 
-from watch.forms import PlaceCorrectionForm, TriageActionForm
+from watch.forms import PlaceCorrectionForm, PlaceNoteForm, TriageActionForm
 from watch.ingest import enqueue_enrichment
 from watch.models import (
     MeetingHit,
     MutedCountry,
     Place,
     PlaceAlias,
+    PlaceNote,
     Subreddit,
     Thread,
     ThreadPlace,
 )
 from watch.normalize import normalize_key
 from watch.scoring import (
+    BACKLOG_DAYS,
     backlog_queryset,
     backlog_thread_count,
     next_thread,
@@ -37,6 +40,12 @@ from watch.scoring import (
 
 #: Partial swapped into ``#triage-card`` after an action or correction.
 TRIAGE_CARD_TEMPLATE = "watch/partials/triage_card.html"
+
+#: Partial whose rows are swapped after a backlog note is saved.
+BACKLOG_ROWS_TEMPLATE = "watch/partials/backlog_rows.html"
+
+#: Threads shown per backlog row as a taste of what named the place.
+SAMPLE_THREAD_LIMIT = 3
 
 #: Actions that remove the thread from the queue and move the operator on.
 ADVANCING_ACTIONS = frozenset(
@@ -54,6 +63,55 @@ logger = logging.getLogger(__name__)
 def _is_htmx(request: HttpRequest) -> bool:
     """Return whether the request came from htmx."""
     return request.headers.get("HX-Request") == "true"
+
+
+def _sample_thread_places():
+    """Return the subject thread links shown as samples in a backlog row.
+
+    Mirrors the backlog's activity window and subreddit mute rules, and joins
+    the thread and subreddit so rendering a row costs no extra queries.
+    """
+    cutoff = timezone.now() - timedelta(days=BACKLOG_DAYS)
+    return (
+        ThreadPlace.objects.filter(
+            role=ThreadPlace.Role.SUBJECT,
+            thread__last_seen__gte=cutoff,
+        )
+        .filter(Q(thread__subreddit__isnull=True) | Q(thread__subreddit__muted=False))
+        .select_related("thread", "thread__subreddit")
+        .order_by("-thread__last_seen", "-thread__id")
+    )
+
+
+def _backlog_place_list(place_id: uuid.UUID | None = None) -> list[Place]:
+    """Return ranked backlog places with samples and notes prefetched."""
+    queryset = backlog_queryset().prefetch_related(
+        Prefetch(
+            "thread_places",
+            queryset=_sample_thread_places(),
+            to_attr="sample_thread_places",
+        ),
+        Prefetch("notes", queryset=PlaceNote.objects.order_by("-created")),
+    )
+    if place_id is not None:
+        queryset = queryset.filter(pk=place_id)
+
+    places = list(queryset)
+    for place in places:
+        # Convenience for the template: only the first few samples.
+        place.sample_threads = place.sample_thread_places[  # type: ignore[attr-defined]
+            :SAMPLE_THREAD_LIMIT
+        ]
+    return places
+
+
+def _backlog_context(places: list[Place]) -> dict[str, Any]:
+    """Return the template context shared by the page, rows, and note view."""
+    return {
+        "places": places,
+        "total_threads": backlog_thread_count(),
+        "note_statuses": PlaceNote.Status.choices,
+    }
 
 
 def _triage_context(thread: Thread | None) -> dict[str, Any]:
@@ -289,15 +347,38 @@ class BacklogView(View):
     """List uncovered places ranked by recent subject-thread activity."""
 
     template_name = "watch/backlog.html"
-    partial_template_name = "watch/partials/backlog_rows.html"
+    partial_template_name = BACKLOG_ROWS_TEMPLATE
 
     def get(self, request: HttpRequest) -> HttpResponse:
-        places = list(backlog_queryset())
-        context: dict[str, Any] = {
-            "places": places,
-            "total_threads": backlog_thread_count(),
-        }
+        places = _backlog_place_list()
         template_name = (
             self.partial_template_name if _is_htmx(request) else self.template_name
         )
-        return render(request, template_name, context)
+        return render(request, template_name, _backlog_context(places))
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class BacklogNoteView(View):
+    """Record a note about an uncovered place and refresh its backlog row."""
+
+    def post(self, request: HttpRequest, place_id: uuid.UUID) -> HttpResponse:
+        place = get_object_or_404(Place, pk=place_id)
+        form = PlaceNoteForm(request.POST)
+        if not form.is_valid():
+            return HttpResponseBadRequest("Invalid place note")
+
+        note = form.save(commit=False)
+        note.place = place
+        note.save()
+
+        if not _is_htmx(request):
+            return redirect("watch:backlog")
+
+        places = _backlog_place_list(place.pk)
+        if not places:
+            # The note still saved; show it even if the place left the ranking.
+            place.subject_threads = 0  # type: ignore[attr-defined]
+            place.subject_subreddits = 0  # type: ignore[attr-defined]
+            place.sample_threads = []  # type: ignore[attr-defined]
+            places = [place]
+        return render(request, BACKLOG_ROWS_TEMPLATE, _backlog_context(places))
