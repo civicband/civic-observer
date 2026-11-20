@@ -1,4 +1,5 @@
 from django.contrib import admin
+from django.utils import timezone
 
 from .models import (
     IngestRun,
@@ -15,6 +16,37 @@ from .models import (
 )
 
 
+class PlaceNeedsReviewFilter(admin.SimpleListFilter):
+    title = "Needs review"
+    parameter_name = "needs_review"
+
+    def lookups(self, request, model_admin):
+        return (("1", "Needs review"),)
+
+    def queryset(self, request, queryset):
+        if self.value() == "1":
+            return queryset.filter(
+                muni_link_status__in=[
+                    Place.MuniLinkStatus.UNLINKED,
+                    Place.MuniLinkStatus.NO_MATCH,
+                ]
+            )
+        return queryset
+
+
+class SubredditNeedsReviewFilter(admin.SimpleListFilter):
+    title = "Needs review"
+    parameter_name = "needs_review"
+
+    def lookups(self, request, model_admin):
+        return (("1", "Needs review"),)
+
+    def queryset(self, request, queryset):
+        if self.value() == "1":
+            return queryset.filter(reviewed_at__isnull=True)
+        return queryset
+
+
 @admin.register(Place)
 class PlaceAdmin(admin.ModelAdmin):
     list_display = [
@@ -27,8 +59,16 @@ class PlaceAdmin(admin.ModelAdmin):
         "muni_link_status",
         "population",
     ]
-    list_filter = ["place_type", "is_government", "muni_link_status", "country"]
-    search_fields = ["canonical_key", "name", "geoid"]
+    list_filter = [
+        "place_type",
+        "state",
+        "is_government",
+        "muni_link_status",
+        "country",
+        PlaceNeedsReviewFilter,
+    ]
+    search_fields = ["name", "geoid", "canonical_key"]
+    autocomplete_fields = ["county", "muni"]
     list_select_related = ["county", "muni"]
 
 
@@ -45,9 +85,22 @@ class SubredditAdmin(admin.ModelAdmin):
         "muted",
         "reviewed_at",
     ]
-    list_filter = ["kind", "muted", "confidence", "source"]
-    search_fields = ["name", "place__name"]
+    list_filter = [
+        "kind",
+        "source",
+        "muted",
+        "confidence",
+        "reviewed_at",
+        SubredditNeedsReviewFilter,
+    ]
+    search_fields = ["name", "place__name", "note"]
+    autocomplete_fields = ["place"]
+    actions = ["accept_suggestions"]
     list_select_related = ["place"]
+
+    @admin.action(description="Accept suggested classification")
+    def accept_suggestions(self, request, queryset):
+        queryset.update(reviewed_at=timezone.now())
 
 
 @admin.register(Thread)
