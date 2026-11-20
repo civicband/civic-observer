@@ -22,7 +22,7 @@ SUBREDDITS_CSV = (
 #: Rows whose hand label cannot be recovered from the generated gazetteer
 #: aliases, or whose real populations make the place genuinely ambiguous.
 AMBIGUOUS_ROWS: frozenset[str] = frozenset(
-    {"glendale", "sfv", "westseattlewa", "bullcity", "portland"}
+    {"glendale", "westseattlewa", "bullcity", "portland"}
 )
 
 #: Country expected for each non-US hand label.
@@ -236,7 +236,6 @@ def create_classifier_places() -> dict[str, Place | None]:
         # in the generated gazetteer aliases, so the classifier may leave them
         # ``general``; the fixture still records the intended place so a wrong
         # match fails the no-wrong-place assertion.
-        "sfv": by_name[("Los Angeles", "CA")],
         "westseattlewa": by_name[("Seattle", "WA")],
         "bullcity": by_name[("Durham", "NC")],
         "fountaincolorado": by_name[("Fountain", "CO")],

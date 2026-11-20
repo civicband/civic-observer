@@ -33,6 +33,7 @@ AFFIXES: tuple[str, ...] = (
 REGIONS: dict[str, tuple[str | None, str]] = {
     "bayarea": ("CA", "Bay Area"),
     "socal": ("CA", "Southern California"),
+    "sfv": ("CA", "San Fernando Valley"),
     "pnw": (None, "Pacific Northwest"),
     "pnwdaily": (None, "Pacific Northwest"),
     "dmv": (None, "DC/Maryland/Virginia"),

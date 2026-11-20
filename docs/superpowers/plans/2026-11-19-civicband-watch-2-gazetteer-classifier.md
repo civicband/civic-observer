@@ -626,7 +626,7 @@ git commit -m "feat(watch): link municipalities to gazetteer places"
   4. Exact `PlaceAlias.key` match; choose by population when unambiguous, otherwise return `kind="ambiguous"`.
   5. Affix stripping with prefixes/suffixes `development`, `daily`, `news`, `talk`, `landlords`, `ask`, `r4r`, `jobs`; retry at `confidence="low"`. In this layer, check state/region keys before `PlaceAlias` so `oregontalk` returns state OR.
   6. Ambiguity rule: choose the most populous only when it is at least 10× the next; otherwise `kind="ambiguous"` and `place=None`.
-  7. State and region names. `REGIONS` is a module constant: `{"bayarea": ("CA", "Bay Area"), "socal": ("CA", "Southern California"), "pnw": (None, "Pacific Northwest"), "pnwdaily": (None, "Pacific Northwest"), "dmv": (None, "DC/Maryland/Virginia")}`. State rows set `kind="state"` and `state`; region rows set `kind="region"` and `state` when known.
+  7. State and region names. `REGIONS` is a module constant: `{"bayarea": ("CA", "Bay Area"), "socal": ("CA", "Southern California"), "sfv": ("CA", "San Fernando Valley"), "pnw": (None, "Pacific Northwest"), "pnwdaily": (None, "Pacific Northwest"), "dmv": (None, "DC/Maryland/Virginia")}`. State rows set `kind="state"` and `state`; region rows set `kind="region"` and `state` when known.
   8. `NonUsCityAlias` exact alias match only, never substring containment; if the city is Canadian and a `Place` with `country="CA"` matches, return `kind="place"`, otherwise `kind="non_us"` with `country`.
   9. `kind="general"`, `confidence="low"`, `source="gazetteer"`.
 
