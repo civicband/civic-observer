@@ -3,6 +3,7 @@
 from django.urls import path
 
 from watch.views import (
+    BacklogNoteView,
     BacklogView,
     PlaceCorrectionView,
     TriageActionView,
@@ -24,4 +25,9 @@ urlpatterns = [
         name="place-correct",
     ),
     path("backlog/", BacklogView.as_view(), name="backlog"),
+    path(
+        "backlog/<uuid:place_id>/note/",
+        BacklogNoteView.as_view(),
+        name="backlog-note",
+    ),
 ]

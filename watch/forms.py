@@ -1,11 +1,11 @@
-"""Forms for staff triage actions and place corrections."""
+"""Forms for staff triage actions, place corrections, and backlog notes."""
 
 from __future__ import annotations
 
 from django import forms
 from django.db import models
 
-from watch.models import ThreadPlace
+from watch.models import PlaceNote, ThreadPlace
 
 
 class TriageActionForm(forms.Form):
@@ -43,3 +43,25 @@ class PlaceCorrectionForm(forms.Form):
         required=False,
         initial=ThreadPlace.Role.SUBJECT,
     )
+
+
+class PlaceNoteForm(forms.ModelForm):
+    """Validate a note added from one backlog row."""
+
+    class Meta:
+        model = PlaceNote
+        fields = ("text", "status")
+        widgets = {
+            "text": forms.Textarea(
+                attrs={
+                    "rows": 2,
+                    "placeholder": "Add a note",
+                    "class": "w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-400",
+                }
+            ),
+            "status": forms.Select(
+                attrs={
+                    "class": "rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100"
+                }
+            ),
+        }
