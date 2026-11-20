@@ -12,6 +12,9 @@ from watch.wikidata import (
     SPARQL_QUERY,
     USER_AGENT,
     WIKIDATA_ENDPOINT,
+    _alias_queryset,
+    _place_queryset,
+    _PlaceIndex,
     load_wikidata,
     parse_wikidata_bindings,
 )
@@ -78,6 +81,31 @@ def binding(subreddit, place_name, state=None, country=None):
     if country is not None:
         row["countryLabel"] = {"value": country}
     return row
+
+
+@pytest.mark.django_db
+def test_place_index_queries_only_the_binding_keys(wikidata_places):
+    unrelated = make_place("us:place:0699999", "Elsewhere", Place.PlaceType.CITY, "CA")
+    PlaceAlias.objects.create(
+        place=unrelated,
+        key="elsewhere",
+        kind=PlaceAlias.Kind.NAME,
+        source=PlaceAlias.Source.GAZETTEER,
+    )
+
+    index = _PlaceIndex(keys={"durham"}, names={"Durham"})
+
+    # Matching still behaves exactly as before.
+    assert index.match("Durham", "NC", "") == wikidata_places["durham_nc"]
+
+    alias_sql = str(_alias_queryset({"durham"}).query)
+    assert "IN" in alias_sql
+    assert "durham" in alias_sql
+    assert "elsewhere" not in alias_sql
+
+    place_sql = str(_place_queryset({"Durham"}).query)
+    assert "Durham" in place_sql
+    assert "Elsewhere" not in place_sql
 
 
 @pytest.mark.django_db

@@ -343,6 +343,7 @@ def test_load_governments_reads_general_purpose_and_school_sheets(
     assert Place.objects.get(canonical_key="us:school:0600001").is_government is True
 
 
+@pytest.mark.django_db
 def test_load_governments_requires_both_sheets(tmp_path):
     workbook = Workbook()
     workbook.active.title = "General Purpose"
@@ -351,6 +352,69 @@ def test_load_governments_requires_both_sheets(tmp_path):
 
     with pytest.raises(GovernmentError, match="School District"):
         load_governments(path)
+
+
+@pytest.mark.django_db
+def test_load_governments_requires_general_purpose_headers(tmp_path):
+    workbook = Workbook()
+    general = workbook.active
+    general.title = "General Purpose"
+    general.append(("UNIT_NAME", "UNIT_TYPE", "IS_ACTIVE", "FIPS_STATE"))
+    general.append(("CITY OF ALBANY", "2 - MUNICIPAL", "Y", "06"))
+
+    school = workbook.create_sheet("School District")
+    school.append(SD_HEADERS)
+    school.append(("ABBEVILLE UNIFIED SCHOOL DISTRICT", "06", "001", "Y"))
+
+    path = tmp_path / GOVERNMENT_FILENAME
+    workbook.save(path)
+
+    with pytest.raises(GovernmentError, match="FIPS_COUNTY"):
+        load_governments(path)
+
+
+@pytest.mark.django_db
+def test_load_governments_requires_school_district_headers(tmp_path):
+    workbook = Workbook()
+    general = workbook.active
+    general.title = "General Purpose"
+    general.append(GP_HEADERS)
+    general.append(
+        ("CITY OF ALBANY", "2 - MUNICIPAL", 20271, "06", "001", "00001", "Y")
+    )
+
+    school = workbook.create_sheet("School District")
+    school.append(("UNIT_NAME", "IS_ACTIVE"))
+    school.append(("ABBEVILLE UNIFIED SCHOOL DISTRICT", "Y"))
+
+    path = tmp_path / GOVERNMENT_FILENAME
+    workbook.save(path)
+
+    with pytest.raises(GovernmentError, match="FIPS_STATE"):
+        load_governments(path)
+
+
+@pytest.mark.django_db
+def test_load_governments_rolls_back_on_a_bad_sheet(tmp_path, government_places):
+    workbook = Workbook()
+    general = workbook.active
+    general.title = "General Purpose"
+    general.append(GP_HEADERS)
+    general.append(
+        ("COUNTY OF ALAMEDA", "1 - COUNTY", 1629540, "06", "001", "99001", "Y")
+    )
+
+    school = workbook.create_sheet("School District")
+    school.append(("UNIT_NAME", "IS_ACTIVE"))
+    school.append(("ABBEVILLE UNIFIED SCHOOL DISTRICT", "Y"))
+
+    path = tmp_path / GOVERNMENT_FILENAME
+    workbook.save(path)
+
+    with pytest.raises(GovernmentError):
+        load_governments(path)
+
+    assert Place.objects.get(canonical_key="us:county:06001").is_government is False
 
 
 @pytest.mark.django_db

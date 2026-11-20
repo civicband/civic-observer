@@ -67,6 +67,13 @@ _CITIES: tuple[tuple[str, str, str, int], ...] = (
     ("us:place:0630000", "Glendale", "CA", 196543),
     ("us:place:0427824", "Glendale", "AZ", 248325),
     ("us:place:2360545", "Portland", "ME", 68408),
+    # Cities whose counties share the same normalized name. The county is
+    # usually larger, so the classifier must prefer the settlement before the
+    # 10x ambiguity rule runs.
+    ("us:place:0600562", "Alameda", "CA", 78280),
+    ("us:place:0648872", "Monterey", "CA", 30218),
+    ("us:place:0672646", "Sonoma", "CA", 10739),
+    ("us:place:0653980", "Orange", "CA", 139419),
     ("us:place:0608352", "Brisbane", "CA", 4270),
     ("us:place:3628073", "Galway", "NY", 200),
     ("us:place:3957738", "Oregon", "OH", 20291),
@@ -91,6 +98,17 @@ _CANADIAN_CITIES: tuple[tuple[str, str, str, int], ...] = (
 _COUNTIES: tuple[tuple[str, str, str, int], ...] = (
     ("us:county:24015", "Cecil County", "MD", 103725),
     ("us:county:42029", "Chester County", "PA", 534413),
+    # Same-named counties for the hand-labelled CSV places. Their populations
+    # are realistic and several are larger than the eponymous city.
+    ("us:county:06037", "Los Angeles County", "CA", 10014009),
+    ("us:county:06073", "San Diego County", "CA", 3298634),
+    ("us:county:55063", "La Crosse County", "WI", 120784),
+    ("us:county:06081", "San Mateo County", "CA", 764442),
+    ("us:county:06001", "Alameda County", "CA", 1682353),
+    ("us:county:06053", "Monterey County", "CA", 439035),
+    ("us:county:06097", "Sonoma County", "CA", 488863),
+    ("us:county:06059", "Orange County", "CA", 3186989),
+    ("us:county:06007", "Butte County", "CA", 211632),
 )
 
 #: ``(geoname_id, name, country, admin1, population)`` for non-US cities.

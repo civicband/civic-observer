@@ -15,6 +15,7 @@ from django.utils import timezone
 
 from watch.models import NonUsCity, NonUsCityAlias, Place, PlaceAlias, Subreddit
 from watch.normalize import STATE_NAMES, normalize_key
+from watch.place_utils import prefer_settlement_types
 
 #: Prefixes and suffixes that commonly wrap a place name in a subreddit name.
 AFFIXES: tuple[str, ...] = (
@@ -58,15 +59,25 @@ STATE_HINTS: dict[str, str] = {
     "texas50501": "TX",
 }
 
-#: Normalized country and province names that make a subreddit non-US.
+#: Normalized country and province names that make a subreddit non-US. Longer
+#: hints come first so ``northernireland`` wins before ``ireland``.
 COUNTRY_HINTS: tuple[tuple[str, str], ...] = (
-    ("ireland", "IE"),
+    ("northernireland", "GB"),
     ("unitedkingdom", "GB"),
-    ("australia", "AU"),
     ("newzealand", "NZ"),
+    ("australia", "AU"),
+    ("ireland", "IE"),
     ("canada", "CA"),
     ("ontario", "CA"),
     ("aussie", "AU"),
+)
+
+#: Whole tokens that may wrap a country hint in a subreddit name. A hint only
+#: matches a key that equals it, or that adds one of these tokens as a single
+#: prefix or suffix. Substring matches are deliberately excluded:
+#: ``northernirelandnews`` is not Ireland.
+COUNTRY_HINT_AFFIXES: frozenset[str] = frozenset(
+    {*AFFIXES, "the", "housing", "memes", "transport", "politics", "sub"}
 )
 
 
@@ -145,8 +156,10 @@ def classify_subreddit(name: str, *, use_manual: bool = True) -> Classification:
 def apply_classification(subreddit: Subreddit, classification: Classification) -> bool:
     """Write ``classification`` onto ``subreddit`` and report whether it changed.
 
-    Operator state is preserved: ``muted`` is never touched, and a non-blank
-    existing note is never replaced.
+    Operator state is preserved: ``muted`` is never touched, ``reviewed_at`` is
+    left for the operator, and a non-blank existing note is never replaced.
+    The classifier records its own run in ``classified_at`` so a later pass
+    knows the row has a suggestion waiting for review.
     """
     note = (subreddit.note or "") or (classification.note or "")
     place_id = classification.place.pk if classification.place is not None else None
@@ -161,10 +174,12 @@ def apply_classification(subreddit: Subreddit, classification: Classification) -
         or subreddit.confidence != classification.confidence
         or subreddit.source != classification.source
         or (subreddit.note or "") != note
-        or subreddit.reviewed_at is None
+        or subreddit.classified_at is None
     )
     if not changed:
         return False
+
+    now = timezone.now()
 
     subreddit.kind = classification.kind
     subreddit.place = classification.place
@@ -173,7 +188,7 @@ def apply_classification(subreddit: Subreddit, classification: Classification) -
     subreddit.confidence = classification.confidence
     subreddit.source = classification.source
     subreddit.note = note
-    subreddit.reviewed_at = timezone.now()
+    subreddit.classified_at = now
     subreddit.save(
         update_fields=[
             "kind",
@@ -183,7 +198,8 @@ def apply_classification(subreddit: Subreddit, classification: Classification) -
             "confidence",
             "source",
             "note",
-            "reviewed_at",
+            "classified_at",
+            "modified",
         ]
     )
     return True
@@ -192,13 +208,17 @@ def apply_classification(subreddit: Subreddit, classification: Classification) -
 def classify_pending_subreddits(
     *, reclassify: bool = False, limit: int | None = None
 ) -> dict[str, int]:
-    """Classify rows awaiting review, or every non-manual row on reclassify.
+    """Classify never-classified rows, or every non-manual row on reclassify.
+
+    A row is pending while ``classified_at`` is null. ``reviewed_at`` is not
+    consulted: it belongs to the operator, and classification suggestions stay
+    in the admin review queue until a person accepts them.
 
     Returns counts of rows checked, changed, and left unchanged.
     """
     queryset = Subreddit.objects.exclude(source=Subreddit.Source.MANUAL)
     if not reclassify:
-        queryset = queryset.filter(reviewed_at__isnull=True)
+        queryset = queryset.filter(classified_at__isnull=True)
     queryset = queryset.order_by("name")
     if limit is not None:
         queryset = queryset[:limit]
@@ -283,16 +303,19 @@ def _alias_place(key: str) -> tuple[Place | None, bool]:
 
 
 def _choose_place(candidates: Iterable[Place]) -> tuple[Place | None, bool]:
-    """Pick a place by population, or report ambiguity.
+    """Pick a place by settlement type and population, or report ambiguity.
 
-    A single distinct place always wins. Several places resolve only when the
-    most populous has at least :data:`AMBIGUITY_RATIO` times the runner-up.
+    Settlement candidates are ranked first, so an eponymous county never
+    shadows its city: ``losangeles`` is Los Angeles, not Los Angeles County.
+    A county-only key still resolves to the county. A single distinct place
+    always wins. Several places resolve only when the most populous has at
+    least :data:`AMBIGUITY_RATIO` times the runner-up.
     """
     unique: dict[object, Place] = {}
     for place in candidates:
         unique[place.pk] = place
 
-    places = list(unique.values())
+    places = prefer_settlement_types(unique.values())
     if not places:
         return None, False
     if len(places) == 1:
@@ -425,11 +448,38 @@ def _best_non_us_alias(key: str) -> NonUsCityAlias | None:
 
 
 def _country_hint(key: str) -> str | None:
-    """Return a country code named somewhere in the subreddit key."""
+    """Return the country code named by a whole token in ``key``.
+
+    A hint must be the entire key, or one known affix token away from it.
+    Plain substring containment is intentionally not used: it would turn
+    ``northernirelandnews`` into Ireland.
+    """
     for hint, code in COUNTRY_HINTS:
-        if hint in key:
+        if _has_hint_token(key, hint):
             return code
     return None
+
+
+def _has_hint_token(key: str, hint: str) -> bool:
+    """Return whether ``hint`` appears as a whole token in ``key``.
+
+    One known affix may wrap the hint on each side, so
+    ``theunitedkingdomnews`` still resolves while ``northernirelandnews``
+    does not match ``ireland``.
+    """
+    if key == hint:
+        return True
+    affixes = sorted(COUNTRY_HINT_AFFIXES, key=len, reverse=True)
+    for prefix in ("", *affixes):
+        if prefix and not key.startswith(prefix):
+            continue
+        remainder = key[len(prefix) :]
+        if remainder == hint:
+            return True
+        for suffix in affixes:
+            if remainder.endswith(suffix) and remainder[: -len(suffix)] == hint:
+                return True
+    return False
 
 
 def _non_us_classification(city: NonUsCity, confidence: str) -> Classification:

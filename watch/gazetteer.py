@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import openpyxl
+from django.db import transaction
 from openpyxl.utils.exceptions import InvalidFileException
 
 from watch.models import NonUsCity, NonUsCityAlias, Place, PlaceAlias
@@ -53,9 +54,6 @@ LSAD_SUFFIX: dict[str, str] = {
     "57": "CDP",
     "21": "city",
     "53": "city",
-    "county": "county",
-    "cousub": "township",
-    "school": "school district",
 }
 
 # Gazetteer LSAD codes for incorporated places and CDPs.
@@ -416,6 +414,19 @@ def _parse_float(value: str | None) -> float | None:
 
 GOVERNMENT_FILENAME = "Govt_Units_2022_Final.xlsx"
 GOVERNMENT_SHEETS: tuple[str, ...] = ("General Purpose", "School District")
+
+#: Columns each sheet must carry. A workbook missing one of these is rejected
+#: before any place is written instead of silently importing blank FIPS codes.
+GOVERNMENT_SHEET_HEADERS: dict[str, tuple[str, ...]] = {
+    "General Purpose": (
+        "UNIT_NAME",
+        "IS_ACTIVE",
+        "FIPS_STATE",
+        "FIPS_COUNTY",
+        "FIPS_PLACE",
+    ),
+    "School District": ("UNIT_NAME", "IS_ACTIVE", "FIPS_STATE"),
+}
 GOVERNMENT_COUNT_KEYS: tuple[str, ...] = (
     "county",
     "municipal",
@@ -507,8 +518,13 @@ def load_government_rows(rows: Iterable[dict]) -> dict[str, int]:
     return stats
 
 
+@transaction.atomic
 def load_governments(xlsx_path: Path) -> dict[str, int]:
-    """Load the General Purpose and School District sheets of a units XLSX."""
+    """Load the General Purpose and School District sheets of a units XLSX.
+
+    The whole workbook loads in one transaction, so a malformed later sheet
+    cannot leave the general-purpose updates half-applied.
+    """
     return load_government_rows(_government_rows(Path(xlsx_path)))
 
 
@@ -548,6 +564,7 @@ def _government_sheet_rows(worksheet, *, school: bool) -> Iterator[dict]:
     header = [
         "" if value is None else str(value).strip().upper() for value in header_values
     ]
+    _validate_government_header(worksheet.title, header)
     for values in rows:
         if not any(value not in (None, "") for value in values):
             continue
@@ -561,6 +578,18 @@ def _government_sheet_rows(worksheet, *, school: bool) -> Iterator[dict]:
             "population": _cell(raw, "POPULATION"),
             "is_active": _cell(raw, "IS_ACTIVE"),
         }
+
+
+def _validate_government_header(sheet_name: str, header: list[str]) -> None:
+    """Raise :class:`GovernmentError` when a sheet lacks a required column."""
+    required = GOVERNMENT_SHEET_HEADERS.get(sheet_name, ())
+    present = set(header)
+    missing = [name for name in required if name not in present]
+    if missing:
+        raise GovernmentError(
+            f"Government sheet {sheet_name!r} is missing required columns: "
+            + ", ".join(missing)
+        )
 
 
 def _unit_type(value: object) -> str:

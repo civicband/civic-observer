@@ -109,6 +109,7 @@ class Subreddit(TimeStampedModel):
     source = models.CharField(max_length=16, choices=Source, blank=True, db_index=True)
     muted = models.BooleanField(default=False, db_index=True)
     reviewed_at = models.DateTimeField(null=True, blank=True)
+    classified_at = models.DateTimeField(null=True, blank=True, db_index=True)
     note = models.TextField(blank=True)
 
     def __str__(self):
@@ -208,7 +209,6 @@ class PlaceAlias(TimeStampedModel):
         NAME_STATE = "name_state", "Name and state"
         NAME_STATE_NAME = "name_state_name", "Name and state name"
         NAME_CITY = "name_city", "Name and city"
-        NAME_COUNTY = "name_county", "Name and county"
         NICKNAME = "nickname", "Nickname"
         VARIANT = "variant", "Variant"
         SUBREDDIT = "subreddit", "Subreddit"
