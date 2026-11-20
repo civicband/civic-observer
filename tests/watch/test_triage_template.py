@@ -1,5 +1,6 @@
 """Rendering tests for the triage queue template and its partials."""
 
+import re
 from datetime import date, timedelta
 
 import pytest
@@ -62,7 +63,7 @@ def test_triage_renders_missing_meeting_date_as_dash(admin_client):
         confidence="high",
         source="subreddit",
     )
-    MeetingHitFactory(
+    hit = MeetingHitFactory(
         thread=thread,
         place=place,
         meeting_date=None,
@@ -70,8 +71,12 @@ def test_triage_renders_missing_meeting_date_as_dash(admin_client):
     )
     response = admin_client.get(reverse("watch:triage"), {"thread": thread.id})
     content = response.content.decode()
-    assert "Undated session" in content
-    assert "—" in content
+    card = re.search(
+        rf'<article[^>]*data-hit="{hit.pk}"[^>]*>.*?</article>', content, re.DOTALL
+    )
+    assert card is not None
+    assert "Undated session" in card.group(0)
+    assert "—" in card.group(0)
     assert b"Future meeting" not in response.content
 
 
@@ -81,6 +86,38 @@ def test_triage_empty_queue_renders_no_card(admin_client):
     content = response.content.decode()
     assert response.status_code == 200
     assert "No threads to triage." in content
+    assert "<article" not in content
+
+
+@pytest.mark.django_db
+def test_triage_never_renders_snippet_html(admin_client):
+    thread = ThreadFactory()
+    MentionFactory(
+        thread=thread,
+        keyword="city council",
+        snippet_text="safe snippet text",
+        snippet_html="<img src=x onerror=alert(1)>SNIPPET-HTML-SENTINEL",
+    )
+    response = admin_client.get(reverse("watch:triage"), {"thread": thread.id})
+    content = response.content.decode()
+    assert "safe snippet text" in content
+    assert "SNIPPET-HTML-SENTINEL" not in content
+    assert "onerror" not in content
+
+
+@pytest.mark.django_db
+def test_triage_page_owns_the_swap_target_but_partial_does_not(admin_client):
+    thread = ThreadFactory()
+    url = reverse("watch:triage")
+
+    full = admin_client.get(url, {"thread": thread.pk}).content.decode()
+    partial = admin_client.get(
+        url, {"thread": thread.pk}, HTTP_HX_REQUEST="true"
+    ).content.decode()
+
+    assert full.count('id="triage-card"') == 1
+    assert 'id="triage-card"' not in partial
+    assert partial.lstrip().startswith("<article")
 
 
 def test_citation_formats_meeting_as_markdown():
@@ -93,6 +130,52 @@ def test_citation_formats_meeting_as_markdown():
         Context({"hit": hit})
     )
     assert rendered == "[City Council (2024-01-15)](https://example.com/meetings/1)"
+
+
+@pytest.mark.django_db
+def test_citation_attribute_escapes_hostile_meeting_name(admin_client):
+    thread = ThreadFactory()
+    place = PlaceWithMuniFactory()
+    ThreadPlace.objects.create(
+        thread=thread,
+        place=place,
+        role="subject",
+        confidence="high",
+        source="subreddit",
+    )
+    MeetingHitFactory(
+        thread=thread,
+        place=place,
+        meeting_name='Evil "><img src=x onerror=alert(1)>',
+        civic_band_url="https://example.com/meetings/1",
+    )
+    content = admin_client.get(
+        reverse("watch:triage"), {"thread": thread.id}
+    ).content.decode()
+
+    match = re.search(r'data-citation="([^"]*)"', content)
+    assert match is not None
+    citation_value = match.group(1)
+    assert "<" not in citation_value
+    assert '"' not in citation_value
+    assert "&quot;&gt;&lt;img" in citation_value
+    assert '"><img' not in content
+    assert "<img" not in content
+
+
+def test_highlight_keywords_does_not_corrupt_entities():
+    rendered = Template(
+        "{% load watch_tags %}{% highlight_keywords text keyword %}"
+    ).render(Context({"text": "AT&T", "keyword": "amp"}))
+    assert rendered == "AT&amp;T"
+    assert "<mark>" not in rendered
+
+
+def test_highlight_keywords_marks_keyword_containing_ampersand():
+    rendered = Template(
+        "{% load watch_tags %}{% highlight_keywords text keyword %}"
+    ).render(Context({"text": "AT&T", "keyword": "AT&T"}))
+    assert rendered == "<mark>AT&amp;T</mark>"
 
 
 def test_highlight_keywords_is_case_insensitive_and_escapes():
