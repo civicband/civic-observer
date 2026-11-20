@@ -91,14 +91,22 @@ def _backlog_place_list(place_id: uuid.UUID | None = None) -> list[Place]:
     queryset = backlog_queryset().prefetch_related(
         Prefetch(
             "thread_places",
-            queryset=_sample_thread_places()[:SAMPLE_THREAD_LIMIT],
+            queryset=_sample_thread_places(),
             to_attr="sample_threads",
         ),
         Prefetch("notes", queryset=PlaceNote.objects.order_by("-created")),
     )
     if place_id is not None:
         queryset = queryset.filter(pk=place_id)
-    return list(queryset)
+
+    places = list(queryset)
+    for place in places:
+        # Prefetched in full, then trimmed: a sliced prefetch queryset is not
+        # portable across all supported Django database backends.
+        place.sample_threads = place.sample_threads[  # type: ignore[attr-defined]
+            :SAMPLE_THREAD_LIMIT
+        ]
+    return places
 
 
 def _backlog_context(
