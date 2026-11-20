@@ -46,17 +46,17 @@
 - `queue_queryset`:
   - Includes `status="new"` and `status="snoozed"` with `snoozed_until <= now`.
   - Excludes `subreddit.muted=True`.
-  - Excludes `subreddit.country` in `MutedCountry`.
+  - Excludes a thread when `subreddit.country` is muted, or when it is empty/null and `subreddit.place.country` is muted (same precedence as `thread_country`).
   - Annotates `is_covered` = exists a `ThreadPlace` with `role="subject"` and `place.muni__isnull=False`.
   - Annotates `is_recent` = `last_seen >= now - 24h`.
   - Annotates `has_question` = title contains `?` or a mention snippet contains `?`.
   - Computes `score = is_covered*100 + is_recent*30 + has_question*15 + least(mention_count, 10)`.
-  - Orders `-score`, `-last_seen`.
+  - Orders `-score`, `-last_seen`, `-id` for deterministic ties.
 - `backlog_queryset`:
   - `Place.objects.filter(muni__isnull=True)`
   - Annotate `subject_threads` = distinct `ThreadPlace` threads with `role="subject"`, `thread.last_seen >= now - 30d`, and not muted.
   - Annotate `subject_subreddits` = distinct subreddits on those threads.
-  - Filter `subject_threads__gt=0`, order `-subject_threads`, `-subject_subreddits`, `-population`.
+  - Filter `subject_threads__gt=0`, order `-subject_threads`, `-subject_subreddits`, then `population` descending with nulls last.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -81,7 +81,7 @@ def test_muted_subreddit_and_country_are_hidden():
     sub = SubredditFactory(muted=True)
     hidden = ThreadFactory(subreddit=sub)
     country = SubredditFactory(country="IE")
-    MutedCountry.objects.create(country="IE")
+    MutedCountry.objects.create(code="IE")
     hidden2 = ThreadFactory(subreddit=country)
     assert hidden not in queue_queryset()
     assert hidden2 not in queue_queryset()
@@ -309,7 +309,7 @@ git commit -m "feat(watch): render triage queue with safe snippets"
   - `snooze`: `status="snoozed"`, `snoozed_until=now + days` (default 7).
   - `backlog`: `status="backlog"`.
   - `mute_subreddit`: set `subreddit.muted=True`; leave the thread status unchanged.
-  - `mute_country`: `MutedCountry.objects.get_or_create(country=thread_country(thread))`; leave thread unchanged.
+  - `mute_country`: `MutedCountry.objects.get_or_create(code=thread_country(thread))`; leave thread unchanged.
   - `promote`: `ThreadPlace.update_or_create(thread, place, defaults={"role":"subject","confidence":"high","source":"manual"})`.
   - `edit_query`: set `ThreadPlace.query_override=query` for `place_id`; if `place_id` is omitted and the thread has exactly one subject place, use that place; otherwise return `400`. Then `refresh_thread_hits(thread)`.
 - Corrections:
@@ -346,7 +346,7 @@ def test_mute_country_hides_thread(admin_client):
     admin_client.post(
         reverse("watch:action", args=[thread.id]), {"action": "mute_country"}
     )
-    assert MutedCountry.objects.filter(country="IE").exists()
+    assert MutedCountry.objects.filter(code="IE").exists()
     assert thread not in queue_queryset()
 
 
