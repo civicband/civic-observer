@@ -162,6 +162,37 @@ def next_thread(after_id: uuid.UUID | None = None) -> Thread | None:
     ).first()
 
 
+def previous_thread(before_id: uuid.UUID | None = None) -> Thread | None:
+    """Return the queued thread immediately before ``before_id``, if any.
+
+    Mirrors :func:`next_thread`: the cursor is scored even when it is no longer
+    queued, so navigation also works after an action removed the thread.  An
+    unknown cursor, or no ``before_id``, returns ``None``.
+    """
+    if before_id is None:
+        return None
+
+    cursor = _annotate_score(Thread.objects.filter(pk=before_id)).first()
+    if cursor is None:
+        return None
+
+    cursor_score = cast(Any, cursor).score
+    return (
+        queue_queryset()
+        .filter(
+            Q(score__gt=cursor_score)
+            | Q(score=cursor_score, last_seen__gt=cursor.last_seen)
+            | Q(
+                score=cursor_score,
+                last_seen=cursor.last_seen,
+                id__gt=cursor.pk,
+            )
+        )
+        .order_by("score", "last_seen", "id")
+        .first()
+    )
+
+
 def backlog_queryset() -> QuerySet[Place]:
     """Return uncovered places ranked by recent subject-thread activity."""
     cutoff = timezone.now() - timedelta(days=BACKLOG_DAYS)

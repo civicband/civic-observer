@@ -1,0 +1,7 @@
+{% if thread %}
+    <article data-thread="{{ thread.pk }}">
+        <h2>{{ thread.title }}</h2>
+    </article>
+{% else %}
+    <p>No threads to triage.</p>
+{% endif %}
