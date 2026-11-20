@@ -3,8 +3,9 @@
  *
  * Keys only fire outside form controls so typing in the query or snooze
  * fields never triggers an action. Actions reuse the data-action values
- * rendered by the triage card, and navigation falls back to the Previous
- * and Next link labels.
+ * rendered by the triage card, with the Previous and Next link labels kept
+ * as a fallback. Requests are serialized so key repeats cannot race an
+ * in-flight HTMX swap.
  */
 (function () {
   "use strict";
@@ -22,6 +23,8 @@
     "e": "edit_query",
     "c": "copy_citation"
   };
+
+  var inFlight = false;
 
   function triageCard() {
     return document.getElementById("triage-card");
@@ -66,8 +69,9 @@
 
   function submitForm(action) {
     var form = query('form[data-action="' + action + '"]');
-    if (!form) return false;
+    if (!form || inFlight) return false;
 
+    inFlight = true;
     var button = form.querySelector('button[type="submit"]');
     if (typeof form.requestSubmit === "function") {
       form.requestSubmit(button || undefined);
@@ -83,7 +87,8 @@
     var button = query(
       '[data-action="' + action + '"] button[type="submit"]'
     );
-    if (!button) return false;
+    if (!button || inFlight) return false;
+    inFlight = true;
     button.click();
     return true;
   }
@@ -160,8 +165,25 @@
     }
   }
 
+  function clearInFlight() {
+    inFlight = false;
+  }
+
+  ["htmx:afterRequest", "htmx:responseError", "htmx:sendError"].forEach(
+    function (name) {
+      document.addEventListener(name, clearInFlight);
+    }
+  );
+
   document.addEventListener("keydown", function (event) {
-    if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey) {
+    if (
+      event.defaultPrevented ||
+      event.repeat ||
+      event.isComposing ||
+      event.ctrlKey ||
+      event.metaKey ||
+      event.altKey
+    ) {
       return;
     }
     if (shouldIgnore(event)) return;

@@ -272,6 +272,7 @@
             <div class="ml-auto flex items-center gap-2">
                 {% if previous_thread %}
                     <a href="{% url 'watch:triage' %}?thread={{ previous_thread.pk }}"
+                       data-action="previous"
                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
                         Previous
                     </a>
@@ -282,6 +283,7 @@
                 {% endif %}
                 {% if next_thread %}
                     <a href="{% url 'watch:triage' %}?thread={{ next_thread.pk }}"
+                       data-action="next"
                        class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
                         Next
                     </a>
