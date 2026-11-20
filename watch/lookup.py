@@ -347,39 +347,48 @@ def _thumbnail_url(result: dict) -> str:
 def refresh_thread_hits(thread: Thread) -> int:
     """Search every covered subject place and cache its meeting hits.
 
-    Existing hits for each ``(thread, place)`` pair are replaced inside a
-    transaction, so repeated refreshes never leave stale or duplicate rows.
-    Places without a linked Muni are skipped.  Returns the number of hits
-    now stored for ``thread``.
+    Hits for places that are no longer covered subjects are purged, and
+    existing hits for each ``(thread, place)`` pair are replaced, so repeated
+    refreshes never leave stale or duplicate rows.  Searches run before the
+    transaction so a backend failure leaves the cache untouched.  Returns the
+    number of hits now stored for ``thread``.
     """
-    total = 0
-    thread_places = (
+    thread_places = list(
         ThreadPlace.objects.filter(
             thread=thread,
             role=ThreadPlace.Role.SUBJECT,
             place__muni__isnull=False,
         )
-        .select_related("place")
+        .select_related("place__muni")
         .order_by("pk")
     )
+    covered_place_ids = [thread_place.place_id for thread_place in thread_places]
+
+    refreshed: list[tuple[Place, str, list[dict]]] = []
     for thread_place in thread_places:
         place = thread_place.place
         query = build_query(thread, place=place)
-        results = search_place(place, query)
+        refreshed.append((place, query, search_place(place, query)))
 
-        seen: set[str] = set()
-        hits: list[MeetingHit] = []
-        for result in results:
-            page_id = result["id"]
-            if page_id in seen:
-                continue
-            seen.add(page_id)
-            hits.append(result_to_hit(thread, place, query, result))
+    total = 0
+    with transaction.atomic():
+        for place, query, results in refreshed:
+            seen: set[str] = set()
+            hits: list[MeetingHit] = []
+            for result in results:
+                page_id = result["id"]
+                if page_id in seen:
+                    continue
+                seen.add(page_id)
+                hits.append(result_to_hit(thread, place, query, result))
 
-        with transaction.atomic():
             MeetingHit.objects.filter(thread=thread, place=place).delete()
             MeetingHit.objects.bulk_create(hits)
-        total += len(hits)
+            total += len(hits)
+
+        MeetingHit.objects.filter(thread=thread).exclude(
+            place_id__in=covered_place_ids
+        ).delete()
     return total
 
 
