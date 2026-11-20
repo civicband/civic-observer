@@ -1,0 +1,46 @@
+{% load watch_tags %}
+{% if hits %}
+    <div class="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {% for hit in hits %}
+            <article class="flex flex-col rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-800 dark:bg-gray-800"
+                     data-hit="{{ hit.pk }}">
+                <div class="flex items-start justify-between gap-2">
+                    <h5 class="text-sm font-medium text-gray-900 dark:text-gray-100">{{ hit.meeting_name|default:"Untitled meeting" }}</h5>
+                    {% if hit.is_future %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200">Future meeting</span>
+                    {% endif %}
+                </div>
+                <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-gray-500 dark:text-gray-400">
+                    <span>{{ hit.meeting_date|date:"Y-m-d"|default:"—" }}</span>
+                    {% if hit.document_type %}
+                        <span>·</span>
+                        <span>{{ hit.document_type|capfirst }}</span>
+                    {% endif %}
+                </div>
+                {% if hit.snippet %}
+                    <p class="mt-2 text-sm leading-relaxed break-words whitespace-pre-wrap text-gray-700 dark:text-gray-300">{{ hit.snippet }}</p>
+                {% endif %}
+                <div class="mt-auto flex flex-wrap items-center gap-2 pt-3">
+                    {% if hit.civic_band_url %}
+                        <a href="{{ hit.civic_band_url }}"
+                           target="_blank"
+                           rel="noopener noreferrer"
+                           class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                            View page
+                        </a>
+                    {% endif %}
+                    <button type="button"
+                            x-data="{ copied: false }"
+                            @click="navigator.clipboard?.writeText($el.dataset.citation); copied = true"
+                            data-action="copy-citation"
+                            data-citation="{% citation hit %}"
+                            class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                        <span x-text="copied ? 'Copied' : 'Copy citation'">Copy citation</span>
+                    </button>
+                </div>
+            </article>
+        {% endfor %}
+    </div>
+{% else %}
+    <p class="mt-3 text-sm text-gray-500 dark:text-gray-400">No meeting hits yet.</p>
+{% endif %}
