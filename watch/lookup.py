@@ -8,8 +8,16 @@ external NLP service, so the same thread always produces the same query.
 from __future__ import annotations
 
 import re
+from datetime import date, timedelta
+from typing import TYPE_CHECKING
 
+from django.utils import timezone
+
+from searches import search_backends
 from watch.models import Mention, Place, Thread, ThreadPlace
+
+if TYPE_CHECKING:
+    from municipalities.models import Muni
 
 #: Maximum number of unique terms returned by :func:`build_query`.
 MAX_QUERY_TERMS = 25
@@ -260,6 +268,39 @@ def build_query(thread: Thread, *, place: Place | None = None) -> str:
     if not fallback and place is not None:
         fallback = place.name.strip()
     return fallback
+
+
+def search_place(place: Place, query: str, *, limit: int = 5) -> list[dict]:
+    """Return meeting-page results for ``query`` near ``place``.
+
+    Places without a linked :class:`~municipalities.models.Muni` cannot be
+    searched and return an empty list.  Results from the last 365 days are
+    tried first, then the search is retried without a date bound only when
+    that window produced nothing, so older meetings can still match.
+    """
+    if place.muni is None:
+        return []
+
+    date_from = timezone.localdate() - timedelta(days=365)
+    results, _total = _search(query, place.muni, date_from=date_from, limit=limit)
+    if results:
+        return results
+
+    results, _total = _search(query, place.muni, date_from=None, limit=limit)
+    return results
+
+
+def _search(
+    query: str, muni: Muni, *, date_from: date | None, limit: int
+) -> tuple[list[dict], int]:
+    """Run one backend search scoped to ``muni`` and return results and total."""
+    backend = search_backends.get_search_backend()
+    return backend.search_with_cache(
+        query_text=query,
+        municipalities=[muni],
+        date_from=date_from,
+        limit=limit,
+    )
 
 
 def _banned_tokens(mentions: list[Mention], place: Place | None) -> set[str]:
