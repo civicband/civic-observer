@@ -24,7 +24,6 @@ def _results(count=3):
     return [
         {
             "id": f"page-{n}",
-            "rank": 1.0 - n / 10,
             "snippet": "<mark>budget</mark>",
             "meeting_name": "CityCouncil",
             "meeting_date": date(2024, 1, 15),
@@ -74,7 +73,8 @@ def test_result_to_hit_maps_citation_fields(settings):
     assert hit.page_id == "page-0"
     assert hit.query == "budget parks"
     assert hit.query_hash == query_hash("budget parks")
-    assert hit.rank == 1.0
+    # The current backend does not return a rank, so hits store None.
+    assert hit.rank is None
     assert hit.snippet == "<mark>budget</mark>"
     assert hit.meeting_name == "CityCouncil"
     assert hit.meeting_date == date(2024, 1, 15)

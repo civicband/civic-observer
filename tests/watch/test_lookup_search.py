@@ -71,3 +71,14 @@ def test_search_place_without_muni_returns_empty(monkeypatch):
         lambda: pytest.fail("must not search"),
     )
     assert search_place(place, "budget") == []
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("query", ["", "   ", "\t\n"])
+def test_search_place_with_blank_query_returns_empty(monkeypatch, query):
+    place = PlaceWithMuniFactory()
+    monkeypatch.setattr(
+        "searches.search_backends.get_search_backend",
+        lambda: pytest.fail("must not search"),
+    )
+    assert search_place(place, query) == []

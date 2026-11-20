@@ -9,12 +9,13 @@ from django.core.management import CommandError, call_command
 from django.utils import timezone
 
 from tests.factories import (
+    MeetingHitFactory,
     PlaceFactory,
     PlaceWithMuniFactory,
     ThreadFactory,
     ThreadPlaceFactory,
 )
-from watch.models import ThreadPlace
+from watch.models import MeetingHit, ThreadPlace
 
 COMMAND = "watch.management.commands.refresh_watch_hits.refresh_thread_hits"
 
@@ -177,6 +178,40 @@ def test_refresh_command_warns_without_thread_or_all(monkeypatch):
     assert refreshed == []
     assert "--thread" in stderr.getvalue()
     assert "--all" in stderr.getvalue()
+
+
+@pytest.mark.django_db
+def test_refresh_command_rejects_bare_limit(monkeypatch):
+    refreshed = []
+
+    def fake_refresh(thread):
+        refreshed.append(thread.id)
+        return 0
+
+    monkeypatch.setattr(COMMAND, fake_refresh)
+
+    with pytest.raises(CommandError, match="--limit can only be used with --all"):
+        call_command("refresh_watch_hits", "--limit", "1")
+
+    assert refreshed == []
+
+
+@pytest.mark.django_db
+def test_refresh_command_all_purges_hits_for_demoted_thread(monkeypatch):
+    thread = ThreadFactory()
+    thread_place = _covered_subject(thread)
+    MeetingHitFactory(thread=thread, place=thread_place.place, page_id="stale")
+
+    thread_place.role = ThreadPlace.Role.MENTIONED
+    thread_place.save(update_fields=["role"])
+    monkeypatch.setattr(
+        "searches.search_backends.get_search_backend",
+        lambda: pytest.fail("must not search"),
+    )
+
+    call_command("refresh_watch_hits", "--all")
+
+    assert not MeetingHit.objects.filter(thread=thread).exists()
 
 
 @pytest.mark.django_db

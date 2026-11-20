@@ -278,10 +278,13 @@ def search_place(place: Place, query: str, *, limit: int = 5) -> list[dict]:
     """Return meeting-page results for ``query`` near ``place``.
 
     Places without a linked :class:`~municipalities.models.Muni` cannot be
-    searched and return an empty list.  Results from the last 365 days are
-    tried first, then the search is retried without a date bound only when
-    that window produced nothing, so older meetings can still match.
+    searched and return an empty list.  An empty or whitespace-only query also
+    returns an empty list without touching the backend.  Results from the last
+    365 days are tried first, then the search is retried without a date bound
+    only when that window produced nothing, so older meetings can still match.
     """
+    if not query.strip():
+        return []
     if place.muni is None:
         return []
 

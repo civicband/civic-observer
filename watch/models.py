@@ -352,6 +352,8 @@ class MeetingHit(TimeStampedModel):
     )
     query = models.TextField(blank=True)
     query_hash = models.CharField(max_length=64)
+    # Optional: the current civic-observer backend does not return a rank, so
+    # cached hits normally store ``None``.  Kept for backends that supply one.
     rank = models.FloatField(null=True, blank=True)
     snippet = models.TextField(blank=True)
     meeting_name = models.CharField(max_length=255, blank=True)
