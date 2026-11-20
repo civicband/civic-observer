@@ -18,7 +18,7 @@
 - Tests never hit the network. Use small hand-made TSV/CSV/dict fixtures.
 - Manual subreddit overrides always win. A classifier run must never overwrite a `Subreddit` row with `source="manual"`.
 - US-only data model. Canadian municipalities are `Place` rows with `place_type="canadian_city"` and `country="CA"`. Other countries are country rows and `NonUsCity` lookup rows.
-- No migrations against `meetings` or `municipalities`. This milestone adds `watch` tables only.
+- No migrations against `meetings` or `municipalities`. This milestone adds `watch` tables only; `Place.legal_name` is the only column added to an existing watch table.
 - Run `uv run pytest`, `ruff`, and `mypy` before each commit.
 
 ## Review Focus
@@ -130,8 +130,9 @@ git commit -m "feat(watch): add place normalization helpers"
 - Produces:
   - `load_gazetteer(source_dir: Path, *, year: int = 2026) -> dict[str, int]` returning counts keyed `state`, `county`, `cousub`, `place`, `school`.
   - `upsert_place(canonical_key, **fields) -> Place` using `update_or_create`.
-  - `build_aliases(place: Place) -> list[PlaceAlias]` returning unsaved aliases with kinds `name`, `name_state`, `name_state_name`, `name_city`, `name_county`.
-  - `refresh_aliases(place: Place) -> int` replacing generated aliases while preserving `source="manual"` aliases.
+  - `build_aliases(place: Place) -> list[PlaceAlias]` returning unsaved aliases with kinds `name`, `name_state`, `name_state_name`, `name_city`, `name_county`, plus `variant` when `Place.legal_name` differs from `Place.name`.
+  - `refresh_aliases(place: Place) -> int` replacing only `source="gazetteer"` aliases while preserving `manual`, `geonames`, and `wikidata` aliases.
+  - Adds one nullable `Place.legal_name` field through `watch/migrations/0002_place_legal_name.py`; the loader always sets it to the official Gazetteer `NAME`. For the `place` dataset, `Place.name=clean_name(NAME, suffix=LSAD_SUFFIX[LSAD])`; for `county` and `cousub`, `Place.name=NAME` (so `Carson City` and `Baltimore city` survive) and the suffix-stripped form is alias-only.
   - Command options: `--download`, `--source-dir PATH`, `--year 2026`, `--dry-run`.
 
 - [ ] **Step 1: Write the failing loader tests**
@@ -185,7 +186,7 @@ For each file:
 - Read the TSV, skip blank lines, and use `GEOID`, `NAME`, `LSAD`, `INTPTLAT`, `INTPTLONG`, and `USPS` when present.
 - Map `place_type` from `LSAD`: `25` → `city`, `43`/`153` → `town`, `47` → `village`, `57` → `cdp`, `21`/`53` → `city`; default `city`.
 - Map county subdivisions to `county_subdivision`; school files to `school_district`; state files to `state`.
-- Set `Place.name=clean_name(NAME, suffix=LSAD_SUFFIX[LSAD])` and keep `NAME` as a `PlaceAlias` with `kind="variant"`. `LSAD_SUFFIX` maps 25→`city`, 43/153→`town`, 47→`village`, 57→`CDP`, county→`county`, county subdivision→`township`, school districts→`school district`.
+- Always set `Place.legal_name=NAME`. For the `place` dataset, set `Place.name=clean_name(NAME, suffix=LSAD_SUFFIX[LSAD])`; `LSAD_SUFFIX` maps 25→`city`, 43/153→`town`, 47→`village`, 57→`CDP`. For `county` and `cousub`, set `Place.name=NAME` and generate suffix-stripped aliases from `KNOWN_LEGAL_SUFFIXES` (`county`, `parish`, `borough`, `census area`, `municipality`, `city`, `town`, `township`, `village`, `CDP`, `CCD`, `UT`, `city and borough`, `city and county`, `unified government`). Never strip for county/cousub display names.
 - Set `country="US"`, `state` from `USPS` or the first two GEOID digits via `state_from_fips`.
 - Parse `INTPTLAT`/`INTPTLONG` into floats when present.
 - Call `refresh_aliases`.
@@ -316,7 +317,7 @@ git commit -m "feat(watch): load census government unit flags and populations"
 ### Task 4: GeoNames loader, Canadian places, and non-US lookup
 
 **Files:**
-- Modify: `watch/models.py` (add `NonUsCity` and `NonUsCityAlias`), `watch/migrations/0002_nonuscity.py`
+- Modify: `watch/models.py` (add `NonUsCity` and `NonUsCityAlias`), `watch/migrations/0003_nonuscity.py`
 - Modify: `watch/gazetteer.py`
 - Create: `watch/management/commands/load_watch_geonames.py`
 - Test: `tests/watch/test_geonames.py`
