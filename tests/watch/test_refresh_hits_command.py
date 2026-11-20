@@ -45,7 +45,12 @@ def test_refresh_command_accepts_repeated_thread_option(monkeypatch):
     first = ThreadFactory()
     second = ThreadFactory()
     refreshed = []
-    monkeypatch.setattr(COMMAND, lambda t: refreshed.append(t.id) or 0)
+
+    def fake_refresh(thread):
+        refreshed.append(thread.id)
+        return 0
+
+    monkeypatch.setattr(COMMAND, fake_refresh)
 
     call_command(
         "refresh_watch_hits",
@@ -61,7 +66,12 @@ def test_refresh_command_accepts_repeated_thread_option(monkeypatch):
 @pytest.mark.django_db
 def test_refresh_command_reports_missing_thread_and_fails(monkeypatch):
     refreshed = []
-    monkeypatch.setattr(COMMAND, lambda t: refreshed.append(t.id) or 0)
+
+    def fake_refresh(thread):
+        refreshed.append(thread.id)
+        return 0
+
+    monkeypatch.setattr(COMMAND, fake_refresh)
     stderr = StringIO()
 
     with pytest.raises(CommandError, match="No matching threads"):
@@ -79,7 +89,12 @@ def test_refresh_command_reports_missing_thread_and_fails(monkeypatch):
 @pytest.mark.django_db
 def test_refresh_command_reports_malformed_thread_id_and_fails(monkeypatch):
     refreshed = []
-    monkeypatch.setattr(COMMAND, lambda t: refreshed.append(t.id) or 0)
+
+    def fake_refresh(thread):
+        refreshed.append(thread.id)
+        return 0
+
+    monkeypatch.setattr(COMMAND, fake_refresh)
     stderr = StringIO()
 
     with pytest.raises(CommandError, match="No matching threads"):
@@ -95,7 +110,12 @@ def test_refresh_command_refreshes_found_threads_when_some_are_missing(
 ):
     thread = ThreadFactory()
     refreshed = []
-    monkeypatch.setattr(COMMAND, lambda t: refreshed.append(t.id) or 0)
+
+    def fake_refresh(thread):
+        refreshed.append(thread.id)
+        return 0
+
+    monkeypatch.setattr(COMMAND, fake_refresh)
     stderr = StringIO()
 
     call_command(
@@ -128,7 +148,12 @@ def test_refresh_command_refreshes_found_threads_when_some_are_missing(
 )
 def test_refresh_command_rejects_incompatible_options(monkeypatch, args, message):
     refreshed = []
-    monkeypatch.setattr(COMMAND, lambda t: refreshed.append(t.id) or 0)
+
+    def fake_refresh(thread):
+        refreshed.append(thread.id)
+        return 0
+
+    monkeypatch.setattr(COMMAND, fake_refresh)
 
     with pytest.raises(CommandError, match=message):
         call_command("refresh_watch_hits", *args)
@@ -139,7 +164,12 @@ def test_refresh_command_rejects_incompatible_options(monkeypatch, args, message
 @pytest.mark.django_db
 def test_refresh_command_warns_without_thread_or_all(monkeypatch):
     refreshed = []
-    monkeypatch.setattr(COMMAND, lambda t: refreshed.append(t.id) or 0)
+
+    def fake_refresh(thread):
+        refreshed.append(thread.id)
+        return 0
+
+    monkeypatch.setattr(COMMAND, fake_refresh)
     stderr = StringIO()
 
     call_command("refresh_watch_hits", stderr=stderr)
@@ -171,7 +201,12 @@ def test_refresh_command_all_uses_covered_threads_newest_first(monkeypatch):
     )
 
     refreshed = []
-    monkeypatch.setattr(COMMAND, lambda t: refreshed.append(t.id) or 0)
+
+    def fake_refresh(thread):
+        refreshed.append(thread.id)
+        return 0
+
+    monkeypatch.setattr(COMMAND, fake_refresh)
 
     call_command("refresh_watch_hits", "--all")
 
@@ -191,7 +226,12 @@ def test_refresh_command_all_breaks_ties_by_descending_id(monkeypatch):
     _covered_subject(higher)
 
     refreshed = []
-    monkeypatch.setattr(COMMAND, lambda t: refreshed.append(t.id) or 0)
+
+    def fake_refresh(thread):
+        refreshed.append(thread.id)
+        return 0
+
+    monkeypatch.setattr(COMMAND, fake_refresh)
 
     call_command("refresh_watch_hits", "--all")
 
@@ -207,7 +247,12 @@ def test_refresh_command_all_refreshes_thread_with_two_covered_places_once(
     _covered_subject(thread)
 
     refreshed = []
-    monkeypatch.setattr(COMMAND, lambda t: refreshed.append(t.id) or 1)
+
+    def fake_refresh(thread):
+        refreshed.append(thread.id)
+        return 1
+
+    monkeypatch.setattr(COMMAND, fake_refresh)
 
     call_command("refresh_watch_hits", "--all")
 
@@ -225,7 +270,12 @@ def test_refresh_command_all_honours_limit(monkeypatch):
         _covered_subject(thread)
 
     refreshed = []
-    monkeypatch.setattr(COMMAND, lambda t: refreshed.append(t.id) or 0)
+
+    def fake_refresh(thread):
+        refreshed.append(thread.id)
+        return 0
+
+    monkeypatch.setattr(COMMAND, fake_refresh)
 
     call_command("refresh_watch_hits", "--all", "--limit", "2")
 
@@ -250,7 +300,12 @@ def test_refresh_command_all_with_no_covered_threads_prints_summary(
     monkeypatch, capsys
 ):
     refreshed = []
-    monkeypatch.setattr(COMMAND, lambda t: refreshed.append(t.id) or 0)
+
+    def fake_refresh(thread):
+        refreshed.append(thread.id)
+        return 0
+
+    monkeypatch.setattr(COMMAND, fake_refresh)
 
     call_command("refresh_watch_hits", "--all")
 
