@@ -80,7 +80,9 @@ def test_seed_subreddits_resolves_places_and_counties(subreddit_places):
     assert stats["updated"] == 0
     assert stats["unresolved"] > 0
 
-    assert Subreddit.objects.get(name="chicoca").place.name == "Chico"
+    chicoca = Subreddit.objects.get(name="chicoca")
+    assert chicoca.place is not None
+    assert chicoca.place.name == "Chico"
     cecil = Subreddit.objects.get(name="cecilcounty")
     assert cecil.place == subreddit_places["cecil_county"]
     assert cecil.place.place_type == "county"
@@ -136,7 +138,9 @@ def test_seed_keeps_existing_note_when_csv_note_is_blank(subreddit_places):
     row = Subreddit.objects.get(name="sandiego")
     assert row.note == "operator note"
     assert row.kind == "place"
-    assert row.place.name == "San Diego"
+    place = row.place
+    assert place is not None
+    assert place.name == "San Diego"
 
 
 @pytest.mark.django_db
