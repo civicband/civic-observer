@@ -1,3 +1,4 @@
+import uuid
 from datetime import timedelta
 
 import pytest
@@ -64,6 +65,25 @@ def test_queue_annotations_score_components():
 
 
 @pytest.mark.django_db
+def test_queue_is_covered_requires_a_linked_subject_place():
+    uncovered = ThreadFactory()
+    _subject(uncovered, PlaceFactory(muni=None))
+    mentioned = ThreadFactory()
+    ThreadPlace.objects.create(
+        thread=mentioned,
+        place=PlaceWithMuniFactory(),
+        role="mentioned",
+        confidence="high",
+        source="subreddit",
+    )
+
+    threads = {thread.pk: thread for thread in queue_queryset()}
+
+    assert threads[uncovered.pk].is_covered == 0
+    assert threads[mentioned.pk].is_covered == 0
+
+
+@pytest.mark.django_db
 def test_queue_question_from_title():
     thread = ThreadFactory(title="What is happening?")
 
@@ -85,9 +105,37 @@ def test_muted_subreddit_and_country_are_hidden():
     country = SubredditFactory(country="IE")
     MutedCountry.objects.create(code="IE")
     hidden2 = ThreadFactory(subreddit=country)
+    control = ThreadFactory(subreddit=SubredditFactory(country="US"))
 
-    assert hidden not in queue_queryset()
-    assert hidden2 not in queue_queryset()
+    queued = set(queue_queryset())
+
+    assert hidden not in queued
+    assert hidden2 not in queued
+    assert control in queued
+
+
+@pytest.mark.django_db
+def test_queue_country_mute_uses_subreddit_country_before_place_country():
+    MutedCountry.objects.create(code="IE")
+    muted_explicit = ThreadFactory(
+        subreddit=SubredditFactory(country="IE", place=PlaceFactory(country="US"))
+    )
+    allowed_explicit = ThreadFactory(
+        subreddit=SubredditFactory(country="US", place=PlaceFactory(country="IE"))
+    )
+    muted_fallback = ThreadFactory(
+        subreddit=SubredditFactory(country=None, place=PlaceFactory(country="IE"))
+    )
+    muted_empty_fallback = ThreadFactory(
+        subreddit=SubredditFactory(country="", place=PlaceFactory(country="IE"))
+    )
+
+    queued = set(queue_queryset())
+
+    assert muted_explicit not in queued
+    assert allowed_explicit in queued
+    assert muted_fallback not in queued
+    assert muted_empty_fallback not in queued
 
 
 @pytest.mark.django_db
@@ -140,17 +188,57 @@ def test_next_thread_walks_the_queue():
 
 
 @pytest.mark.django_db
-def test_next_thread_ignores_threads_outside_the_queue():
-    only = ThreadFactory(last_seen=timezone.now())
-    dismissed = ThreadFactory(status=Thread.Status.DISMISSED)
+def test_next_thread_after_a_replied_thread_moves_on():
+    top = ThreadFactory(last_seen=timezone.now(), mention_count=5)
+    second = ThreadFactory(last_seen=timezone.now(), mention_count=2)
+    top.status = Thread.Status.REPLIED
+    top.save()
 
-    assert next_thread(after_id=dismissed.pk) == only
-    assert next_thread(after_id=dismissed.pk) == next_thread()
+    assert next_thread(after_id=top.pk) == second
+
+
+@pytest.mark.django_db
+def test_next_thread_after_a_dismissed_thread_moves_on():
+    top = ThreadFactory(last_seen=timezone.now(), mention_count=5)
+    second = ThreadFactory(last_seen=timezone.now(), mention_count=2)
+    top.status = Thread.Status.DISMISSED
+    top.save()
+
+    assert next_thread(after_id=top.pk) == second
+
+
+@pytest.mark.django_db
+def test_next_thread_returns_head_for_an_unknown_cursor():
+    only = ThreadFactory(last_seen=timezone.now())
+
+    assert next_thread(after_id=uuid.uuid4()) == only
 
 
 @pytest.mark.django_db
 def test_next_thread_is_none_for_an_empty_queue():
     assert next_thread() is None
+
+
+@pytest.mark.django_db
+def test_queue_orders_identical_scores_by_id_descending():
+    same_seen = timezone.now()
+    threads = [ThreadFactory(last_seen=same_seen) for _ in range(3)]
+
+    ordered = [thread.pk for thread in queue_queryset()]
+
+    assert ordered == sorted((thread.pk for thread in threads), reverse=True)
+
+
+@pytest.mark.django_db
+def test_next_thread_follows_identical_score_order():
+    same_seen = timezone.now()
+    for _ in range(3):
+        ThreadFactory(last_seen=same_seen)
+    ordered = list(queue_queryset())
+
+    assert next_thread(after_id=ordered[0].pk) == ordered[1]
+    assert next_thread(after_id=ordered[1].pk) == ordered[2]
+    assert next_thread(after_id=ordered[2].pk) is None
 
 
 @pytest.mark.django_db
@@ -179,11 +267,44 @@ def test_backlog_ignores_non_subject_and_stale_threads():
 
 
 @pytest.mark.django_db
+def test_backlog_includes_29_day_threads_and_excludes_31_day_threads():
+    recent = PlaceFactory(name="Recent", muni=None)
+    stale = PlaceFactory(name="Stale", muni=None)
+    _subject(ThreadFactory(last_seen=timezone.now() - timedelta(days=29)), recent)
+    _subject(ThreadFactory(last_seen=timezone.now() - timedelta(days=31)), stale)
+
+    assert list(backlog_queryset()) == [recent]
+
+
+@pytest.mark.django_db
 def test_backlog_ignores_muted_subreddits():
     place = PlaceFactory(name="Nowhere", muni=None)
     _subject(ThreadFactory(subreddit=SubredditFactory(muted=True)), place)
 
     assert place not in backlog_queryset()
+
+
+@pytest.mark.django_db
+def test_backlog_country_mute_uses_subreddit_country_before_place_country():
+    MutedCountry.objects.create(code="IE")
+    muted_explicit = PlaceFactory(name="Muted explicit", muni=None)
+    _subject(ThreadFactory(subreddit=SubredditFactory(country="IE")), muted_explicit)
+    allowed_explicit = PlaceFactory(name="Allowed explicit", muni=None)
+    _subject(
+        ThreadFactory(
+            subreddit=SubredditFactory(country="US", place=PlaceFactory(country="IE"))
+        ),
+        allowed_explicit,
+    )
+    muted_fallback = PlaceFactory(name="Muted fallback", muni=None)
+    _subject(
+        ThreadFactory(
+            subreddit=SubredditFactory(country=None, place=PlaceFactory(country="IE"))
+        ),
+        muted_fallback,
+    )
+
+    assert list(backlog_queryset()) == [allowed_explicit]
 
 
 @pytest.mark.django_db
@@ -203,6 +324,23 @@ def test_backlog_ranks_by_distinct_threads_then_subreddits_then_population():
 
 
 @pytest.mark.django_db
+def test_backlog_distinct_subreddits_breaks_thread_count_ties():
+    wider = PlaceFactory(name="Wider", muni=None, population=100)
+    narrower = PlaceFactory(name="Narrower", muni=None, population=100000)
+    _subject(ThreadFactory(subreddit=SubredditFactory()), wider)
+    _subject(ThreadFactory(subreddit=SubredditFactory()), wider)
+    shared = SubredditFactory()
+    _subject(ThreadFactory(subreddit=shared), narrower)
+    _subject(ThreadFactory(subreddit=shared), narrower)
+
+    places = list(backlog_queryset())
+
+    assert places == [wider, narrower]
+    assert [place.subject_threads for place in places] == [2, 2]
+    assert [place.subject_subreddits for place in places] == [2, 1]
+
+
+@pytest.mark.django_db
 def test_backlog_population_breaks_ties():
     small = PlaceFactory(name="Small", muni=None, population=100)
     large = PlaceFactory(name="Large", muni=None, population=100000)
@@ -213,8 +351,19 @@ def test_backlog_population_breaks_ties():
 
 
 @pytest.mark.django_db
-def test_thread_country_prefers_subreddit_country():
-    thread = ThreadFactory(subreddit=SubredditFactory(country="IE"))
+def test_backlog_unknown_population_sorts_last():
+    known = PlaceFactory(name="Known", muni=None, population=1000)
+    unknown = PlaceFactory(name="Unknown", muni=None, population=None)
+    _subject(ThreadFactory(), known)
+    _subject(ThreadFactory(), unknown)
+
+    assert list(backlog_queryset()) == [known, unknown]
+
+
+@pytest.mark.django_db
+def test_thread_country_prefers_subreddit_country_over_place_country():
+    place = PlaceFactory(country="US")
+    thread = ThreadFactory(subreddit=SubredditFactory(country="IE", place=place))
 
     assert thread_country(thread) == "IE"
 

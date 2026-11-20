@@ -64,16 +64,29 @@ def _muted_country_codes():
     return MutedCountry.objects.values("code")
 
 
-def queue_queryset() -> QuerySet[Thread]:
-    """Return threads ready for triage, ranked by urgency.
+def _country_allowed_q(prefix: str) -> Q:
+    """Return a condition matching threads not muted by country.
 
-    New threads and snoozed threads whose snooze has elapsed are eligible.
-    Threads from muted subreddits or muted countries are hidden.  Annotates
-    ``is_covered``, ``is_recent``, ``has_question`` and ``score``.
+    The subreddit's explicit ``country`` wins, matching
+    :func:`thread_country`.  Only when it is empty or null does the linked
+    place's country decide whether the thread is muted.
     """
-    now = timezone.now()
+    country = f"{prefix}__country"
+    place_country = f"{prefix}__place__country"
     muted_countries = _muted_country_codes()
 
+    has_country = Q(**{f"{country}__isnull": False}) & ~Q(**{country: ""})
+    option = Q(**{f"{place_country}__isnull": True}) | ~Q(
+        **{f"{place_country}__in": muted_countries}
+    )
+    return (has_country & ~Q(**{f"{country}__in": muted_countries})) | (
+        ~has_country & option
+    )
+
+
+def _annotate_score(queryset: QuerySet[Thread], now=None) -> QuerySet[Thread]:
+    """Annotate ``Thread`` rows with the queue score components."""
+    now = now or timezone.now()
     covered = Exists(
         ThreadPlace.objects.filter(
             thread=OuterRef("pk"),
@@ -87,60 +100,72 @@ def queue_queryset() -> QuerySet[Thread]:
     )
     asks_question = Q(title__contains="?") | question_snippet
 
-    queryset = (
+    return queryset.annotate(
+        is_covered=_choice_int(covered),
+        is_recent=_choice_int(Q(last_seen__gte=recent_cutoff)),
+        has_question=_choice_int(asks_question),
+    ).annotate(
+        score=ExpressionWrapper(
+            F("is_covered") * COVERED_WEIGHT
+            + F("is_recent") * RECENT_WEIGHT
+            + F("has_question") * QUESTION_WEIGHT
+            + Least(F("mention_count"), Value(MENTION_CAP)),
+            output_field=IntegerField(),
+        )
+    )
+
+
+def queue_queryset() -> QuerySet[Thread]:
+    """Return threads ready for triage, ranked by urgency.
+
+    New threads and snoozed threads whose snooze has elapsed are eligible.
+    Threads from muted subreddits or muted countries are hidden.  Annotates
+    ``is_covered``, ``is_recent``, ``has_question`` and ``score``.
+    """
+    now = timezone.now()
+    eligible = (
         Thread.objects.filter(
             Q(status=Thread.Status.NEW)
             | Q(status=Thread.Status.SNOOZED, snoozed_until__lte=now)
         )
         .filter(Q(subreddit__isnull=True) | Q(subreddit__muted=False))
-        .filter(
-            Q(subreddit__country__isnull=True)
-            | ~Q(subreddit__country__in=muted_countries)
-        )
-        .annotate(
-            is_covered=_choice_int(covered),
-            is_recent=_choice_int(Q(last_seen__gte=recent_cutoff)),
-            has_question=_choice_int(asks_question),
-        )
-        .annotate(
-            score=ExpressionWrapper(
-                F("is_covered") * COVERED_WEIGHT
-                + F("is_recent") * RECENT_WEIGHT
-                + F("has_question") * QUESTION_WEIGHT
-                + Least(F("mention_count"), Value(MENTION_CAP)),
-                output_field=IntegerField(),
-            )
-        )
-        .order_by("-score", "-last_seen")
+        .filter(_country_allowed_q("subreddit"))
     )
-    return queryset
+    return _annotate_score(eligible, now=now).order_by("-score", "-last_seen", "-id")
 
 
 def next_thread(after_id: uuid.UUID | None = None) -> Thread | None:
     """Return the first queued thread, or the one following ``after_id``.
 
-    If ``after_id`` is not in the queue, the first queued thread is returned
-    so navigation always lands somewhere useful.
+    The cursor is scored even when it is no longer queued, because actions
+    such as replying or dismissing remove it before the next page is
+    requested.  If the cursor id does not exist, the head of the queue is
+    returned so navigation always lands somewhere useful.
     """
     queryset = queue_queryset()
     if after_id is None:
         return queryset.first()
 
-    current = queryset.filter(pk=after_id).first()
-    if current is None:
+    cursor = _annotate_score(Thread.objects.filter(pk=after_id)).first()
+    if cursor is None:
         return queryset.first()
 
-    current_score = cast(Any, current).score
+    cursor_score = cast(Any, cursor).score
     return queryset.filter(
-        Q(score__lt=current_score)
-        | Q(score=current_score, last_seen__lt=current.last_seen)
+        Q(score__lt=cursor_score)
+        | Q(score=cursor_score, last_seen__lt=cursor.last_seen)
+        | Q(
+            score=cursor_score,
+            last_seen=cursor.last_seen,
+            id__lt=cursor.pk,
+        )
     ).first()
 
 
 def backlog_queryset() -> QuerySet[Place]:
     """Return uncovered places ranked by recent subject-thread activity."""
     cutoff = timezone.now() - timedelta(days=BACKLOG_DAYS)
-    muted_countries = _muted_country_codes()
+    prefix = "thread_places__thread__subreddit"
 
     active_thread = (
         Q(thread_places__role=ThreadPlace.Role.SUBJECT)
@@ -149,10 +174,7 @@ def backlog_queryset() -> QuerySet[Place]:
             Q(thread_places__thread__subreddit__isnull=True)
             | Q(thread_places__thread__subreddit__muted=False)
         )
-        & (
-            Q(thread_places__thread__subreddit__country__isnull=True)
-            | ~Q(thread_places__thread__subreddit__country__in=muted_countries)
-        )
+        & _country_allowed_q(prefix)
     )
 
     return (
@@ -168,7 +190,11 @@ def backlog_queryset() -> QuerySet[Place]:
             ),
         )
         .filter(subject_threads__gt=0)
-        .order_by("-subject_threads", "-subject_subreddits", "-population")
+        .order_by(
+            "-subject_threads",
+            "-subject_subreddits",
+            F("population").desc(nulls_last=True),
+        )
     )
 
 
