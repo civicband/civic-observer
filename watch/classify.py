@@ -40,14 +40,34 @@ REGIONS: dict[str, tuple[str | None, str]] = {
 #: The most populous candidate must be this many times the runner-up.
 AMBIGUITY_RATIO = 10
 
-#: Normalized state abbreviation and full name keys. Built once at import so
-#: classification never queries the database for a state name.
+#: A non-US city must have at least this population to override a US alias.
+NON_US_MIN_POPULATION = 15000
+
+#: Normalized full state names. Abbreviations are deliberately excluded: a
+#: bare ``ca`` is not evidence that a subreddit is about California.
 STATE_KEYS: tuple[tuple[str, str], ...] = tuple(
-    (normalize_key(value), code)
-    for code, name in STATE_NAMES.items()
-    for value in (code, name)
+    (normalize_key(name), code) for code, name in STATE_NAMES.items()
 )
 _STATE_LOOKUP: dict[str, str] = dict(STATE_KEYS)
+
+#: Hand-reviewed state shorthand that does not contain a full state name.
+STATE_HINTS: dict[str, str] = {
+    "alldayarizona": "AZ",
+    "desertstatestuff": "AZ",
+    "oregonorbegone": "OR",
+    "texas50501": "TX",
+}
+
+#: Normalized country and province names that make a subreddit non-US.
+COUNTRY_HINTS: tuple[tuple[str, str], ...] = (
+    ("ireland", "IE"),
+    ("unitedkingdom", "GB"),
+    ("australia", "AU"),
+    ("newzealand", "NZ"),
+    ("canada", "CA"),
+    ("ontario", "CA"),
+    ("aussie", "AU"),
+)
 
 
 @dataclass(frozen=True)
@@ -78,6 +98,16 @@ def classify_subreddit(name: str, *, use_manual: bool = True) -> Classification:
     if not key:
         return _general()
 
+    # Strong non-place guards run before any place alias: a state or region
+    # name, and a sizable non-US city that dwarfs any US namesake.
+    match = _state_or_region(key, Subreddit.Confidence.HIGH)
+    if match is not None:
+        return match
+
+    match = _non_us_override(key)
+    if match is not None:
+        return match
+
     place, ambiguous = _alias_place(key)
     if place is not None:
         return _place_classification(place, Subreddit.Confidence.MEDIUM)
@@ -85,21 +115,23 @@ def classify_subreddit(name: str, *, use_manual: bool = True) -> Classification:
         return _ambiguous(Subreddit.Confidence.LOW)
 
     for stripped in _stripped_keys(key):
+        # Within the stripped layer, state and region names also win over a
+        # same-named place: ``oregontalk`` is Oregon, not Oregon, Ohio.
+        match = _state_or_region(stripped, Subreddit.Confidence.LOW)
+        if match is not None:
+            return match
+
+        match = _non_us_override(stripped, Subreddit.Confidence.LOW)
+        if match is not None:
+            return match
+
         place, ambiguous = _alias_place(stripped)
         if place is not None:
             return _place_classification(place, Subreddit.Confidence.LOW)
         if ambiguous:
             return _ambiguous(Subreddit.Confidence.LOW)
 
-        match = _state_or_region(stripped, Subreddit.Confidence.LOW)
-        if match is not None:
-            return match
-
-        match = _non_us_city(stripped, Subreddit.Confidence.LOW)
-        if match is not None:
-            return match
-
-    match = _state_or_region(key, Subreddit.Confidence.HIGH)
+    match = _state_hint(key)
     if match is not None:
         return match
 
@@ -164,10 +196,8 @@ def classify_pending_subreddits(
 
     Returns counts of rows checked, changed, and left unchanged.
     """
-    queryset = Subreddit.objects.all()
-    if reclassify:
-        queryset = queryset.exclude(source=Subreddit.Source.MANUAL)
-    else:
+    queryset = Subreddit.objects.exclude(source=Subreddit.Source.MANUAL)
+    if not reclassify:
         queryset = queryset.filter(reviewed_at__isnull=True)
     queryset = queryset.order_by("name")
     if limit is not None:
@@ -306,29 +336,119 @@ def _state_or_region(key: str, confidence: str) -> Classification | None:
     return None
 
 
+def _state_hint(key: str) -> Classification | None:
+    """Return a hand-reviewed state classification for a shorthand key."""
+    code = STATE_HINTS.get(key)
+    if code is None:
+        return None
+    return Classification(
+        kind=Subreddit.Kind.STATE,
+        place=None,
+        state=code,
+        country=None,
+        confidence=Subreddit.Confidence.LOW,
+        source=Subreddit.Source.GAZETTEER,
+    )
+
+
+def _non_us_override(
+    key: str, confidence: str = Subreddit.Confidence.MEDIUM
+) -> Classification | None:
+    """Return a non-US classification when a sizable city dwarfs its US alias.
+
+    The override is intentionally narrow: it only fires for an exact non-US
+    city alias with at least :data:`NON_US_MIN_POPULATION` people, and only
+    when any US place sharing the key is absent or less than a tenth the size.
+    """
+    alias = _best_non_us_alias(key)
+    if alias is None:
+        return None
+
+    city = alias.city
+    if city.population < NON_US_MIN_POPULATION:
+        return None
+
+    if str(city.country) == "CA":
+        place, ambiguous = _canadian_place(alias.key, city)
+        if place is not None:
+            return _place_classification(place, confidence)
+        if ambiguous:
+            return _ambiguous(confidence)
+    else:
+        us_population = _best_us_alias_population(key)
+        if us_population is not None and (
+            us_population >= city.population / AMBIGUITY_RATIO
+        ):
+            return None
+
+    return _non_us_classification(city, confidence)
+
+
 def _non_us_city(key: str, confidence: str) -> Classification | None:
-    """Return a classification for a non-US city alias.
+    """Return a classification for a non-US city alias or country hint.
 
     Canadian cities that also exist as gazetteer places resolve to the place;
     other cities stay ``non_us`` with their country code.
     """
-    alias = (
+    alias = _best_non_us_alias(key) or _contained_non_us_alias(key)
+    if alias is not None:
+        city = alias.city
+        if str(city.country) == "CA":
+            place, ambiguous = _canadian_place(alias.key, city)
+            if place is not None:
+                return _place_classification(place, confidence)
+            if ambiguous:
+                return _ambiguous(confidence)
+        return _non_us_classification(city, confidence)
+
+    country = _country_hint(key)
+    if country is not None:
+        return Classification(
+            kind=Subreddit.Kind.NON_US,
+            place=None,
+            state="",
+            country=country,
+            confidence=confidence,
+            source=Subreddit.Source.GAZETTEER,
+        )
+    return None
+
+
+def _best_non_us_alias(key: str) -> NonUsCityAlias | None:
+    """Return the most populous non-US city alias matching ``key`` exactly."""
+    return (
         NonUsCityAlias.objects.filter(key=key)
         .select_related("city")
         .order_by("-city__population", "city__name")
         .first()
     )
-    if alias is None:
+
+
+def _contained_non_us_alias(key: str) -> NonUsCityAlias | None:
+    """Return a non-US city alias embedded as a prefix or suffix of ``key``."""
+    candidates = {key[index:] for index in range(1, max(1, len(key) - 4))}
+    candidates |= {key[:index] for index in range(5, len(key))}
+    if not candidates:
         return None
 
-    city = alias.city
-    if str(city.country) == "CA":
-        place, ambiguous = _canadian_place(key, city)
-        if place is not None:
-            return _place_classification(place, confidence)
-        if ambiguous:
-            return _ambiguous(confidence)
+    aliases = (
+        NonUsCityAlias.objects.filter(key__in=candidates)
+        .select_related("city")
+        .order_by("-city__population", "city__name")
+    )
+    return aliases.first()
 
+
+def _country_hint(key: str) -> str | None:
+    """Return a country code named somewhere in the subreddit key."""
+    for hint, code in COUNTRY_HINTS:
+        if hint in key:
+            return code
+    return None
+
+
+def _non_us_classification(city: NonUsCity, confidence: str) -> Classification:
+    """Return a ``non_us`` classification for ``city``."""
     return Classification(
         kind=Subreddit.Kind.NON_US,
         place=None,
@@ -337,6 +457,18 @@ def _non_us_city(key: str, confidence: str) -> Classification | None:
         confidence=confidence,
         source=Subreddit.Source.GAZETTEER,
     )
+
+
+def _best_us_alias_population(key: str) -> int | None:
+    """Return the largest US place population sharing ``key``, if any."""
+    populations = PlaceAlias.objects.filter(key=key, place__country="US").values_list(
+        "place__population", flat=True
+    )
+    best: int | None = None
+    for population in populations:
+        value = population or 0
+        best = value if best is None else max(best, value)
+    return best
 
 
 def _canadian_place(key: str, city: NonUsCity) -> tuple[Place | None, bool]:

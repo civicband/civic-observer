@@ -8,9 +8,38 @@ non-US city lookup rows needed by the hand-reviewed labels.
 
 from __future__ import annotations
 
+import csv
+from pathlib import Path
+
 from watch.gazetteer import refresh_aliases
 from watch.models import NonUsCity, NonUsCityAlias, Place, PlaceAlias
 from watch.normalize import normalize_key
+
+SUBREDDITS_CSV = (
+    Path(__file__).resolve().parents[3] / "watch" / "data" / "subreddits.csv"
+)
+
+#: Rows whose hand label cannot be recovered from the generated gazetteer
+#: aliases, or whose real populations make the place genuinely ambiguous.
+AMBIGUOUS_ROWS: frozenset[str] = frozenset(
+    {"glendale", "sfv", "westseattlewa", "bullcity", "portland"}
+)
+
+#: Country expected for each non-US hand label.
+NON_US_COUNTRIES: dict[str, str] = {
+    "irelandtransport": "IE",
+    "loveBelfast": "GB",
+    "galway": "IE",
+    "housingireland": "IE",
+    "brisbane": "AU",
+    "aussiememes": "AU",
+    "auckland": "NZ",
+    "brum": "GB",
+    "theunitedkingdomnews": "GB",
+    "kingstonontario": "CA",
+    "vancouverlandlords": "CA",
+}
+
 
 #: ``(canonical_key, name, state, population)`` for settlement rows.
 _CITIES: tuple[tuple[str, str, str, int], ...] = (
@@ -37,12 +66,19 @@ _CITIES: tuple[tuple[str, str, str, int], ...] = (
     ("us:place:0620910", "East Palo Alto", "CA", 30099),
     ("us:place:0630000", "Glendale", "CA", 196543),
     ("us:place:0427824", "Glendale", "AZ", 248325),
+    ("us:place:2360545", "Portland", "ME", 68408),
+    ("us:place:0608352", "Brisbane", "CA", 4270),
+    ("us:place:3628073", "Galway", "NY", 200),
+    ("us:place:3957738", "Oregon", "OH", 20291),
+    ("us:place:5559900", "Oregon", "WI", 9531),
+    ("us:place:1756486", "Oregon", "IL", 3600),
+    ("us:place:4213200", "Chester", "PA", 32605),
 )
 
-#: ``(canonical_key, name, state)`` for county rows.
-_COUNTIES: tuple[tuple[str, str, str], ...] = (
-    ("us:county:24015", "Cecil County", "MD"),
-    ("us:county:42029", "Chester County", "PA"),
+#: ``(canonical_key, name, state, population)`` for county rows.
+_COUNTIES: tuple[tuple[str, str, str, int], ...] = (
+    ("us:county:24015", "Cecil County", "MD", 103725),
+    ("us:county:42029", "Chester County", "PA", 534413),
 )
 
 #: ``(geoname_id, name, country, admin1, population)`` for non-US cities.
@@ -52,6 +88,9 @@ _NON_US_CITIES: tuple[tuple[int, str, str, str, int], ...] = (
     (2655984, "Belfast", "GB", "NIR", 333871),
     (2193733, "Auckland", "NZ", "AUK", 417910),
     (6173331, "Vancouver", "CA", "BC", 662248),
+    (2174003, "Brisbane", "AU", "QLD", 2560720),
+    (2964180, "Galway", "IE", "C", 85400),
+    (2655603, "Birmingham", "GB", "ENG", 1144919),
 )
 
 #: Extra manual nickname alias used by ``developmentslc``.
@@ -93,12 +132,13 @@ def create_classifier_places() -> dict[str, Place | None]:
         by_name[(name, state)] = _make_place(
             canonical_key, name, state, population=population
         )
-    for canonical_key, name, state in _COUNTIES:
+    for canonical_key, name, state, population in _COUNTIES:
         by_name[(name, state)] = _make_place(
             canonical_key,
             name,
             state,
             place_type=Place.PlaceType.COUNTY,
+            population=population,
         )
 
     vancouver = _make_place(
@@ -135,6 +175,10 @@ def create_classifier_places() -> dict[str, Place | None]:
         city=NonUsCity.objects.get(name="Vancouver"),
         key="vancity",
     )
+    NonUsCityAlias.objects.create(
+        city=NonUsCity.objects.get(name="Birmingham"),
+        key="brum",
+    )
 
     return {
         "sandiego": by_name[("San Diego", "CA")],
@@ -145,7 +189,8 @@ def create_classifier_places() -> dict[str, Place | None]:
         "developmentslc": by_name[("Salt Lake City", "UT")],
         "buffalo": by_name[("Buffalo", "NY")],
         "santaana": by_name[("Santa Ana", "CA")],
-        "portland": by_name[("Portland", "OR")],
+        # Portland ME makes the real OR/ME ratio just under 10x.
+        "portland": None,
         "palmsprings": by_name[("Palm Springs", "CA")],
         "butte": by_name[("Butte", "MT")],
         "lacrossewi": by_name[("La Crosse", "WI")],
@@ -169,3 +214,35 @@ def create_classifier_places() -> dict[str, Place | None]:
         "cecilcounty": by_name[("Cecil County", "MD")],
         "vancouver": vancouver,
     }
+
+
+def create_classifier_labels(
+    places: dict[str, Place | None],
+) -> dict[str, dict[str, object]]:
+    """Return an expectation for every row in the hand-label CSV.
+
+    The kind and state columns come from the CSV; place rows use the fixture
+    place map, and the explicit ambiguous set records rows the gazetteer
+    cannot resolve without operator data.
+    """
+    with SUBREDDITS_CSV.open(newline="") as handle:
+        rows = list(csv.DictReader(handle))
+
+    labels: dict[str, dict[str, object]] = {}
+    for row in rows:
+        name = row["subreddit"]
+        kind = row["kind"]
+        if kind == "place":
+            if name in AMBIGUOUS_ROWS:
+                labels[name] = {"kind": "ambiguous", "place": None}
+            else:
+                labels[name] = {"kind": "place", "place": places[name]}
+        elif kind == "state":
+            labels[name] = {"kind": "state", "state": row["state"]}
+        elif kind == "region":
+            labels[name] = {"kind": "region", "state": row["state"] or ""}
+        elif kind == "non_us":
+            labels[name] = {"kind": "non_us", "country": NON_US_COUNTRIES[name]}
+        else:
+            labels[name] = {"kind": "general"}
+    return labels
