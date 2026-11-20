@@ -1,0 +1,75 @@
+{
+  "head": {
+    "vars": [
+      "item",
+      "itemLabel",
+      "subreddit",
+      "geonamesId",
+      "stateLabel",
+      "countryLabel"
+    ]
+  },
+  "results": {
+    "bindings": [
+      {
+        "item": {
+          "type": "uri",
+          "value": "http://www.wikidata.org/entity/Q1985293"
+        },
+        "itemLabel": {"type": "literal", "value": "Durham"},
+        "subreddit": {"type": "literal", "value": "bullcity"},
+        "geonamesId": {"type": "literal", "value": "4464368"},
+        "stateLabel": {"type": "literal", "value": "North Carolina"},
+        "countryLabel": {
+          "type": "literal",
+          "value": "United States of America"
+        }
+      },
+      {
+        "item": {
+          "type": "uri",
+          "value": "http://www.wikidata.org/entity/Q671619"
+        },
+        "itemLabel": {"type": "literal", "value": "Chapel Hill"},
+        "subreddit": {"type": "literal", "value": "r/chapelhill"},
+        "geonamesId": {"type": "literal", "value": "4460162"},
+        "stateLabel": {"type": "literal", "value": "North Carolina"},
+        "countryLabel": {
+          "type": "literal",
+          "value": "United States of America"
+        }
+      },
+      {
+        "item": {
+          "type": "uri",
+          "value": "http://www.wikidata.org/entity/Q1985293"
+        },
+        "itemLabel": {"type": "literal", "value": "Durham"},
+        "subreddit": {"type": "literal", "value": "r/durham"},
+        "geonamesId": {"type": "literal", "value": "4464368"}
+      },
+      {
+        "item": {
+          "type": "uri",
+          "value": "http://www.wikidata.org/entity/Q999999"
+        },
+        "itemLabel": {"type": "literal", "value": "Atlantis"},
+        "subreddit": {"type": "literal", "value": "r/nowhere"},
+        "stateLabel": {"type": "literal", "value": "North Carolina"}
+      },
+      {
+        "item": {
+          "type": "uri",
+          "value": "http://www.wikidata.org/entity/Q671619"
+        },
+        "itemLabel": {"type": "literal", "value": "Chapel Hill"},
+        "subreddit": {"type": "literal", "value": "r/manualplace"},
+        "stateLabel": {"type": "literal", "value": "North Carolina"},
+        "countryLabel": {
+          "type": "literal",
+          "value": "United States of America"
+        }
+      }
+    ]
+  }
+}
