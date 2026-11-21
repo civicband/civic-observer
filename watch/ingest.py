@@ -85,6 +85,34 @@ def group_crosspost(thread: Thread) -> Thread | None:
     return None
 
 
+def _normalize_mention_text(text: str) -> str:
+    return " ".join((text or "").lower().split())
+
+
+def is_duplicate_mention(row: dict, thread: Thread) -> bool:
+    """Return true when ``row`` repeats an author's text inside ``thread``.
+
+    Anonymous posts and empty text carry no identity to compare, so they are
+    never collapsed.
+    """
+    author = _normalize_mention_text(row.get("author") or "")
+    text = _normalize_mention_text(row.get("snippet_text") or "")
+    if not author or not text:
+        return False
+    return any(
+        _normalize_mention_text(mention.author) == author
+        and _normalize_mention_text(mention.snippet_text) == text
+        for mention in thread.mentions.all()
+    )
+
+
+class _DuplicateMention:
+    """Marker returned when a row repeats an existing mention in its thread."""
+
+
+_DUPLICATE_MENTION = _DuplicateMention()
+
+
 @dataclass(frozen=True)
 class IngestStats:
     pages: int
@@ -247,6 +275,10 @@ def _ingest_page(
             skipped += 1
             continue
         page_ids.add(row["id"])
+        if isinstance(stored_thread_id, _DuplicateMention):
+            logger.debug("Collapsed duplicate mention %s", row["id"])
+            skipped += 1
+            continue
         if stored_thread_id is None:
             seen += 1
             continue
@@ -258,7 +290,9 @@ def _ingest_page(
 
 
 @transaction.atomic
-def _store_item(item: dict, row: dict, published_at: datetime | None) -> str | None:
+def _store_item(
+    item: dict, row: dict, published_at: datetime | None
+) -> str | None | _DuplicateMention:
     if Mention.objects.filter(pk=row["id"]).exists():
         return None
     observed_at = published_at or timezone.now()
@@ -285,6 +319,8 @@ def _store_item(item: dict, row: dict, published_at: datetime | None) -> str | N
     thread = Thread.objects.select_for_update().get(pk=thread.pk)
     if Mention.objects.filter(pk=row["id"]).exists():
         return None
+    if is_duplicate_mention(row, thread):
+        return _DUPLICATE_MENTION
 
     Mention.objects.create(
         id=row["id"],
