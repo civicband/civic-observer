@@ -124,19 +124,43 @@ def test_weekly_summary_names_first_place_by_name_or_no_place(settings):
 
 
 @pytest.mark.django_db
+def test_weekly_summary_replied_list_filters_status_and_window(settings):
+    settings.WATCH_SUMMARY_EMAIL = ["ops@example.com"]
+    recent = ThreadFactory(title="Recent replied thread", status="replied")
+    dismissed = ThreadFactory(title="Recent dismissed thread", status="dismissed")
+    old = ThreadFactory(title="Old replied thread", status="replied")
+    _age_thread(old, days=10)
+
+    call_command("watch_weekly_summary")
+
+    body = mail.outbox[0].body
+    recent_link = f"/triage/?thread={recent.pk}"
+    assert body.count(recent_link) == 1
+    assert body.count("Recent replied thread") == 1
+    assert f"/triage/?thread={dismissed.pk}" not in body
+    assert "Recent dismissed thread" not in body
+    assert f"/triage/?thread={old.pk}" not in body
+    assert "Old replied thread" not in body
+
+
+@pytest.mark.django_db
 def test_weekly_summary_prefetches_thread_places(
     settings, django_assert_max_num_queries
 ):
     settings.WATCH_SUMMARY_EMAIL = ["ops@example.com"]
     place = PlaceFactory(name="Springfield", muni=None)
+    mentioned = PlaceFactory(name="Shelbyville", muni=None)
     for index in range(10):
         thread = ThreadFactory(title=f"Thread {index}", status="replied")
         ThreadPlaceFactory(thread=thread, place=place, role="subject")
+        ThreadPlaceFactory(thread=thread, place=mentioned, role="mentioned")
 
     with django_assert_max_num_queries(8):
         call_command("watch_weekly_summary")
 
-    assert "Place: Springfield" in mail.outbox[0].body
+    body = mail.outbox[0].body
+    assert "Place: Springfield" in body
+    assert "Shelbyville" not in body
 
 
 @pytest.mark.django_db
@@ -203,6 +227,45 @@ def test_keyword_report_json_counts_mentions_threads_covered_and_replied():
             "threads": 2,
             "covered_threads": 1,
             "replied_threads": 1,
+        },
+    ]
+
+
+@pytest.mark.django_db
+def test_keyword_report_covered_threads_requires_subject_role_and_covered_place():
+    mentioned_thread = ThreadFactory()
+    ThreadPlaceFactory(
+        thread=mentioned_thread,
+        place=PlaceWithMuniFactory(name="Covered But Mentioned"),
+        role="mentioned",
+    )
+    MentionFactory(keyword="mentioned only", thread=mentioned_thread)
+
+    uncovered_thread = ThreadFactory()
+    ThreadPlaceFactory(
+        thread=uncovered_thread,
+        place=PlaceFactory(name="Uncovered Subject", muni=None),
+        role="subject",
+    )
+    MentionFactory(keyword="uncovered subject", thread=uncovered_thread)
+    stdout = StringIO()
+
+    call_command("watch_keyword_report", "--json", stdout=stdout)
+
+    assert json.loads(stdout.getvalue()) == [
+        {
+            "keyword": "mentioned only",
+            "mentions": 1,
+            "threads": 1,
+            "covered_threads": 0,
+            "replied_threads": 0,
+        },
+        {
+            "keyword": "uncovered subject",
+            "mentions": 1,
+            "threads": 1,
+            "covered_threads": 0,
+            "replied_threads": 0,
         },
     ]
 
