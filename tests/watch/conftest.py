@@ -97,6 +97,20 @@ def extraction_places(db: None) -> dict[str, Place]:
             population=4112,
             county=contra_costa,
         ),
+        "hope": _place(
+            "us:place:0523620",
+            "Hope",
+            Place.PlaceType.CITY,
+            "AR",
+            population=10000,
+        ),
+        "union": _place(
+            "us:place:2974676",
+            "Union",
+            Place.PlaceType.CITY,
+            "MO",
+            population=10000,
+        ),
         "mobile": _place(
             "us:place:0150000",
             "Mobile",

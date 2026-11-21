@@ -114,14 +114,23 @@ BODY_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
 AMBIGUITY_RATIO = 10
 
 #: A capitalized word, allowing internal apostrophes, hyphens, and initials.
-#: A trailing sentence period is left out of the token so ``Chico.`` resolves
-#: as ``Chico`` rather than requiring an alias for the punctuation.
-_CAPITALIZED_TOKEN = re.compile(r"[A-Z][A-Za-z'’\-]*(?:\.[A-Z][A-Za-z'’\-]*)*")
+#: The negative lookbehind keeps a capitalized fragment inside a mixed-case
+#: brand ("iPhone", "eBay") from being read as a place. Unicode letters are
+#: included so names such as ``Española`` and ``Doña Ana`` tokenize whole.
+_CAPITALIZED_TOKEN = re.compile(r"(?<!\w)[^\W\d_][\w'’.\-]*")
 
 #: Phrases longer than this are almost always a run of title-case prose.
 _MAX_PHRASE_WORDS = 4
 
 _PHRASE_METHOD = PlaceMention.Method.GAZETTEER_PHRASE
+
+#: Sentence-ending punctuation used to decide whether a common-word name is
+#: prose. A name at the start of a sentence is usually the English word.
+_SENTENCE_BREAKS = frozenset(".!?\n")
+_CLOSING_PUNCTUATION = "\"'”’)]"
+
+_POSSESSIVE_RE = re.compile(r"['’]s\b", re.IGNORECASE)
+_HYPHEN_RE = re.compile(r"[-–—]")
 
 _CONFIDENCE_RANK: dict[str, int] = {
     PlaceMention.Confidence.LOW: 1,
@@ -204,7 +213,7 @@ def extract_phrases(text: str, *, state: str | None = None) -> list[ExtractedPla
         return []
 
     candidates = [
-        " ".join(run[start : start + size])
+        " ".join(token for token, _ in run[start : start + size])
         for run in runs
         for start in range(len(run))
         for size in range(1, min(_MAX_PHRASE_WORDS, len(run) - start) + 1)
@@ -215,7 +224,13 @@ def extract_phrases(text: str, *, state: str | None = None) -> list[ExtractedPla
     for run in runs:
         index = 0
         while index < len(run):
-            match = _match_longest_phrase(run, index, aliases=aliases, state=state)
+            match = _match_longest_phrase(
+                run,
+                index,
+                aliases=aliases,
+                state=state,
+                sentence_initial=_is_sentence_initial(text, run[index][1]),
+            )
             if match is None:
                 index += 1
                 continue
@@ -242,7 +257,8 @@ def extract_mention_places(
     Body-pattern matches stay high-confidence subjects. Gazetteer phrases are
     low-confidence mentions. Rows an operator created by hand survive, and a
     place an operator already marked manually is not extracted again because
-    ``(mention, place)`` is unique.
+    ``(mention, place)`` is unique. Every non-manual row, including future LLM
+    rows, is deleted; the LLM pass must regenerate its own rows afterwards.
     """
     state = subreddit.state if subreddit is not None else None
     text = mention.snippet_text
@@ -254,25 +270,24 @@ def extract_mention_places(
     )
     by_place = _dedupe_by_place(extracted)
 
-    manual_place_ids = set(
-        mention.place_mentions.filter(method=PlaceMention.Method.MANUAL).values_list(
-            "place_id", flat=True
-        )
-    )
-    new_rows = [
-        PlaceMention(
-            mention=mention,
-            place=item.place,
-            matched_text=item.matched_text,
-            method=item.method,
-            confidence=item.confidence,
-            is_subject=item.is_subject,
-        )
-        for item in by_place.values()
-        if item.place.pk not in manual_place_ids
-    ]
-
     with transaction.atomic():
+        manual_place_ids = set(
+            mention.place_mentions.filter(
+                method=PlaceMention.Method.MANUAL
+            ).values_list("place_id", flat=True)
+        )
+        new_rows = [
+            PlaceMention(
+                mention=mention,
+                place=item.place,
+                matched_text=item.matched_text,
+                method=item.method,
+                confidence=item.confidence,
+                is_subject=item.is_subject,
+            )
+            for item in by_place.values()
+            if item.place.pk not in manual_place_ids
+        ]
         mention.place_mentions.exclude(method=PlaceMention.Method.MANUAL).delete()
         return PlaceMention.objects.bulk_create(new_rows)
 
@@ -292,26 +307,35 @@ def resolve_place_phrase(
     known county rolls up to that county because a CDP has no government of its
     own.
     """
-    key = normalize_key(phrase)
-    if not key:
+    keys = _phrase_keys(phrase)
+    if not keys:
         return None
-    aliases = PlaceAlias.objects.filter(key=key).select_related(
+    aliases = PlaceAlias.objects.filter(key__in=keys).select_related(
         "place", "place__county"
     )
-    return _resolve_candidates(
-        phrase,
-        (alias.place for alias in aliases),
-        state=state,
-        required_place_type=required_place_type,
-    )
+    by_key: dict[str, list[Place]] = {}
+    for alias in aliases:
+        by_key.setdefault(alias.key, []).append(alias.place)
+
+    for key in keys:
+        place = _resolve_candidates(
+            phrase,
+            by_key.get(key, []),
+            state=state,
+            required_place_type=required_place_type,
+        )
+        if place is not None:
+            return place
+    return None
 
 
 def _load_aliases(phrases: list[str]) -> dict[str, list[Place]]:
     """Return alias places keyed by normalized phrase for one pattern's hits."""
     keys = {
-        normalize_key(variant)
+        key
         for phrase in phrases
         for variant in _phrase_variants(phrase)
+        for key in _phrase_keys(variant)
     }
     keys.discard("")
     if not keys:
@@ -326,19 +350,50 @@ def _load_aliases(phrases: list[str]) -> dict[str, list[Place]]:
     return by_key
 
 
-def _capitalized_runs(text: str) -> list[list[str]]:
-    """Return runs of contiguous capitalized words from ``text``."""
-    runs: list[list[str]] = []
-    current: list[str] = []
+def _phrase_keys(phrase: str) -> list[str]:
+    """Return matching keys for a phrase, most exact first.
+
+    Possessives and hyphenated compounds describe a place without being part
+    of its name: ``Chico's`` and ``Chico-based`` must also try ``chico``. The
+    full normalized key is tried first so genuine hyphenated names such as
+    ``Winston-Salem`` still match as a whole.
+    """
+    variants = [phrase, _POSSESSIVE_RE.sub("", phrase)]
+    if not any(character.isspace() for character in phrase):
+        variants.extend(_HYPHEN_RE.split(phrase))
+    keys: list[str] = []
+    for variant in variants:
+        key = normalize_key(variant)
+        if key and key not in keys:
+            keys.append(key)
+    return keys
+
+
+def _is_sentence_initial(text: str, start: int) -> bool:
+    """Return whether ``start`` begins a sentence or line."""
+    before = text[:start].rstrip(" \t\r")
+    while before and before[-1] in _CLOSING_PUNCTUATION:
+        before = before[:-1].rstrip(" \t\r")
+    return not before or before[-1] in _SENTENCE_BREAKS
+
+
+def _capitalized_runs(text: str) -> list[list[tuple[str, int]]]:
+    """Return runs of contiguous capitalized words with their offsets."""
+    runs: list[list[tuple[str, int]]] = []
+    current: list[tuple[str, int]] = []
     previous_end: int | None = None
 
     for token in _CAPITALIZED_TOKEN.finditer(text):
+        word = token.group()
+        if not word[:1].isupper():
+            # Mixed-case brands such as "iPhone" and "eBay" are not places.
+            continue
         if previous_end is not None and not text[previous_end : token.start()].strip():
-            current.append(token.group())
+            current.append((word, token.start()))
         else:
             if current:
                 runs.append(current)
-            current = [token.group()]
+            current = [(word, token.start())]
         previous_end = token.end()
 
     if current:
@@ -347,24 +402,31 @@ def _capitalized_runs(text: str) -> list[list[str]]:
 
 
 def _match_longest_phrase(
-    run: list[str],
+    run: list[tuple[str, int]],
     index: int,
     *,
     aliases: dict[str, list[Place]],
     state: str | None,
+    sentence_initial: bool,
 ) -> tuple[Place, str, int] | None:
     """Return the longest resolvable phrase starting at ``run[index]``."""
     longest = min(_MAX_PHRASE_WORDS, len(run) - index)
     for size in range(longest, 0, -1):
-        phrase = " ".join(run[index : index + size])
-        place = _resolve_candidates(
-            phrase,
-            aliases.get(normalize_key(phrase), []),
-            state=state,
-            required_place_type=None,
-        )
-        if place is not None:
-            return place, phrase, size
+        phrase = " ".join(token for token, _ in run[index : index + size])
+        keys = _phrase_keys(phrase)
+        if sentence_initial and any(key in COMMON_WORD_NAMES for key in keys):
+            continue
+        for key in keys:
+            place = _resolve_candidates(
+                phrase,
+                aliases.get(key, []),
+                state=state,
+                required_place_type=None,
+                roll_up_cdp=False,
+                exclude_states=True,
+            )
+            if place is not None:
+                return place, phrase, size
     return None
 
 
@@ -419,14 +481,15 @@ def _resolve_variants(
 ) -> tuple[Place | None, str]:
     """Resolve ``phrase``, retrying without a leading article if needed."""
     for variant in _phrase_variants(phrase):
-        place = _resolve_candidates(
-            variant,
-            aliases.get(normalize_key(variant), []),
-            state=state,
-            required_place_type=required_place_type,
-        )
-        if place is not None:
-            return place, variant
+        for key in _phrase_keys(variant):
+            place = _resolve_candidates(
+                variant,
+                aliases.get(key, []),
+                state=state,
+                required_place_type=required_place_type,
+            )
+            if place is not None:
+                return place, variant
     return None, phrase
 
 
@@ -436,6 +499,8 @@ def _resolve_candidates(
     *,
     state: str | None,
     required_place_type: str | None,
+    roll_up_cdp: bool = True,
+    exclude_states: bool = False,
 ) -> Place | None:
     """Resolve one phrase against already-loaded alias candidates."""
     key = normalize_key(phrase)
@@ -446,6 +511,10 @@ def _resolve_candidates(
 
     places = _unique_places(candidates)
     places = _filter_place_type(places, required_place_type)
+    if exclude_states:
+        places = [
+            place for place in places if place.place_type != Place.PlaceType.STATE
+        ]
     if not places:
         return None
 
@@ -455,6 +524,8 @@ def _resolve_candidates(
     place = _choose_place(places)
     if place is None:
         return None
+    if not roll_up_cdp:
+        return place
     return _roll_up(place, required_place_type)
 
 
