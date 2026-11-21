@@ -12,7 +12,9 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 
-from watch.models import Place, PlaceAlias, PlaceMention
+from django.db import transaction
+
+from watch.models import Mention, Place, PlaceAlias, PlaceMention, Subreddit
 from watch.normalize import normalize_key
 from watch.place_utils import SETTLEMENT_TYPES, prefer_settlement_types
 
@@ -111,6 +113,22 @@ BODY_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
 #: populous candidate wins an otherwise ambiguous phrase.
 AMBIGUITY_RATIO = 10
 
+#: A capitalized word, allowing internal apostrophes, hyphens, and initials.
+#: A trailing sentence period is left out of the token so ``Chico.`` resolves
+#: as ``Chico`` rather than requiring an alias for the punctuation.
+_CAPITALIZED_TOKEN = re.compile(r"[A-Z][A-Za-z'’\-]*(?:\.[A-Z][A-Za-z'’\-]*)*")
+
+#: Phrases longer than this are almost always a run of title-case prose.
+_MAX_PHRASE_WORDS = 4
+
+_PHRASE_METHOD = PlaceMention.Method.GAZETTEER_PHRASE
+
+_CONFIDENCE_RANK: dict[str, int] = {
+    PlaceMention.Confidence.LOW: 1,
+    PlaceMention.Confidence.MEDIUM: 2,
+    PlaceMention.Confidence.HIGH: 3,
+}
+
 
 @dataclass(frozen=True)
 class ExtractedPlace:
@@ -172,6 +190,93 @@ def extract_body_patterns(
     return results
 
 
+def extract_phrases(text: str, *, state: str | None = None) -> list[ExtractedPlace]:
+    """Return places named by capitalized phrases in ``text``.
+
+    Every capitalized run yields candidate n-grams of one to
+    :data:`_MAX_PHRASE_WORDS` words. All candidate keys share one alias query,
+    and each run is then walked greedily so ``Riverside County`` is one match
+    rather than also ``Riverside``. These matches are unanchored: they are
+    returned with low confidence and are never subjects.
+    """
+    runs = _capitalized_runs(text)
+    if not runs:
+        return []
+
+    candidates = [
+        " ".join(run[start : start + size])
+        for run in runs
+        for start in range(len(run))
+        for size in range(1, min(_MAX_PHRASE_WORDS, len(run) - start) + 1)
+    ]
+    aliases = _load_aliases(candidates)
+
+    results: list[ExtractedPlace] = []
+    for run in runs:
+        index = 0
+        while index < len(run):
+            match = _match_longest_phrase(run, index, aliases=aliases, state=state)
+            if match is None:
+                index += 1
+                continue
+            place, phrase, size = match
+            results.append(
+                ExtractedPlace(
+                    place=place,
+                    matched_text=phrase,
+                    method=_PHRASE_METHOD,
+                    confidence=PlaceMention.Confidence.LOW,
+                    is_subject=False,
+                )
+            )
+            index += size
+
+    return _dedupe_extracted(results)
+
+
+def extract_mention_places(
+    mention: Mention, subreddit: Subreddit | None
+) -> list[PlaceMention]:
+    """Replace a mention's extracted place rows and return the new rows.
+
+    Body-pattern matches stay high-confidence subjects. Gazetteer phrases are
+    low-confidence mentions. Rows an operator created by hand survive, and a
+    place an operator already marked manually is not extracted again because
+    ``(mention, place)`` is unique.
+    """
+    state = subreddit.state if subreddit is not None else None
+    text = mention.snippet_text
+    extracted = _dedupe_extracted(
+        [
+            *extract_body_patterns(text, state=state),
+            *extract_phrases(text, state=state),
+        ]
+    )
+    by_place = _dedupe_by_place(extracted)
+
+    manual_place_ids = set(
+        mention.place_mentions.filter(method=PlaceMention.Method.MANUAL).values_list(
+            "place_id", flat=True
+        )
+    )
+    new_rows = [
+        PlaceMention(
+            mention=mention,
+            place=item.place,
+            matched_text=item.matched_text,
+            method=item.method,
+            confidence=item.confidence,
+            is_subject=item.is_subject,
+        )
+        for item in by_place.values()
+        if item.place.pk not in manual_place_ids
+    ]
+
+    with transaction.atomic():
+        mention.place_mentions.exclude(method=PlaceMention.Method.MANUAL).delete()
+        return PlaceMention.objects.bulk_create(new_rows)
+
+
 def resolve_place_phrase(
     phrase: str,
     *,
@@ -219,6 +324,90 @@ def _load_aliases(phrases: list[str]) -> dict[str, list[Place]]:
     for alias in aliases:
         by_key.setdefault(alias.key, []).append(alias.place)
     return by_key
+
+
+def _capitalized_runs(text: str) -> list[list[str]]:
+    """Return runs of contiguous capitalized words from ``text``."""
+    runs: list[list[str]] = []
+    current: list[str] = []
+    previous_end: int | None = None
+
+    for token in _CAPITALIZED_TOKEN.finditer(text):
+        if previous_end is not None and not text[previous_end : token.start()].strip():
+            current.append(token.group())
+        else:
+            if current:
+                runs.append(current)
+            current = [token.group()]
+        previous_end = token.end()
+
+    if current:
+        runs.append(current)
+    return runs
+
+
+def _match_longest_phrase(
+    run: list[str],
+    index: int,
+    *,
+    aliases: dict[str, list[Place]],
+    state: str | None,
+) -> tuple[Place, str, int] | None:
+    """Return the longest resolvable phrase starting at ``run[index]``."""
+    longest = min(_MAX_PHRASE_WORDS, len(run) - index)
+    for size in range(longest, 0, -1):
+        phrase = " ".join(run[index : index + size])
+        place = _resolve_candidates(
+            phrase,
+            aliases.get(normalize_key(phrase), []),
+            state=state,
+            required_place_type=None,
+        )
+        if place is not None:
+            return place, phrase, size
+    return None
+
+
+def _dedupe_extracted(
+    results: Iterable[ExtractedPlace],
+) -> list[ExtractedPlace]:
+    """Collapse duplicate ``(place, is_subject)`` matches, keeping the best."""
+    by_key: dict[tuple[object, bool], ExtractedPlace] = {}
+    for result in results:
+        key = (result.place.pk, result.is_subject)
+        current = by_key.get(key)
+        if (
+            current is None
+            or _CONFIDENCE_RANK[result.confidence]
+            > _CONFIDENCE_RANK[current.confidence]
+        ):
+            by_key[key] = result
+    return list(by_key.values())
+
+
+def _dedupe_by_place(
+    results: Iterable[ExtractedPlace],
+) -> dict[object, ExtractedPlace]:
+    """Collapse to one match per place because the model permits only one.
+
+    A subject wins a confidence tie so a body-pattern match is not displaced by
+    a phrase match for the same place.
+    """
+    by_place: dict[object, ExtractedPlace] = {}
+    for result in results:
+        current = by_place.get(result.place.pk)
+        if current is None:
+            by_place[result.place.pk] = result
+            continue
+        if _CONFIDENCE_RANK[result.confidence] > _CONFIDENCE_RANK[
+            current.confidence
+        ] or (
+            result.confidence == current.confidence
+            and result.is_subject
+            and not current.is_subject
+        ):
+            by_place[result.place.pk] = result
+    return by_place
 
 
 def _resolve_variants(
