@@ -149,6 +149,12 @@ python manage.py resilient_backfill --subdomain=all
 
 See [Resilient Backfill Guide](docs/RESILIENT_BACKFILL.md) for details.
 
+## CivicBand Watch Operations
+
+Deployment, first-run order, cron entries, backfills, and reports for
+CivicBand Watch are documented in
+[CivicBand Watch Deployment and Operations](docs/operations/civicband-watch-deploy.md).
+
 ## Just Commands
 
 This project uses [just](https://github.com/casey/just) for task running. Available commands:
