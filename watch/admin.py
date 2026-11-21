@@ -216,6 +216,7 @@ class ThreadAdmin(admin.ModelAdmin):
         "title",
         "subreddit",
         "status",
+        "duplicate_of",
         "mention_count",
         "last_seen",
     ]
@@ -234,7 +235,8 @@ class ThreadAdmin(admin.ModelAdmin):
         "mentions__keyword",
         "subreddit__name",
     ]
-    list_select_related = ["subreddit"]
+    list_select_related = ["subreddit", "duplicate_of"]
+    readonly_fields = ["duplicate_of"]
     inlines = [ThreadLabelInline]
     actions = [
         "mark_replied",

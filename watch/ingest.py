@@ -6,20 +6,121 @@ import re
 import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import django_rq
 import httpx
 from django.conf import settings
 from django.db import DataError, transaction
+from django.db.models import Q
 from django.utils import timezone
 from redis.exceptions import LockError
 
 from watch.enrichment import enrich_thread
 from watch.models import IngestRun, Mention, Subreddit, Thread
 from watch.parsing import parse_item
+from watch.scoring import country_allowed_q
 
 logger = logging.getLogger(__name__)
+
+#: Titles that recur and must never be collapsed into one cross-post group.
+GENERIC_TITLES = frozenset(
+    {"daily discussion", "weekly thread", "megathread", "questions thread"}
+)
+
+#: Normalized titles shorter than this are too vague to group safely.
+MIN_CROSSPOST_TITLE_LENGTH = 20
+
+#: How long after a thread was last seen another subreddit may still group it.
+CROSSPOST_WINDOW = timedelta(hours=48)
+
+_URL_RE = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
+_XPOST_WORD_RE = re.compile(
+    r"\b(?:cross[\s-]*post|x[\s-]*post|repost)\b", re.IGNORECASE
+)
+_TRAILING_ELLIPSIS_RE = re.compile(r"(?:\.{2,}|…)+$")
+_PUNCTUATION_RE = re.compile(r"[^\w\s]")
+
+
+def normalize_title(title: str) -> str:
+    """Lowercase a title and strip the noise cross-posts wrap it in."""
+    text = _URL_RE.sub(" ", title or "").strip().lower()
+    text = _TRAILING_ELLIPSIS_RE.sub("", text)
+    text = _XPOST_WORD_RE.sub(" ", text)
+    text = _PUNCTUATION_RE.sub(" ", text)
+    return " ".join(text.split())
+
+
+def group_crosspost(thread: Thread) -> Thread | None:
+    """Attach ``thread`` to the same story posted in another subreddit.
+
+    Returns the canonical thread when a match is found.  The earliest matching
+    thread wins, so every duplicate points at one deterministic root.
+    """
+    if thread.duplicate_of_id is not None:
+        return thread.duplicate_of
+    if thread.subreddit_id is None:
+        return None
+    normalized = normalize_title(thread.title)
+    if len(normalized) < MIN_CROSSPOST_TITLE_LENGTH or normalized in GENERIC_TITLES:
+        return None
+
+    now = timezone.now()
+    cutoff = now - CROSSPOST_WINDOW
+    # Only queue-eligible threads can become canonical: a thread the operator
+    # already replied to, dismissed, or moved to the backlog must not hide a
+    # newly visible crosspost.  A snoozed thread becomes eligible again when
+    # its snooze elapses.
+    queue_eligible = Q(status=Thread.Status.NEW) | Q(
+        status=Thread.Status.SNOOZED, snoozed_until__lte=now
+    )
+    candidates = (
+        Thread.objects.filter(
+            queue_eligible,
+            last_seen__gte=cutoff,
+            duplicate_of__isnull=True,
+            subreddit__isnull=False,
+            subreddit__muted=False,
+        )
+        .filter(country_allowed_q("subreddit"))
+        .exclude(pk=thread.pk)
+        .exclude(subreddit_id=thread.subreddit_id)
+        .order_by("first_seen", "pk")
+    )
+    for candidate in candidates:
+        if normalize_title(candidate.title) == normalized:
+            thread.duplicate_of = candidate
+            thread.save(update_fields=["duplicate_of", "modified"])
+            return candidate
+    return None
+
+
+def _normalize_mention_text(text: str) -> str:
+    return " ".join((text or "").lower().split())
+
+
+def is_duplicate_mention(row: dict, thread: Thread) -> bool:
+    """Return true when ``row`` repeats an author's text inside ``thread``.
+
+    Anonymous posts and empty text carry no identity to compare, so they are
+    never collapsed.
+    """
+    author = _normalize_mention_text(row.get("author") or "")
+    text = _normalize_mention_text(row.get("snippet_text") or "")
+    if not author or not text:
+        return False
+    return any(
+        _normalize_mention_text(mention.author) == author
+        and _normalize_mention_text(mention.snippet_text) == text
+        for mention in thread.mentions.all()
+    )
+
+
+class _DuplicateMention:
+    """Marker returned when a row repeats an existing mention in its thread."""
+
+
+_DUPLICATE_MENTION = _DuplicateMention()
 
 
 @dataclass(frozen=True)
@@ -184,6 +285,10 @@ def _ingest_page(
             skipped += 1
             continue
         page_ids.add(row["id"])
+        if isinstance(stored_thread_id, _DuplicateMention):
+            logger.debug("Collapsed duplicate mention %s", row["id"])
+            skipped += 1
+            continue
         if stored_thread_id is None:
             seen += 1
             continue
@@ -195,7 +300,9 @@ def _ingest_page(
 
 
 @transaction.atomic
-def _store_item(item: dict, row: dict, published_at: datetime | None) -> str | None:
+def _store_item(
+    item: dict, row: dict, published_at: datetime | None
+) -> str | None | _DuplicateMention:
     if Mention.objects.filter(pk=row["id"]).exists():
         return None
     observed_at = published_at or timezone.now()
@@ -209,7 +316,7 @@ def _store_item(item: dict, row: dict, published_at: datetime | None) -> str | N
                 "confidence": "",
             },
         )
-    thread, _ = Thread.objects.get_or_create(
+    thread, created = Thread.objects.get_or_create(
         key=row["thread_key"],
         defaults={
             "subreddit": subreddit,
@@ -222,6 +329,8 @@ def _store_item(item: dict, row: dict, published_at: datetime | None) -> str | N
     thread = Thread.objects.select_for_update().get(pk=thread.pk)
     if Mention.objects.filter(pk=row["id"]).exists():
         return None
+    if is_duplicate_mention(row, thread):
+        return _DUPLICATE_MENTION
 
     Mention.objects.create(
         id=row["id"],
@@ -261,6 +370,10 @@ def _store_item(item: dict, row: dict, published_at: datetime | None) -> str | N
             "modified",
         ]
     )
+    if created:
+        # Only a brand-new thread can be a cross-post of an existing one;
+        # re-running ingest for a known thread must not change its grouping.
+        group_crosspost(thread)
     return str(thread.pk)
 
 

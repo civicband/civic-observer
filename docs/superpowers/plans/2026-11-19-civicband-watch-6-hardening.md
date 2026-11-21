@@ -42,9 +42,11 @@
   - `group_crosspost(thread: Thread) -> Thread | None` returning the canonical thread when the new thread is a duplicate, else `None`.
 - Rules:
   - Find a candidate thread with the same normalized title, a different subreddit, and `last_seen >= now - 48h`, excluding threads that are themselves duplicates.
+  - Only queue-eligible threads may become canonical: `status=new`, or `status=snoozed` with `snoozed_until <= now`. Replied, dismissed, and backlog threads are terminal for grouping so a newly visible crosspost is not hidden under them.
   - If found, set `thread.duplicate_of = candidate`.
   - Do not group two threads from the same subreddit.
   - Do not group titles shorter than 20 characters or titles in `GENERIC_TITLES` (`daily discussion`, `weekly thread`, `megathread`, `questions thread`). This avoids collapsing routine recurring posts.
+  - A mute, reply, dismiss, or backlog applied to the canonical after grouping may still hide both threads; that is accepted operator intent, not a reason to regroup.
 - `queue_queryset` excludes `duplicate_of__isnull=False`.
 - `TriageView` context adds `also_posted_in` = `thread.duplicates.select_related("subreddit")`.
 
@@ -284,9 +286,12 @@ git commit -m "feat(watch): suggest subreddit places from text evidence"
 - Produces:
   - `health_status(now=None) -> dict[str, object]` with `last_success`, `hours_since_success`, `alerts_today`, `stale`, `quiet`.
   - `send_stale_alert(status: dict) -> bool` returning whether an email was sent. Uses `django.core.mail.send_mail` and `django.core.cache` key `watch:stale-alert:<YYYY-MM-DD>` to send at most once per day.
+  - `send_quiet_alert(status: dict) -> bool` using cache key `watch:quiet-alert:<YYYY-MM-DD>`. It sends only when quiet and not stale, so a stale day produces one stale email.
+  - `format_last_success(value)` accepts either a `datetime` or an `IngestRun` and formats `finished_at`, or returns `"never"`.
 - Stale if the last successful `IngestRun` is older than `WATCH_STALE_HOURS` or absent. Quiet if there are zero `new` mentions in the last 24 hours.
-- Email subject: `"CivicBand Watch: ingest is stale"`. Body: last success time, hours since, pages/seen/new, and a link to `/admin/watch/ingestrun/`. Never include the feed URL or snippets.
-- Command `check_watch_health` exits nonzero when stale or quiet, for cron monitoring.
+- Stale email subject: `"CivicBand Watch: ingest is stale"`. Body: last success time, hours since, pages/seen/new, and a link to `/admin/watch/ingestrun/`. Never include the feed URL or snippets.
+- Quiet email subject: `"CivicBand Watch: no new alerts"`. Body: last success time, hours since, `alerts_today`, and the ingest-run admin link. Never include the feed URL or snippets.
+- Command `check_watch_health` sends the stale email when stale, otherwise the quiet email when quiet, exits nonzero when stale or quiet, and prints nothing when healthy so hourly cron output does not mail.
 - Admin index: set `admin.site.index_template = "admin/watch_index.html"` in `watch/apps.py` `ready()`. The template extends `admin/index.html`, calls `{% watch_health %}` before `{{ block.super }}`, and shows last successful run, hours since, and stale/quiet badges. The tag renders nothing for non-staff users.
 
 - [ ] **Step 1: Write the failing tests**

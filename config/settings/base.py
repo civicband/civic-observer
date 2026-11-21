@@ -240,6 +240,12 @@ MASTODON_INSTANCE_URL = env.str("MASTODON_INSTANCE_URL", "https://mastodon.socia
 F5BOT_FEED_URL = env.str("F5BOT_FEED_URL", "")
 WATCH_DATA_DIR = env.str("WATCH_DATA_DIR", str(BASE_DIR / ".cache" / "watch"))
 WATCH_INGEST_LOCK_SECONDS = env.int("WATCH_INGEST_LOCK_SECONDS", 3600)
+# Comma-separated recipients for stale-ingest alerts. Empty disables email.
+WATCH_ALERT_EMAIL: list[str] = env.list("WATCH_ALERT_EMAIL", [])
+# Comma-separated recipients for the weekly summary email.
+WATCH_SUMMARY_EMAIL: list[str] = env.list("WATCH_SUMMARY_EMAIL", [])
+# Hours without a successful ingest before the pipeline is considered stale.
+WATCH_STALE_HOURS = env.int("WATCH_STALE_HOURS", 6)
 
 # Optional LLM place classification. Disabled and unconfigured by default; the
 # deterministic extractor must work on its own.

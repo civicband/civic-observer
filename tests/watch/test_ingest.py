@@ -22,7 +22,9 @@ def item(alert_id, *, date="2026-01-01T00:00:00Z", title="First title"):
         "id": alert_id,
         "url": "https://www.reddit.com/r/TestTown/comments/abc123/example/",
         "title": f"civic - Reddit Posts - {title}",
-        "content_html": "A <strong>civic</strong> meeting",
+        # Distinct alerts need distinct text or ingest collapses them as
+        # duplicate mentions within the shared test thread.
+        "content_html": f"A <strong>civic</strong> meeting {alert_id}",
         "date_published": date,
         "username": "resident",
         "group": "group",
