@@ -18,6 +18,7 @@ from redis.exceptions import LockError
 from watch.enrichment import enrich_thread
 from watch.models import IngestRun, Mention, Subreddit, Thread
 from watch.parsing import parse_item
+from watch.scoring import country_allowed_q
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,9 @@ def group_crosspost(thread: Thread) -> Thread | None:
             last_seen__gte=cutoff,
             duplicate_of__isnull=True,
             subreddit__isnull=False,
+            subreddit__muted=False,
         )
+        .filter(country_allowed_q("subreddit"))
         .exclude(pk=thread.pk)
         .exclude(subreddit_id=thread.subreddit_id)
         .order_by("first_seen", "pk")
