@@ -5,3 +5,8 @@ class WatchConfig(AppConfig):
     default_auto_field = "django.db.models.BigAutoField"
     name = "watch"
     verbose_name = "CivicBand Watch"
+
+    def ready(self) -> None:
+        from django.contrib import admin
+
+        admin.site.index_template = "admin/watch_index.html"
