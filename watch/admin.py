@@ -2,6 +2,7 @@ from datetime import timedelta
 
 from django.contrib import admin, messages
 from django.db.models import Exists, OuterRef, Q
+from django.forms.models import BaseInlineFormSet
 from django.utils import timezone
 
 from .ingest import enqueue_enrichment
@@ -94,6 +95,12 @@ class UsFilter(admin.SimpleListFilter):
 
 
 class HasLabelFilter(admin.SimpleListFilter):
+    """Filter threads by whether they carry any operator label.
+
+    A label with ``place=None`` still counts as labelled: it records the
+    operator's judgement that the thread has no associated place.
+    """
+
     title = "Has label"
     parameter_name = "has_label"
 
@@ -109,11 +116,40 @@ class HasLabelFilter(admin.SimpleListFilter):
         return queryset
 
 
+class ThreadLabelInlineFormSet(BaseInlineFormSet):
+    """Validate label uniqueness before the database constraint fires."""
+
+    def clean(self):
+        super().clean()
+        if any(self.errors):
+            return
+
+        seen: set[str | None] = set()
+        for form in self.forms:
+            if not form.cleaned_data or form.cleaned_data.get("DELETE"):
+                continue
+            # Empty extra forms are ignored by the formset's save logic.
+            if form.instance.pk is None and not form.has_changed():
+                continue
+            place = form.cleaned_data.get("place")
+            key = str(place.pk) if place else None
+            if key in seen:
+                form.add_error(
+                    "place",
+                    "This thread already has a label for this place."
+                    if place
+                    else "This thread already has a no-place label.",
+                )
+            else:
+                seen.add(key)
+
+
 class ThreadLabelInline(admin.TabularInline):
     model = ThreadLabel
+    formset = ThreadLabelInlineFormSet
     extra = 0
     autocomplete_fields = ["place"]
-    readonly_fields = ["created_at"]
+    readonly_fields = ["created_at", "created_by"]
 
 
 @admin.register(Place)
@@ -300,6 +336,20 @@ class ThreadAdmin(admin.ModelAdmin):
             modified=timezone.now(),
         )
 
+    def save_formset(self, request, form, formset, change):
+        """Attribute new inline labels to the operator who saved them."""
+        if formset.model is not ThreadLabel:
+            return super().save_formset(request, form, formset, change)
+
+        instances = formset.save(commit=False)
+        for obj in formset.deleted_objects:
+            obj.delete()
+        for instance in instances:
+            if instance.created_by_id is None:
+                instance.created_by = request.user
+            instance.save()
+        formset.save_m2m()
+
 
 @admin.register(Mention)
 class MentionAdmin(admin.ModelAdmin):
@@ -342,6 +392,13 @@ class ThreadLabelAdmin(admin.ModelAdmin):
     search_fields = ["thread__key", "thread__title", "place__name"]
     autocomplete_fields = ["thread", "place"]
     list_select_related = ["thread", "place", "created_by"]
+    readonly_fields = ["created_by", "created_at"]
+
+    def save_model(self, request, obj, form, change):
+        """Attribute new labels to the operator who saved them."""
+        if obj.created_by_id is None:
+            obj.created_by = request.user
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(ThreadPlace)
