@@ -1,0 +1,7 @@
+{% extends "admin/index.html" %}
+{% load watch_health %}
+
+{% block content %}
+    {% watch_health %}
+    {{ block.super }}
+{% endblock content %}
