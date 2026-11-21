@@ -1,6 +1,10 @@
-from django.contrib import admin
+from datetime import timedelta
+
+from django.contrib import admin, messages
+from django.db.models import Exists, OuterRef, Q
 from django.utils import timezone
 
+from .ingest import enqueue_enrichment
 from .models import (
     IngestRun,
     MeetingHit,
@@ -44,6 +48,44 @@ class SubredditNeedsReviewFilter(admin.SimpleListFilter):
     def queryset(self, request, queryset):
         if self.value() == "1":
             return queryset.filter(reviewed_at__isnull=True)
+        return queryset
+
+
+class CoveredFilter(admin.SimpleListFilter):
+    title = "Covered"
+    parameter_name = "covered"
+
+    def lookups(self, request, model_admin):
+        return (("yes", "Covered"), ("no", "Uncovered"))
+
+    def queryset(self, request, queryset):
+        covered = Exists(
+            ThreadPlace.objects.filter(
+                thread=OuterRef("pk"),
+                role=ThreadPlace.Role.SUBJECT,
+                place__muni__isnull=False,
+            )
+        )
+        if self.value() == "yes":
+            return queryset.filter(covered)
+        if self.value() == "no":
+            return queryset.exclude(covered)
+        return queryset
+
+
+class UsFilter(admin.SimpleListFilter):
+    title = "US"
+    parameter_name = "us"
+
+    def lookups(self, request, model_admin):
+        return (("yes", "US"), ("no", "Non-US"))
+
+    def queryset(self, request, queryset):
+        in_us = Q(subreddit__country="US") | Q(subreddit__place__country="US")
+        if self.value() == "yes":
+            return queryset.filter(in_us)
+        if self.value() == "no":
+            return queryset.exclude(in_us)
         return queryset
 
 
@@ -114,9 +156,120 @@ class ThreadAdmin(admin.ModelAdmin):
         "mention_count",
         "last_seen",
     ]
-    list_filter = ["status", "subreddit"]
-    search_fields = ["key", "title", "subreddit__name"]
+    list_filter = [
+        "status",
+        "subreddit__kind",
+        CoveredFilter,
+        UsFilter,
+        "subreddit__muted",
+        "last_seen",
+    ]
+    search_fields = [
+        "title",
+        "mentions__snippet_text",
+        "mentions__keyword",
+        "subreddit__name",
+    ]
     list_select_related = ["subreddit"]
+    actions = [
+        "mark_replied",
+        "mark_dismissed",
+        "snooze_seven_days",
+        "send_to_backlog",
+        "mute_subreddits",
+        "rerun_enrichment",
+    ]
+
+    @admin.action(description="Mark selected threads as replied")
+    def mark_replied(self, request, queryset):
+        updated = self._set_status(queryset, Thread.Status.REPLIED)
+        self.message_user(
+            request,
+            f"Marked {updated} thread(s) as replied.",
+            messages.SUCCESS,
+        )
+
+    @admin.action(description="Mark selected threads as dismissed")
+    def mark_dismissed(self, request, queryset):
+        updated = self._set_status(queryset, Thread.Status.DISMISSED)
+        self.message_user(
+            request,
+            f"Marked {updated} thread(s) as dismissed.",
+            messages.SUCCESS,
+        )
+
+    @admin.action(description="Snooze selected threads for seven days")
+    def snooze_seven_days(self, request, queryset):
+        now = timezone.now()
+        updated = queryset.update(
+            status=Thread.Status.SNOOZED,
+            snoozed_until=now + timedelta(days=7),
+            modified=now,
+        )
+        self.message_user(
+            request,
+            f"Snoozed {updated} thread(s) for seven days.",
+            messages.SUCCESS,
+        )
+
+    @admin.action(description="Send selected threads to the backlog")
+    def send_to_backlog(self, request, queryset):
+        updated = queryset.update(
+            status=Thread.Status.BACKLOG,
+            snoozed_until=None,
+            modified=timezone.now(),
+        )
+        self.message_user(
+            request,
+            f"Sent {updated} thread(s) to the backlog.",
+            messages.SUCCESS,
+        )
+
+    @admin.action(description="Mute subreddits for selected threads")
+    def mute_subreddits(self, request, queryset):
+        subreddit_ids = queryset.exclude(subreddit__isnull=True).values_list(
+            "subreddit_id", flat=True
+        )
+        updated = Subreddit.objects.filter(pk__in=subreddit_ids).update(
+            muted=True, modified=timezone.now()
+        )
+        self.message_user(
+            request,
+            f"Muted {updated} subreddit(s).",
+            messages.SUCCESS,
+        )
+
+    @admin.action(description="Rerun enrichment for selected threads")
+    def rerun_enrichment(self, request, queryset):
+        enqueued = 0
+        failed = 0
+        for thread_id in queryset.values_list("pk", flat=True):
+            if enqueue_enrichment(str(thread_id)) is None:
+                failed += 1
+            else:
+                enqueued += 1
+
+        if enqueued:
+            self.message_user(
+                request,
+                f"Enqueued enrichment for {enqueued} thread(s).",
+                messages.SUCCESS,
+            )
+        if failed:
+            self.message_user(
+                request,
+                f"Could not enqueue enrichment for {failed} thread(s); "
+                "is the queue available?",
+                messages.ERROR,
+            )
+
+    def _set_status(self, queryset, status: str) -> int:
+        """Set a terminal status and drop any stale snooze timestamp."""
+        return queryset.update(
+            status=status,
+            snoozed_until=None,
+            modified=timezone.now(),
+        )
 
 
 @admin.register(Mention)
