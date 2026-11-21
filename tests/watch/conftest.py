@@ -56,6 +56,13 @@ def extraction_places(db: None) -> dict[str, Place]:
         population=3298634,
     )
     places = {
+        "chico": _place(
+            "us:place:0613010",
+            "Chico",
+            Place.PlaceType.CITY,
+            "CA",
+            population=101724,
+        ),
         "beverly_hills": _place(
             "us:place:0606300",
             "Beverly Hills",
