@@ -13,7 +13,7 @@ from tests.factories import (
     ThreadPlaceFactory,
 )
 from watch.ingest import group_crosspost, ingest_page, normalize_title
-from watch.models import Thread
+from watch.models import Mention, MutedCountry, Thread
 from watch.scoring import backlog_thread_count, queue_queryset
 
 
@@ -109,6 +109,79 @@ def test_generic_titles_are_never_grouped():
 
 
 @pytest.mark.django_db
+def test_generic_titles_never_group_without_the_length_floor(monkeypatch):
+    monkeypatch.setattr("watch.ingest.MIN_CROSSPOST_TITLE_LENGTH", 1)
+    canonical = ThreadFactory(
+        title="Weekly Thread", subreddit=SubredditFactory(name="a")
+    )
+    new = ThreadFactory(title="Weekly Thread!", subreddit=SubredditFactory(name="b"))
+
+    assert group_crosspost(new) is None
+    assert new.duplicate_of is None
+    assert new.duplicate_of != canonical
+
+
+@pytest.mark.django_db
+def test_muted_canonical_subreddit_does_not_swallow_a_visible_crosspost():
+    canonical = ThreadFactory(
+        title="Massive data center proposed",
+        subreddit=SubredditFactory(name="muted", muted=True),
+    )
+    new = ThreadFactory(
+        title="Massive data center proposed!",
+        subreddit=SubredditFactory(name="visible"),
+    )
+
+    assert group_crosspost(new) is None
+    assert new.duplicate_of is None
+    assert new.duplicate_of != canonical
+    assert new in queue_queryset()
+
+
+@pytest.mark.django_db
+def test_muted_canonical_country_does_not_swallow_a_visible_crosspost():
+    MutedCountry.objects.create(code="CA")
+    canonical = ThreadFactory(
+        title="Massive data center proposed",
+        subreddit=SubredditFactory(name="canada", country="CA"),
+    )
+    new = ThreadFactory(
+        title="Massive data center proposed!",
+        subreddit=SubredditFactory(name="visible", country="US"),
+    )
+
+    assert group_crosspost(new) is None
+    assert new.duplicate_of is None
+    assert new.duplicate_of != canonical
+    assert new in queue_queryset()
+
+
+@pytest.mark.django_db
+def test_only_canonical_threads_can_be_crosspost_roots():
+    now = timezone.now()
+    canonical = ThreadFactory(
+        title="Massive data center proposed",
+        subreddit=SubredditFactory(name="canonical"),
+        first_seen=now - timedelta(hours=1),
+    )
+    earlier_duplicate = ThreadFactory(
+        title="Massive data center proposed",
+        subreddit=SubredditFactory(name="earlier"),
+        first_seen=now - timedelta(hours=4),
+        duplicate_of=canonical,
+    )
+    new = ThreadFactory(
+        title="Crosspost: Massive data center proposed",
+        subreddit=SubredditFactory(name="new"),
+    )
+
+    assert group_crosspost(new) == canonical
+    new.refresh_from_db()
+    assert new.duplicate_of == canonical
+    assert new.duplicate_of != earlier_duplicate
+
+
+@pytest.mark.django_db
 def test_multiple_candidates_attach_to_the_earliest_thread():
     now = timezone.now()
     later = ThreadFactory(
@@ -160,7 +233,7 @@ def test_ingest_groups_a_newly_created_crosspost():
 
 @pytest.mark.django_db
 def test_ingest_does_not_regroup_an_existing_thread():
-    canonical = ThreadFactory(
+    ThreadFactory(
         title="Massive data center proposed",
         subreddit=SubredditFactory(name="california"),
     )
@@ -169,8 +242,6 @@ def test_ingest_does_not_regroup_an_existing_thread():
         title="Massive data center proposed",
         subreddit=SubredditFactory(name="sandiego"),
     )
-
-    assert canonical.duplicate_of is None
 
     assert ingest_page(
         {
@@ -185,7 +256,11 @@ def test_ingest_does_not_regroup_an_existing_thread():
         }
     ) == (0, 1, 0)
 
+    assert Thread.objects.count() == 2
+    mention = Mention.objects.get(pk="alert-2")
+    assert mention.thread_id == existing.pk
     existing.refresh_from_db()
+    assert existing.mention_count == 1
     assert existing.duplicate_of is None
 
 

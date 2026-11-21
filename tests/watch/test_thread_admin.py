@@ -1,5 +1,6 @@
 """Tests for Thread admin filters, search, and bulk actions."""
 
+import re
 from datetime import timedelta
 from unittest.mock import Mock
 
@@ -348,3 +349,33 @@ def test_thread_admin_registers_expected_filters_and_search():
         "mute_subreddits",
         "rerun_enrichment",
     }
+
+
+@pytest.mark.django_db
+def test_thread_admin_exposes_duplicate_grouping_read_only(admin_client):
+    canonical = ThreadFactory(
+        title="Canonical story", subreddit=SubredditFactory(name="canonical")
+    )
+    duplicate = ThreadFactory(
+        title="Duplicate story",
+        subreddit=SubredditFactory(name="duplicate"),
+        duplicate_of=canonical,
+    )
+
+    change = admin_client.get(reverse("admin:watch_thread_change", args=[duplicate.pk]))
+    assert change.status_code == 200
+    assert 'name="duplicate_of"' not in change.content.decode()
+
+    changelist = admin_client.get(changelist_url())
+    assert changelist.status_code == 200
+    cells = re.findall(
+        r'<td class="[^"]*\bfield-duplicate_of\b[^"]*">(.*?)</td>',
+        changelist.content.decode(),
+        re.DOTALL,
+    )
+    assert any("Canonical story" in cell for cell in cells)
+
+    model_admin = admin.site._registry[Thread]
+    assert "duplicate_of" in model_admin.list_display
+    assert "duplicate_of" in model_admin.list_select_related
+    assert "duplicate_of" in model_admin.readonly_fields  # type: ignore[attr-defined]
