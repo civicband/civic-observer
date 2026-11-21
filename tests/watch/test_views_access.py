@@ -61,8 +61,24 @@ def test_triage_htmx_returns_only_the_card(admin_client):
     ThreadFactory()
     response = admin_client.get(reverse("watch:triage"), HTTP_HX_REQUEST="true")
     assert response.status_code == 200
-    assert [t.name for t in response.templates] == ["watch/partials/triage_card.html"]
+    # The card is the root template; it may include sub-partials.
+    assert response.templates[0].name == "watch/partials/triage_card.html"
+    assert "watch/triage.html" not in [t.name for t in response.templates]
     assert b"Triage" not in response.content
+
+
+@pytest.mark.django_db
+def test_triage_htmx_list_target_returns_only_the_list(admin_client):
+    ThreadFactory()
+    response = admin_client.get(
+        reverse("watch:triage"),
+        HTTP_HX_REQUEST="true",
+        HTTP_HX_TARGET="triage-list",
+    )
+    assert response.status_code == 200
+    assert [t.name for t in response.templates] == [
+        "watch/partials/triage_list.html"
+    ]
 
 
 @pytest.mark.django_db

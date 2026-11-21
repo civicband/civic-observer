@@ -1,9 +1,10 @@
 /**
  * Triage keyboard shortcuts, registered as an Alpine component.
  *
- * The outer triage container owns this component so HTMX swaps of
- * #triage-card do not destroy it. Keys only fire outside form controls, and
- * form actions are serialized while an HTMX request is in flight.
+ * The outer triage container owns this component so HTMX swaps of the detail
+ * pane and the list pane do not destroy it. Keys only fire outside form
+ * controls, and form actions are serialized while an HTMX request is in
+ * flight.
  */
 document.addEventListener("alpine:init", function () {
   "use strict";
@@ -25,6 +26,9 @@ document.addEventListener("alpine:init", function () {
       },
 
       busy: false,
+      helpOpen: false,
+      lastKey: null,
+      lastKeyAt: 0,
 
       init: function () {
         var self = this;
@@ -50,12 +54,44 @@ document.addEventListener("alpine:init", function () {
         }
         if (this.isTyping(event.target)) return;
 
-        var action = this.actions[(event.key || "").toLowerCase()];
+        var key = (event.key || "").toLowerCase();
+
+        if (key === "?" || (event.key === "?" )) {
+          this.helpOpen = !this.helpOpen;
+          event.preventDefault();
+          return;
+        }
+        if (event.key === "Escape" && this.helpOpen) {
+          this.helpOpen = false;
+          event.preventDefault();
+          return;
+        }
+        if (key === "/") {
+          this.focusFilter();
+          event.preventDefault();
+          return;
+        }
+        if (event.key === "Home" || this.isDoubleKey("g")) {
+          this.jumpToTop();
+          event.preventDefault();
+          return;
+        }
+
+        var action = this.actions[key];
         if (!action) return;
 
         if (this.run(action)) {
           event.preventDefault();
         }
+      },
+
+      // Treat a second `g` within 600ms as the `gg` chord.
+      isDoubleKey: function (chordKey) {
+        var now = Date.now();
+        var doubled = this.lastKey === chordKey && now - this.lastKeyAt < 600;
+        this.lastKey = chordKey;
+        this.lastKeyAt = now;
+        return doubled;
       },
 
       isTyping: function (target) {
@@ -70,6 +106,20 @@ document.addEventListener("alpine:init", function () {
           typeof target.closest === "function" &&
           target.closest("[contenteditable]") !== null
         );
+      },
+
+      focusFilter: function () {
+        var input = this.$root.querySelector("#triage-list-search");
+        if (input) input.focus();
+      },
+
+      jumpToTop: function () {
+        var firstRow = this.$root.querySelector(
+          "#triage-list a[data-thread-row]"
+        );
+        var list = this.$root.querySelector("#triage-list");
+        if (list) list.scrollTop = 0;
+        if (firstRow) firstRow.click();
       },
 
       run: function (action) {

@@ -2,7 +2,16 @@
     {% for place in places %}
         <tr id="backlog-place-{{ place.pk }}" data-place="{{ place.pk }}">
             <td class="px-4 py-4 align-top">
-                <div class="font-medium text-gray-900 dark:text-gray-100">{{ place.name }}</div>
+                <div class="flex items-center gap-2">
+                    <span class="font-medium text-gray-900 dark:text-gray-100">{{ place.name }}</span>
+                    {% if place.latest_note_status == "added" %}
+                        <span class="rounded-full bg-emerald-100 px-2 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">Added</span>
+                    {% elif place.latest_note_status == "rejected" %}
+                        <span class="rounded-full bg-gray-200 px-2 py-0.5 text-[11px] font-medium text-gray-700 dark:bg-gray-700 dark:text-gray-300">Rejected</span>
+                    {% elif place.latest_note_status == "maybe" %}
+                        <span class="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">Maybe</span>
+                    {% endif %}
+                </div>
                 <div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
                     {{ place.get_place_type_display }}
                     {% if place.state %}<span>·</span> {{ place.state }}{% endif %}
@@ -44,7 +53,7 @@
                 <form class="space-y-2"
                       method="post"
                       action="{% url 'watch:backlog-note' place.pk %}"
-                      hx-post="{% url 'watch:backlog-note' place.pk %}"
+                      hx-post="{% url 'watch:backlog-note' place.pk %}{% if status %}?status={{ status }}{% endif %}{% if sort %}&sort={{ sort }}{% endif %}"
                       hx-target="#backlog-place-{{ place.pk }}"
                       hx-swap="outerHTML">
                     {% csrf_token %}
@@ -76,6 +85,6 @@
 {% else %}
     <tr>
         <td colspan="6"
-            class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">No uncovered places yet.</td>
+            class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">No places match this view.</td>
     </tr>
 {% endif %}

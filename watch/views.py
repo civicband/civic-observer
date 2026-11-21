@@ -4,12 +4,21 @@ from __future__ import annotations
 
 import logging
 import uuid
+from collections.abc import Mapping
 from datetime import timedelta
 from typing import Any
 
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db import transaction
-from django.db.models import Prefetch, Q
+from django.db.models import (
+    Case,
+    F,
+    IntegerField,
+    Prefetch,
+    Q,
+    Value,
+    When,
+)
 from django.http import Http404, HttpRequest, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
 from django.utils import timezone
@@ -26,28 +35,43 @@ from watch.models import (
     PlaceNote,
     Subreddit,
     Thread,
+    ThreadLabel,
     ThreadPlace,
 )
 from watch.normalize import normalize_key
 from watch.scoring import (
     BACKLOG_DAYS,
+    BACKLOG_SORTS,
+    BACKLOG_STATUS_FILTERS,
+    QUEUE_COVERED_CHOICES,
+    QUEUE_SORTS,
+    QUEUE_US_CHOICES,
     backlog_queryset,
     backlog_thread_count,
     country_allowed_q,
+    filtered_queue_queryset,
     next_thread,
     previous_thread,
-    queue_queryset,
     thread_country,
 )
 
-#: Partial swapped into ``#triage-card`` after an action or correction.
+#: Detail pane partial, swapped into ``#triage-detail``.
 TRIAGE_CARD_TEMPLATE = "watch/partials/triage_card.html"
+
+#: Queue list partial, swapped into ``#triage-list``.
+TRIAGE_LIST_TEMPLATE = "watch/partials/triage_list.html"
 
 #: Partial whose rows are swapped after a backlog note is saved.
 BACKLOG_ROWS_TEMPLATE = "watch/partials/backlog_rows.html"
 
+#: Place typeahead results partial.
+PLACE_SEARCH_TEMPLATE = "watch/partials/place_search_results.html"
+
 #: Threads shown per backlog row as a taste of what named the place.
 SAMPLE_THREAD_LIMIT = 3
+
+#: Maximum number of places returned by the typeahead.
+PLACE_SEARCH_LIMIT = 8
 
 #: Actions that remove the thread from the queue and move the operator on.
 ADVANCING_ACTIONS = frozenset(
@@ -59,12 +83,57 @@ ADVANCING_ACTIONS = frozenset(
     }
 )
 
+#: Triage list filters read from the query string, with their allowed values.
+_QUEUE_FILTER_KEYS = {
+    "covered": QUEUE_COVERED_CHOICES,
+    "kind": None,
+    "us": QUEUE_US_CHOICES,
+    "sort": tuple(QUEUE_SORTS),
+    "q": None,
+}
+
+#: Backlog filters read from the query string.
+_BACKLOG_FILTER_KEYS = {
+    "status": BACKLOG_STATUS_FILTERS,
+    "sort": tuple(BACKLOG_SORTS),
+}
+
 logger = logging.getLogger(__name__)
 
 
 def _is_htmx(request: HttpRequest) -> bool:
     """Return whether the request came from htmx."""
     return request.headers.get("HX-Request") == "true"
+
+
+def _clean_params(
+    request: HttpRequest, spec: Mapping[str, tuple[str, ...] | None]
+) -> dict[str, str]:
+    """Return the accepted query-string values for ``spec``.
+
+    Unknown values for a key with an allowed set are dropped, so a stale
+    bookmark renders a sensible default rather than an empty page.  Keys with
+    ``None`` are passed through after stripping.
+    """
+    cleaned: dict[str, str] = {}
+    for key, allowed in spec.items():
+        value = (request.GET.get(key) or "").strip()
+        if not value:
+            continue
+        if allowed is not None and value not in allowed:
+            continue
+        cleaned[key] = value
+    return cleaned
+
+
+def _queue_filters(request: HttpRequest) -> dict[str, str]:
+    """Return the triage list filters from the query string."""
+    return _clean_params(request, _QUEUE_FILTER_KEYS)
+
+
+def _backlog_filters(request: HttpRequest) -> dict[str, str]:
+    """Return the backlog filters from the query string."""
+    return _clean_params(request, _BACKLOG_FILTER_KEYS)
 
 
 def _sample_thread_places():
@@ -87,9 +156,14 @@ def _sample_thread_places():
     )
 
 
-def _backlog_place_list(place_id: uuid.UUID | None = None) -> list[Place]:
+def _backlog_place_list(
+    place_id: uuid.UUID | None = None,
+    *,
+    status: str | None = None,
+    sort: str | None = None,
+) -> list[Place]:
     """Return ranked backlog places with sampled threads and notes prefetched."""
-    queryset = backlog_queryset().prefetch_related(
+    queryset = backlog_queryset(status=status, sort=sort).prefetch_related(
         Prefetch(
             "thread_places",
             queryset=_sample_thread_places(),
@@ -111,20 +185,43 @@ def _backlog_place_list(place_id: uuid.UUID | None = None) -> list[Place]:
 
 
 def _backlog_context(
-    places: list[Place], *, include_total: bool = False
+    places: list[Place],
+    *,
+    include_total: bool = False,
+    status: str | None = None,
+    sort: str | None = None,
 ) -> dict[str, Any]:
     """Return the template context shared by the page, rows, and note view."""
     context: dict[str, Any] = {
         "places": places,
         "note_statuses": PlaceNote.Status.choices,
+        "status": status or "all",
+        "sort": sort or "threads",
+        "status_filters": BACKLOG_STATUS_FILTERS,
+        "sort_options": tuple(BACKLOG_SORTS),
     }
     if include_total:
-        context["total_threads"] = backlog_thread_count()
+        context["total_threads"] = backlog_thread_count(status=status, sort=sort)
     return context
 
 
-def _triage_context(thread: Thread | None) -> dict[str, Any]:
-    """Return the template context for one triage card."""
+def _queue_rows(filters: dict[str, str]) -> list[Thread]:
+    """Return the ranked, filtered queue rows for the list pane."""
+    return list(
+        filtered_queue_queryset(**filters).select_related(
+            "subreddit", "subreddit__place"
+        )
+    )
+
+
+def _triage_context(
+    thread: Thread | None, *, filters: dict[str, str] | None = None
+) -> dict[str, Any]:
+    """Return the template context for the triage page and its partials."""
+    filters = filters or {}
+    rows = _queue_rows(filters)
+    queue_queryset_for_nav = filtered_queue_queryset(**filters)
+
     thread_places: list[ThreadPlace] = []
     meeting_hits_by_place: dict[uuid.UUID, list[MeetingHit]] = {}
     if thread is not None:
@@ -148,7 +245,9 @@ def _triage_context(thread: Thread | None) -> dict[str, Any]:
 
     return {
         "thread": thread,
-        "queue_count": queue_queryset().count(),
+        "rows": rows,
+        "filters": filters,
+        "queue_count": queue_queryset_for_nav.count(),
         "thread_country": thread_country(thread) if thread else None,
         "meeting_hits_by_place": meeting_hits_by_place,
         "subject_places": subject_places,
@@ -158,48 +257,66 @@ def _triage_context(thread: Thread | None) -> dict[str, Any]:
             if thread is not None
             else []
         ),
-        "previous_thread": previous_thread(thread.pk) if thread else None,
-        "next_thread": next_thread(thread.pk) if thread else None,
+        "previous_thread": (
+            previous_thread(thread.pk, queryset=queue_queryset_for_nav)
+            if thread
+            else None
+        ),
+        "next_thread": (
+            next_thread(thread.pk, queryset=queue_queryset_for_nav) if thread else None
+        ),
     }
 
 
 def _after_action(
     request: HttpRequest, thread: Thread, *, advance: bool
 ) -> HttpResponse:
-    """Render the htmx card to show, or return to the queue for a plain form.
+    """Render the htmx detail card, or return to the queue for a plain form.
 
     Actions that take the thread out of the queue advance to the next thread;
     actions that keep it queued re-render the current thread so the operator
-    can see the change.
+    can see the change.  The response also carries an out-of-band refresh of
+    the list pane so an acted-on row disappears without a full reload.
     """
-    if _is_htmx(request):
-        shown = next_thread(thread.pk) if advance else thread
-        return render(
-            request,
-            TRIAGE_CARD_TEMPLATE,
-            _triage_context(shown),
-        )
-    return redirect("watch:triage")
+    if not _is_htmx(request):
+        return redirect("watch:triage")
+
+    filters = _queue_filters(request)
+    nav_queryset = filtered_queue_queryset(**filters)
+    shown = next_thread(thread.pk, queryset=nav_queryset) if advance else thread
+    context = _triage_context(shown, filters=filters)
+    # Ask the card to also emit an out-of-band refresh of the list pane so the
+    # acted-on row disappears (or the order updates) without a full reload.
+    context["oob_list"] = True
+    return render(request, TRIAGE_CARD_TEMPLATE, context)
 
 
 @method_decorator(staff_member_required, name="dispatch")
 class TriageView(View):
-    """Show one queued thread at a time with its places and meeting hits."""
+    """Show the ranked thread list beside one selected thread's detail."""
 
     template_name = "watch/triage.html"
 
     def get(self, request: HttpRequest) -> HttpResponse:
-        thread = self._selected_thread(request)
-        template_name = (
-            TRIAGE_CARD_TEMPLATE if _is_htmx(request) else self.template_name
-        )
-        return render(request, template_name, _triage_context(thread))
+        filters = _queue_filters(request)
+        thread = self._selected_thread(request, filters)
+        context = _triage_context(thread, filters=filters)
 
-    def _selected_thread(self, request: HttpRequest) -> Thread | None:
-        """Return ``?thread=<uuid>``, or the head of the queue."""
+        if _is_htmx(request):
+            target = request.headers.get("HX-Target", "")
+            if target == "triage-list":
+                return render(request, TRIAGE_LIST_TEMPLATE, context)
+            return render(request, TRIAGE_CARD_TEMPLATE, context)
+
+        return render(request, self.template_name, context)
+
+    def _selected_thread(
+        self, request: HttpRequest, filters: dict[str, str]
+    ) -> Thread | None:
+        """Return ``?thread=<uuid>``, or the head of the filtered queue."""
         thread_id = request.GET.get("thread")
         if not thread_id:
-            return next_thread()
+            return filtered_queue_queryset(**filters).first()
 
         try:
             thread_uuid = uuid.UUID(thread_id)
@@ -218,13 +335,15 @@ class TriageActionView(View):
         if not form.is_valid():
             return HttpResponseBadRequest("Invalid triage action")
 
-        error = self._apply(thread, form.cleaned_data)
+        error = self._apply(thread, form.cleaned_data, request)
         if error is not None:
             return HttpResponseBadRequest(error)
         advance = form.cleaned_data["action"] in ADVANCING_ACTIONS
         return _after_action(request, thread, advance=advance)
 
-    def _apply(self, thread: Thread, data: dict[str, Any]) -> str | None:
+    def _apply(
+        self, thread: Thread, data: dict[str, Any], request: HttpRequest
+    ) -> str | None:
         """Apply ``data['action']`` and return an error message, if any."""
         action = data["action"]
 
@@ -269,6 +388,12 @@ class TriageActionView(View):
             )
         elif action == TriageActionForm.Action.EDIT_QUERY:
             return self._edit_query(thread, data)
+        elif action == TriageActionForm.Action.NO_PLACE:
+            ThreadLabel.objects.update_or_create(
+                thread=thread,
+                place=None,
+                defaults={"is_subject": False, "created_by": request.user},
+            )
 
         return None
 
@@ -375,6 +500,40 @@ class PlaceCorrectionView(View):
 
 
 @method_decorator(staff_member_required, name="dispatch")
+class PlaceSearchView(View):
+    """Return typeahead matches for the place-correction input."""
+
+    def get(self, request: HttpRequest) -> HttpResponse:
+        query = (request.GET.get("q") or "").strip()
+        matches = self._matches(query)
+        return render(
+            request,
+            PLACE_SEARCH_TEMPLATE,
+            {"places": matches, "query": query},
+        )
+
+    def _matches(self, query: str) -> list[Place]:
+        """Return places whose name or alias matches ``query``, best first."""
+        if not query:
+            return []
+        key = normalize_key(query)
+        filters = Q(name__icontains=query) | Q(aliases__key__icontains=key)
+        return list(
+            Place.objects.filter(filters)
+            .select_related("muni")
+            .annotate(
+                prefix_match=Case(
+                    When(name__istartswith=query, then=Value(0)),
+                    default=Value(1),
+                    output_field=IntegerField(),
+                )
+            )
+            .order_by("prefix_match", F("population").desc(nulls_last=True), "name")
+            .distinct()[:PLACE_SEARCH_LIMIT]
+        )
+
+
+@method_decorator(staff_member_required, name="dispatch")
 class BacklogView(View):
     """List uncovered places ranked by recent subject-thread activity."""
 
@@ -382,13 +541,21 @@ class BacklogView(View):
     partial_template_name = BACKLOG_ROWS_TEMPLATE
 
     def get(self, request: HttpRequest) -> HttpResponse:
-        places = _backlog_place_list()
+        filters = _backlog_filters(request)
+        status = filters.get("status")
+        sort = filters.get("sort")
+        places = _backlog_place_list(status=status, sort=sort)
         partial = _is_htmx(request)
         template_name = self.partial_template_name if partial else self.template_name
         return render(
             request,
             template_name,
-            _backlog_context(places, include_total=not partial),
+            _backlog_context(
+                places,
+                include_total=not partial,
+                status=status,
+                sort=sort,
+            ),
         )
 
 
@@ -409,12 +576,20 @@ class BacklogNoteView(View):
         if not _is_htmx(request):
             return redirect("watch:backlog")
 
-        places = _backlog_place_list(place.pk)
+        filters = _backlog_filters(request)
+        status = filters.get("status")
+        sort = filters.get("sort")
+        places = _backlog_place_list(place.pk, status=status, sort=sort)
         if not places:
             # The note still saved; show it even if the place has no recent
             # subject threads and therefore left the ranking.
             place.subject_threads = 0  # type: ignore[attr-defined]
             place.subject_subreddits = 0  # type: ignore[attr-defined]
             place.sample_threads = []  # type: ignore[attr-defined]
+            place.latest_note_status = note.status  # type: ignore[attr-defined]
             places = [place]
-        return render(request, BACKLOG_ROWS_TEMPLATE, _backlog_context(places))
+        return render(
+            request,
+            BACKLOG_ROWS_TEMPLATE,
+            _backlog_context(places, status=status, sort=sort),
+        )

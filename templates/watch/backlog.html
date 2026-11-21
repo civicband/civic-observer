@@ -17,7 +17,40 @@
             </div>
         </div>
 
-        <div class="mt-6 overflow-x-auto rounded-lg border border-gray-200 bg-white shadow dark:border-gray-800 dark:bg-gray-900">
+        <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
+            <div class="flex flex-wrap gap-1" role="group" aria-label="Filter by status">
+                {% for value in status_filters %}
+                    <a href="?status={{ value }}{% if sort %}&sort={{ sort }}{% endif %}"
+                       hx-get="?status={{ value }}{% if sort %}&sort={{ sort }}{% endif %}"
+                       hx-target="#backlog-rows"
+                       hx-swap="innerHTML"
+                       hx-push-url="true"
+                       class="rounded-full px-3 py-1 text-xs font-medium {% if status == value %}bg-indigo-600 text-white{% else %}bg-gray-100 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700{% endif %}">
+                        {{ value|capfirst }}
+                    </a>
+                {% endfor %}
+            </div>
+            <form class="flex items-center gap-2"
+                  hx-get="{% url 'watch:backlog' %}"
+                  hx-target="#backlog-rows"
+                  hx-swap="innerHTML"
+                  hx-push-url="true"
+                  hx-trigger="change"
+                  @submit.prevent>
+                <input type="hidden" name="status" value="{{ status }}">
+                <label class="sr-only" for="backlog-sort">Sort by</label>
+                <select id="backlog-sort"
+                        name="sort"
+                        class="rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                    <option value="threads"{% if sort == "threads" %} selected{% endif %}>Most threads</option>
+                    <option value="subreddits"{% if sort == "subreddits" %} selected{% endif %}>Most subreddits</option>
+                    <option value="population"{% if sort == "population" %} selected{% endif %}>Population</option>
+                    <option value="recency"{% if sort == "recency" %} selected{% endif %}>Most recent</option>
+                </select>
+            </form>
+        </div>
+
+        <div class="mt-4 overflow-x-auto rounded-lg border border-gray-200 bg-white shadow dark:border-gray-800 dark:bg-gray-900">
             <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-800">
                 <thead class="bg-gray-50 dark:bg-gray-800">
                     <tr>

@@ -232,7 +232,7 @@ def test_backlog_renders_ranking_table(admin_client):
 @pytest.mark.django_db
 def test_backlog_empty_state(admin_client):
     response = admin_client.get(reverse("watch:backlog"))
-    assert "No uncovered places yet." in response.content.decode()
+    assert "No places match this view." in response.content.decode()
 
 
 @pytest.mark.django_db

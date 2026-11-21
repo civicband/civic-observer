@@ -25,6 +25,7 @@ class TriageActionForm(forms.Form):
         MUTE_SUBREDDIT = "mute_subreddit", "Mute subreddit"
         MUTE_COUNTRY = "mute_country", "Mute country"
         EDIT_QUERY = "edit_query", "Edit query"
+        NO_PLACE = "no_place", "No place"
 
     action = forms.ChoiceField(choices=Action.choices)
     days = forms.IntegerField(min_value=1, max_value=90, required=False)
