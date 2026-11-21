@@ -16,6 +16,7 @@ from .models import (
     PlaceNote,
     Subreddit,
     Thread,
+    ThreadLabel,
     ThreadPlace,
 )
 
@@ -92,6 +93,29 @@ class UsFilter(admin.SimpleListFilter):
         return queryset
 
 
+class HasLabelFilter(admin.SimpleListFilter):
+    title = "Has label"
+    parameter_name = "has_label"
+
+    def lookups(self, request, model_admin):
+        return (("yes", "Labelled"), ("no", "Unlabelled"))
+
+    def queryset(self, request, queryset):
+        labelled = Exists(ThreadLabel.objects.filter(thread=OuterRef("pk")))
+        if self.value() == "yes":
+            return queryset.filter(labelled)
+        if self.value() == "no":
+            return queryset.exclude(labelled)
+        return queryset
+
+
+class ThreadLabelInline(admin.TabularInline):
+    model = ThreadLabel
+    extra = 0
+    autocomplete_fields = ["place"]
+    readonly_fields = ["created_at"]
+
+
 @admin.register(Place)
 class PlaceAdmin(admin.ModelAdmin):
     list_display = [
@@ -164,6 +188,7 @@ class ThreadAdmin(admin.ModelAdmin):
         "subreddit__kind",
         CoveredFilter,
         UsFilter,
+        HasLabelFilter,
         "subreddit__muted",
         "last_seen",
     ]
@@ -174,6 +199,7 @@ class ThreadAdmin(admin.ModelAdmin):
         "subreddit__name",
     ]
     list_select_related = ["subreddit"]
+    inlines = [ThreadLabelInline]
     actions = [
         "mark_replied",
         "mark_dismissed",
@@ -307,6 +333,15 @@ class PlaceAliasAdmin(admin.ModelAdmin):
     list_filter = ["kind", "source"]
     search_fields = ["key", "place__name"]
     list_select_related = ["place"]
+
+
+@admin.register(ThreadLabel)
+class ThreadLabelAdmin(admin.ModelAdmin):
+    list_display = ["thread", "place", "is_subject", "is_useful", "created_by"]
+    list_filter = ["is_subject", "is_useful"]
+    search_fields = ["thread__key", "thread__title", "place__name"]
+    autocomplete_fields = ["thread", "place"]
+    list_select_related = ["thread", "place", "created_by"]
 
 
 @admin.register(ThreadPlace)
