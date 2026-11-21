@@ -10,6 +10,14 @@ Redis, django-rq worker, and cron.
 Run these in order on a fresh deployment. Each step is idempotent, so a failed
 or interrupted step can be re-run.
 
+Run every `python manage.py` command in this guide inside the web container. The
+examples show the bare command for brevity; from the deployment host the
+wrapper is:
+
+```bash
+docker compose -f docker-compose.production.yml run --rm web-blue python manage.py <command>
+```
+
 1. Apply migrations:
 
    ```bash
@@ -25,10 +33,12 @@ or interrupted step can be re-run.
    ```
 
    `load_watch_gazetteer` downloads the current Gazetteer files (override the
-   year with `--year`). `load_watch_governments` expects the Census of
-   Governments XLSX in `--source-dir`, or one file with `--file`.
-   `load_watch_geonames` downloads `cities500.txt`; use `--min-population` to
-   change the threshold for non-US, non-Canadian lookup cities.
+   year with `--year`). `load_watch_governments` expects
+   `Govt_Units_2022_Final.xlsx` in `--source-dir` (or in `WATCH_DATA_DIR` when
+   `--source-dir` is omitted); use `--file` if the download has a different
+   name. `load_watch_geonames` downloads `cities500.txt`; use
+   `--min-population` to change the threshold for non-US, non-Canadian lookup
+   cities.
 
 3. Optionally link Wikidata:
 
@@ -63,13 +73,13 @@ or interrupted step can be re-run.
 Set these in the deployment environment (see `.env.example` for the full
 list):
 
-| Variable | Required | Purpose |
+| Variable | Status | Purpose |
 | --- | --- | --- |
-| `F5BOT_FEED_URL` | Yes | Private F5Bot Reddit feed URL. Treated as a secret. |
-| `WATCH_DATA_DIR` | Yes | Cache directory for downloaded datasets (defaults to `.cache/watch`). |
-| `WATCH_ALERT_EMAIL` | Yes | Comma-separated recipients for the once-per-day stale-ingest alert. Empty disables the alert email. |
-| `WATCH_SUMMARY_EMAIL` | Yes | Comma-separated recipients for the weekly summary. Empty skips sending. |
-| `WATCH_STALE_HOURS` | Yes | Hours without a successful ingest before the pipeline counts as stale (default `6`). |
+| `F5BOT_FEED_URL` | Required | Private F5Bot Reddit feed URL. `ingest_f5bot` errors when it is unset. Treated as a secret. |
+| `WATCH_DATA_DIR` | Defaulted (`.cache/watch`) | Cache directory for downloaded datasets. Set only to override. |
+| `WATCH_ALERT_EMAIL` | Empty allowed | Comma-separated recipients for the once-per-day stale-ingest alert. Empty disables the alert email. |
+| `WATCH_SUMMARY_EMAIL` | Empty allowed | Comma-separated recipients for the weekly summary. Empty skips sending. |
+| `WATCH_STALE_HOURS` | Defaulted (`6`) | Hours without a successful ingest before the pipeline counts as stale. |
 | `WATCH_INGEST_LOCK_SECONDS` | Optional | How long the Redis ingest lock is held (default `3600`). |
 | `WATCH_LLM_ENABLED` | Optional | Enables the optional LLM place pass. Off by default. |
 | `WATCH_LLM_BASE_URL` | Optional | OpenAI-compatible endpoint for the LLM pass. |
@@ -113,10 +123,10 @@ Optional settings:
 python manage.py ingest_f5bot
 ```
 
-The command polls up to `--max-pages 20` feed pages by default, stops at the
-first page already seen, and records every run in `IngestRun` (`/admin/` →
-Watch → Ingest runs). Failed runs are recorded too, with an error type rather
-than feed contents or credentials.
+The command polls up to `--max-pages 20` feed pages by default, stops after the
+first page that contains an already-seen item, and records every run in
+`IngestRun` (`/admin/` → Watch → Ingest runs). Failed runs are recorded too,
+with an error type rather than feed contents or credentials.
 
 Useful options:
 
@@ -150,16 +160,17 @@ feed errors.
 
 ### Backfill existing threads
 
-After deploying, enqueue enrichment for threads created before place extraction
-existed. This is the required post-deploy step:
+After a release that includes place extraction, enqueue enrichment for threads
+created before it existed. This is the required post-deploy step:
 
 ```bash
 python manage.py backfill_watch_threads
 ```
 
 The command selects threads with no `ThreadPlace` rows, newest first, and
-enqueues one enrichment job per thread. Re-run the whole corpus after changing
-extraction rules:
+enqueues one enrichment job per thread. It only enqueues work; the django-rq
+worker must be running for places and meeting hits to appear. Re-run the whole
+corpus after changing extraction rules:
 
 ```bash
 python manage.py backfill_watch_threads --all
@@ -182,7 +193,9 @@ python manage.py refresh_watch_hits --all --limit 500
 
 ## Milestone 6: health alerts, suggestions, and reports
 
-Add these entries to the crontab in `public-works` alongside the hourly ingest:
+Add these entries to the crontab in `public-works`. This block replaces the
+Milestone 1 ingest line: keep one `ingest_f5bot` entry and do not add a second
+identical line.
 
 ```cron
 5 * * * * cd /home/deploy/civic-observer && docker compose -f docker-compose.production.yml run --rm web-blue python manage.py ingest_f5bot --max-pages 20
@@ -201,14 +214,19 @@ Add these entries to the crontab in `public-works` alongside the hourly ingest:
 ### Health alerts
 
 `check_watch_health` owns the once-per-day stale alert email and the exit code.
-It sends at most one alert per local day when the last successful ingest is
-older than `WATCH_STALE_HOURS` or when no recent run added mentions. It exits
-nonzero when the pipeline is stale or quiet so cron monitoring notices.
+It emails at most once per local day, and only when the pipeline is stale and
+`WATCH_ALERT_EMAIL` has recipients: no successful ingest has ever completed, or
+the last successful run finished more than `WATCH_STALE_HOURS` ago.
+
+A quiet pipeline (no run in the last 24 hours added mentions) does not send
+email by itself; it only makes the command exit nonzero. Keep exit-code
+monitoring enabled for this cron entry even if cron mail is disabled, or quiet
+failures go unnoticed.
 
 Do not configure the cron wrapper or cron's own mail handling to also email on
-a nonzero exit. You would get two notifications for the same failure: one from
-the command and one from cron. Either leave cron mail disabled for this entry
-or point it at a separate monitor that does not send the same alert.
+a nonzero exit. The stale case would then produce two notifications for the
+same failure. Use exit-code monitoring for nonzero exits and let the command
+own the stale email.
 
 ### Subreddit suggestions
 
@@ -245,17 +263,24 @@ dashboards or ad-hoc analysis.
 
 ### Backfill ingest and threads after a deploy
 
-After the Milestone 5 deploy, pull history and then enrich the existing threads:
+Pull history and then enrich the existing threads:
 
 ```bash
 python manage.py ingest_f5bot --max-pages 500
 python manage.py backfill_watch_threads
 ```
 
-`--max-pages 500` walks deeper into the feed history than the hourly
-`--max-pages 20`. The ingest stops at the first page it has already seen, so
-re-running it is safe. Follow with `backfill_watch_threads` so older threads get
-places and meeting hits.
+`ingest_f5bot` stops after the first page that contains an already-seen item
+(the page is still processed). A deep backfill therefore reaches older history
+only if it runs before the hourly cron has consumed the feed's first page. Once
+hourly ingest is running, a `--max-pages 500` run typically processes page 1
+and stops. Check `IngestRun.pages` to confirm how deep a run actually went;
+`pages=1` means it stopped on the first page.
+
+`backfill_watch_threads` only enqueues enrichment jobs; it does not extract
+places itself. The django-rq worker must be running, or the jobs sit in the
+queue. Follow the backfill with `refresh_watch_hits` if meeting hits need
+rebuilding.
 
 ### Re-run enrichment for one thread
 
@@ -289,5 +314,6 @@ python manage.py check_watch_health
 ```
 
 The output reports `stale`, `quiet`, `hours_since_success`, `alerts_today`, and
-whether an alert email was sent. The same signals appear on the Watch dashboard
-in the admin.
+whether an alert email was sent. `alerts_today` is the number of new mentions
+from ingest runs started today, not a count of emails sent. The same signals
+appear on the Watch dashboard in the admin.
