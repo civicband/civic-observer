@@ -36,6 +36,8 @@ def test_enrich_refreshes_thread_hits(monkeypatch):
     assert enrichment.enrich_thread(str(thread.id)) == {
         "status": "ok",
         "thread_id": str(thread.id),
+        "subjects": 0,
+        "mentioned": 0,
         "hits": 4,
     }
 
@@ -63,6 +65,8 @@ def test_enrich_with_no_subject_places_reports_zero_hits():
     assert enrichment.enrich_thread(str(thread.id)) == {
         "status": "ok",
         "thread_id": str(thread.id),
+        "subjects": 0,
+        "mentioned": 0,
         "hits": 0,
     }
 

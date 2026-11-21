@@ -118,6 +118,20 @@ def extraction_places(db: None) -> dict[str, Place]:
             "AL",
             population=187041,
         ),
+        "huntsville": _place(
+            "us:place:0137000",
+            "Huntsville",
+            Place.PlaceType.CITY,
+            "AL",
+            population=215006,
+        ),
+        "new_york": _place(
+            "us:place:3651000",
+            "New York",
+            Place.PlaceType.CITY,
+            "NY",
+            population=8804190,
+        ),
         "springfield_il": _place(
             "us:place:1772000",
             "Springfield",
