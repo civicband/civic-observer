@@ -16,7 +16,7 @@ from tests.factories import (
     ThreadFactory,
     ThreadPlaceFactory,
 )
-from watch.evidence import suggest_subreddits
+from watch.evidence import _apply, suggest_subreddits
 from watch.models import Subreddit
 
 
@@ -399,6 +399,41 @@ def test_suggestion_refreshes_modified_and_place_geography():
     assert subreddit.state == "ON"
     assert str(subreddit.country) == "CA"
     assert subreddit.modified > stale
+
+
+@pytest.mark.django_db
+def test_apply_refuses_row_that_became_manual_after_read():
+    subreddit = SubredditFactory(name="localnews", source="gazetteer", place=None)
+    stale = Subreddit.objects.get(pk=subreddit.pk)
+    other = PlaceFactory(name="Other")
+    suggested = PlaceFactory(name="Chico")
+    Subreddit.objects.filter(pk=subreddit.pk).update(
+        source=Subreddit.Source.MANUAL,
+        place=other,
+        note="operator note",
+    )
+
+    assert _apply(stale, suggested, 4, 4) is False
+
+    current = Subreddit.objects.get(pk=subreddit.pk)
+    assert current.source == Subreddit.Source.MANUAL
+    assert current.place == other
+    assert current.note == "operator note"
+
+
+@pytest.mark.django_db
+def test_apply_preserves_note_written_after_read():
+    subreddit = SubredditFactory(name="localnews", source="gazetteer", note="")
+    stale = Subreddit.objects.get(pk=subreddit.pk)
+    place = PlaceFactory(name="Chico")
+    Subreddit.objects.filter(pk=subreddit.pk).update(note="operator note")
+
+    assert _apply(stale, place, 4, 4) is True
+
+    current = Subreddit.objects.get(pk=subreddit.pk)
+    assert current.place == place
+    assert current.source == Subreddit.Source.TEXT_EVIDENCE
+    assert current.note == "operator note"
 
 
 @pytest.mark.django_db

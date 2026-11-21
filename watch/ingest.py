@@ -12,6 +12,7 @@ import django_rq
 import httpx
 from django.conf import settings
 from django.db import DataError, transaction
+from django.db.models import Q
 from django.utils import timezone
 from redis.exceptions import LockError
 
@@ -64,9 +65,18 @@ def group_crosspost(thread: Thread) -> Thread | None:
     if len(normalized) < MIN_CROSSPOST_TITLE_LENGTH or normalized in GENERIC_TITLES:
         return None
 
-    cutoff = timezone.now() - CROSSPOST_WINDOW
+    now = timezone.now()
+    cutoff = now - CROSSPOST_WINDOW
+    # Only queue-eligible threads can become canonical: a thread the operator
+    # already replied to, dismissed, or moved to the backlog must not hide a
+    # newly visible crosspost.  A snoozed thread becomes eligible again when
+    # its snooze elapses.
+    queue_eligible = Q(status=Thread.Status.NEW) | Q(
+        status=Thread.Status.SNOOZED, snoozed_until__lte=now
+    )
     candidates = (
         Thread.objects.filter(
+            queue_eligible,
             last_seen__gte=cutoff,
             duplicate_of__isnull=True,
             subreddit__isnull=False,

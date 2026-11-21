@@ -157,6 +157,65 @@ def test_muted_canonical_country_does_not_swallow_a_visible_crosspost():
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("status", ["replied", "dismissed", "backlog"])
+def test_terminal_canonical_does_not_swallow_a_visible_crosspost(status):
+    canonical = ThreadFactory(
+        title="Massive data center proposed",
+        subreddit=SubredditFactory(name=f"canonical-{status}"),
+        status=status,
+    )
+    new = ThreadFactory(
+        title="Massive data center proposed!",
+        subreddit=SubredditFactory(name=f"visible-{status}"),
+    )
+
+    assert group_crosspost(new) is None
+    new.refresh_from_db()
+    assert new.duplicate_of is None
+    assert new.duplicate_of != canonical
+    assert new in queue_queryset()
+
+
+@pytest.mark.django_db
+def test_future_snoozed_canonical_does_not_swallow_a_visible_crosspost():
+    canonical = ThreadFactory(
+        title="Massive data center proposed",
+        subreddit=SubredditFactory(name="canonical-snoozed"),
+        status="snoozed",
+        snoozed_until=timezone.now() + timedelta(hours=1),
+    )
+    new = ThreadFactory(
+        title="Massive data center proposed!",
+        subreddit=SubredditFactory(name="visible-snoozed"),
+    )
+
+    assert group_crosspost(new) is None
+    new.refresh_from_db()
+    assert new.duplicate_of is None
+    assert new.duplicate_of != canonical
+    assert new in queue_queryset()
+
+
+@pytest.mark.django_db
+def test_elapsed_snoozed_canonical_still_groups():
+    canonical = ThreadFactory(
+        title="Massive data center proposed",
+        subreddit=SubredditFactory(name="canonical-elapsed"),
+        status="snoozed",
+        snoozed_until=timezone.now() - timedelta(hours=1),
+    )
+    new = ThreadFactory(
+        title="Massive data center proposed!",
+        subreddit=SubredditFactory(name="visible-elapsed"),
+    )
+
+    assert group_crosspost(new) == canonical
+    new.refresh_from_db()
+    assert new.duplicate_of == canonical
+    assert new not in queue_queryset()
+
+
+@pytest.mark.django_db
 def test_only_canonical_threads_can_be_crosspost_roots():
     now = timezone.now()
     canonical = ThreadFactory(
