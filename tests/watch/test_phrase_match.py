@@ -307,7 +307,7 @@ def test_reextraction_replaces_rows_when_text_and_state_change(extraction_places
 
 
 @pytest.mark.django_db
-def test_llm_rows_are_preserved_by_deterministic_extraction(extraction_places):
+def test_llm_rows_are_replaced_by_deterministic_extraction(extraction_places):
     mention = MentionFactory(snippet_text="Chico needs housing.")
     PlaceMention.objects.create(
         mention=mention,
@@ -323,6 +323,28 @@ def test_llm_rows_are_preserved_by_deterministic_extraction(extraction_places):
     assert [
         (row.place.name, row.method, row.confidence, row.is_subject) for row in rows
     ] == [("Chico", "gazetteer_phrase", "low", False)]
-    assert sorted(
-        (row.place.name, row.method) for row in mention.place_mentions.all()
-    ) == [("Beverly Hills", "llm"), ("Chico", "gazetteer_phrase")]
+    assert [(row.place.name, row.method) for row in mention.place_mentions.all()] == [
+        ("Chico", "gazetteer_phrase")
+    ]
+
+
+@pytest.mark.django_db
+def test_llm_row_does_not_suppress_deterministic_match(extraction_places):
+    mention = MentionFactory(snippet_text="Chico needs housing.")
+    PlaceMention.objects.create(
+        mention=mention,
+        place=extraction_places["chico"],
+        matched_text="Chico",
+        method=PlaceMention.Method.LLM,
+        confidence=PlaceMention.Confidence.MEDIUM,
+        is_subject=True,
+    )
+
+    rows = extract_mention_places(mention, SubredditFactory(state="CA"))
+
+    assert [(row.place.name, row.method) for row in rows] == [
+        ("Chico", "gazetteer_phrase")
+    ]
+    assert [(row.place.name, row.method) for row in mention.place_mentions.all()] == [
+        ("Chico", "gazetteer_phrase")
+    ]

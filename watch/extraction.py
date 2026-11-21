@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from django.conf import settings
 from django.db import transaction
 
-from watch.llm import classify_with_llm
+from watch.llm import MAX_LLM_PLACES, classify_with_llm
 from watch.models import (
     Mention,
     Place,
@@ -81,8 +81,16 @@ _DETERMINISTIC_METHODS = (
     PlaceMention.Method.GAZETTEER_PHRASE,
 )
 
-#: Methods owned elsewhere. Deterministic extraction preserves these rows; the
-#: optional LLM pass clears and regenerates its own rows.
+#: Rows removed before every deterministic rebuild. The LLM pass owns its rows
+#: but they are never authoritative: a stale LLM row must not suppress a fresh
+#: deterministic match. Only manual rows survive.
+_REGENERATED_METHODS = (
+    *_DETERMINISTIC_METHODS,
+    PlaceMention.Method.LLM,
+)
+
+#: Methods owned elsewhere. Deterministic extraction preserves ``manual`` rows;
+#: the optional LLM pass regenerates ``llm`` rows after deterministic extraction.
 _PRESERVED_METHODS = (
     PlaceMention.Method.MANUAL,
     PlaceMention.Method.LLM,
@@ -276,12 +284,12 @@ def extract_phrases(text: str, *, state: str | None = None) -> list[ExtractedPla
 def extract_mention_places(
     mention: Mention, subreddit: Subreddit | None
 ) -> list[PlaceMention]:
-    """Replace a mention's deterministic place rows and return the new rows.
+    """Replace a mention's extracted place rows and return the new rows.
 
     Body-pattern matches stay high-confidence subjects. Gazetteer phrases are
-    low-confidence mentions. Manual and LLM rows survive so the optional LLM
-    pass can clear and regenerate its own rows. A place already covered by a
-    preserved row is not extracted again because ``(mention, place)`` is unique.
+    low-confidence mentions. Deterministic rows and stale LLM rows are deleted
+    and rebuilt, so only ``manual`` rows survive and suppress a deterministic
+    match. The optional LLM pass later regenerates its own rows.
     """
     state = subreddit.state if subreddit is not None else None
     text = mention.snippet_text
@@ -294,10 +302,10 @@ def extract_mention_places(
     by_place = _dedupe_by_place(extracted)
 
     with transaction.atomic():
-        preserved_place_ids = set(
-            mention.place_mentions.filter(method__in=_PRESERVED_METHODS).values_list(
-                "place_id", flat=True
-            )
+        manual_place_ids = set(
+            mention.place_mentions.filter(
+                method=PlaceMention.Method.MANUAL
+            ).values_list("place_id", flat=True)
         )
         new_rows = [
             PlaceMention(
@@ -309,9 +317,9 @@ def extract_mention_places(
                 is_subject=item.is_subject,
             )
             for item in by_place.values()
-            if item.place.pk not in preserved_place_ids
+            if item.place.pk not in manual_place_ids
         ]
-        mention.place_mentions.filter(method__in=_DETERMINISTIC_METHODS).delete()
+        mention.place_mentions.filter(method__in=_REGENERATED_METHODS).delete()
         return PlaceMention.objects.bulk_create(new_rows)
 
 
@@ -565,19 +573,24 @@ def _regenerate_llm_places(
 ) -> None:
     """Replace every mention's LLM rows with a fresh model classification.
 
-    LLM output is thread-level, so new rows attach to the thread's post
-    mentions (or the first mention when a thread has no post). Existing
-    deterministic and manual rows win any ``(mention, place)`` collision.
+    A failed or empty call leaves deterministic extraction untouched. New rows
+    attach to the thread's post mentions (or the first mention when a thread has
+    no post), and only names present in the thread text are resolved so a
+    hallucinated name cannot become a place. Existing deterministic and manual
+    rows win any ``(mention, place)`` collision.
     """
     result = classify_with_llm(thread)
+    if result is None:
+        return
     targets = [m for m in mentions if m.kind == Mention.Kind.POST] or mentions[:1]
+    if not targets:
+        return
 
+    corpus = _thread_corpus(thread, mentions)
     with transaction.atomic():
         PlaceMention.objects.filter(
             mention__in=mentions, method=PlaceMention.Method.LLM
         ).delete()
-        if result is None or not targets:
-            return
 
         taken = set(
             PlaceMention.objects.filter(mention__in=targets).values_list(
@@ -585,8 +598,12 @@ def _regenerate_llm_places(
             )
         )
         rows: list[PlaceMention] = []
-        for item in result.places:
-            place = resolve_place_phrase(item.name, state=item.state or state)
+        for item in result.places[:MAX_LLM_PLACES]:
+            if item.name.casefold() not in corpus:
+                continue
+            place = resolve_place_phrase(
+                item.name, state=_llm_resolution_state(item.state, state)
+            )
             if place is None:
                 continue
             for mention in targets:
@@ -606,6 +623,31 @@ def _regenerate_llm_places(
                 )
         if rows:
             PlaceMention.objects.bulk_create(rows)
+
+
+def _thread_corpus(thread: Thread, mentions: list[Mention]) -> str:
+    """Return the casefolded thread text used to ground model-supplied names."""
+    parts: list[str] = [thread.title]
+    for mention in mentions:
+        parts.append(mention.post_title)
+        parts.append(mention.snippet_text)
+    return "\n".join(part for part in parts if part).casefold()
+
+
+def _llm_resolution_state(model_state: str, thread_state: str | None) -> str | None:
+    """Return the state used to resolve a model-supplied name.
+
+    A valid subreddit state is authoritative over the model's guess, so a
+    conflicting model state is ignored. Without a subreddit state, only a valid
+    two-letter code is accepted.
+    """
+    for candidate in (thread_state, model_state):
+        if not candidate:
+            continue
+        code = candidate.strip().upper()
+        if len(code) == 2 and code.isalpha():
+            return code
+    return None
 
 
 def _thread_place_role(mention: Mention, place_mention: PlaceMention) -> str:

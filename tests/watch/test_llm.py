@@ -129,18 +129,112 @@ def test_llm_returns_none_on_http_error(settings, monkeypatch):
 
 
 @pytest.mark.django_db
-def test_general_subreddit_adds_llm_subject(settings, monkeypatch, extraction_places):
+def test_llm_returns_none_when_raise_for_status_fails(settings, monkeypatch):
     _enable(settings)
-    subreddit = SubredditFactory(kind="general")
-    thread = ThreadFactory(subreddit=subreddit)
-    mention = MentionFactory(
-        thread=thread, kind="post", snippet_text="The vote passed."
+
+    def raise_status():
+        raise RuntimeError("500 server error")
+
+    monkeypatch.setattr(
+        "httpx.post",
+        lambda *a, **k: SimpleNamespace(
+            raise_for_status=raise_status,
+            json=lambda: {"choices": []},
+        ),
     )
+    assert classify_with_llm(ThreadFactory(title="Budget")) is None
+
+
+@pytest.mark.django_db
+def test_llm_error_log_omits_thread_text(settings, monkeypatch, caplog):
+    _enable(settings)
+
+    def raise_error(*args, **kwargs):
+        raise RuntimeError("endpoint down")
+
+    monkeypatch.setattr("httpx.post", raise_error)
+
+    with caplog.at_level("WARNING"):
+        assert classify_with_llm(ThreadFactory(title="SECRET-SNIPPET")) is None
+
+    assert "LLM place classification failed" in caplog.text
+    assert "SECRET-SNIPPET" not in caplog.text
+
+
+@pytest.mark.django_db
+def test_llm_omits_authorization_header_without_key(settings, monkeypatch):
+    _enable(settings)
+    settings.WATCH_LLM_API_KEY = ""
+    captured = {}
+
+    def fake_post(url, **kwargs):
+        captured.update(kwargs)
+        return _response({"places": [], "is_us": True, "topic": ""})
+
+    monkeypatch.setattr("httpx.post", fake_post)
+
+    classify_with_llm(ThreadFactory(title="Budget"))
+
+    assert "Authorization" not in captured["headers"]
+
+
+@pytest.mark.django_db
+def test_llm_normalizes_and_validates_state(settings, monkeypatch):
+    _enable(settings)
     monkeypatch.setattr(
         "httpx.post",
         lambda *a, **k: _response(
             {
-                "places": [{"name": "Chico", "state": "CA", "role": "subject"}],
+                "places": [
+                    {"name": "Chico", "state": "ca", "role": "subject"},
+                    {"name": "Hope", "state": "California", "role": "mentioned"},
+                    {"name": "Mobile", "state": "c1", "role": "mentioned"},
+                ],
+                "is_us": True,
+                "topic": "",
+            }
+        ),
+    )
+
+    result = classify_with_llm(ThreadFactory(title="Budget"))
+
+    assert result is not None
+    assert [(place.name, place.state) for place in result.places] == [
+        ("Chico", "CA"),
+        ("Hope", ""),
+        ("Mobile", ""),
+    ]
+
+
+@pytest.mark.django_db
+def test_llm_caps_places_at_twenty(settings, monkeypatch):
+    _enable(settings)
+    places = [
+        {"name": f"Place {index}", "state": "CA", "role": "mentioned"}
+        for index in range(25)
+    ]
+    monkeypatch.setattr(
+        "httpx.post",
+        lambda *a, **k: _response({"places": places, "is_us": True, "topic": ""}),
+    )
+
+    result = classify_with_llm(ThreadFactory(title="Budget"))
+
+    assert result is not None
+    assert len(result.places) == 20
+
+
+@pytest.mark.django_db
+def test_general_subreddit_adds_llm_subject(settings, monkeypatch, extraction_places):
+    _enable(settings)
+    subreddit = SubredditFactory(kind="general")
+    thread = ThreadFactory(subreddit=subreddit)
+    mention = MentionFactory(thread=thread, kind="post", snippet_text="Hope is nearby.")
+    monkeypatch.setattr(
+        "httpx.post",
+        lambda *a, **k: _response(
+            {
+                "places": [{"name": "Hope", "state": "AR", "role": "subject"}],
                 "is_us": True,
                 "topic": "vote",
             }
@@ -150,7 +244,7 @@ def test_general_subreddit_adds_llm_subject(settings, monkeypatch, extraction_pl
     extract_thread_places(thread)
 
     place_mention = PlaceMention.objects.get(
-        mention=mention, place=extraction_places["chico"]
+        mention=mention, place=extraction_places["hope"]
     )
     assert (
         place_mention.method,
@@ -158,7 +252,7 @@ def test_general_subreddit_adds_llm_subject(settings, monkeypatch, extraction_pl
         place_mention.is_subject,
     ) == ("llm", "medium", True)
     assert (
-        ThreadPlace.objects.get(thread=thread, place=extraction_places["chico"]).role
+        ThreadPlace.objects.get(thread=thread, place=extraction_places["hope"]).role
         == "subject"
     )
 
@@ -167,12 +261,12 @@ def test_general_subreddit_adds_llm_subject(settings, monkeypatch, extraction_pl
 def test_llm_mentioned_role_is_honored(settings, monkeypatch, extraction_places):
     _enable(settings)
     thread = ThreadFactory(subreddit=SubredditFactory(kind="region"))
-    mention = MentionFactory(thread=thread, kind="post", snippet_text="A comparison.")
+    mention = MentionFactory(thread=thread, kind="post", snippet_text="Hope is nearby.")
     monkeypatch.setattr(
         "httpx.post",
         lambda *a, **k: _response(
             {
-                "places": [{"name": "Chico", "state": "CA", "role": "mentioned"}],
+                "places": [{"name": "Hope", "state": "AR", "role": "mentioned"}],
                 "is_us": True,
                 "topic": "",
             }
@@ -182,10 +276,10 @@ def test_llm_mentioned_role_is_honored(settings, monkeypatch, extraction_places)
     extract_thread_places(thread)
 
     assert not PlaceMention.objects.get(
-        mention=mention, place=extraction_places["chico"]
+        mention=mention, place=extraction_places["hope"]
     ).is_subject
     assert (
-        ThreadPlace.objects.get(thread=thread, place=extraction_places["chico"]).role
+        ThreadPlace.objects.get(thread=thread, place=extraction_places["hope"]).role
         == "mentioned"
     )
 
@@ -194,9 +288,7 @@ def test_llm_mentioned_role_is_honored(settings, monkeypatch, extraction_places)
 def test_llm_clears_stale_rows_before_adding(settings, monkeypatch, extraction_places):
     _enable(settings)
     thread = ThreadFactory(subreddit=SubredditFactory(kind="general"))
-    mention = MentionFactory(
-        thread=thread, kind="post", snippet_text="The vote passed."
-    )
+    mention = MentionFactory(thread=thread, kind="post", snippet_text="Hope is nearby.")
     PlaceMention.objects.create(
         mention=mention,
         place=extraction_places["beverly_hills"],
@@ -209,7 +301,7 @@ def test_llm_clears_stale_rows_before_adding(settings, monkeypatch, extraction_p
         "httpx.post",
         lambda *a, **k: _response(
             {
-                "places": [{"name": "Chico", "state": "CA", "role": "subject"}],
+                "places": [{"name": "Hope", "state": "AR", "role": "subject"}],
                 "is_us": True,
                 "topic": "",
             }
@@ -222,7 +314,7 @@ def test_llm_clears_stale_rows_before_adding(settings, monkeypatch, extraction_p
         mention=mention, place=extraction_places["beverly_hills"]
     ).exists()
     assert PlaceMention.objects.filter(
-        mention=mention, place=extraction_places["chico"], method="llm"
+        mention=mention, place=extraction_places["hope"], method="llm"
     ).exists()
 
 
@@ -230,12 +322,12 @@ def test_llm_clears_stale_rows_before_adding(settings, monkeypatch, extraction_p
 def test_llm_unresolved_names_are_ignored(settings, monkeypatch, extraction_places):
     _enable(settings)
     thread = ThreadFactory(subreddit=SubredditFactory(kind="general"))
-    MentionFactory(thread=thread, kind="post", snippet_text="The vote passed.")
+    MentionFactory(thread=thread, kind="post", snippet_text="Zzyzx is nearby.")
     monkeypatch.setattr(
         "httpx.post",
         lambda *a, **k: _response(
             {
-                "places": [{"name": "Atlantis", "state": "ZZ", "role": "subject"}],
+                "places": [{"name": "Zzyzx", "state": "CA", "role": "subject"}],
                 "is_us": True,
                 "topic": "",
             }
@@ -248,6 +340,167 @@ def test_llm_unresolved_names_are_ignored(settings, monkeypatch, extraction_plac
         mention__thread=thread, method="llm"
     ).exists()
     assert not ThreadPlace.objects.filter(thread=thread).exists()
+
+
+@pytest.mark.django_db
+def test_llm_hallucinated_name_is_dropped(settings, monkeypatch, extraction_places):
+    _enable(settings)
+    thread = ThreadFactory(subreddit=SubredditFactory(kind="general"))
+    MentionFactory(thread=thread, kind="post", snippet_text="Hope is nearby.")
+    monkeypatch.setattr(
+        "httpx.post",
+        lambda *a, **k: _response(
+            {
+                "places": [{"name": "Beverly Hills", "state": "CA", "role": "subject"}],
+                "is_us": True,
+                "topic": "",
+            }
+        ),
+    )
+
+    extract_thread_places(thread)
+
+    assert not PlaceMention.objects.filter(
+        mention__thread=thread, method="llm"
+    ).exists()
+    assert not ThreadPlace.objects.filter(thread=thread).exists()
+
+
+@pytest.mark.django_db
+def test_llm_grounding_is_case_insensitive(settings, monkeypatch, extraction_places):
+    _enable(settings)
+    thread = ThreadFactory(subreddit=SubredditFactory(kind="general"))
+    MentionFactory(thread=thread, kind="post", snippet_text="the chico vote passed.")
+    monkeypatch.setattr(
+        "httpx.post",
+        lambda *a, **k: _response(
+            {
+                "places": [{"name": "Chico", "state": "CA", "role": "subject"}],
+                "is_us": True,
+                "topic": "",
+            }
+        ),
+    )
+
+    extract_thread_places(thread)
+
+    assert PlaceMention.objects.filter(
+        mention__thread=thread,
+        place=extraction_places["chico"],
+        method="llm",
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_llm_conflicting_state_uses_subreddit_state(
+    settings, monkeypatch, extraction_places
+):
+    _enable(settings)
+    subreddit = SubredditFactory(kind="general", state="IL")
+    thread = ThreadFactory(subreddit=subreddit)
+    MentionFactory(thread=thread, kind="post", snippet_text="springfield is nearby.")
+    monkeypatch.setattr(
+        "httpx.post",
+        lambda *a, **k: _response(
+            {
+                "places": [{"name": "Springfield", "state": "MO", "role": "subject"}],
+                "is_us": True,
+                "topic": "",
+            }
+        ),
+    )
+
+    extract_thread_places(thread)
+
+    place_mention = PlaceMention.objects.get(mention__thread=thread, method="llm")
+    assert (place_mention.place.name, place_mention.place.state) == (
+        "Springfield",
+        "IL",
+    )
+
+
+@pytest.mark.django_db
+def test_llm_invalid_state_uses_subreddit_state(
+    settings, monkeypatch, extraction_places
+):
+    _enable(settings)
+    subreddit = SubredditFactory(kind="general", state="IL")
+    thread = ThreadFactory(subreddit=subreddit)
+    MentionFactory(thread=thread, kind="post", snippet_text="springfield is nearby.")
+    monkeypatch.setattr(
+        "httpx.post",
+        lambda *a, **k: _response(
+            {
+                "places": [
+                    {"name": "Springfield", "state": "Illinois", "role": "subject"}
+                ],
+                "is_us": True,
+                "topic": "",
+            }
+        ),
+    )
+
+    extract_thread_places(thread)
+
+    place_mention = PlaceMention.objects.get(mention__thread=thread, method="llm")
+    assert (place_mention.place.name, place_mention.place.state) == (
+        "Springfield",
+        "IL",
+    )
+
+
+@pytest.mark.django_db
+def test_llm_valid_state_resolves_when_subreddit_has_none(
+    settings, monkeypatch, extraction_places
+):
+    _enable(settings)
+    thread = ThreadFactory(subreddit=SubredditFactory(kind="general"))
+    MentionFactory(thread=thread, kind="post", snippet_text="springfield is nearby.")
+    monkeypatch.setattr(
+        "httpx.post",
+        lambda *a, **k: _response(
+            {
+                "places": [{"name": "Springfield", "state": "IL", "role": "subject"}],
+                "is_us": True,
+                "topic": "",
+            }
+        ),
+    )
+
+    extract_thread_places(thread)
+
+    place_mention = PlaceMention.objects.get(mention__thread=thread, method="llm")
+    assert (place_mention.place.name, place_mention.place.state) == (
+        "Springfield",
+        "IL",
+    )
+
+
+@pytest.mark.django_db
+def test_llm_invalid_state_without_subreddit_state_is_ignored(
+    settings, monkeypatch, extraction_places
+):
+    _enable(settings)
+    thread = ThreadFactory(subreddit=SubredditFactory(kind="general"))
+    MentionFactory(thread=thread, kind="post", snippet_text="springfield is nearby.")
+    monkeypatch.setattr(
+        "httpx.post",
+        lambda *a, **k: _response(
+            {
+                "places": [
+                    {"name": "Springfield", "state": "Illinois", "role": "subject"}
+                ],
+                "is_us": True,
+                "topic": "",
+            }
+        ),
+    )
+
+    extract_thread_places(thread)
+
+    assert not PlaceMention.objects.filter(
+        mention__thread=thread, method="llm"
+    ).exists()
 
 
 @pytest.mark.django_db
@@ -335,6 +588,58 @@ def test_llm_trigger_runs_for_ambiguous_match(settings, monkeypatch, extraction_
     extract_thread_places(thread)
 
     assert len(calls) == 1
+
+
+@pytest.mark.django_db
+def test_llm_disabled_pipeline_makes_no_request(
+    settings, monkeypatch, extraction_places
+):
+    settings.WATCH_LLM_ENABLED = False
+    thread = ThreadFactory(subreddit=SubredditFactory(kind="general"))
+    MentionFactory(thread=thread, kind="post", snippet_text="Hope is nearby.")
+    monkeypatch.setattr("httpx.post", lambda *a, **k: pytest.fail("must not call"))
+
+    extract_thread_places(thread)
+
+    assert not PlaceMention.objects.filter(
+        mention__thread=thread, method="llm"
+    ).exists()
+
+
+@pytest.mark.django_db
+def test_llm_no_call_for_unresolvable_non_ambiguous_names(
+    settings, monkeypatch, extraction_places
+):
+    _enable(settings)
+    subreddit = SubredditFactory(kind="place", place=extraction_places["chico"])
+    thread = ThreadFactory(subreddit=subreddit)
+    MentionFactory(thread=thread, kind="post", snippet_text="Zzyzx is nearby.")
+    monkeypatch.setattr("httpx.post", lambda *a, **k: pytest.fail("must not call"))
+
+    extract_thread_places(thread)
+
+
+@pytest.mark.django_db
+def test_llm_empty_result_keeps_deterministic_extraction(
+    settings, monkeypatch, extraction_places
+):
+    _enable(settings)
+    thread = ThreadFactory(subreddit=SubredditFactory(kind="general"))
+    MentionFactory(thread=thread, kind="post", snippet_text="Chico city council voted.")
+    monkeypatch.setattr(
+        "httpx.post",
+        lambda *a, **k: _response({"places": [], "is_us": True, "topic": ""}),
+    )
+
+    extract_thread_places(thread)
+
+    assert PlaceMention.objects.filter(
+        mention__thread=thread, method="body_pattern"
+    ).exists()
+    assert (
+        ThreadPlace.objects.get(thread=thread, place=extraction_places["chico"]).role
+        == "subject"
+    )
 
 
 @pytest.mark.django_db

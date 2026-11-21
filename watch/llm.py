@@ -33,6 +33,10 @@ _SYSTEM_PROMPT = (
 
 _ROLES = frozenset({"subject", "mentioned"})
 
+#: The model may list many places; keep a small cap so one bad response cannot
+#: flood a mention with rows.
+MAX_LLM_PLACES = 20
+
 
 @dataclass(frozen=True)
 class LLMPlace:
@@ -145,7 +149,7 @@ def _parse_response(payload: Any) -> LLMResult | None:
         return None
 
     places: list[LLMPlace] = []
-    for item in raw_places:
+    for item in raw_places[:MAX_LLM_PLACES]:
         if not isinstance(item, dict):
             return None
         name = item.get("name")
@@ -157,9 +161,17 @@ def _parse_response(payload: Any) -> LLMResult | None:
             return None
         if not isinstance(role, str) or role not in _ROLES:
             return None
-        places.append(LLMPlace(name=name.strip(), state=state.strip(), role=role))
+        places.append(LLMPlace(name=name.strip(), state=_clean_state(state), role=role))
 
     return LLMResult(places=places, is_us=is_us, topic=topic)
+
+
+def _clean_state(state: str) -> str:
+    """Return a normalized two-letter state code, or an empty string."""
+    code = state.strip().upper()
+    if len(code) == 2 and code.isalpha():
+        return code
+    return ""
 
 
 def _message_content(payload: Any) -> str | None:
