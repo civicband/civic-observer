@@ -13,17 +13,32 @@ from watch.extraction import extract_thread_places
 from watch.lookup import refresh_thread_hits
 from watch.models import Subreddit, Thread
 
+#: Sources that represent a trusted label or an operator decision. Enrichment
+#: must not overwrite them with a fresh gazetteer suggestion.
+_TRUSTED_CLASSIFICATION_SOURCES = frozenset(
+    {
+        Subreddit.Source.MANUAL,
+        Subreddit.Source.WIKIDATA,
+        Subreddit.Source.TEXT_EVIDENCE,
+        Subreddit.Source.LLM,
+    }
+)
+
 
 def ensure_subreddit_classification(thread: Thread) -> bool:
-    """Classify the thread's subreddit unless an operator owns or reviewed it.
+    """Classify the thread's subreddit unless a trusted label already exists.
 
-    Returns whether the subreddit row changed. Manual rows and rows the operator
-    has already reviewed keep their current labels.
+    Returns whether the subreddit row changed. Rows from a trusted source,
+    rows the operator has reviewed, and rows already classified keep their
+    current labels; in particular, a skipped row is never stamped with
+    ``classified_at``.
     """
     subreddit = thread.subreddit
     if subreddit is None:
         return False
-    if subreddit.source == Subreddit.Source.MANUAL or subreddit.reviewed_at:
+    if subreddit.source in _TRUSTED_CLASSIFICATION_SOURCES:
+        return False
+    if subreddit.classified_at is not None or subreddit.reviewed_at is not None:
         return False
     return apply_classification(subreddit, classify_subreddit(subreddit.name))
 
