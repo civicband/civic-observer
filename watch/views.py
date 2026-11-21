@@ -153,6 +153,11 @@ def _triage_context(thread: Thread | None) -> dict[str, Any]:
         "meeting_hits_by_place": meeting_hits_by_place,
         "subject_places": subject_places,
         "mentioned_places": mentioned_places,
+        "also_posted_in": (
+            thread.duplicates.select_related("subreddit").order_by("first_seen", "pk")
+            if thread is not None
+            else []
+        ),
         "previous_thread": previous_thread(thread.pk) if thread else None,
         "next_thread": next_thread(thread.pk) if thread else None,
     }

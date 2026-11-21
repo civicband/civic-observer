@@ -142,6 +142,13 @@ class Thread(TimeStampedModel):
     status = models.CharField(max_length=16, choices=Status, default=Status.NEW)
     snoozed_until = models.DateTimeField(null=True, blank=True)
     notes = models.TextField(blank=True)
+    duplicate_of = models.ForeignKey(
+        "self",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="duplicates",
+    )
 
     class Meta:
         ordering = ["-last_seen"]
