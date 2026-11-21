@@ -81,6 +81,9 @@ class UsFilter(admin.SimpleListFilter):
         return (("yes", "US"), ("no", "Non-US"))
 
     def queryset(self, request, queryset):
+        # Deliberately an OR: this treats a US place under a country-less
+        # subreddit as US, unlike ``thread_country``'s subreddit-first
+        # precedence.
         in_us = Q(subreddit__country="US") | Q(subreddit__place__country="US")
         if self.value() == "yes":
             return queryset.filter(in_us)
@@ -230,7 +233,7 @@ class ThreadAdmin(admin.ModelAdmin):
         subreddit_ids = queryset.exclude(subreddit__isnull=True).values_list(
             "subreddit_id", flat=True
         )
-        updated = Subreddit.objects.filter(pk__in=subreddit_ids).update(
+        updated = Subreddit.objects.filter(pk__in=subreddit_ids, muted=False).update(
             muted=True, modified=timezone.now()
         )
         self.message_user(
