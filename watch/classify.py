@@ -206,20 +206,39 @@ def apply_classification(subreddit: Subreddit, classification: Classification) -
     return True
 
 
+#: Sources that the batch classifier must not overwrite. Manual and Wikidata
+#: labels are authoritative; text-evidence and LLM labels come from richer
+#: passes and are preserved unless the operator explicitly reclassifies.
+_TRUSTED_SOURCES = frozenset(
+    {
+        Subreddit.Source.MANUAL,
+        Subreddit.Source.WIKIDATA,
+        Subreddit.Source.TEXT_EVIDENCE,
+        Subreddit.Source.LLM,
+    }
+)
+
+_AUTHORITATIVE_SOURCES = frozenset({Subreddit.Source.MANUAL, Subreddit.Source.WIKIDATA})
+
+
 def classify_pending_subreddits(
     *, reclassify: bool = False, limit: int | None = None
 ) -> dict[str, int]:
-    """Classify never-classified rows, or every non-manual row on reclassify.
+    """Classify pending rows, or reclassify rows on explicit request.
 
-    A row is pending while ``classified_at`` is null. ``reviewed_at`` is not
-    consulted: it belongs to the operator, and classification suggestions stay
-    in the admin review queue until a person accepts them.
+    A row is pending while ``classified_at`` is null. Manual and Wikidata rows
+    are never touched. Text-evidence and LLM rows are also preserved by
+    default and only reconsidered when ``reclassify`` is set. ``reviewed_at``
+    is not consulted: it belongs to the operator, and classification
+    suggestions stay in the admin review queue until a person accepts them.
 
     Returns counts of rows checked, changed, and left unchanged.
     """
-    queryset = Subreddit.objects.exclude(source=Subreddit.Source.MANUAL)
+    queryset = Subreddit.objects.exclude(source__in=_AUTHORITATIVE_SOURCES)
     if not reclassify:
-        queryset = queryset.filter(classified_at__isnull=True)
+        queryset = queryset.exclude(source__in=_TRUSTED_SOURCES).filter(
+            classified_at__isnull=True
+        )
     queryset = queryset.order_by("name")
     if limit is not None:
         queryset = queryset[:limit]

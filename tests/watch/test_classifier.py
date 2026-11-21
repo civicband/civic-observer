@@ -636,6 +636,34 @@ def test_classify_pending_skips_already_classified_rows(classifier_places):
 
 
 @pytest.mark.django_db
+@pytest.mark.parametrize("source", ["text_evidence", "llm"])
+def test_classify_command_does_not_overwrite_text_evidence_or_llm(
+    classifier_places, source
+):
+    subreddit = Subreddit.objects.create(
+        name="chicoca",
+        kind="general",
+        source=source,
+        confidence="low",
+        state="CA",
+    )
+    stdout = StringIO()
+
+    call_command("classify_watch_subreddits", stdout=stdout)
+
+    subreddit.refresh_from_db()
+    assert (
+        subreddit.kind,
+        subreddit.source,
+        subreddit.confidence,
+        subreddit.state,
+        subreddit.place,
+        subreddit.classified_at,
+    ) == ("general", source, "low", "CA", None, None)
+    assert "checked=0" in stdout.getvalue()
+
+
+@pytest.mark.django_db
 def test_classify_command_supports_reclassify_and_limit(classifier_places):
     Subreddit.objects.create(name="seattle", kind="general", source="")
     stdout = StringIO()
