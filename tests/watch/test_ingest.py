@@ -53,8 +53,8 @@ def test_fixture_creates_88_mentions_and_69_threads():
     assert la.subreddit.name == "losangeles"
     assert (la.subreddit.kind, la.subreddit.source, la.subreddit.confidence) == (
         "general",
-        "",
-        "",
+        "gazetteer",
+        "low",
     )
 
 

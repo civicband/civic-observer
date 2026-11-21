@@ -14,7 +14,15 @@ from dataclasses import dataclass
 
 from django.db import transaction
 
-from watch.models import Mention, Place, PlaceAlias, PlaceMention, Subreddit
+from watch.models import (
+    Mention,
+    Place,
+    PlaceAlias,
+    PlaceMention,
+    Subreddit,
+    Thread,
+    ThreadPlace,
+)
 from watch.normalize import normalize_key
 from watch.place_utils import SETTLEMENT_TYPES, prefer_settlement_types
 
@@ -290,6 +298,130 @@ def extract_mention_places(
         ]
         mention.place_mentions.exclude(method=PlaceMention.Method.MANUAL).delete()
         return PlaceMention.objects.bulk_create(new_rows)
+
+
+@dataclass
+class _ThreadPlaceCandidate:
+    """One place proposed for a thread, before duplicate merging."""
+
+    place_id: object
+    role: str
+    confidence: str
+    source: str
+
+
+def extract_thread_places(thread: Thread) -> dict[str, int]:
+    """Roll a thread's extracted places up into :class:`ThreadPlace` rows.
+
+    The subreddit's own place is a subject.  Post titles and post bodies are
+    subjects because the post is the thread's topic; comment places are
+    subjects only when a governing-body pattern names them, and mentioned
+    otherwise.  Duplicates merge per place, preferring a subject and then the
+    highest confidence.  Operator-created ``manual`` rows are never read,
+    updated, or deleted.
+    """
+    subreddit = thread.subreddit
+    state = subreddit.state if subreddit is not None else None
+    candidates: dict[object, _ThreadPlaceCandidate] = {}
+
+    if subreddit is not None and subreddit.place_id is not None:
+        _merge_thread_place(
+            candidates,
+            _ThreadPlaceCandidate(
+                place_id=subreddit.place_id,
+                role=ThreadPlace.Role.SUBJECT,
+                confidence=subreddit.confidence or ThreadPlace.Confidence.HIGH,
+                source=ThreadPlace.Source.SUBREDDIT,
+            ),
+        )
+
+    mentions = list(thread.mentions.order_by("pk"))
+    for mention in mentions:
+        is_post = mention.kind == Mention.Kind.POST
+        for place_mention in extract_mention_places(mention, subreddit):
+            is_subject = (
+                is_post or place_mention.method == PlaceMention.Method.BODY_PATTERN
+            )
+            _merge_thread_place(
+                candidates,
+                _ThreadPlaceCandidate(
+                    place_id=place_mention.place_id,
+                    role=(
+                        ThreadPlace.Role.SUBJECT
+                        if is_subject
+                        else ThreadPlace.Role.MENTIONED
+                    ),
+                    confidence=place_mention.confidence,
+                    source=(
+                        ThreadPlace.Source.POST
+                        if is_post
+                        else ThreadPlace.Source.COMMENT
+                    ),
+                ),
+            )
+        if is_post:
+            for extracted in extract_phrases(mention.post_title, state=state):
+                _merge_thread_place(
+                    candidates,
+                    _ThreadPlaceCandidate(
+                        place_id=extracted.place.pk,
+                        role=ThreadPlace.Role.SUBJECT,
+                        confidence=extracted.confidence,
+                        source=ThreadPlace.Source.POST,
+                    ),
+                )
+
+    with transaction.atomic():
+        manual_place_ids = set(
+            thread.thread_places.filter(source=ThreadPlace.Source.MANUAL).values_list(
+                "place_id", flat=True
+            )
+        )
+        for place_id, candidate in candidates.items():
+            if place_id in manual_place_ids:
+                continue
+            ThreadPlace.objects.update_or_create(
+                thread=thread,
+                place_id=place_id,
+                defaults={
+                    "role": candidate.role,
+                    "confidence": candidate.confidence,
+                    "source": candidate.source,
+                },
+            )
+        thread.thread_places.exclude(source=ThreadPlace.Source.MANUAL).exclude(
+            place_id__in=candidates.keys()
+        ).delete()
+        subjects = thread.thread_places.filter(role=ThreadPlace.Role.SUBJECT).count()
+        mentioned = thread.thread_places.filter(role=ThreadPlace.Role.MENTIONED).count()
+
+    return {
+        "subjects": subjects,
+        "mentioned": mentioned,
+        "mentions": len(mentions),
+    }
+
+
+def _merge_thread_place(
+    candidates: dict[object, _ThreadPlaceCandidate],
+    candidate: _ThreadPlaceCandidate,
+) -> None:
+    """Keep the strongest proposal for each place.
+
+    Role wins over confidence, so a low-confidence subject is not displaced by
+    a high-confidence mention of the same place.  Ties keep the first proposal,
+    which is the subreddit before a post and a post before a comment.
+    """
+    current = candidates.get(candidate.place_id)
+    if current is None:
+        candidates[candidate.place_id] = candidate
+        return
+    if current.role != candidate.role:
+        if candidate.role == ThreadPlace.Role.SUBJECT:
+            candidates[candidate.place_id] = candidate
+        return
+    if _CONFIDENCE_RANK[candidate.confidence] > _CONFIDENCE_RANK[current.confidence]:
+        candidates[candidate.place_id] = candidate
 
 
 def resolve_place_phrase(
