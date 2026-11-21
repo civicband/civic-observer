@@ -316,9 +316,17 @@ def extract_thread_places(thread: Thread) -> dict[str, int]:
     The subreddit's own place is a subject.  Post titles and post bodies are
     subjects because the post is the thread's topic; comment places are
     subjects only when a governing-body pattern names them, and mentioned
-    otherwise.  Duplicates merge per place, preferring a subject and then the
-    highest confidence.  Operator-created ``manual`` rows are never read,
-    updated, or deleted.
+    otherwise.  ``llm`` and ``manual`` place mentions use their stored
+    ``is_subject`` flag instead of those deterministic rules.  Duplicates merge
+    per place, preferring a subject and then the highest confidence.
+
+    Operator-created ``manual`` rows are never updated or deleted, including
+    stale rows that extraction no longer proposes.  Returned counts include
+    those manual rows.
+
+    Stale non-manual rows are deleted, which also drops any operator
+    ``query_override`` stored on them; only a ``source="manual"`` row keeps an
+    override across extraction runs.
     """
     subreddit = thread.subreddit
     state = subreddit.state if subreddit is not None else None
@@ -338,19 +346,13 @@ def extract_thread_places(thread: Thread) -> dict[str, int]:
     mentions = list(thread.mentions.order_by("pk"))
     for mention in mentions:
         is_post = mention.kind == Mention.Kind.POST
-        for place_mention in extract_mention_places(mention, subreddit):
-            is_subject = (
-                is_post or place_mention.method == PlaceMention.Method.BODY_PATTERN
-            )
+        extract_mention_places(mention, subreddit)
+        for place_mention in mention.place_mentions.all():
             _merge_thread_place(
                 candidates,
                 _ThreadPlaceCandidate(
                     place_id=place_mention.place_id,
-                    role=(
-                        ThreadPlace.Role.SUBJECT
-                        if is_subject
-                        else ThreadPlace.Role.MENTIONED
-                    ),
+                    role=_thread_place_role(mention, place_mention),
                     confidence=place_mention.confidence,
                     source=(
                         ThreadPlace.Source.POST
@@ -400,6 +402,30 @@ def extract_thread_places(thread: Thread) -> dict[str, int]:
         "mentioned": mentioned,
         "mentions": len(mentions),
     }
+
+
+def _thread_place_role(mention: Mention, place_mention: PlaceMention) -> str:
+    """Return the thread role for one mention-level extraction row.
+
+    An operator's or LLM's explicit ``is_subject`` outranks the deterministic
+    kind rules.  Otherwise a post is a subject, and a comment is a subject only
+    for a governing-body pattern.
+    """
+    if place_mention.method in {
+        PlaceMention.Method.LLM,
+        PlaceMention.Method.MANUAL,
+    }:
+        return (
+            ThreadPlace.Role.SUBJECT
+            if place_mention.is_subject
+            else ThreadPlace.Role.MENTIONED
+        )
+    if (
+        mention.kind == Mention.Kind.POST
+        or place_mention.method == PlaceMention.Method.BODY_PATTERN
+    ):
+        return ThreadPlace.Role.SUBJECT
+    return ThreadPlace.Role.MENTIONED
 
 
 def _merge_thread_place(
