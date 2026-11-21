@@ -12,8 +12,10 @@ import re
 from collections.abc import Iterable
 from dataclasses import dataclass
 
+from django.conf import settings
 from django.db import transaction
 
+from watch.llm import classify_with_llm
 from watch.models import (
     Mention,
     Place,
@@ -79,8 +81,8 @@ _DETERMINISTIC_METHODS = (
     PlaceMention.Method.GAZETTEER_PHRASE,
 )
 
-#: Methods owned elsewhere. Extraction preserves these rows; Task 4 owns
-#: clearing and regenerating LLM rows.
+#: Methods owned elsewhere. Deterministic extraction preserves these rows; the
+#: optional LLM pass clears and regenerates its own rows.
 _PRESERVED_METHODS = (
     PlaceMention.Method.MANUAL,
     PlaceMention.Method.LLM,
@@ -277,9 +279,9 @@ def extract_mention_places(
     """Replace a mention's deterministic place rows and return the new rows.
 
     Body-pattern matches stay high-confidence subjects. Gazetteer phrases are
-    low-confidence mentions. Manual and LLM rows survive: Task 4 owns clearing
-    and regenerating LLM rows. A place already covered by a preserved row is
-    not extracted again because ``(mention, place)`` is unique.
+    low-confidence mentions. Manual and LLM rows survive so the optional LLM
+    pass can clear and regenerate its own rows. A place already covered by a
+    preserved row is not extracted again because ``(mention, place)`` is unique.
     """
     state = subreddit.state if subreddit is not None else None
     text = mention.snippet_text
@@ -333,6 +335,12 @@ def extract_thread_places(thread: Thread) -> dict[str, int]:
     ``is_subject`` flag instead of those deterministic rules.  Duplicates merge
     per place, preferring a subject and then the highest confidence.
 
+    When ``WATCH_LLM_ENABLED`` is on and the subreddit does not pin a place, the
+    deterministic methods disagree with it, or a phrase is ambiguous, the
+    optional LLM pass replaces each mention's LLM rows.  Unresolved model names
+    are ignored, and those rows are medium-confidence with the model's subject
+    or mentioned role.
+
     Operator-created ``manual`` rows are never updated or deleted, including
     stale rows that extraction no longer proposes.  Returned counts include
     those manual rows.
@@ -357,6 +365,12 @@ def extract_thread_places(thread: Thread) -> dict[str, int]:
         )
 
     mentions = list(thread.mentions.order_by("pk"))
+    deterministic_rows = {
+        mention.pk: extract_mention_places(mention, subreddit) for mention in mentions
+    }
+    if _should_run_llm(subreddit, deterministic_rows, mentions, state):
+        _regenerate_llm_places(thread, mentions, state)
+
     preserved_rows: dict[object, list[PlaceMention]] = {}
     for row in PlaceMention.objects.filter(
         mention__thread=thread, method__in=_PRESERVED_METHODS
@@ -365,9 +379,8 @@ def extract_thread_places(thread: Thread) -> dict[str, int]:
 
     for mention in mentions:
         is_post = mention.kind == Mention.Kind.POST
-        deterministic_rows = extract_mention_places(mention, subreddit)
         for place_mention in [
-            *deterministic_rows,
+            *deterministic_rows[mention.pk],
             *preserved_rows.get(mention.pk, []),
         ]:
             _merge_thread_place(
@@ -424,6 +437,175 @@ def extract_thread_places(thread: Thread) -> dict[str, int]:
         "mentioned": mentioned,
         "mentions": len(mentions),
     }
+
+
+#: Subreddit kinds that do not pin a thread to one place on their own, so the
+#: optional LLM pass may help disambiguate the thread.
+_LLM_FALLBACK_KINDS = frozenset(
+    {Subreddit.Kind.GENERAL, Subreddit.Kind.REGION, Subreddit.Kind.STATE}
+)
+
+
+def _should_run_llm(
+    subreddit: Subreddit | None,
+    deterministic_rows: dict[str, list[PlaceMention]],
+    mentions: list[Mention],
+    state: str | None,
+) -> bool:
+    """Return whether this thread warrants the optional LLM pass.
+
+    The pass is off unless enabled. It runs for subreddits that do not name a
+    place, when deterministic extraction proposes a place other than the
+    subreddit's, or when a capitalized phrase resolves to several places.
+    """
+    if not settings.WATCH_LLM_ENABLED:
+        return False
+    if not mentions:
+        return False
+    if subreddit is not None and subreddit.kind in _LLM_FALLBACK_KINDS:
+        return True
+    if subreddit is not None and _deterministic_disagrees(
+        subreddit, deterministic_rows
+    ):
+        return True
+    return _has_ambiguous_match(mentions, state)
+
+
+def _deterministic_disagrees(
+    subreddit: Subreddit, deterministic_rows: dict[str, list[PlaceMention]]
+) -> bool:
+    """Return whether deterministic extraction named a place besides the one
+    already attached to the subreddit."""
+    bound_place_id = subreddit.place_id
+    for rows in deterministic_rows.values():
+        for row in rows:
+            if bound_place_id is None or row.place_id != bound_place_id:
+                return True
+    return False
+
+
+def _has_ambiguous_match(mentions: list[Mention], state: str | None) -> bool:
+    """Return whether any phrase could not be resolved because of ambiguity."""
+    texts: list[str] = []
+    for mention in mentions:
+        if mention.snippet_text:
+            texts.append(mention.snippet_text)
+        if mention.kind == Mention.Kind.POST and mention.post_title:
+            texts.append(mention.post_title)
+    if not texts:
+        return False
+
+    runs_by_text = [(text, _capitalized_runs(text)) for text in texts]
+    candidates = [
+        " ".join(token for token, _ in run[start : start + size])
+        for _, runs in runs_by_text
+        for run in runs
+        for start in range(len(run))
+        for size in range(1, min(_MAX_PHRASE_WORDS, len(run) - start) + 1)
+    ]
+    aliases = _load_aliases(candidates)
+
+    for text, runs in runs_by_text:
+        for run in runs:
+            index = 0
+            while index < len(run):
+                ambiguous, size = _scan_phrase_for_ambiguity(
+                    run,
+                    index,
+                    aliases=aliases,
+                    state=state,
+                    sentence_initial=_is_sentence_initial(text, run[index][1]),
+                )
+                if ambiguous:
+                    return True
+                index += size or 1
+    return False
+
+
+def _scan_phrase_for_ambiguity(
+    run: list[tuple[str, int]],
+    index: int,
+    *,
+    aliases: dict[str, list[Place]],
+    state: str | None,
+    sentence_initial: bool,
+) -> tuple[bool, int]:
+    """Return ``(ambiguous, matched_size)`` for the longest phrase at ``index``.
+
+    A longer resolvable phrase wins, mirroring :func:`_match_longest_phrase`.
+    Only when no length resolves does an unresolved candidate pool count as
+    ambiguous.
+    """
+    longest = min(_MAX_PHRASE_WORDS, len(run) - index)
+    for size in range(longest, 0, -1):
+        phrase = " ".join(token for token, _ in run[index : index + size])
+        keys = _phrase_keys(phrase)
+        if sentence_initial and any(key in COMMON_WORD_NAMES for key in keys):
+            continue
+        ambiguous = False
+        for key in keys:
+            places = _unique_places(aliases.get(key, []))
+            places = [
+                place for place in places if place.place_type != Place.PlaceType.STATE
+            ]
+            places = _apply_state_prior(places, state)
+            places = prefer_settlement_types(places)
+            if not places:
+                continue
+            if _choose_place(places) is not None:
+                return False, size
+            ambiguous = True
+        if ambiguous:
+            return True, size
+    return False, 0
+
+
+def _regenerate_llm_places(
+    thread: Thread, mentions: list[Mention], state: str | None
+) -> None:
+    """Replace every mention's LLM rows with a fresh model classification.
+
+    LLM output is thread-level, so new rows attach to the thread's post
+    mentions (or the first mention when a thread has no post). Existing
+    deterministic and manual rows win any ``(mention, place)`` collision.
+    """
+    result = classify_with_llm(thread)
+    targets = [m for m in mentions if m.kind == Mention.Kind.POST] or mentions[:1]
+
+    with transaction.atomic():
+        PlaceMention.objects.filter(
+            mention__in=mentions, method=PlaceMention.Method.LLM
+        ).delete()
+        if result is None or not targets:
+            return
+
+        taken = set(
+            PlaceMention.objects.filter(mention__in=targets).values_list(
+                "mention_id", "place_id"
+            )
+        )
+        rows: list[PlaceMention] = []
+        for item in result.places:
+            place = resolve_place_phrase(item.name, state=item.state or state)
+            if place is None:
+                continue
+            for mention in targets:
+                key = (mention.pk, place.pk)
+                if key in taken:
+                    continue
+                taken.add(key)
+                rows.append(
+                    PlaceMention(
+                        mention=mention,
+                        place=place,
+                        matched_text=item.name[:255],
+                        method=PlaceMention.Method.LLM,
+                        confidence=PlaceMention.Confidence.MEDIUM,
+                        is_subject=item.role == "subject",
+                    )
+                )
+        if rows:
+            PlaceMention.objects.bulk_create(rows)
 
 
 def _thread_place_role(mention: Mention, place_mention: PlaceMention) -> str:
