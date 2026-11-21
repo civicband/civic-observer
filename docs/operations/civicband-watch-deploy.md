@@ -77,7 +77,7 @@ list):
 | --- | --- | --- |
 | `F5BOT_FEED_URL` | Required | Private F5Bot Reddit feed URL. `ingest_f5bot` errors when it is unset. Treated as a secret. |
 | `WATCH_DATA_DIR` | Defaulted (`.cache/watch`) | Cache directory for downloaded datasets. Set only to override. |
-| `WATCH_ALERT_EMAIL` | Empty allowed | Comma-separated recipients for the once-per-day stale-ingest alert. Empty disables the alert email. |
+| `WATCH_ALERT_EMAIL` | Empty allowed | Comma-separated recipients for the once-per-day stale-ingest and quiet-day alerts. Empty disables the alert email. |
 | `WATCH_SUMMARY_EMAIL` | Empty allowed | Comma-separated recipients for the weekly summary. Empty skips sending. |
 | `WATCH_STALE_HOURS` | Defaulted (`6`) | Hours without a successful ingest before the pipeline counts as stale. |
 | `WATCH_INGEST_LOCK_SECONDS` | Optional | How long the Redis ingest lock is held (default `3600`). |
@@ -151,7 +151,10 @@ feed errors.
 ### 5. Verify
 
 - `IngestRun` shows a recent successful run with no error.
-- A run with `new=0`, `skipped>0`, and `error=""` is the signal to check the f5bot feed format.
+- `skipped` counts duplicate ids, duplicate or collapsed mentions, and malformed
+  items, so a quiet or duplicate-heavy day can legitimately show
+  `new=0`, `skipped>0`, and `error=""`. Use `seen` and the ingest logs, not
+  `skipped` alone, to judge whether the f5bot feed format changed.
 - Threads and mentions appear in the admin. Mentions and ingest runs are
   read-only; `raw_json` is available on a mention's detail page but is not
   shown in the changelist.
@@ -211,22 +214,41 @@ identical line.
   thread evidence.
 - `watch_weekly_summary` runs Monday morning and emails the weekly summary.
 
+### Cross-post grouping
+
+At ingest, a new thread whose normalized title matches a thread in another
+subreddit within 48 hours is linked to the earliest matching thread as its
+canonical. Only queue-eligible canonicals participate: `new`, or `snoozed`
+whose snooze has elapsed. A canonical already replied to, dismissed, or moved
+to the backlog is terminal for grouping, so a new crosspost stays visible in
+the queue instead of disappearing under it. If an operator later mutes,
+replies to, dismisses, or backlogs the canonical, both threads may leave the
+queue; that is accepted operator intent, not an ingest bug.
+
 ### Health alerts
 
-`check_watch_health` owns the once-per-day stale alert email and the exit code.
-It emails at most once per local day, and only when the pipeline is stale and
-`WATCH_ALERT_EMAIL` has recipients: no successful ingest has ever completed, or
-the last successful run finished more than `WATCH_STALE_HOURS` ago.
+`check_watch_health` owns the once-per-day health alert emails and the exit
+code. It sends at most one email per local day, and only when
+`WATCH_ALERT_EMAIL` has recipients:
 
-A quiet pipeline (no run in the last 24 hours added mentions) does not send
-email by itself; it only makes the command exit nonzero. Keep exit-code
-monitoring enabled for this cron entry even if cron mail is disabled, or quiet
-failures go unnoticed.
+- **Stale:** no successful ingest has ever completed, or the last successful
+  run finished more than `WATCH_STALE_HOURS` ago. Subject:
+  `CivicBand Watch: ingest is stale`.
+- **Quiet:** no run in the last 24 hours added mentions. Subject:
+  `CivicBand Watch: no new alerts`. The body includes the last successful
+  ingest, hours since, `alerts_today`, and an ingest-run admin link.
+
+When a day is both stale and quiet, only the stale email is sent. The command
+stays silent when healthy and prints a status line only when stale or quiet;
+both cases exit nonzero for monitoring. Keep exit-code monitoring enabled for
+this cron entry even if cron mail is disabled, or stale and quiet failures go
+unnoticed.
 
 Do not configure the cron wrapper or cron's own mail handling to also email on
-a nonzero exit. The stale case would then produce two notifications for the
-same failure. Use exit-code monitoring for nonzero exits and let the command
-own the stale email.
+a nonzero exit. The command already sends the app email, so an extra cron mail
+would duplicate the notification. If the cron wrapper mails command output,
+redirect it with `>/dev/null 2>&1` or set `MAILTO=""` for the health line, and
+keep external exit-code monitoring.
 
 ### Subreddit suggestions
 
@@ -313,7 +335,8 @@ ground truth and are excluded from the comparison.
 python manage.py check_watch_health
 ```
 
-The output reports `stale`, `quiet`, `hours_since_success`, `alerts_today`, and
-whether an alert email was sent. `alerts_today` is the number of new mentions
-from ingest runs started today, not a count of emails sent. The same signals
-appear on the Watch dashboard in the admin.
+When stale or quiet, the output reports `stale`, `quiet`,
+`hours_since_success`, `alerts_today`, the alert kind, and whether an alert
+email was sent; a healthy run prints nothing. `alerts_today` is the number of
+new mentions from ingest runs started today, not a count of emails sent. The
+same signals appear on the Watch dashboard in the admin.

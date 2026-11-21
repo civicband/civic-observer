@@ -15,9 +15,10 @@ from django.core.management.base import CommandError
 from django.utils import timezone
 
 from tests.factories import IngestRunFactory
-from watch.health import health_status, send_stale_alert
+from watch.health import health_status, send_quiet_alert, send_stale_alert
 
 ALERT_CACHE_KEY = f"watch:stale-alert:{timezone.localdate().isoformat()}"
+QUIET_CACHE_KEY = f"watch:quiet-alert:{timezone.localdate().isoformat()}"
 
 
 @pytest.fixture(autouse=True)
@@ -235,16 +236,54 @@ def test_alert_email_body_has_run_counts_and_no_feed_url(settings):
 
 
 @pytest.mark.django_db
-def test_check_command_exits_zero_when_healthy(settings):
+def test_stale_alert_formats_ingest_run_finished_at(settings):
+    settings.WATCH_ALERT_EMAIL = ["ops@example.com"]
+    finished = timezone.now().replace(microsecond=0) - timedelta(hours=8)
+    IngestRunFactory(finished_at=finished, new=1, error="")
+
+    status = health_status()
+
+    assert send_stale_alert(status) is True
+    expected = timezone.localtime(finished).strftime("%Y-%m-%d %H:%M %Z")
+    body = mail.outbox[0].body
+    assert expected in body
+    assert "never" not in body
+
+
+@pytest.mark.django_db
+def test_stale_alert_without_success_renders_never(settings):
+    settings.WATCH_ALERT_EMAIL = ["ops@example.com"]
+    IngestRunFactory(finished_at=None, new=0, error="")
+
+    status = health_status()
+
+    assert send_stale_alert(status) is True
+    assert "Last successful ingest: never" in mail.outbox[0].body
+
+
+@pytest.mark.django_db
+def test_check_command_is_silent_when_healthy(settings):
     settings.WATCH_ALERT_EMAIL = []
     IngestRunFactory(finished_at=timezone.now(), new=2, error="")
     stdout = StringIO()
 
     call_command("check_watch_health", stdout=stdout)
 
+    assert stdout.getvalue() == ""
+
+
+@pytest.mark.django_db
+def test_check_command_prints_status_when_stale(settings):
+    settings.WATCH_ALERT_EMAIL = []
+    IngestRunFactory(finished_at=timezone.now() - timedelta(hours=8), error="")
+    stdout = StringIO()
+
+    with pytest.raises(CommandError):
+        call_command("check_watch_health", stdout=stdout)
+
     output = stdout.getvalue()
-    assert "stale=False" in output
-    assert "quiet=False" in output
+    assert "stale=True" in output
+    assert "alert=stale" in output
 
 
 @pytest.mark.django_db
@@ -266,14 +305,94 @@ def test_check_command_fails_when_quiet(settings):
 
 
 @pytest.mark.django_db
-def test_check_command_quiet_but_not_stale_sends_no_email(settings):
+def test_quiet_day_sends_one_quiet_email_and_exits_nonzero(settings):
     settings.WATCH_ALERT_EMAIL = ["ops@example.com"]
-    IngestRunFactory(finished_at=timezone.now(), new=0, error="")
+    settings.F5BOT_FEED_URL = "https://f5bot.com/secret-hash"
+    finished = timezone.now().replace(microsecond=0) - timedelta(hours=1)
+    IngestRunFactory(finished_at=finished, new=0, error="")
+    stdout = StringIO()
+
+    with pytest.raises(CommandError):
+        call_command("check_watch_health", stdout=stdout)
+
+    assert len(mail.outbox) == 1
+    message = mail.outbox[0]
+    assert message.subject == "CivicBand Watch: no new alerts"
+    assert message.to == ["ops@example.com"]
+    expected = timezone.localtime(finished).strftime("%Y-%m-%d %H:%M %Z")
+    assert f"Last successful ingest: {expected}" in message.body
+    assert "Hours since last success:" in message.body
+    assert "New mentions today: 0" in message.body
+    assert "/admin/watch/ingestrun/" in message.body
+    assert "f5bot.com" not in message.body
+    assert "secret-hash" not in message.body
+    assert "quiet=True" in stdout.getvalue()
+    assert "alert=quiet" in stdout.getvalue()
+
+
+@pytest.mark.django_db
+def test_stale_and_quiet_sends_only_stale_email(settings):
+    settings.WATCH_ALERT_EMAIL = ["ops@example.com"]
+    IngestRunFactory(finished_at=timezone.now() - timedelta(hours=8), new=0, error="")
 
     with pytest.raises(CommandError):
         call_command("check_watch_health")
 
+    assert len(mail.outbox) == 1
+    assert mail.outbox[0].subject == "CivicBand Watch: ingest is stale"
+
+
+@pytest.mark.django_db
+def test_second_quiet_run_same_day_does_not_send(settings):
+    settings.WATCH_ALERT_EMAIL = ["ops@example.com"]
+    IngestRunFactory(finished_at=timezone.now(), new=0, error="")
+
+    for _ in range(2):
+        with pytest.raises(CommandError):
+            call_command("check_watch_health")
+
+    assert len(mail.outbox) == 1
+    assert mail.outbox[0].subject == "CivicBand Watch: no new alerts"
+    assert cache.get(QUIET_CACHE_KEY) is not None
+
+
+@pytest.mark.django_db
+def test_send_quiet_alert_returns_false_when_not_quiet(settings):
+    settings.WATCH_ALERT_EMAIL = ["ops@example.com"]
+    IngestRunFactory(finished_at=timezone.now(), new=4, error="")
+
+    status = health_status()
+
+    assert send_quiet_alert(status) is False
     assert mail.outbox == []
+
+
+@pytest.mark.django_db
+def test_send_quiet_alert_returns_false_when_stale(settings):
+    settings.WATCH_ALERT_EMAIL = ["ops@example.com"]
+    IngestRunFactory(finished_at=timezone.now() - timedelta(hours=8), new=0, error="")
+
+    status = health_status()
+
+    assert status["stale"] is True
+    assert status["quiet"] is True
+    assert send_quiet_alert(status) is False
+    assert mail.outbox == []
+
+
+@pytest.mark.django_db
+def test_send_quiet_alert_retries_after_failed_send(settings, monkeypatch):
+    settings.WATCH_ALERT_EMAIL = ["ops@example.com"]
+    IngestRunFactory(finished_at=timezone.now(), new=0, error="")
+    status = health_status()
+
+    monkeypatch.setattr("watch.health.send_mail", lambda *args, **kwargs: 0)
+    assert send_quiet_alert(status) is False
+    assert cache.get(QUIET_CACHE_KEY) is None
+
+    monkeypatch.undo()
+    assert send_quiet_alert(status) is True
+    assert len(mail.outbox) == 1
 
 
 @pytest.mark.django_db

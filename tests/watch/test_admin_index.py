@@ -22,6 +22,27 @@ def test_admin_index_shows_last_success(admin_client):
 
 
 @pytest.mark.django_db
+def test_admin_index_shows_formatted_last_success(admin_client):
+    finished = timezone.now().replace(microsecond=0) - timedelta(hours=2)
+    IngestRunFactory(finished_at=finished, error="")
+
+    response = admin_client.get(reverse("admin:index"))
+
+    expected = timezone.localtime(finished).strftime("%Y-%m-%d %H:%M %Z")
+    assert expected.encode() in response.content
+    assert b"never" not in response.content
+
+
+@pytest.mark.django_db
+def test_admin_index_shows_never_without_success(admin_client):
+    IngestRunFactory(finished_at=None, new=0, error="")
+
+    response = admin_client.get(reverse("admin:index"))
+
+    assert b"never" in response.content
+
+
+@pytest.mark.django_db
 def test_admin_index_shows_hours_since_success(admin_client):
     IngestRunFactory(finished_at=timezone.now() - timedelta(hours=2), error="")
 

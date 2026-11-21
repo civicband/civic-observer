@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import datetime
-
 from django import template
 from django.template import Context
-from django.utils import timezone
 from django.utils.html import format_html
 from django.utils.safestring import SafeString
 
-from watch.health import health_status
+from watch.health import format_last_success, health_status
 
 register = template.Library()
 
@@ -24,17 +21,11 @@ def watch_health(context: Context) -> SafeString:
         return format_html("")
 
     status = health_status()
-    last_success = status.get("last_success")
     hours_since = status.get("hours_since_success")
     stale = bool(status.get("stale"))
     quiet = bool(status.get("quiet"))
 
-    if isinstance(last_success, datetime):
-        last_success_text = timezone.localtime(last_success).strftime(
-            "%Y-%m-%d %H:%M %Z"
-        )
-    else:
-        last_success_text = "never"
+    last_success_text = format_last_success(status.get("last_success"))
     if isinstance(hours_since, int | float):
         hours_text = f"{float(hours_since):.1f}"
     else:

@@ -20,6 +20,7 @@ from collections import defaultdict
 from datetime import timedelta
 from typing import Any
 
+from django.db import transaction
 from django.db.models import Count
 from django.utils import timezone
 
@@ -107,38 +108,53 @@ def suggest_subreddits(
             stats["suggested"] += 1
             continue
 
-        _apply(subreddit, Place.objects.get(pk=place_id), top_count, total)
-        stats["suggested"] += 1
+        wrote = _apply(subreddit, Place.objects.get(pk=place_id), top_count, total)
+        if wrote:
+            stats["suggested"] += 1
+        else:
+            # An operator changed the row between the read and the write.
+            stats["unchanged"] += 1
 
     return stats
 
 
 def _apply(
     subreddit: Subreddit, place: Place, thread_count: int, total_threads: int
-) -> None:
-    """Write one suggestion, preserving operator state that is not ours."""
-    subreddit.place = place
-    subreddit.kind = Subreddit.Kind.PLACE
-    subreddit.state = place.state
-    subreddit.country = place.country or None
-    subreddit.source = Subreddit.Source.TEXT_EVIDENCE
-    subreddit.confidence = Subreddit.Confidence.MEDIUM
-    subreddit.reviewed_at = None
-    update_fields = [
-        "place",
-        "kind",
-        "state",
-        "country",
-        "source",
-        "confidence",
-        "reviewed_at",
-        "modified",
-    ]
-    # Only touch the note when it is ours to replace; otherwise an operator
-    # may have edited it since this row was read.
-    if not subreddit.note:
-        subreddit.note = (
-            f"text evidence: {thread_count} of {total_threads} subject threads"
-        )
-        update_fields.append("note")
-    subreddit.save(update_fields=update_fields)
+) -> bool:
+    """Write one suggestion, preserving operator state that is not ours.
+
+    The row is re-read under a row lock so a manual label, mute, or note that
+    landed after the caller's read is respected.  Returns whether the row was
+    written; ``False`` means it became ineligible.
+    """
+    with transaction.atomic():
+        current = Subreddit.objects.select_for_update().get(pk=subreddit.pk)
+        if current.source == Subreddit.Source.MANUAL or current.muted:
+            return False
+
+        current.place = place
+        current.kind = Subreddit.Kind.PLACE
+        current.state = place.state
+        current.country = place.country or None
+        current.source = Subreddit.Source.TEXT_EVIDENCE
+        current.confidence = Subreddit.Confidence.MEDIUM
+        current.reviewed_at = None
+        update_fields = [
+            "place",
+            "kind",
+            "state",
+            "country",
+            "source",
+            "confidence",
+            "reviewed_at",
+            "modified",
+        ]
+        # Only touch the note when it is ours to replace; otherwise an operator
+        # may have edited it since this row was read.
+        if not current.note:
+            current.note = (
+                f"text evidence: {thread_count} of {total_threads} subject threads"
+            )
+            update_fields.append("note")
+        current.save(update_fields=update_fields)
+    return True
