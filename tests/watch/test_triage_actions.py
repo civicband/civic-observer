@@ -17,7 +17,7 @@ from tests.factories import (
 )
 from watch.lookup import build_query
 from watch.models import MutedCountry, PlaceAlias, ThreadPlace
-from watch.scoring import queue_queryset
+from watch.scoring import queue_queryset, thread_country
 
 
 def action_url(thread):
@@ -127,6 +127,16 @@ def test_mute_country_leaves_thread_status_unchanged(admin_client):
 
     thread.refresh_from_db()
     assert thread.status == "backlog"
+
+
+@pytest.mark.django_db
+def test_mute_country_rejects_the_united_states(admin_client):
+    thread = ThreadFactory(subreddit=SubredditFactory(country="US"))
+
+    response = admin_client.post(action_url(thread), {"action": "mute_country"})
+
+    assert response.status_code == 400
+    assert not MutedCountry.objects.exists()
 
 
 @pytest.mark.django_db
@@ -471,7 +481,9 @@ def test_correction_leaves_manual_subreddit_label_alone(admin_client):
 def test_correction_with_mentioned_role_leaves_subreddit_alone(admin_client):
     old_place = PlaceFactory(name="Oldville")
     new_place = PlaceFactory(name="Newville")
-    subreddit = SubredditFactory(source="gazetteer", place=old_place, country="US")
+    subreddit = SubredditFactory(
+        kind="state", source="gazetteer", place=old_place, country="US"
+    )
     thread = ThreadFactory(subreddit=subreddit)
 
     admin_client.post(
@@ -485,12 +497,100 @@ def test_correction_with_mentioned_role_leaves_subreddit_alone(admin_client):
 
     subreddit.refresh_from_db()
     assert subreddit.place == old_place
+    assert subreddit.kind == "state"
     assert subreddit.source == "gazetteer"
     assert subreddit.reviewed_at is None
     thread_place = ThreadPlace.objects.get(thread=thread, place=new_place)
     assert thread_place.role == "mentioned"
     assert thread_place.source == "manual"
     assert PlaceAlias.objects.filter(place=new_place, key="newville").exists()
+
+
+@pytest.mark.django_db
+def test_subject_correction_syncs_subreddit_place_metadata(admin_client):
+    old_place = PlaceFactory(name="Toronto", state="ON", country="CA")
+    new_place = PlaceFactory(name="Chico", state="CA", country="US")
+    subreddit = SubredditFactory(
+        kind="state", source="gazetteer", place=old_place, country="CA"
+    )
+    thread = ThreadFactory(subreddit=subreddit)
+
+    admin_client.post(
+        correction_url(thread), {"place_id": new_place.id, "role": "subject"}
+    )
+
+    subreddit.refresh_from_db()
+    thread.refresh_from_db()
+    assert subreddit.kind == "place"
+    assert subreddit.state == "CA"
+    assert str(subreddit.country) == "US"
+    assert subreddit.source == "manual"
+    assert subreddit.reviewed_at is not None
+    assert thread_country(thread) == "US"
+
+
+@pytest.mark.django_db
+def test_subject_correction_clears_country_when_place_has_none(admin_client):
+    old_place = PlaceFactory(name="Oldville", state="CA", country="US")
+    new_place = PlaceFactory(name="Nowhere", state="", country="")
+    subreddit = SubredditFactory(
+        kind="state", source="gazetteer", place=old_place, country="US"
+    )
+    thread = ThreadFactory(subreddit=subreddit)
+
+    admin_client.post(
+        correction_url(thread), {"place_id": new_place.id, "role": "subject"}
+    )
+
+    subreddit.refresh_from_db()
+    assert subreddit.kind == "place"
+    assert subreddit.state == ""
+    assert not subreddit.country
+
+
+@pytest.mark.django_db
+def test_correction_rolls_back_when_a_later_write_fails(admin_client, monkeypatch):
+    old_place = PlaceFactory(name="Oldville")
+    new_place = PlaceFactory(name="Newville")
+    subreddit = SubredditFactory(
+        kind="state", source="gazetteer", place=old_place, country="US"
+    )
+    thread = ThreadFactory(subreddit=subreddit)
+    monkeypatch.setattr(
+        "watch.views.normalize_key", Mock(side_effect=RuntimeError("boom"))
+    )
+
+    with pytest.raises(RuntimeError):
+        admin_client.post(
+            correction_url(thread),
+            {
+                "place_id": new_place.id,
+                "role": "subject",
+                "matched_text": "Newville",
+            },
+        )
+
+    assert not ThreadPlace.objects.filter(thread=thread, place=new_place).exists()
+    subreddit.refresh_from_db()
+    assert subreddit.place == old_place
+    assert subreddit.kind == "state"
+    assert subreddit.source == "gazetteer"
+
+
+@pytest.mark.django_db
+def test_triage_hides_mute_country_for_us_threads(admin_client):
+    us_thread = ThreadFactory(subreddit=SubredditFactory(country="US"))
+    ie_thread = ThreadFactory(subreddit=SubredditFactory(country="IE"))
+
+    us_content = admin_client.get(
+        reverse("watch:triage"), {"thread": us_thread.pk}
+    ).content.decode()
+    ie_content = admin_client.get(
+        reverse("watch:triage"), {"thread": ie_thread.pk}
+    ).content.decode()
+
+    assert 'data-action="mute_country"' not in us_content
+    assert 'data-action="mute_country"' in ie_content
 
 
 @pytest.mark.django_db
