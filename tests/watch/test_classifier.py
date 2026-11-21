@@ -20,6 +20,9 @@ from watch.classify import (
     classify_subreddit,
 )
 from watch.gazetteer import refresh_aliases
+from watch.management.commands.classify_watch_subreddits import (
+    Command as ClassifyCommand,
+)
 from watch.models import Place, Subreddit
 
 DATA = Path(__file__).resolve().parents[2] / "watch" / "data"
@@ -683,3 +686,11 @@ def test_classify_command_supports_reclassify_and_limit(classifier_places):
 def test_classify_command_rejects_non_positive_limit():
     with pytest.raises(CommandError):
         call_command("classify_watch_subreddits", limit=0)
+
+
+def test_reclassify_help_lists_skipped_sources():
+    parser = ClassifyCommand().create_parser("manage.py", "classify_watch_subreddits")
+    action = next(item for item in parser._actions if item.dest == "reclassify")
+
+    assert "manual" in action.help
+    assert "Wikidata" in action.help

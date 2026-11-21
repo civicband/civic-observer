@@ -12,7 +12,10 @@ class Command(BaseCommand):
         parser.add_argument(
             "--reclassify",
             action="store_true",
-            help="Re-run every non-manual row, including already reviewed rows.",
+            help=(
+                "Re-run rows except manual and Wikidata labels, which are "
+                "always skipped; includes already reviewed and trusted rows."
+            ),
         )
         parser.add_argument(
             "--limit",

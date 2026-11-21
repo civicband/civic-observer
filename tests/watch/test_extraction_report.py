@@ -14,6 +14,7 @@ from tests.factories import (
     ThreadFactory,
     ThreadPlaceFactory,
 )
+from watch.extraction import extract_thread_places
 from watch.models import PlaceMention, ThreadLabel
 
 SECTION_TITLES = ("methods", "sources", "overall")
@@ -174,6 +175,30 @@ def test_report_excludes_manual_rows(capsys):
     # Manual data is ground truth, so it cannot score as a non-manual hit.
     assert _row(out, "methods", "body_pattern")["fn"] == "1"
     assert _row(out, "sources", "post")["fn"] == "1"
+
+
+@pytest.mark.django_db
+def test_report_excludes_thread_place_rolled_from_manual_mention(capsys):
+    thread = ThreadFactory()
+    place = PlaceFactory()
+    _mention_place(MentionFactory(thread=thread), place, method="manual")
+
+    extract_thread_places(thread)
+    ThreadLabel.objects.create(thread=thread, place=place, is_subject=True)
+
+    call_command("watch_extraction_report")
+
+    out = capsys.readouterr().out
+    method_groups = [line.split()[0] for line in _section(out, "methods")]
+    source_groups = [line.split()[0] for line in _section(out, "sources")]
+    assert "manual" not in method_groups
+    assert "manual" not in source_groups
+    assert _row(out, "sources", "post")["tp"] == "0"
+    assert _row(out, "sources", "post")["fp"] == "0"
+    assert _row(out, "sources", "post")["fn"] == "1"
+    assert _row(out, "overall", "overall")["tp"] == "0"
+    assert _row(out, "overall", "overall")["fp"] == "0"
+    assert _row(out, "overall", "overall")["fn"] == "1"
 
 
 @pytest.mark.django_db

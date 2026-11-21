@@ -37,6 +37,10 @@ _ROLES = frozenset({"subject", "mentioned"})
 #: flood a mention with rows.
 MAX_LLM_PLACES = 20
 
+#: The prompt is capped so a long comment chain cannot exceed a small model's
+#: context window. Grounding checks must use the same truncated text.
+MAX_THREAD_TEXT = 8000
+
 
 @dataclass(frozen=True)
 class LLMPlace:
@@ -118,7 +122,7 @@ def _thread_text(thread: Thread) -> str:
         parts.append(mention.post_title)
         parts.append(mention.snippet_text)
     text = "\n\n".join(part.strip() for part in parts if part and part.strip())
-    return text[:8000]
+    return text[:MAX_THREAD_TEXT]
 
 
 def _parse_response(payload: Any) -> LLMResult | None:

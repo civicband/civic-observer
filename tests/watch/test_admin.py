@@ -2,8 +2,8 @@ import pytest
 from django.contrib import admin
 from django.urls import reverse
 
-from tests.factories import IngestRunFactory, MentionFactory
-from watch.models import IngestRun, Mention
+from tests.factories import IngestRunFactory, MentionFactory, ThreadPlaceFactory
+from watch.models import IngestRun, Mention, ThreadPlace
 
 
 @pytest.mark.django_db
@@ -27,6 +27,31 @@ def test_ingest_run_admin_is_read_only_and_newest_first():
     assert model_admin.has_add_permission(None) is False  # type: ignore[arg-type]
     assert model_admin.has_change_permission(None) is False  # type: ignore[arg-type]
     assert model_admin.has_delete_permission(None) is False  # type: ignore[arg-type]
+
+
+@pytest.mark.django_db
+def test_thread_place_admin_edit_marks_source_manual(admin_client):
+    thread_place = ThreadPlaceFactory(source="post", role="subject")
+
+    response = admin_client.post(
+        reverse("admin:watch_threadplace_change", args=[thread_place.pk]),
+        {
+            "thread": str(thread_place.thread_id),
+            "place": str(thread_place.place_id),
+            "role": "mentioned",
+            "confidence": "low",
+            "query_override": "",
+        },
+    )
+
+    assert response.status_code == 302
+    thread_place.refresh_from_db()
+    assert (thread_place.role, thread_place.source) == ("mentioned", "manual")
+
+
+def test_thread_place_admin_source_is_read_only():
+    model_admin = admin.site._registry[ThreadPlace]
+    assert "source" in model_admin.readonly_fields  # type: ignore[attr-defined]
 
 
 def test_mention_admin_is_read_only_and_hides_raw_json():

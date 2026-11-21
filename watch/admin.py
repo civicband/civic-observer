@@ -407,6 +407,12 @@ class ThreadPlaceAdmin(admin.ModelAdmin):
     list_filter = ["role", "confidence", "source"]
     search_fields = ["thread__key", "place__name"]
     list_select_related = ["thread", "place"]
+    readonly_fields = ["source"]
+
+    def save_model(self, request, obj, form, change):
+        """Mark operator edits manual so the next enrichment preserves them."""
+        obj.source = ThreadPlace.Source.MANUAL
+        super().save_model(request, obj, form, change)
 
 
 @admin.register(PlaceMention)
