@@ -73,6 +73,20 @@ PLACE = r"(?P<place>(?-i:[A-Z][A-Za-z'’-]+(?:\s+[A-Z][A-Za-z'’-]+){0,4}))"
 
 _BODY_PATTERN_METHOD = PlaceMention.Method.BODY_PATTERN
 
+#: Methods this module owns and regenerates on every extraction pass.
+_DETERMINISTIC_METHODS = (
+    PlaceMention.Method.BODY_PATTERN,
+    PlaceMention.Method.GAZETTEER_PHRASE,
+)
+
+#: Methods owned elsewhere. Extraction preserves these rows; Task 4 owns
+#: clearing and regenerating LLM rows.
+_PRESERVED_METHODS = (
+    PlaceMention.Method.MANUAL,
+    PlaceMention.Method.LLM,
+)
+
+
 #: ``(pattern, required_place_type, method)`` rules, ordered from most to
 #: least specific so "Riverside County Board of Supervisors" is not also read
 #: as a bare board phrase.
@@ -260,13 +274,12 @@ def extract_phrases(text: str, *, state: str | None = None) -> list[ExtractedPla
 def extract_mention_places(
     mention: Mention, subreddit: Subreddit | None
 ) -> list[PlaceMention]:
-    """Replace a mention's extracted place rows and return the new rows.
+    """Replace a mention's deterministic place rows and return the new rows.
 
     Body-pattern matches stay high-confidence subjects. Gazetteer phrases are
-    low-confidence mentions. Rows an operator created by hand survive, and a
-    place an operator already marked manually is not extracted again because
-    ``(mention, place)`` is unique. Every non-manual row, including future LLM
-    rows, is deleted; the LLM pass must regenerate its own rows afterwards.
+    low-confidence mentions. Manual and LLM rows survive: Task 4 owns clearing
+    and regenerating LLM rows. A place already covered by a preserved row is
+    not extracted again because ``(mention, place)`` is unique.
     """
     state = subreddit.state if subreddit is not None else None
     text = mention.snippet_text
@@ -279,10 +292,10 @@ def extract_mention_places(
     by_place = _dedupe_by_place(extracted)
 
     with transaction.atomic():
-        manual_place_ids = set(
-            mention.place_mentions.filter(
-                method=PlaceMention.Method.MANUAL
-            ).values_list("place_id", flat=True)
+        preserved_place_ids = set(
+            mention.place_mentions.filter(method__in=_PRESERVED_METHODS).values_list(
+                "place_id", flat=True
+            )
         )
         new_rows = [
             PlaceMention(
@@ -294,9 +307,9 @@ def extract_mention_places(
                 is_subject=item.is_subject,
             )
             for item in by_place.values()
-            if item.place.pk not in manual_place_ids
+            if item.place.pk not in preserved_place_ids
         ]
-        mention.place_mentions.exclude(method=PlaceMention.Method.MANUAL).delete()
+        mention.place_mentions.filter(method__in=_DETERMINISTIC_METHODS).delete()
         return PlaceMention.objects.bulk_create(new_rows)
 
 
@@ -324,9 +337,9 @@ def extract_thread_places(thread: Thread) -> dict[str, int]:
     stale rows that extraction no longer proposes.  Returned counts include
     those manual rows.
 
-    Stale non-manual rows are deleted, which also drops any operator
-    ``query_override`` stored on them; only a ``source="manual"`` row keeps an
-    override across extraction runs.
+    Deleting a stale non-manual row drops any operator ``query_override``
+    stored on it. A surviving non-manual row keeps its override, and a
+    ``source="manual"`` row survives even when stale.
     """
     subreddit = thread.subreddit
     state = subreddit.state if subreddit is not None else None
@@ -344,10 +357,19 @@ def extract_thread_places(thread: Thread) -> dict[str, int]:
         )
 
     mentions = list(thread.mentions.order_by("pk"))
+    preserved_rows: dict[object, list[PlaceMention]] = {}
+    for row in PlaceMention.objects.filter(
+        mention__thread=thread, method__in=_PRESERVED_METHODS
+    ):
+        preserved_rows.setdefault(row.mention_id, []).append(row)
+
     for mention in mentions:
         is_post = mention.kind == Mention.Kind.POST
-        extract_mention_places(mention, subreddit)
-        for place_mention in mention.place_mentions.all():
+        deterministic_rows = extract_mention_places(mention, subreddit)
+        for place_mention in [
+            *deterministic_rows,
+            *preserved_rows.get(mention.pk, []),
+        ]:
             _merge_thread_place(
                 candidates,
                 _ThreadPlaceCandidate(

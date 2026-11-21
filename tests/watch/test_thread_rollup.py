@@ -49,7 +49,7 @@ def test_comment_body_pattern_promotes_to_subject(extraction_places):
     ("is_subject", "role"), [(True, "subject"), (False, "mentioned")]
 )
 def test_llm_and_manual_place_mentions_honor_is_subject(
-    extraction_places, monkeypatch, method, kind, is_subject, role
+    extraction_places, method, kind, is_subject, role
 ):
     thread = ThreadFactory()
     mention = MentionFactory(thread=thread, kind=kind, snippet_text="No place here.")
@@ -61,7 +61,6 @@ def test_llm_and_manual_place_mentions_honor_is_subject(
         confidence=PlaceMention.Confidence.HIGH,
         is_subject=is_subject,
     )
-    monkeypatch.setattr("watch.extraction.extract_mention_places", lambda m, s: [])
 
     extract_thread_places(thread)
 
