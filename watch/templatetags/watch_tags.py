@@ -4,12 +4,28 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from urllib.parse import urlsplit
 
 from django import template
 from django.utils.html import escape
 from django.utils.safestring import SafeString, mark_safe
 
 register = template.Library()
+
+
+@register.filter
+def external_url(value: object) -> str:
+    """Return ``value`` when it is an absolute http(s) URL, else ``""``."""
+    if not value:
+        return ""
+    url = str(value).strip()
+    try:
+        parsed = urlsplit(url)
+    except ValueError:
+        return ""
+    if parsed.scheme.lower() in {"http", "https"} and parsed.netloc:
+        return url
+    return ""
 
 
 def _keywords(keywords: str | Iterable[str] | None) -> list[str]:

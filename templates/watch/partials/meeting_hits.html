@@ -21,14 +21,16 @@
                     <p class="mt-2 text-sm leading-relaxed break-words whitespace-pre-wrap text-gray-700 dark:text-gray-300">{{ hit.snippet }}</p>
                 {% endif %}
                 <div class="mt-auto flex flex-wrap items-center gap-2 pt-3">
-                    {% if hit.civic_band_url %}
-                        <a href="{{ hit.civic_band_url }}"
-                           target="_blank"
-                           rel="noopener noreferrer"
-                           class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
-                            View page
-                        </a>
-                    {% endif %}
+                    {% with meeting_url=hit.civic_band_url|external_url %}
+                        {% if meeting_url %}
+                            <a href="{{ meeting_url }}"
+                               target="_blank"
+                               rel="noopener noreferrer"
+                               class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                                View page
+                            </a>
+                        {% endif %}
+                    {% endwith %}
                     <button type="button"
                             x-data="{ copied: false }"
                             @click="navigator.clipboard?.writeText($el.dataset.citation); copied = true"

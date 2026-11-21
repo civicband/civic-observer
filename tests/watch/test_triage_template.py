@@ -194,3 +194,67 @@ def test_highlight_keywords_is_case_insensitive_and_escapes():
     assert "&amp;" in rendered
     assert rendered.count("<mark>City Council</mark>") == 1
     assert rendered.count("<mark>city council</mark>") == 1
+
+
+@pytest.mark.parametrize("url", ["http://example.com/a", "https://example.com/a?b=1"])
+def test_external_url_filter_allows_http_and_https(url):
+    rendered = Template("{% load watch_tags %}{{ url|external_url }}").render(
+        Context({"url": url})
+    )
+    assert rendered == url
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "javascript:alert(1)",
+        "data:text/html,<script>alert(1)</script>",
+        "ftp://example.com/a",
+        "//example.com/a",
+        "not a url",
+        "",
+    ],
+)
+def test_external_url_filter_drops_other_schemes(url):
+    rendered = Template("{% load watch_tags %}{{ url|external_url }}").render(
+        Context({"url": url})
+    )
+    assert rendered == ""
+
+
+@pytest.mark.django_db
+def test_triage_drops_unsafe_mention_url(admin_client):
+    thread = ThreadFactory()
+    MentionFactory(thread=thread, url="javascript:alert(1)")
+
+    content = admin_client.get(
+        reverse("watch:triage"), {"thread": thread.pk}
+    ).content.decode()
+
+    assert "javascript:" not in content
+    assert "View on Reddit" not in content
+
+
+@pytest.mark.django_db
+def test_triage_drops_unsafe_meeting_hit_url(admin_client):
+    thread = ThreadFactory()
+    place = PlaceWithMuniFactory()
+    ThreadPlace.objects.create(
+        thread=thread,
+        place=place,
+        role="subject",
+        confidence="high",
+        source="subreddit",
+    )
+    MeetingHitFactory(
+        thread=thread,
+        place=place,
+        civic_band_url="javascript:alert(1)",
+    )
+
+    content = admin_client.get(
+        reverse("watch:triage"), {"thread": thread.pk}
+    ).content.decode()
+
+    assert 'href="javascript:' not in content
+    assert "View page" not in content

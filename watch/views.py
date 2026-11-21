@@ -8,6 +8,7 @@ from datetime import timedelta
 from typing import Any
 
 from django.contrib.admin.views.decorators import staff_member_required
+from django.db import transaction
 from django.db.models import Prefetch, Q
 from django.http import Http404, HttpRequest, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
@@ -148,6 +149,7 @@ def _triage_context(thread: Thread | None) -> dict[str, Any]:
     return {
         "thread": thread,
         "queue_count": queue_queryset().count(),
+        "thread_country": thread_country(thread) if thread else None,
         "meeting_hits_by_place": meeting_hits_by_place,
         "subject_places": subject_places,
         "mentioned_places": mentioned_places,
@@ -242,6 +244,8 @@ class TriageActionView(View):
             country = thread_country(thread)
             if not country:
                 return "Thread has no country"
+            if country == "US":
+                return "The United States cannot be muted"
             MutedCountry.objects.get_or_create(code=country)
         elif action == TriageActionForm.Action.PROMOTE:
             place_id = data.get("place_id")
@@ -315,27 +319,29 @@ class PlaceCorrectionView(View):
 
         place = get_object_or_404(Place, pk=form.cleaned_data["place_id"])
         role = form.cleaned_data.get("role") or ThreadPlace.Role.SUBJECT
-        ThreadPlace.objects.update_or_create(
-            thread=thread,
-            place=place,
-            defaults={
-                "role": role,
-                "confidence": ThreadPlace.Confidence.HIGH,
-                "source": ThreadPlace.Source.MANUAL,
-            },
-        )
-        if role == ThreadPlace.Role.SUBJECT:
-            self._update_subreddit_label(thread, place)
-
         matched_text = (form.cleaned_data.get("matched_text") or "").strip()
-        alias_key = normalize_key(matched_text)
-        if alias_key:
-            PlaceAlias.objects.update_or_create(
+
+        with transaction.atomic():
+            ThreadPlace.objects.update_or_create(
+                thread=thread,
                 place=place,
-                key=alias_key,
-                kind=PlaceAlias.Kind.NICKNAME,
-                defaults={"source": PlaceAlias.Source.MANUAL},
+                defaults={
+                    "role": role,
+                    "confidence": ThreadPlace.Confidence.HIGH,
+                    "source": ThreadPlace.Source.MANUAL,
+                },
             )
+            if role == ThreadPlace.Role.SUBJECT:
+                self._update_subreddit_label(thread, place)
+
+            alias_key = normalize_key(matched_text)
+            if alias_key:
+                PlaceAlias.objects.update_or_create(
+                    place=place,
+                    key=alias_key,
+                    kind=PlaceAlias.Kind.NICKNAME,
+                    defaults={"source": PlaceAlias.Source.MANUAL},
+                )
 
         return _after_action(request, thread, advance=False)
 
@@ -345,9 +351,22 @@ class PlaceCorrectionView(View):
         if subreddit is None or subreddit.source == Subreddit.Source.MANUAL:
             return
         subreddit.place = place
+        subreddit.kind = Subreddit.Kind.PLACE
+        subreddit.state = place.state
+        subreddit.country = place.country or None
         subreddit.source = Subreddit.Source.MANUAL
         subreddit.reviewed_at = timezone.now()
-        subreddit.save(update_fields=["place", "source", "reviewed_at", "modified"])
+        subreddit.save(
+            update_fields=[
+                "place",
+                "kind",
+                "state",
+                "country",
+                "source",
+                "reviewed_at",
+                "modified",
+            ]
+        )
 
 
 @method_decorator(staff_member_required, name="dispatch")
