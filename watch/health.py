@@ -8,6 +8,7 @@ run changelist.
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta
 
 from django.conf import settings
@@ -17,6 +18,8 @@ from django.db.models import Sum
 from django.utils import timezone
 
 from watch.models import IngestRun
+
+logger = logging.getLogger(__name__)
 
 STALE_ALERT_CACHE_PREFIX = "watch:stale-alert:"
 STALE_ALERT_CACHE_TIMEOUT = 86400
@@ -31,11 +34,12 @@ def _day_start(now: datetime) -> datetime:
     return timezone.localtime(now).replace(hour=0, minute=0, second=0, microsecond=0)
 
 
-def _new_mentions_since(start: datetime) -> int:
-    """Sum ``new`` for runs that started at or after ``start``."""
-    total = IngestRun.objects.filter(started_at__gte=start).aggregate(total=Sum("new"))[
-        "total"
-    ]
+def _new_mentions_since(start: datetime, end: datetime | None = None) -> int:
+    """Sum ``new`` for runs that started in ``[start, end]``."""
+    runs = IngestRun.objects.filter(started_at__gte=start)
+    if end is not None:
+        runs = runs.filter(started_at__lte=end)
+    total = runs.aggregate(total=Sum("new"))["total"]
     return int(total or 0)
 
 
@@ -64,7 +68,7 @@ def health_status(now: datetime | None = None) -> HealthStatus:
     return {
         "last_success": last_success,
         "hours_since_success": hours_since_success,
-        "alerts_today": _new_mentions_since(_day_start(now)),
+        "alerts_today": _new_mentions_since(_day_start(now), end=now),
         "stale": stale,
         "quiet": quiet,
     }
@@ -106,11 +110,20 @@ def _alert_body(status: HealthStatus) -> str:
     )
 
 
+def _release_alert_key(cache_key: str) -> None:
+    """Drop the daily guard key so a later run can retry the alert."""
+    try:
+        cache.delete(cache_key)
+    except Exception:
+        logger.exception("stale alert cache delete failed")
+
+
 def send_stale_alert(status: HealthStatus) -> bool:
     """Send at most one stale-ingest alert per local day.
 
     Returns ``True`` only when an email was actually sent. Failed sends release
-    the daily cache key so a later cron run can retry.
+    the daily cache key so a later cron run can retry. Cache failures are
+    logged and treated as "not sent" rather than crashing the caller.
     """
     if not status.get("stale"):
         return False
@@ -119,22 +132,33 @@ def send_stale_alert(status: HealthStatus) -> bool:
         return False
 
     cache_key = f"{STALE_ALERT_CACHE_PREFIX}{timezone.localdate().isoformat()}"
-    if not cache.add(cache_key, True, timeout=STALE_ALERT_CACHE_TIMEOUT):
+    # Build the message before touching the cache so a body-construction bug
+    # surfaces instead of being swallowed by the send error handler.
+    subject = STALE_ALERT_SUBJECT
+    body = _alert_body(status)
+
+    try:
+        acquired = cache.add(cache_key, True, timeout=STALE_ALERT_CACHE_TIMEOUT)
+    except Exception:
+        logger.exception("stale alert cache add failed")
+        return False
+    if not acquired:
         return False
 
     try:
         sent = send_mail(
-            STALE_ALERT_SUBJECT,
-            _alert_body(status),
+            subject,
+            body,
             settings.DEFAULT_FROM_EMAIL,
             recipients,
             fail_silently=False,
         )
     except Exception:
-        cache.delete(cache_key)
+        logger.exception("stale alert send failed")
+        _release_alert_key(cache_key)
         return False
 
     if not sent:
-        cache.delete(cache_key)
+        _release_alert_key(cache_key)
         return False
     return True
