@@ -43,10 +43,17 @@ def extraction_places(db: None) -> dict[str, Place]:
     )
     riverside_county = _place(
         "us:county:06065",
-        "Riverside",
+        "Riverside County",
         Place.PlaceType.COUNTY,
         "CA",
         population=2418185,
+    )
+    san_diego_county = _place(
+        "us:county:06073",
+        "San Diego County",
+        Place.PlaceType.COUNTY,
+        "CA",
+        population=3298634,
     )
     places = {
         "beverly_hills": _place(
@@ -66,6 +73,15 @@ def extraction_places(db: None) -> dict[str, Place]:
             county=riverside_county,
         ),
         "contra_costa_county": contra_costa,
+        "san_diego_county": san_diego_county,
+        "san_diego": _place(
+            "us:place:0666000",
+            "San Diego",
+            Place.PlaceType.CITY,
+            "CA",
+            population=1386932,
+            county=san_diego_county,
+        ),
         "north_richmond": _place(
             "us:place:0651880",
             "North Richmond",

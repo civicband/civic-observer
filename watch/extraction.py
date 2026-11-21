@@ -14,7 +14,7 @@ from dataclasses import dataclass
 
 from watch.models import Place, PlaceAlias, PlaceMention
 from watch.normalize import normalize_key
-from watch.place_utils import SETTLEMENT_TYPES
+from watch.place_utils import SETTLEMENT_TYPES, prefer_settlement_types
 
 #: Place names that are also ordinary English words. A lower-case use of one
 #: is prose, not a reference to the place, so resolution requires a
@@ -106,9 +106,6 @@ BODY_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
         _BODY_PATTERN_METHOD,
     ),
 ]
-
-#: Leading articles that a greedy pattern may include in the captured phrase.
-_LEADING_ARTICLES: frozenset[str] = frozenset({"a", "an", "the"})
 
 #: The runner-up must be at least this many times smaller before the most
 #: populous candidate wins an otherwise ambiguous phrase.
@@ -264,6 +261,8 @@ def _resolve_candidates(
         return None
 
     places = _apply_state_prior(places, state)
+    if required_place_type != Place.PlaceType.COUNTY:
+        places = prefer_settlement_types(places)
     place = _choose_place(places)
     if place is None:
         return None
@@ -271,12 +270,13 @@ def _resolve_candidates(
 
 
 def _phrase_variants(phrase: str) -> list[str]:
-    """Return the phrase followed by a version without a leading article."""
-    variants = [phrase]
+    """Return every trailing sub-phrase, longest first.
+
+    Greedy patterns can capture a leading preposition or article, so "In
+    Beverly Hills" must also try "Beverly Hills" and "Hills".
+    """
     words = phrase.split()
-    if len(words) > 1 and words[0].lower() in _LEADING_ARTICLES:
-        variants.append(" ".join(words[1:]))
-    return variants
+    return [" ".join(words[index:]) for index in range(len(words))]
 
 
 def _unique_places(places: Iterable[Place]) -> list[Place]:
@@ -316,14 +316,23 @@ def _apply_state_prior(places: list[Place], state: str | None) -> list[Place]:
 
 
 def _choose_place(places: list[Place]) -> Place | None:
-    """Choose a single place by the population ambiguity rule."""
+    """Choose a single place by the population ambiguity rule.
+
+    Unknown or zero populations are not evidence of a 10x difference, so a
+    comparison only resolves when both candidate populations are known and
+    nonzero.
+    """
     if len(places) == 1:
         return places[0]
 
     ranked = sorted(places, key=lambda place: place.population or 0, reverse=True)
     top_population = ranked[0].population or 0
     next_population = ranked[1].population or 0
-    if top_population and top_population >= AMBIGUITY_RATIO * next_population:
+    if (
+        top_population
+        and next_population
+        and top_population >= AMBIGUITY_RATIO * next_population
+    ):
         return ranked[0]
     return None
 
