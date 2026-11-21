@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 from io import StringIO
+from unittest.mock import Mock
 
 import pytest
 from django.core import mail
@@ -112,14 +114,22 @@ def test_not_quiet_with_recent_new_mentions():
 
 @pytest.mark.django_db
 def test_alerts_today_sums_runs_started_today():
-    now = timezone.now()
+    # Noon local keeps "today", "yesterday", and "next hour" unambiguous.
+    now = timezone.localtime(timezone.now()).replace(
+        hour=12, minute=0, second=0, microsecond=0
+    )
     IngestRunFactory(started_at=now - timedelta(hours=2), new=2, error="")
     IngestRunFactory(started_at=now - timedelta(hours=1), new=3, error="")
+    # Within the quiet window but started yesterday: not counted today.
+    IngestRunFactory(started_at=now - timedelta(hours=23), new=11, error="")
     IngestRunFactory(started_at=now - timedelta(days=1), new=100, error="")
+    # Future-dated/clock-skew row must not count today.
+    IngestRunFactory(started_at=now + timedelta(hours=1), new=7, error="")
 
-    status = health_status()
+    status = health_status(now=now)
 
     assert status["alerts_today"] == 5
+    assert status["quiet"] is False
 
 
 @pytest.mark.django_db
@@ -157,6 +167,44 @@ def test_send_stale_alert_retries_after_failed_send(settings, monkeypatch):
     monkeypatch.undo()
     assert send_stale_alert(status) is True
     assert len(mail.outbox) == 1
+
+
+@pytest.mark.django_db
+def test_send_stale_alert_logs_and_releases_key_when_send_raises(
+    settings, monkeypatch, caplog
+):
+    settings.WATCH_ALERT_EMAIL = ["ops@example.com"]
+    IngestRunFactory(finished_at=timezone.now() - timedelta(hours=8), error="")
+    status = health_status()
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("smtp down")
+
+    monkeypatch.setattr("watch.health.send_mail", boom)
+    with caplog.at_level(logging.ERROR, logger="watch.health"):
+        assert send_stale_alert(status) is False
+
+    assert cache.get(ALERT_CACHE_KEY) is None
+    assert "stale alert send failed" in caplog.text
+    assert mail.outbox == []
+
+
+@pytest.mark.django_db
+def test_send_stale_alert_returns_false_when_cache_add_raises(
+    settings, monkeypatch, caplog
+):
+    settings.WATCH_ALERT_EMAIL = ["ops@example.com"]
+    IngestRunFactory(finished_at=timezone.now() - timedelta(hours=8), error="")
+    status = health_status()
+    broken_cache = Mock()
+    broken_cache.add.side_effect = RuntimeError("redis down")
+    monkeypatch.setattr("watch.health.cache", broken_cache)
+
+    with caplog.at_level(logging.ERROR, logger="watch.health"):
+        assert send_stale_alert(status) is False
+
+    assert "stale alert cache add failed" in caplog.text
+    assert mail.outbox == []
 
 
 @pytest.mark.django_db
@@ -215,6 +263,17 @@ def test_check_command_fails_when_quiet(settings):
 
     with pytest.raises(CommandError):
         call_command("check_watch_health")
+
+
+@pytest.mark.django_db
+def test_check_command_quiet_but_not_stale_sends_no_email(settings):
+    settings.WATCH_ALERT_EMAIL = ["ops@example.com"]
+    IngestRunFactory(finished_at=timezone.now(), new=0, error="")
+
+    with pytest.raises(CommandError):
+        call_command("check_watch_health")
+
+    assert mail.outbox == []
 
 
 @pytest.mark.django_db

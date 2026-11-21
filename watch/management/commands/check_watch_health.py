@@ -1,4 +1,9 @@
-"""Exit nonzero when the CivicBand Watch ingest is stale or quiet."""
+"""Exit nonzero when the CivicBand Watch ingest is stale or quiet.
+
+This command owns the once-per-day stale alert email as well as the exit code.
+Cron wrappers must not also mail on nonzero exit, or recipients receive two
+notifications for the same failure.
+"""
 
 from __future__ import annotations
 
@@ -9,8 +14,10 @@ from watch.health import health_status, send_stale_alert
 
 class Command(BaseCommand):
     help = (
-        "Check ingest health for cron monitoring. Exits nonzero when the last "
-        "successful run is too old or no recent run added mentions."
+        "Check ingest health for cron monitoring. Sends the once-per-day stale "
+        "alert email and exits nonzero when the last successful run is too old "
+        "or no recent run added mentions. Cron wrappers must not also mail on "
+        "nonzero exit."
     )
 
     def handle(self, *args, **options):
