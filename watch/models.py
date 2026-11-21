@@ -163,13 +163,15 @@ class ThreadLabel(models.Model):
     """Operator-supplied judgement about a thread's places.
 
     A row with ``place=None`` is still a label: it records that the operator
-    reviewed the thread and concluded it has no associated place.
+    reviewed the thread and concluded it has no associated place.  A label for
+    a deleted place is removed rather than nulled: nulling it would collide
+    with the one-no-place-per-thread constraint.
     """
 
     thread = models.ForeignKey(Thread, on_delete=models.CASCADE, related_name="labels")
     place = models.ForeignKey(
         Place,
-        on_delete=models.SET_NULL,
+        on_delete=models.CASCADE,
         null=True,
         blank=True,
         related_name="labels",

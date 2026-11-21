@@ -15,7 +15,7 @@ from dataclasses import dataclass
 from django.conf import settings
 from django.db import transaction
 
-from watch.llm import MAX_LLM_PLACES, classify_with_llm
+from watch.llm import MAX_LLM_PLACES, MAX_THREAD_TEXT, classify_with_llm
 from watch.models import (
     Mention,
     Place,
@@ -336,12 +336,14 @@ class _ThreadPlaceCandidate:
 def extract_thread_places(thread: Thread) -> dict[str, int]:
     """Roll a thread's extracted places up into :class:`ThreadPlace` rows.
 
-    The subreddit's own place is a subject.  Post titles and post bodies are
-    subjects because the post is the thread's topic; comment places are
-    subjects only when a governing-body pattern names them, and mentioned
-    otherwise.  ``llm`` and ``manual`` place mentions use their stored
-    ``is_subject`` flag instead of those deterministic rules.  Duplicates merge
-    per place, preferring a subject and then the highest confidence.
+    The subreddit's own place is a subject.  The thread title, post titles, and
+    post bodies are subjects because they name the thread's topic; comment
+    places are subjects only when a governing-body pattern names them, and
+    mentioned otherwise.  ``llm`` and ``manual`` place mentions use their
+    stored ``is_subject`` flag instead of those deterministic rules.  A place
+    with any ``manual`` mention keeps ``source="manual"`` however its role and
+    confidence are merged.  Duplicates merge per place, preferring a subject
+    and then the highest confidence.
 
     When ``WATCH_LLM_ENABLED`` is on and the subreddit does not pin a place, the
     deterministic methods disagree with it, or a phrase is ambiguous, the
@@ -372,18 +374,34 @@ def extract_thread_places(thread: Thread) -> dict[str, int]:
             ),
         )
 
+    # The thread title is the post title, so its places are always subjects.
+    # Doing this before mentions gives comment-only threads the title subject.
+    for extracted in extract_phrases(thread.title, state=state):
+        _merge_thread_place(
+            candidates,
+            _ThreadPlaceCandidate(
+                place_id=extracted.place.pk,
+                role=ThreadPlace.Role.SUBJECT,
+                confidence=extracted.confidence,
+                source=ThreadPlace.Source.POST,
+            ),
+        )
+
     mentions = list(thread.mentions.order_by("pk"))
     deterministic_rows = {
         mention.pk: extract_mention_places(mention, subreddit) for mention in mentions
     }
-    if _should_run_llm(subreddit, deterministic_rows, mentions, state):
+    if _should_run_llm(subreddit, deterministic_rows, mentions, state, thread.title):
         _regenerate_llm_places(thread, mentions, state)
 
     preserved_rows: dict[object, list[PlaceMention]] = {}
+    manual_candidate_place_ids: set[object] = set()
     for row in PlaceMention.objects.filter(
         mention__thread=thread, method__in=_PRESERVED_METHODS
     ):
         preserved_rows.setdefault(row.mention_id, []).append(row)
+        if row.method == PlaceMention.Method.MANUAL:
+            manual_candidate_place_ids.add(row.place_id)
 
     for mention in mentions:
         is_post = mention.kind == Mention.Kind.POST
@@ -431,7 +449,11 @@ def extract_thread_places(thread: Thread) -> dict[str, int]:
                 defaults={
                     "role": candidate.role,
                     "confidence": candidate.confidence,
-                    "source": candidate.source,
+                    "source": (
+                        ThreadPlace.Source.MANUAL
+                        if place_id in manual_candidate_place_ids
+                        else candidate.source
+                    ),
                 },
             )
         thread.thread_places.exclude(source=ThreadPlace.Source.MANUAL).exclude(
@@ -459,6 +481,7 @@ def _should_run_llm(
     deterministic_rows: dict[str, list[PlaceMention]],
     mentions: list[Mention],
     state: str | None,
+    title: str,
 ) -> bool:
     """Return whether this thread warrants the optional LLM pass.
 
@@ -476,7 +499,7 @@ def _should_run_llm(
         subreddit, deterministic_rows
     ):
         return True
-    return _has_ambiguous_match(mentions, state)
+    return _has_ambiguous_match(mentions, state, title)
 
 
 def _deterministic_disagrees(
@@ -492,9 +515,11 @@ def _deterministic_disagrees(
     return False
 
 
-def _has_ambiguous_match(mentions: list[Mention], state: str | None) -> bool:
+def _has_ambiguous_match(
+    mentions: list[Mention], state: str | None, title: str
+) -> bool:
     """Return whether any phrase could not be resolved because of ambiguity."""
-    texts: list[str] = []
+    texts: list[str] = [title] if title else []
     for mention in mentions:
         if mention.snippet_text:
             texts.append(mention.snippet_text)
@@ -626,12 +651,17 @@ def _regenerate_llm_places(
 
 
 def _thread_corpus(thread: Thread, mentions: list[Mention]) -> str:
-    """Return the casefolded thread text used to ground model-supplied names."""
+    """Return the casefolded prompt text used to ground model-supplied names.
+
+    Grounding must inspect exactly the text the model saw, so this mirrors
+    :func:`watch.llm._thread_text` including its truncation cap.
+    """
     parts: list[str] = [thread.title]
     for mention in mentions:
         parts.append(mention.post_title)
         parts.append(mention.snippet_text)
-    return "\n".join(part for part in parts if part).casefold()
+    text = "\n\n".join(part.strip() for part in parts if part and part.strip())
+    return text[:MAX_THREAD_TEXT].casefold()
 
 
 def _llm_resolution_state(model_state: str, thread_state: str | None) -> str | None:

@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+from datetime import date
+from types import SimpleNamespace
+
 import pytest
 from django.utils import timezone
 
 from tests.factories import (
     MentionFactory,
+    PlaceWithMuniFactory,
     SubredditFactory,
     ThreadFactory,
     ThreadPlaceFactory,
@@ -14,8 +18,9 @@ from tests.factories import (
 from watch.classify import Classification
 from watch.enrichment import enrich_thread
 from watch.extraction import extract_thread_places
+from watch.gazetteer import refresh_aliases
 from watch.llm import LLMPlace, LLMResult
-from watch.models import PlaceMention, ThreadPlace
+from watch.models import MeetingHit, PlaceMention, ThreadPlace
 
 
 @pytest.mark.django_db
@@ -63,8 +68,33 @@ def test_manual_place_mentions_honor_is_subject(
     extract_thread_places(thread)
 
     thread_place = ThreadPlace.objects.get(thread=thread, place__name="Chico")
-    expected_source = "post" if kind == "post" else "comment"
-    assert (thread_place.role, thread_place.source) == (role, expected_source)
+    assert (thread_place.role, thread_place.source) == (role, "manual")
+
+
+@pytest.mark.django_db
+def test_manual_source_wins_over_deterministic_source(extraction_places):
+    thread = ThreadFactory()
+    manual_mention = MentionFactory(
+        thread=thread, kind="post", snippet_text="No place here."
+    )
+    PlaceMention.objects.create(
+        mention=manual_mention,
+        place=extraction_places["chico"],
+        matched_text="Chico",
+        method=PlaceMention.Method.MANUAL,
+        confidence=PlaceMention.Confidence.LOW,
+        is_subject=False,
+    )
+    MentionFactory(thread=thread, kind="post", snippet_text="Chico city council voted.")
+
+    extract_thread_places(thread)
+
+    thread_place = ThreadPlace.objects.get(thread=thread, place__name="Chico")
+    assert (thread_place.role, thread_place.confidence, thread_place.source) == (
+        "subject",
+        "high",
+        "manual",
+    )
 
 
 @pytest.mark.django_db
@@ -151,6 +181,37 @@ def test_post_title_place_is_subject(extraction_places):
     extract_thread_places(thread)
     thread_place = ThreadPlace.objects.get(thread=thread, place__name="Chico")
     assert (thread_place.role, thread_place.source) == ("subject", "post")
+
+
+@pytest.mark.django_db
+def test_comment_only_thread_uses_title_place_as_subject(extraction_places):
+    thread = ThreadFactory(title="Chico budget")
+    MentionFactory(
+        thread=thread, kind="comment", snippet_text="This is worse than New York."
+    )
+
+    extract_thread_places(thread)
+
+    chico = ThreadPlace.objects.get(thread=thread, place__name="Chico")
+    assert (chico.role, chico.source) == ("subject", "post")
+    new_york = ThreadPlace.objects.get(thread=thread, place__name="New York")
+    assert new_york.role == "mentioned"
+
+
+@pytest.mark.django_db
+def test_thread_title_and_post_title_do_not_duplicate(extraction_places):
+    thread = ThreadFactory(title="Chico budget")
+    MentionFactory(
+        thread=thread,
+        kind="post",
+        post_title="Chico council preview",
+        snippet_text="Chico city council voted.",
+    )
+
+    result = extract_thread_places(thread)
+
+    assert result == {"subjects": 1, "mentioned": 0, "mentions": 1}
+    assert ThreadPlace.objects.filter(thread=thread, place__name="Chico").count() == 1
 
 
 @pytest.mark.django_db
@@ -350,6 +411,40 @@ def test_enrichment_skips_already_classified_subreddit(monkeypatch):
     subreddit.refresh_from_db()
     assert result["status"] == "ok"
     assert subreddit.classified_at == classified_at
+
+
+@pytest.mark.django_db
+def test_enrichment_creates_extracted_place_and_meeting_hit(monkeypatch):
+    place = PlaceWithMuniFactory(name="Chico", state="CA")
+    refresh_aliases(place)
+    thread = ThreadFactory(title="Chico budget")
+    MentionFactory(thread=thread, kind="post", snippet_text="Chico city council voted.")
+    results = [
+        {
+            "id": "page-0",
+            "snippet": "budget",
+            "meeting_name": "CityCouncil",
+            "meeting_date": date(2024, 1, 15),
+            "document_type": "agenda",
+            "subdomain": "chico",
+            "civic_band_table_name": "agendas",
+        }
+    ]
+    monkeypatch.setattr(
+        "searches.search_backends.get_search_backend",
+        lambda: SimpleNamespace(
+            search_with_cache=lambda **kwargs: (results, len(results))
+        ),
+    )
+
+    result = enrich_thread(str(thread.id))
+
+    thread_place = ThreadPlace.objects.get(thread=thread, place=place)
+    assert (thread_place.role, thread_place.source) == ("subject", "post")
+    assert MeetingHit.objects.filter(
+        thread=thread, place=place, page_id="page-0"
+    ).exists()
+    assert result["hits"] == 1
 
 
 @pytest.mark.django_db

@@ -64,3 +64,26 @@ feed errors.
 - Threads and mentions appear in the admin. Mentions and ingest runs are
   read-only; `raw_json` is available on a mention's detail page but is not
   shown in the changelist.
+
+## Milestone 5: place extraction
+
+### Backfill existing threads
+
+After deploying, enqueue enrichment for threads created before place extraction
+existed. This is the required post-deploy step:
+
+```bash
+python manage.py backfill_watch_threads
+```
+
+The command selects threads with no `ThreadPlace` rows, newest first, and
+enqueues one enrichment job per thread. Re-run the whole corpus after changing
+extraction rules:
+
+```bash
+python manage.py backfill_watch_threads --all
+```
+
+Scope a run with `--since YYYY-MM-DD` (threads last seen on or after that date),
+`--limit N`, and `--dry-run`. It prints `enqueued`, `skipped`, and `failed`
+counts and reports every thread whose job could not be queued.

@@ -123,6 +123,12 @@ def _build_mock_backend():
 
 
 @pytest.fixture(autouse=True)
+def disable_watch_llm(settings):
+    """Keep the optional LLM pass off so tests never make real HTTP calls."""
+    settings.WATCH_LLM_ENABLED = False
+
+
+@pytest.fixture(autouse=True)
 def mock_search_backend():
     """Auto-mock the search backend for all tests.
 

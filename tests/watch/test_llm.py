@@ -392,6 +392,40 @@ def test_llm_grounding_is_case_insensitive(settings, monkeypatch, extraction_pla
 
 
 @pytest.mark.django_db
+def test_llm_grounding_ignores_text_beyond_prompt_truncation(
+    settings, monkeypatch, extraction_places
+):
+    _enable(settings)
+    thread = ThreadFactory(subreddit=SubredditFactory(kind="general"), title="Budget")
+    MentionFactory(thread=thread, kind="post", snippet_text="No place here.")
+    MentionFactory(
+        thread=thread,
+        kind="comment",
+        snippet_text=("zoning " * 1200) + "Beverly Hills is nearby.",
+    )
+    calls = []
+
+    def fake_post(*args, **kwargs):
+        calls.append(args)
+        return _response(
+            {
+                "places": [{"name": "Beverly Hills", "state": "CA", "role": "subject"}],
+                "is_us": True,
+                "topic": "",
+            }
+        )
+
+    monkeypatch.setattr("httpx.post", fake_post)
+
+    extract_thread_places(thread)
+
+    assert len(calls) == 1
+    assert not PlaceMention.objects.filter(
+        mention__thread=thread, method="llm"
+    ).exists()
+
+
+@pytest.mark.django_db
 def test_llm_conflicting_state_uses_subreddit_state(
     settings, monkeypatch, extraction_places
 ):
@@ -577,6 +611,27 @@ def test_llm_trigger_runs_for_ambiguous_match(settings, monkeypatch, extraction_
     subreddit = SubredditFactory(kind="place", place=extraction_places["chico"])
     thread = ThreadFactory(subreddit=subreddit)
     MentionFactory(thread=thread, kind="post", snippet_text="Springfield is nearby.")
+    calls = []
+
+    def fake_post(*args, **kwargs):
+        calls.append(args)
+        return _response({"places": [], "is_us": True, "topic": ""})
+
+    monkeypatch.setattr("httpx.post", fake_post)
+
+    extract_thread_places(thread)
+
+    assert len(calls) == 1
+
+
+@pytest.mark.django_db
+def test_llm_trigger_runs_for_ambiguous_thread_title(
+    settings, monkeypatch, extraction_places
+):
+    _enable(settings)
+    subreddit = SubredditFactory(kind="place", place=extraction_places["chico"])
+    thread = ThreadFactory(subreddit=subreddit, title="Springfield ordinance")
+    MentionFactory(thread=thread, kind="comment", snippet_text="The vote passed.")
     calls = []
 
     def fake_post(*args, **kwargs):

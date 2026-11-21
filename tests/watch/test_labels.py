@@ -7,7 +7,7 @@ from django.urls import reverse
 
 from tests.factories import PlaceFactory, ThreadFactory, UserFactory
 from watch.admin import HasLabelFilter, ThreadLabelInline
-from watch.models import Thread, ThreadLabel
+from watch.models import Place, Thread, ThreadLabel
 
 
 def _management_form(total: int, initial: int = 0) -> dict[str, str]:
@@ -81,6 +81,32 @@ def test_thread_label_allows_different_places_on_same_thread():
     ThreadLabel.objects.create(thread=thread, place=PlaceFactory())
 
     assert ThreadLabel.objects.filter(thread=thread).count() == 2
+
+
+@pytest.mark.django_db
+def test_deleting_place_removes_its_label_and_keeps_no_place_label():
+    thread = ThreadFactory()
+    place = PlaceFactory()
+    ThreadLabel.objects.create(thread=thread, place=place, is_subject=True)
+    ThreadLabel.objects.create(thread=thread, place=None, is_useful=False)
+
+    place.delete()
+
+    assert not ThreadLabel.objects.filter(thread=thread, place__isnull=False).exists()
+    assert ThreadLabel.objects.filter(thread=thread, place__isnull=True).exists()
+
+
+@pytest.mark.django_db
+def test_deleting_two_labelled_places_on_same_thread_does_not_raise():
+    thread = ThreadFactory()
+    first = PlaceFactory()
+    second = PlaceFactory()
+    ThreadLabel.objects.create(thread=thread, place=first)
+    ThreadLabel.objects.create(thread=thread, place=second)
+
+    Place.objects.filter(pk__in=[first.pk, second.pk]).delete()
+
+    assert not ThreadLabel.objects.filter(thread=thread).exists()
 
 
 @pytest.mark.django_db
