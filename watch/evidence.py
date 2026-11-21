@@ -23,7 +23,7 @@ from typing import Any
 from django.db.models import Count
 from django.utils import timezone
 
-from watch.models import Subreddit, ThreadPlace
+from watch.models import Place, Subreddit, ThreadPlace
 
 #: Default lookback window, in days.
 DEFAULT_DAYS = 90
@@ -95,7 +95,9 @@ def suggest_subreddits(
 
         place_id = leaders[0]
         if subreddit.source == Subreddit.Source.MANUAL:
-            if subreddit.place_id != place_id:
+            # A manual label that makes no place claim is not a disagreement:
+            # only a conflicting place counts as a conflict.
+            if subreddit.place_id is not None and subreddit.place_id != place_id:
                 stats["conflicts"] += 1
             continue
         if subreddit.place_id == place_id:
@@ -105,32 +107,38 @@ def suggest_subreddits(
             stats["suggested"] += 1
             continue
 
-        _apply(subreddit, place_id, top_count, total)
+        _apply(subreddit, Place.objects.get(pk=place_id), top_count, total)
         stats["suggested"] += 1
 
     return stats
 
 
 def _apply(
-    subreddit: Subreddit, place_id: Any, thread_count: int, total_threads: int
+    subreddit: Subreddit, place: Place, thread_count: int, total_threads: int
 ) -> None:
     """Write one suggestion, preserving operator state that is not ours."""
-    subreddit.place_id = place_id
+    subreddit.place = place
     subreddit.kind = Subreddit.Kind.PLACE
+    subreddit.state = place.state
+    subreddit.country = place.country or None
     subreddit.source = Subreddit.Source.TEXT_EVIDENCE
     subreddit.confidence = Subreddit.Confidence.MEDIUM
     subreddit.reviewed_at = None
+    update_fields = [
+        "place",
+        "kind",
+        "state",
+        "country",
+        "source",
+        "confidence",
+        "reviewed_at",
+        "modified",
+    ]
+    # Only touch the note when it is ours to replace; otherwise an operator
+    # may have edited it since this row was read.
     if not subreddit.note:
         subreddit.note = (
             f"text evidence: {thread_count} of {total_threads} subject threads"
         )
-    subreddit.save(
-        update_fields=[
-            "place",
-            "kind",
-            "source",
-            "confidence",
-            "reviewed_at",
-            "note",
-        ]
-    )
+        update_fields.append("note")
+    subreddit.save(update_fields=update_fields)
