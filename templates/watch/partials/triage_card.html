@@ -17,6 +17,18 @@
                     <span>·</span>
                     <span>{{ thread.mention_count }} mention{{ thread.mention_count|pluralize }}</span>
                 </div>
+                {% if also_posted_in %}
+                    <div class="mt-2 flex flex-wrap items-center gap-2 text-sm text-gray-500 dark:text-gray-400"
+                         data-also-posted-in>
+                        <span class="text-xs font-semibold uppercase tracking-wide">Also posted in</span>
+                        {% for other in also_posted_in %}
+                            {% if other.subreddit %}
+                                <a href="{% url 'watch:triage' %}?thread={{ other.pk }}"
+                                   class="text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">r/{{ other.subreddit.name }}</a>
+                            {% endif %}
+                        {% endfor %}
+                    </div>
+                {% endif %}
             </div>
             {% if thread.status == "replied" %}
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">{{ thread.get_status_display }}</span>

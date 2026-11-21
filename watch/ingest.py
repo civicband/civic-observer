@@ -6,7 +6,7 @@ import re
 import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import django_rq
 import httpx
@@ -20,6 +20,66 @@ from watch.models import IngestRun, Mention, Subreddit, Thread
 from watch.parsing import parse_item
 
 logger = logging.getLogger(__name__)
+
+#: Titles that recur and must never be collapsed into one cross-post group.
+GENERIC_TITLES = frozenset(
+    {"daily discussion", "weekly thread", "megathread", "questions thread"}
+)
+
+#: Normalized titles shorter than this are too vague to group safely.
+MIN_CROSSPOST_TITLE_LENGTH = 20
+
+#: How long after a thread was last seen another subreddit may still group it.
+CROSSPOST_WINDOW = timedelta(hours=48)
+
+_URL_RE = re.compile(r"(?:https?://|www\.)\S+", re.IGNORECASE)
+_XPOST_WORD_RE = re.compile(
+    r"\b(?:cross[\s-]*post|x[\s-]*post|repost)\b", re.IGNORECASE
+)
+_TRAILING_ELLIPSIS_RE = re.compile(r"(?:\.{2,}|…)+$")
+_PUNCTUATION_RE = re.compile(r"[^\w\s]")
+
+
+def normalize_title(title: str) -> str:
+    """Lowercase a title and strip the noise cross-posts wrap it in."""
+    text = _URL_RE.sub(" ", title or "").strip().lower()
+    text = _TRAILING_ELLIPSIS_RE.sub("", text)
+    text = _XPOST_WORD_RE.sub(" ", text)
+    text = _PUNCTUATION_RE.sub(" ", text)
+    return " ".join(text.split())
+
+
+def group_crosspost(thread: Thread) -> Thread | None:
+    """Attach ``thread`` to the same story posted in another subreddit.
+
+    Returns the canonical thread when a match is found.  The earliest matching
+    thread wins, so every duplicate points at one deterministic root.
+    """
+    if thread.duplicate_of_id is not None:
+        return thread.duplicate_of
+    if thread.subreddit_id is None:
+        return None
+    normalized = normalize_title(thread.title)
+    if len(normalized) < MIN_CROSSPOST_TITLE_LENGTH or normalized in GENERIC_TITLES:
+        return None
+
+    cutoff = timezone.now() - CROSSPOST_WINDOW
+    candidates = (
+        Thread.objects.filter(
+            last_seen__gte=cutoff,
+            duplicate_of__isnull=True,
+            subreddit__isnull=False,
+        )
+        .exclude(pk=thread.pk)
+        .exclude(subreddit_id=thread.subreddit_id)
+        .order_by("first_seen", "pk")
+    )
+    for candidate in candidates:
+        if normalize_title(candidate.title) == normalized:
+            thread.duplicate_of = candidate
+            thread.save(update_fields=["duplicate_of", "modified"])
+            return candidate
+    return None
 
 
 @dataclass(frozen=True)
@@ -209,7 +269,7 @@ def _store_item(item: dict, row: dict, published_at: datetime | None) -> str | N
                 "confidence": "",
             },
         )
-    thread, _ = Thread.objects.get_or_create(
+    thread, created = Thread.objects.get_or_create(
         key=row["thread_key"],
         defaults={
             "subreddit": subreddit,
@@ -261,6 +321,10 @@ def _store_item(item: dict, row: dict, published_at: datetime | None) -> str | N
             "modified",
         ]
     )
+    if created:
+        # Only a brand-new thread can be a cross-post of an existing one;
+        # re-running ingest for a known thread must not change its grouping.
+        group_crosspost(thread)
     return str(thread.pk)
 
 

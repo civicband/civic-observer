@@ -119,8 +119,9 @@ def queue_queryset() -> QuerySet[Thread]:
     """Return threads ready for triage, ranked by urgency.
 
     New threads and snoozed threads whose snooze has elapsed are eligible.
-    Threads from muted subreddits or muted countries are hidden.  Annotates
-    ``is_covered``, ``is_recent``, ``has_question`` and ``score``.
+    Cross-post duplicates, threads from muted subreddits, and muted countries
+    are hidden.  Annotates ``is_covered``, ``is_recent``, ``has_question`` and
+    ``score``.
     """
     now = timezone.now()
     eligible = (
@@ -128,6 +129,7 @@ def queue_queryset() -> QuerySet[Thread]:
             Q(status=Thread.Status.NEW)
             | Q(status=Thread.Status.SNOOZED, snoozed_until__lte=now)
         )
+        .filter(duplicate_of__isnull=True)
         .filter(Q(subreddit__isnull=True) | Q(subreddit__muted=False))
         .filter(country_allowed_q("subreddit"))
     )
