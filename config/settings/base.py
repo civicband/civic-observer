@@ -241,6 +241,14 @@ F5BOT_FEED_URL = env.str("F5BOT_FEED_URL", "")
 WATCH_DATA_DIR = env.str("WATCH_DATA_DIR", str(BASE_DIR / ".cache" / "watch"))
 WATCH_INGEST_LOCK_SECONDS = env.int("WATCH_INGEST_LOCK_SECONDS", 3600)
 
+# Optional LLM place classification. Disabled and unconfigured by default; the
+# deterministic extractor must work on its own.
+WATCH_LLM_ENABLED = env.bool("WATCH_LLM_ENABLED", False)
+WATCH_LLM_BASE_URL = env.str("WATCH_LLM_BASE_URL", "")
+WATCH_LLM_API_KEY = env.str("WATCH_LLM_API_KEY", "")
+WATCH_LLM_MODEL = env.str("WATCH_LLM_MODEL", "")
+WATCH_LLM_TIMEOUT = env.int("WATCH_LLM_TIMEOUT", 20)
+
 # Umami Analytics
 UMAMI_ENABLED: bool = False
 UMAMI_WEBSITE_ID: str = "522b42fb-2e46-4ba3-9803-4e17c7824958"
