@@ -13,20 +13,43 @@ from watch.models import PlaceMention, ThreadLabel, ThreadPlace
 
 # A prediction and a label share the same shape: (thread, place, is_subject).
 Key = tuple[object, object, bool]
-Metrics = dict[str, int | float]
+Metrics = dict[str, int | float | None]
+
+MANUAL_METHOD = PlaceMention.Method.MANUAL
+MANUAL_SOURCE = ThreadPlace.Source.MANUAL
+
+OVERVIEW = (
+    "Place extraction precision and recall against operator labels.\n"
+    "Labels come from ThreadLabel; --since filters threads by first_seen.\n"
+    "manual is excluded from both tables: manual PlaceMention and ThreadPlace\n"
+    "rows are operator ground truth, not extraction output.\n"
+    "sources reflects current ThreadPlace.source provenance. ThreadPlaces roll\n"
+    "up from PlaceMentions, and operator promotion or correction rewrites\n"
+    "source to manual. The overall row unions every non-manual prediction."
+)
 
 
-def _ratio(numerator: int, denominator: int) -> float:
-    """Return ``numerator / denominator``, or 0 when there is nothing to divide."""
-    return numerator / denominator if denominator else 0.0
+def _ratio(numerator: int, denominator: int) -> float | None:
+    """Return ``numerator / denominator``, or ``None`` when undefined."""
+    return numerator / denominator if denominator else None
+
+
+def _rounded(value: float | None) -> float | None:
+    """Round a ratio for display, preserving an undefined value."""
+    return None if value is None else round(value, 4)
+
+
+def _format_ratio(value: float | None) -> str:
+    """Render a ratio as text, showing ``n/a`` when it is undefined."""
+    return "n/a" if value is None else f"{value:.2f}"
 
 
 def _metrics(predictions: set[Key], labels: set[Key]) -> Metrics:
     """Score ``predictions`` against ``labels`` as a set of (thread, place) keys."""
     true_positives = len(predictions & labels)
     return {
-        "precision": round(_ratio(true_positives, len(predictions)), 4),
-        "recall": round(_ratio(true_positives, len(labels)), 4),
+        "precision": _rounded(_ratio(true_positives, len(predictions))),
+        "recall": _rounded(_ratio(true_positives, len(labels))),
         "tp": true_positives,
         "fp": len(predictions - labels),
         "fn": len(labels - predictions),
@@ -35,13 +58,21 @@ def _metrics(predictions: set[Key], labels: set[Key]) -> Metrics:
 
 
 class Command(BaseCommand):
-    help = "Report place-extraction precision and recall against operator labels."
+    help = (
+        "Report place-extraction precision and recall against operator labels. "
+        "Manual rows are operator ground truth and are excluded; the sources "
+        "table reflects current ThreadPlace provenance, which operator "
+        "promotion or correction rewrites to manual."
+    )
 
     def add_arguments(self, parser):
         parser.add_argument(
             "--since",
             metavar="YYYY-MM-DD",
-            help="Only include threads first seen on or after this date.",
+            help=(
+                "Only include threads first seen on or after this date "
+                "(filters Thread.first_seen)."
+            ),
         )
         parser.add_argument(
             "--json",
@@ -75,27 +106,55 @@ class Command(BaseCommand):
         for thread_id, place_id, is_subject, method in mention_places.values_list(
             "mention__thread_id", "place_id", "is_subject", "method"
         ):
-            by_method[method].add((thread_id, place_id, is_subject))
+            if method != MANUAL_METHOD:
+                by_method[method].add((thread_id, place_id, is_subject))
 
         by_source: defaultdict[str, set[Key]] = defaultdict(set)
         for thread_id, place_id, role, source in thread_places.values_list(
             "thread_id", "place_id", "role", "source"
         ):
-            by_source[source].add(
-                (thread_id, place_id, role == ThreadPlace.Role.SUBJECT)
-            )
+            if source != MANUAL_SOURCE:
+                by_source[source].add(
+                    (thread_id, place_id, role == ThreadPlace.Role.SUBJECT)
+                )
 
-        # Enumerate every known method and source so a layer that produced
-        # nothing still shows up, with its missed labels counted as false
-        # negatives.  Union with observed values so unexpected rows survive.
-        methods = sorted(set(PlaceMention.Method.values) | set(by_method))
-        sources = sorted(set(ThreadPlace.Source.values) | set(by_source))
+        # Enumerate every known non-manual method and source so a layer that
+        # produced nothing still shows up, with its missed labels counted as
+        # false negatives.  Union with observed values so unexpected rows
+        # survive.
+        methods = sorted(
+            (set(PlaceMention.Method.values) - {MANUAL_METHOD}) | set(by_method)
+        )
+        sources = sorted(
+            (set(ThreadPlace.Source.values) - {MANUAL_SOURCE}) | set(by_source)
+        )
         method_metrics = {
             method: _metrics(by_method.get(method, set()), labels) for method in methods
         }
         source_metrics = {
             source: _metrics(by_source.get(source, set()), labels) for source in sources
         }
+
+        # A group with neither predictions nor labels has nothing to report.
+        method_metrics = {
+            group: metrics
+            for group, metrics in method_metrics.items()
+            if by_method.get(group) or labels
+        }
+        source_metrics = {
+            group: metrics
+            for group, metrics in source_metrics.items()
+            if by_source.get(group) or labels
+        }
+
+        overall_predictions: set[Key] = set()
+        for predictions in (*by_method.values(), *by_source.values()):
+            overall_predictions |= predictions
+        overall_metrics = (
+            _metrics(overall_predictions, labels)
+            if overall_predictions or labels
+            else None
+        )
 
         if options["as_json"]:
             self.stdout.write(
@@ -106,6 +165,7 @@ class Command(BaseCommand):
                         "threads_with_no_place": threads_with_no_place,
                         "methods": method_metrics,
                         "sources": source_metrics,
+                        "overall": overall_metrics,
                     },
                     indent=2,
                     sort_keys=True,
@@ -113,8 +173,15 @@ class Command(BaseCommand):
             )
             return
 
+        self.stdout.write(OVERVIEW)
+        self.stdout.write("")
         self._write_table("methods", method_metrics)
+        self.stdout.write("")
         self._write_table("sources", source_metrics)
+        if overall_metrics is not None:
+            self.stdout.write("")
+            self._write_table("overall", {"overall": overall_metrics})
+        self.stdout.write("")
         self.stdout.write(f"threads_with_no_place  {threads_with_no_place}")
 
     def _parse_since(self, raw: str | None) -> date | None:
@@ -135,7 +202,8 @@ class Command(BaseCommand):
         )
         for group, metrics in rows.items():
             self.stdout.write(
-                f"{group:<20}{metrics['precision']:>10.2f}{metrics['recall']:>8.2f}"
+                f"{group:<20}{_format_ratio(metrics['precision']):>10}"
+                f"{_format_ratio(metrics['recall']):>8}"
                 f"{metrics['tp']:>4}{metrics['fp']:>4}{metrics['fn']:>4}"
                 f"{metrics['labels']:>8}"
             )
