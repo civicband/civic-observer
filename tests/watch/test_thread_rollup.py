@@ -14,6 +14,7 @@ from tests.factories import (
 from watch.classify import Classification
 from watch.enrichment import enrich_thread
 from watch.extraction import extract_thread_places
+from watch.llm import LLMPlace, LLMResult
 from watch.models import PlaceMention, ThreadPlace
 
 
@@ -41,15 +42,12 @@ def test_comment_body_pattern_promotes_to_subject(extraction_places):
 
 
 @pytest.mark.django_db
-@pytest.mark.parametrize(
-    "method", [PlaceMention.Method.LLM, PlaceMention.Method.MANUAL]
-)
 @pytest.mark.parametrize("kind", ["post", "comment"])
 @pytest.mark.parametrize(
     ("is_subject", "role"), [(True, "subject"), (False, "mentioned")]
 )
-def test_llm_and_manual_place_mentions_honor_is_subject(
-    extraction_places, method, kind, is_subject, role
+def test_manual_place_mentions_honor_is_subject(
+    extraction_places, kind, is_subject, role
 ):
     thread = ThreadFactory()
     mention = MentionFactory(thread=thread, kind=kind, snippet_text="No place here.")
@@ -57,7 +55,7 @@ def test_llm_and_manual_place_mentions_honor_is_subject(
         mention=mention,
         place=extraction_places["chico"],
         matched_text="Chico",
-        method=method,
+        method=PlaceMention.Method.MANUAL,
         confidence=PlaceMention.Confidence.HIGH,
         is_subject=is_subject,
     )
@@ -65,6 +63,43 @@ def test_llm_and_manual_place_mentions_honor_is_subject(
     extract_thread_places(thread)
 
     thread_place = ThreadPlace.objects.get(thread=thread, place__name="Chico")
+    expected_source = "post" if kind == "post" else "comment"
+    assert (thread_place.role, thread_place.source) == (role, expected_source)
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize("kind", ["post", "comment"])
+@pytest.mark.parametrize(
+    ("is_subject", "role"), [(True, "subject"), (False, "mentioned")]
+)
+def test_llm_place_mentions_honor_is_subject(
+    settings, monkeypatch, extraction_places, kind, is_subject, role
+):
+    settings.WATCH_LLM_ENABLED = True
+    settings.WATCH_LLM_BASE_URL = "https://llm.example/v1"
+    settings.WATCH_LLM_MODEL = "small"
+    thread = ThreadFactory(subreddit=SubredditFactory(kind="general"))
+    mention = MentionFactory(thread=thread, kind=kind, snippet_text="Hope is nearby.")
+    monkeypatch.setattr(
+        "watch.extraction.classify_with_llm",
+        lambda thread: LLMResult(
+            places=[
+                LLMPlace(
+                    name="Hope",
+                    state="AR",
+                    role="subject" if is_subject else "mentioned",
+                )
+            ],
+            is_us=True,
+            topic="",
+        ),
+    )
+
+    extract_thread_places(thread)
+
+    place_mention = PlaceMention.objects.get(mention=mention, method="llm")
+    assert place_mention.is_subject is is_subject
+    thread_place = ThreadPlace.objects.get(thread=thread, place__name="Hope")
     expected_source = "post" if kind == "post" else "comment"
     assert (thread_place.role, thread_place.source) == (role, expected_source)
 
