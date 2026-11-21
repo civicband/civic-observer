@@ -1,199 +1,156 @@
 /**
- * Triage keyboard shortcuts.
+ * Triage keyboard shortcuts, registered as an Alpine component.
  *
- * Keys only fire outside form controls so typing in the query or snooze
- * fields never triggers an action. Actions reuse the data-action values
- * rendered by the triage card, with the Previous and Next link labels kept
- * as a fallback. Requests are serialized so key repeats cannot race an
- * in-flight HTMX swap.
+ * The outer triage container owns this component so HTMX swaps of
+ * #triage-card do not destroy it. Keys only fire outside form controls, and
+ * form actions are serialized while an HTMX request is in flight.
  */
-(function () {
+document.addEventListener("alpine:init", function () {
   "use strict";
 
-  var KEY_ACTIONS = {
-    "j": "next",
-    "k": "previous",
-    "r": "replied",
-    "d": "dismiss",
-    "s": "snooze",
-    "b": "backlog",
-    "p": "promote",
-    "m": "mute_subreddit",
-    "x": "mute_country",
-    "e": "edit_query",
-    "c": "copy_citation"
-  };
+  Alpine.data("triageKeyboard", function () {
+    return {
+      actions: {
+        j: "next",
+        k: "previous",
+        r: "replied",
+        d: "dismiss",
+        s: "snooze",
+        b: "backlog",
+        p: "promote",
+        m: "mute_subreddit",
+        x: "mute_country",
+        e: "edit_query",
+        c: "copy_citation"
+      },
 
-  var inFlight = false;
+      busy: false,
 
-  function triageCard() {
-    return document.getElementById("triage-card");
-  }
+      init: function () {
+        var self = this;
+        ["htmx:afterRequest", "htmx:responseError", "htmx:sendError"].forEach(
+          function (name) {
+            self.$root.addEventListener(name, function () {
+              self.busy = false;
+            });
+          }
+        );
+      },
 
-  function shouldIgnore(event) {
-    var target = event.target;
-    if (!target || !target.tagName) return false;
+      onKeydown: function (event) {
+        if (
+          event.defaultPrevented ||
+          event.repeat ||
+          event.isComposing ||
+          event.ctrlKey ||
+          event.metaKey ||
+          event.altKey
+        ) {
+          return;
+        }
+        if (this.isTyping(event.target)) return;
 
-    var tag = target.tagName.toUpperCase();
-    if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
-      return true;
-    }
-    if (target.isContentEditable) return true;
-    return (
-      typeof target.closest === "function" &&
-      target.closest("[contenteditable]") !== null
-    );
-  }
+        var action = this.actions[(event.key || "").toLowerCase()];
+        if (!action) return;
 
-  function query(selector) {
-    var card = triageCard();
-    return card ? card.querySelector(selector) : null;
-  }
+        if (this.run(action)) {
+          event.preventDefault();
+        }
+      },
 
-  function findThreadLink(label) {
-    return (
-      query('a[data-action="' + label + '"]') || findThreadLinkByText(label)
-    );
-  }
+      isTyping: function (target) {
+        if (!target || !target.tagName) return false;
 
-  function findThreadLinkByText(label) {
-    var card = triageCard();
-    if (!card) return null;
-    var links = card.querySelectorAll("a[href]");
-    for (var i = 0; i < links.length; i += 1) {
-      var text = links[i].textContent.replace(/\s+/g, " ").trim().toLowerCase();
-      if (text === label) return links[i];
-    }
-    return null;
-  }
+        var tag = target.tagName.toUpperCase();
+        if (tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT") {
+          return true;
+        }
+        if (target.isContentEditable) return true;
+        return (
+          typeof target.closest === "function" &&
+          target.closest("[contenteditable]") !== null
+        );
+      },
 
-  function submitForm(action) {
-    var form = query('form[data-action="' + action + '"]');
-    if (!form || inFlight) return false;
+      run: function (action) {
+        if (action === "next" || action === "previous") {
+          var link = this.$root.querySelector(
+            'a[data-action="' + action + '"]'
+          );
+          if (!link) return false;
+          link.click();
+          return true;
+        }
 
-    inFlight = true;
-    var button = form.querySelector('button[type="submit"]');
-    if (typeof form.requestSubmit === "function") {
-      form.requestSubmit(button || undefined);
-    } else if (button) {
-      button.click();
-    } else {
-      form.submit();
-    }
-    return true;
-  }
+        if (action === "copy_citation") {
+          var copyButton = this.$root.querySelector(
+            '[data-action="copy-citation"]'
+          );
+          if (!copyButton) return false;
+          copyButton.click();
+          return true;
+        }
 
-  function clickButton(action) {
-    var button = query(
-      '[data-action="' + action + '"] button[type="submit"]'
-    );
-    if (!button || inFlight) return false;
-    inFlight = true;
-    button.click();
-    return true;
-  }
+        if (action === "edit_query") {
+          var input = this.$root.querySelector('input[name="query"]');
+          if (!input) return false;
+          input.focus();
+          input.select();
+          return true;
+        }
 
-  function focusQuery() {
-    var input = query('input[name="query"]');
-    if (!input) return false;
-    input.focus();
-    input.select();
-    return true;
-  }
+        if (this.busy) return false;
+        var form = this.$root.querySelector(
+          'form[data-action="' + action + '"]'
+        );
+        if (!form) return false;
+        var submit = form.querySelector('button[type="submit"]');
+        if (!submit) return false;
+        if (typeof form.reportValidity === "function" && !form.reportValidity()) {
+          return false;
+        }
 
-  function fallbackCopy(text) {
-    var textarea = document.createElement("textarea");
-    textarea.value = text;
-    textarea.setAttribute("readonly", "");
-    textarea.style.position = "fixed";
-    textarea.style.top = "-1000px";
-    textarea.style.left = "-1000px";
-    document.body.appendChild(textarea);
-    textarea.select();
-    try {
-      if (typeof document.execCommand === "function") {
-        document.execCommand("copy");
+        this.busy = true;
+        submit.click();
+        return true;
+      },
+
+      copyCitation: function (button) {
+        if (!button) return false;
+        var text = button.getAttribute("data-citation") || "";
+        if (!text) return false;
+
+        var self = this;
+        if (
+          navigator.clipboard &&
+          typeof navigator.clipboard.writeText === "function"
+        ) {
+          navigator.clipboard.writeText(text).catch(function () {
+            self.fallbackCopy(text);
+          });
+        } else {
+          this.fallbackCopy(text);
+        }
+        return true;
+      },
+
+      fallbackCopy: function (text) {
+        var textarea = document.createElement("textarea");
+        textarea.value = text;
+        textarea.setAttribute("readonly", "");
+        textarea.style.position = "fixed";
+        textarea.style.top = "-1000px";
+        textarea.style.left = "-1000px";
+        document.body.appendChild(textarea);
+        textarea.select();
+        try {
+          if (typeof document.execCommand === "function") {
+            document.execCommand("copy");
+          }
+        } finally {
+          document.body.removeChild(textarea);
+        }
       }
-    } finally {
-      document.body.removeChild(textarea);
-    }
-  }
-
-  function copyText(text) {
-    if (!text) return false;
-    if (navigator.clipboard && typeof navigator.clipboard.writeText === "function") {
-      try {
-        navigator.clipboard.writeText(text).catch(function () {
-          fallbackCopy(text);
-        });
-      } catch (error) {
-        fallbackCopy(text);
-      }
-      return true;
-    }
-    fallbackCopy(text);
-    return true;
-  }
-
-  function copyCitation() {
-    var button = query('[data-action="copy-citation"]');
-    if (!button) return false;
-    return copyText(button.getAttribute("data-citation") || "");
-  }
-
-  function navigate(label) {
-    var link = findThreadLink(label);
-    if (!link) return false;
-    window.location.assign(link.href);
-    return true;
-  }
-
-  function run(action) {
-    switch (action) {
-      case "next":
-        return navigate("next");
-      case "previous":
-        return navigate("previous");
-      case "promote":
-        return clickButton("promote");
-      case "edit_query":
-        return focusQuery();
-      case "copy_citation":
-        return copyCitation();
-      default:
-        return submitForm(action);
-    }
-  }
-
-  function clearInFlight() {
-    inFlight = false;
-  }
-
-  ["htmx:afterRequest", "htmx:responseError", "htmx:sendError"].forEach(
-    function (name) {
-      document.addEventListener(name, clearInFlight);
-    }
-  );
-
-  document.addEventListener("keydown", function (event) {
-    if (
-      event.defaultPrevented ||
-      event.repeat ||
-      event.isComposing ||
-      event.ctrlKey ||
-      event.metaKey ||
-      event.altKey
-    ) {
-      return;
-    }
-    if (shouldIgnore(event)) return;
-
-    var key = (event.key || "").toLowerCase();
-    if (!Object.prototype.hasOwnProperty.call(KEY_ACTIONS, key)) return;
-
-    var action = KEY_ACTIONS[key];
-    if (run(action)) {
-      event.preventDefault();
-    }
+    };
   });
-})();
+});

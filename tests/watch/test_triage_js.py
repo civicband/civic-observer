@@ -18,7 +18,8 @@ TRIAGE_CARD = Path(settings.BASE_DIR) / "templates/watch/partials/triage_card.ht
 def test_triage_script_has_shortcuts_and_copy():
     text = SCRIPT.read_text()
     for key in ["j", "k", "r", "d", "s", "b", "p", "m", "x", "e", "c"]:
-        assert f'"{key}"' in text
+        assert f"{key}:" in text
+    assert 'Alpine.data("triageKeyboard"' in text
     assert "navigator.clipboard.writeText" in text
     assert '[data-action="copy-citation"]' in text
 
@@ -28,7 +29,7 @@ def test_triage_script_ignores_form_controls_and_ime_repeats():
     for tag in ["INPUT", "TEXTAREA", "SELECT"]:
         assert tag in text
     assert "contenteditable" in text
-    assert "shouldIgnore(event)" in text
+    assert "isTyping(event.target)" in text
     assert "event.repeat" in text
     assert "event.isComposing" in text
 
@@ -40,9 +41,9 @@ def test_triage_script_has_clipboard_fallback():
 
 def test_triage_script_guards_against_racing_requests():
     text = SCRIPT.read_text()
-    assert "inFlight" in text
-    assert "inFlight = false;" in text
-    assert "inFlight = true;" in text
+    assert "busy: false" in text
+    assert "self.busy = false;" in text
+    assert "this.busy = true;" in text
     for event_name in [
         "htmx:afterRequest",
         "htmx:responseError",
@@ -77,6 +78,17 @@ def test_rendered_triage_nav_links_carry_data_actions(admin_client):
 def test_triage_page_loads_the_shortcut_script(admin_client):
     content = admin_client.get(reverse("watch:triage")).content.decode()
     assert re.search(r'<script[^>]*src="[^"]*js/watch-triage\.js"[^>]*defer', content)
+    assert 'x-data="triageKeyboard"' in content
+    assert '@keydown.window="onKeydown($event)"' in content
+    assert '@copy-citation.window="copyCitation($event.detail.button)"' in content
+
+
+def test_copy_button_dispatches_the_component_event():
+    text = (
+        Path(settings.BASE_DIR) / "templates/watch/partials/meeting_hits.html"
+    ).read_text()
+    assert 'data-action="copy-citation"' in text
+    assert "$dispatch('copy-citation', { button: $el })" in text
 
 
 @pytest.mark.django_db

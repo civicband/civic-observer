@@ -33,7 +33,7 @@
                     {% endwith %}
                     <button type="button"
                             x-data="{ copied: false }"
-                            @click="navigator.clipboard?.writeText($el.dataset.citation); copied = true"
+                            @click="$dispatch('copy-citation', { button: $el }); copied = true"
                             data-action="copy-citation"
                             data-citation="{% citation hit %}"
                             class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
