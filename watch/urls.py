@@ -6,6 +6,7 @@ from watch.views import (
     BacklogNoteView,
     BacklogView,
     PlaceCorrectionView,
+    PlaceSearchView,
     TriageActionView,
     TriageView,
 )
@@ -14,6 +15,11 @@ app_name = "watch"
 
 urlpatterns = [
     path("triage/", TriageView.as_view(), name="triage"),
+    path(
+        "triage/place-search/",
+        PlaceSearchView.as_view(),
+        name="place-search",
+    ),
     path(
         "triage/<uuid:thread_id>/action/",
         TriageActionView.as_view(),

@@ -115,8 +115,9 @@ def test_triage_page_owns_the_swap_target_but_partial_does_not(admin_client):
         url, {"thread": thread.pk}, HTTP_HX_REQUEST="true"
     ).content.decode()
 
-    assert full.count('id="triage-card"') == 1
-    assert 'id="triage-card"' not in partial
+    assert full.count('id="triage-detail"') == 1
+    assert full.count('id="triage-list"') == 1
+    assert 'id="triage-detail"' not in partial
     assert partial.lstrip().startswith("<article")
 
 

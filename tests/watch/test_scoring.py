@@ -11,12 +11,14 @@ from tests.factories import (
     SubredditFactory,
     ThreadFactory,
 )
-from watch.models import MutedCountry, Thread, ThreadPlace
+from watch.models import MutedCountry, PlaceNote, Thread, ThreadPlace
 from watch.scoring import (
     MENTION_CAP,
     RECENT_WEIGHT,
     backlog_queryset,
+    filtered_queue_queryset,
     next_thread,
+    previous_thread,
     queue_queryset,
     thread_country,
 )
@@ -380,3 +382,131 @@ def test_thread_country_falls_back_to_place_country():
 def test_thread_country_is_none_without_subreddit_or_country():
     assert thread_country(ThreadFactory()) is None
     assert thread_country(ThreadFactory(subreddit=SubredditFactory())) is None
+
+
+@pytest.mark.django_db
+def test_filtered_queue_covered_filter():
+    covered = ThreadFactory(last_seen=timezone.now())
+    _subject(covered, PlaceWithMuniFactory())
+    uncovered = ThreadFactory(last_seen=timezone.now() - timedelta(minutes=1))
+
+    assert list(filtered_queue_queryset(covered="yes")) == [covered]
+    assert list(filtered_queue_queryset(covered="no")) == [uncovered]
+    # Unknown value falls back to the whole queue.
+    assert set(filtered_queue_queryset(covered="bogus")) == {covered, uncovered}
+
+
+@pytest.mark.django_db
+def test_filtered_queue_kind_filter():
+    place_sub = SubredditFactory(kind="place")
+    place_thread = ThreadFactory(subreddit=place_sub)
+    general_thread = ThreadFactory(subreddit=SubredditFactory(kind="general"))
+
+    assert list(filtered_queue_queryset(kind="place")) == [place_thread]
+    assert general_thread not in filtered_queue_queryset(kind="place")
+
+
+@pytest.mark.django_db
+def test_filtered_queue_us_filter():
+    us = ThreadFactory(subreddit=SubredditFactory(country="US"))
+    non_us = ThreadFactory(subreddit=SubredditFactory(country="IE"))
+
+    assert list(filtered_queue_queryset(us="yes")) == [us]
+    assert list(filtered_queue_queryset(us="no")) == [non_us]
+
+
+@pytest.mark.django_db
+def test_filtered_queue_text_search_matches_title_and_subreddit():
+    by_title = ThreadFactory(title="Chico council vote")
+    by_sub = ThreadFactory(subreddit=SubredditFactory(name="chicoca"))
+    other = ThreadFactory(title="Nothing here")
+
+    matched = set(filtered_queue_queryset(q="chico"))
+    assert matched == {by_title, by_sub}
+    assert other not in matched
+
+
+@pytest.mark.django_db
+def test_filtered_queue_sort_newest_and_oldest():
+    newest = ThreadFactory(last_seen=timezone.now())
+    oldest = ThreadFactory(last_seen=timezone.now() - timedelta(days=2))
+
+    assert list(filtered_queue_queryset(sort="newest")) == [newest, oldest]
+    assert list(filtered_queue_queryset(sort="oldest")) == [oldest, newest]
+
+
+@pytest.mark.django_db
+def test_filtered_next_and_previous_walk_only_the_filtered_queue():
+    covered_a = ThreadFactory(last_seen=timezone.now())
+    _subject(covered_a, PlaceWithMuniFactory())
+    uncovered = ThreadFactory(last_seen=timezone.now() - timedelta(minutes=1))
+    covered_b = ThreadFactory(last_seen=timezone.now() - timedelta(minutes=2))
+    _subject(covered_b, PlaceWithMuniFactory())
+
+    filtered = filtered_queue_queryset(covered="yes")
+
+    assert next_thread(covered_a.pk, queryset=filtered) == covered_b
+    assert previous_thread(covered_b.pk, queryset=filtered) == covered_a
+    # The uncovered thread is skipped because it is outside the filter.
+    assert next_thread(covered_a.pk, queryset=filtered) != uncovered
+
+
+def _note(place, status):
+    return PlaceNote.objects.create(place=place, text="note", status=status)
+
+
+@pytest.mark.django_db
+def test_backlog_default_hides_judged_places_but_keeps_unnooted():
+    open_place = PlaceFactory(name="Open", muni=None)
+    added = PlaceFactory(name="Added", muni=None)
+    rejected = PlaceFactory(name="Rejected", muni=None)
+    _subject(ThreadFactory(), open_place)
+    _subject(ThreadFactory(), added)
+    _subject(ThreadFactory(), rejected)
+    _note(added, PlaceNote.Status.ADDED)
+    _note(rejected, PlaceNote.Status.REJECTED)
+
+    names = [place.name for place in backlog_queryset()]
+    assert names == ["Open"]
+
+
+@pytest.mark.django_db
+def test_backlog_status_all_shows_everything():
+    added = PlaceFactory(name="Added", muni=None)
+    _subject(ThreadFactory(), added)
+    _note(added, PlaceNote.Status.ADDED)
+
+    assert list(backlog_queryset(status="all")) == [added]
+
+
+@pytest.mark.django_db
+def test_backlog_status_filter_by_latest_note():
+    maybe = PlaceFactory(name="Maybe", muni=None)
+    added = PlaceFactory(name="Added", muni=None)
+    _subject(ThreadFactory(), maybe)
+    _subject(ThreadFactory(), added)
+    _note(added, PlaceNote.Status.ADDED)
+    _note(maybe, PlaceNote.Status.MAYBE)
+
+    assert list(backlog_queryset(status="maybe")) == [maybe]
+    assert list(backlog_queryset(status="added")) == [added]
+
+
+@pytest.mark.django_db
+def test_backlog_sort_by_population():
+    small = PlaceFactory(name="Small", muni=None, population=100)
+    large = PlaceFactory(name="Large", muni=None, population=100000)
+    _subject(ThreadFactory(), small)
+    _subject(ThreadFactory(), large)
+
+    assert list(backlog_queryset(sort="population")) == [large, small]
+
+
+@pytest.mark.django_db
+def test_backlog_sort_by_recency():
+    recent = PlaceFactory(name="Recent", muni=None)
+    stale = PlaceFactory(name="Stale", muni=None)
+    _subject(ThreadFactory(last_seen=timezone.now()), recent)
+    _subject(ThreadFactory(last_seen=timezone.now() - timedelta(days=5)), stale)
+
+    assert list(backlog_queryset(sort="recency")) == [recent, stale]

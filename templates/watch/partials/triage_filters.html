@@ -1,0 +1,64 @@
+{% comment %}
+Queue list filters. Each control reloads only the list pane via htmx and
+pushes the filter into the URL so the view is shareable.
+{% endcomment %}
+<form id="triage-filters"
+      class="rounded-lg border border-gray-200 bg-white p-3 shadow dark:border-gray-800 dark:bg-gray-900"
+      hx-get="{% url 'watch:triage' %}"
+      hx-target="#triage-list"
+      hx-swap="innerHTML"
+      hx-push-url="true"
+      hx-trigger="change, search from:#triage-list-search delay:300ms"
+      @submit.prevent>
+    <div class="flex flex-col gap-2 text-sm">
+        <label class="sr-only" for="triage-list-search">Filter queue</label>
+        <input id="triage-list-search"
+               type="search"
+               name="q"
+               value="{{ filters.q|default:'' }}"
+               placeholder="Filter by title or subreddit"
+               class="w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-400">
+        <div class="grid grid-cols-3 gap-2">
+            <label class="block">
+                <span class="text-xs text-gray-500 dark:text-gray-400">Covered</span>
+                <select name="covered"
+                        class="mt-1 w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                    <option value="">Any</option>
+                    <option value="yes"{% if filters.covered == "yes" %} selected{% endif %}>Covered</option>
+                    <option value="no"{% if filters.covered == "no" %} selected{% endif %}>Uncovered</option>
+                </select>
+            </label>
+            <label class="block">
+                <span class="text-xs text-gray-500 dark:text-gray-400">Kind</span>
+                <select name="kind"
+                        class="mt-1 w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                    <option value="">Any</option>
+                    <option value="place"{% if filters.kind == "place" %} selected{% endif %}>Place</option>
+                    <option value="region"{% if filters.kind == "region" %} selected{% endif %}>Region</option>
+                    <option value="state"{% if filters.kind == "state" %} selected{% endif %}>State</option>
+                    <option value="general"{% if filters.kind == "general" %} selected{% endif %}>General</option>
+                    <option value="non_us"{% if filters.kind == "non_us" %} selected{% endif %}>Non-US</option>
+                </select>
+            </label>
+            <label class="block">
+                <span class="text-xs text-gray-500 dark:text-gray-400">US</span>
+                <select name="us"
+                        class="mt-1 w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                    <option value="">Any</option>
+                    <option value="yes"{% if filters.us == "yes" %} selected{% endif %}>US only</option>
+                    <option value="no"{% if filters.us == "no" %} selected{% endif %}>Non-US only</option>
+                </select>
+            </label>
+        </div>
+        <label class="block">
+            <span class="text-xs text-gray-500 dark:text-gray-400">Sort</span>
+            <select name="sort"
+                    class="mt-1 w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                <option value="score"{% if filters.sort == "score" or not filters.sort %} selected{% endif %}>Score</option>
+                <option value="newest"{% if filters.sort == "newest" %} selected{% endif %}>Newest</option>
+                <option value="oldest"{% if filters.sort == "oldest" %} selected{% endif %}>Oldest</option>
+                <option value="mentions"{% if filters.sort == "mentions" %} selected{% endif %}>Most mentions</option>
+            </select>
+        </label>
+    </div>
+</form>

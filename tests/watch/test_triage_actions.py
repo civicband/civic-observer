@@ -235,10 +235,10 @@ def test_terminal_actions_htmx_advance_to_the_next_thread(
 
     content = response.content.decode()
     assert response.status_code == 200
-    assert [t.name for t in response.templates] == ["watch/partials/triage_card.html"]
+    assert response.templates[0].name == "watch/partials/triage_card.html"
     assert "Second thread" in content
     assert "First thread" not in content
-    assert 'id="triage-card"' not in content
+    assert 'id="triage-detail"' not in content
 
 
 @pytest.mark.django_db
@@ -283,8 +283,10 @@ def test_stay_actions_htmx_rerender_the_current_thread(
     content = response.content.decode()
     assert response.status_code == 200
     assert "watch/partials/triage_card.html" in [t.name for t in response.templates]
-    assert "Current thread" in content
-    assert "Other thread" not in content
+    # Scope to the detail card; the OOB list refresh may mention other threads.
+    card = content.split("</article>", 1)[0]
+    assert "Current thread" in card
+    assert "Other thread" not in card
 
 
 @pytest.mark.django_db
@@ -675,9 +677,11 @@ def test_correction_htmx_rerenders_the_current_thread(admin_client):
     content = response.content.decode()
     assert response.status_code == 200
     assert "watch/partials/triage_card.html" in [t.name for t in response.templates]
-    assert "First thread" in content
-    assert "Second thread" not in content
-    assert 'id="triage-card"' not in content
+    # Scope to the detail card; the OOB list refresh may mention other threads.
+    card = content.split("</article>", 1)[0]
+    assert "First thread" in card
+    assert "Second thread" not in card
+    assert 'id="triage-detail"' not in content
 
 
 @pytest.mark.django_db
@@ -769,7 +773,7 @@ def test_triage_card_wires_every_action_to_the_swap_target(admin_client):
         assert f'name="action" value="{action}"' in content
 
     assert content.count(f'hx-post="{action_url(thread)}"') >= len(actions)
-    assert content.count('hx-target="#triage-card"') >= len(actions)
+    assert content.count('hx-target="#triage-detail"') >= len(actions)
     assert content.count("csrfmiddlewaretoken") >= len(actions)
 
 
@@ -784,7 +788,9 @@ def test_triage_card_wires_place_correction_form(admin_client):
     ).content.decode()
 
     assert f'hx-post="{correction_url(thread)}"' in content
-    assert 'hx-target="#triage-card"' in content
-    assert f'name="place_id" value="{place.id}"' in content
+    assert 'hx-target="#triage-detail"' in content
+    # The typeahead searches places rather than pre-setting a place id.
+    assert f'hx-get="{reverse("watch:place-search")}"' in content
     assert 'name="matched_text"' in content
     assert 'name="role"' in content
+    assert 'data-action="no_place"' in content

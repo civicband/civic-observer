@@ -24,6 +24,16 @@ def test_triage_script_has_shortcuts_and_copy():
     assert '[data-action="copy-citation"]' in text
 
 
+def test_triage_script_has_new_navigation_keys():
+    text = SCRIPT.read_text()
+    assert "helpOpen" in text
+    assert "focusFilter" in text
+    assert "jumpToTop" in text
+    assert '"/"' in text
+    assert '"?"' in text
+    assert '"Home"' in text
+
+
 def test_triage_script_ignores_form_controls_and_ime_repeats():
     text = SCRIPT.read_text()
     for tag in ["INPUT", "TEXTAREA", "SELECT"]:
