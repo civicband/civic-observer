@@ -67,4 +67,7 @@ class Command(BaseCommand):
             share=share,
             dry_run=options["dry_run"],
         )
-        self.stdout.write(" ".join(f"{key}={value}" for key, value in stats.items()))
+        prefix = "dry run: " if options["dry_run"] else ""
+        self.stdout.write(
+            prefix + " ".join(f"{key}={value}" for key, value in stats.items())
+        )

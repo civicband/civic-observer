@@ -268,6 +268,166 @@ def test_distinct_threads_are_counted_once():
 
 
 @pytest.mark.django_db
+def test_two_subject_places_in_one_thread_count_as_one_thread():
+    subreddit = SubredditFactory(name="localnews", source="gazetteer", place=None)
+    place = PlaceFactory(name="Chico")
+    other = PlaceFactory(name="Other")
+    shared = _thread(subreddit)
+    ThreadPlaceFactory(thread=shared, place=place, role="subject")
+    ThreadPlaceFactory(thread=shared, place=other, role="subject")
+    for _ in range(2):
+        _subject(subreddit, place)
+
+    stats = suggest_subreddits(min_threads=3, share=1.0)
+
+    assert stats == {"suggested": 1, "conflicts": 0, "unchanged": 0}
+    subreddit.refresh_from_db()
+    assert subreddit.place == place
+    assert subreddit.note == "text evidence: 3 of 3 subject threads"
+
+
+@pytest.mark.django_db
+def test_manual_row_without_place_is_not_a_conflict():
+    subreddit = SubredditFactory(name="localnews", source="manual", place=None)
+    place = PlaceFactory(name="Chico")
+    for _ in range(4):
+        _subject(subreddit, place)
+
+    stats = suggest_subreddits()
+
+    assert stats == {"suggested": 0, "conflicts": 0, "unchanged": 0}
+    subreddit.refresh_from_db()
+    assert subreddit.place is None
+    assert subreddit.source == Subreddit.Source.MANUAL
+    assert subreddit.note == ""
+
+
+@pytest.mark.django_db
+def test_manual_disagreement_below_threshold_is_not_a_conflict():
+    other = PlaceFactory(name="Other")
+    subreddit = SubredditFactory(name="localnews", source="manual", place=other)
+    place = PlaceFactory(name="Chico")
+    for _ in range(2):
+        _subject(subreddit, place)
+
+    stats = suggest_subreddits(min_threads=3)
+
+    assert stats == {"suggested": 0, "conflicts": 0, "unchanged": 0}
+    subreddit.refresh_from_db()
+    assert subreddit.place == other
+
+
+@pytest.mark.django_db
+def test_subreddits_are_aggregated_independently():
+    first = SubredditFactory(name="chico", source="gazetteer", place=None)
+    second = SubredditFactory(name="oroville", source="gazetteer", place=None)
+    chico = PlaceFactory(name="Chico")
+    oroville = PlaceFactory(name="Oroville")
+    for _ in range(4):
+        _subject(first, chico)
+    for _ in range(3):
+        _subject(second, oroville)
+    _subject(second, chico)
+
+    stats = suggest_subreddits()
+
+    assert stats == {"suggested": 2, "conflicts": 0, "unchanged": 0}
+    first.refresh_from_db()
+    second.refresh_from_db()
+    assert first.place == chico
+    assert first.note == "text evidence: 4 of 4 subject threads"
+    assert second.place == oroville
+    assert second.note == "text evidence: 3 of 4 subject threads"
+
+
+@pytest.mark.django_db
+def test_share_boundary_is_inclusive():
+    subreddit = SubredditFactory(name="localnews", source="gazetteer", place=None)
+    place = PlaceFactory(name="Chico")
+    other = PlaceFactory(name="Other")
+    for _ in range(7):
+        _subject(subreddit, place)
+    for _ in range(3):
+        _subject(subreddit, other)
+
+    stats = suggest_subreddits(share=0.7)
+
+    assert stats == {"suggested": 1, "conflicts": 0, "unchanged": 0}
+    subreddit.refresh_from_db()
+    assert subreddit.place == place
+    assert subreddit.note == "text evidence: 7 of 10 subject threads"
+
+
+@pytest.mark.django_db
+def test_thread_last_seen_at_cutoff_is_included(monkeypatch):
+    frozen = timezone.now()
+    monkeypatch.setattr("watch.evidence.timezone.now", lambda: frozen)
+    subreddit = SubredditFactory(name="localnews", source="gazetteer", place=None)
+    place = PlaceFactory(name="Chico")
+    for _ in range(4):
+        ThreadPlaceFactory(
+            thread=ThreadFactory(
+                subreddit=subreddit, last_seen=frozen - timedelta(days=90)
+            ),
+            place=place,
+            role="subject",
+        )
+
+    stats = suggest_subreddits(days=90)
+
+    assert stats == {"suggested": 1, "conflicts": 0, "unchanged": 0}
+
+
+@pytest.mark.django_db
+def test_suggestion_refreshes_modified_and_place_geography():
+    subreddit = SubredditFactory(
+        name="ontario", source="gazetteer", place=None, state="", country=None
+    )
+    place = PlaceFactory(
+        name="Toronto", state="ON", country="CA", place_type="canadian_city"
+    )
+    for _ in range(4):
+        _subject(subreddit, place)
+    stale = timezone.now() - timedelta(days=30)
+    Subreddit.objects.filter(pk=subreddit.pk).update(modified=stale)
+
+    stats = suggest_subreddits()
+
+    assert stats["suggested"] == 1
+    subreddit.refresh_from_db()
+    assert subreddit.place == place
+    assert subreddit.state == "ON"
+    assert str(subreddit.country) == "CA"
+    assert subreddit.modified > stale
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    ("note", "writes_note"), [("", True), ("operator: looking into it", False)]
+)
+def test_note_is_only_written_when_blank(monkeypatch, note, writes_note):
+    subreddit = SubredditFactory(name="localnews", source="gazetteer", note=note)
+    place = PlaceFactory(name="Chico")
+    for _ in range(4):
+        _subject(subreddit, place)
+    original_save = Subreddit.save
+    saved_fields: list[str] = []
+
+    def record_save(self, *args, **kwargs):
+        saved_fields.extend(kwargs.get("update_fields") or [])
+        return original_save(self, *args, **kwargs)
+
+    monkeypatch.setattr(Subreddit, "save", record_save)
+
+    stats = suggest_subreddits()
+
+    assert stats["suggested"] == 1
+    assert ("note" in saved_fields) is writes_note
+    subreddit.refresh_from_db()
+    assert subreddit.place == place
+
+
+@pytest.mark.django_db
 def test_command_writes_counts_and_dry_run():
     subreddit = SubredditFactory(name="localnews", source="gazetteer", place=None)
     place = PlaceFactory(name="Chico")
@@ -276,11 +436,27 @@ def test_command_writes_counts_and_dry_run():
 
     output = _run("--dry-run")
 
+    assert output.startswith("dry run: ")
     assert "suggested=1" in output
     assert "conflicts=0" in output
     assert "unchanged=0" in output
     subreddit.refresh_from_db()
     assert subreddit.place is None
+
+
+@pytest.mark.django_db
+def test_command_without_dry_run_writes_suggestion():
+    subreddit = SubredditFactory(name="localnews", source="gazetteer", place=None)
+    place = PlaceFactory(name="Chico")
+    for _ in range(4):
+        _subject(subreddit, place)
+
+    output = _run()
+
+    assert not output.startswith("dry run: ")
+    assert "suggested=1" in output
+    subreddit.refresh_from_db()
+    assert subreddit.place == place
 
 
 @pytest.mark.django_db
