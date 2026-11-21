@@ -1,5 +1,6 @@
 import uuid
 
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 from django_countries.fields import CountryField
@@ -156,6 +157,45 @@ class Thread(TimeStampedModel):
     def __str__(self):
         """Return a concise admin label."""
         return self.title or self.key
+
+
+class ThreadLabel(models.Model):
+    thread = models.ForeignKey(Thread, on_delete=models.CASCADE, related_name="labels")
+    place = models.ForeignKey(
+        Place,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="labels",
+    )
+    is_subject = models.BooleanField(default=False)
+    is_useful = models.BooleanField(null=True, blank=True)
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="+",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["thread", "place"],
+                condition=models.Q(place__isnull=False),
+                name="watch_threadlabel_place_uniq",
+            ),
+            models.UniqueConstraint(
+                fields=["thread"],
+                condition=models.Q(place__isnull=True),
+                name="watch_threadlabel_noplace_uniq",
+            ),
+        ]
+
+    def __str__(self):
+        """Return a concise admin label."""
+        return f"{self.thread} - {self.place or 'no place'}"
 
 
 class Mention(models.Model):

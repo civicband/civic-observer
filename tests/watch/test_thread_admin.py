@@ -330,6 +330,7 @@ def test_thread_admin_registers_expected_filters_and_search():
         "subreddit__kind",
         "covered",
         "us",
+        "has_label",
         "subreddit__muted",
         "last_seen",
     ]
