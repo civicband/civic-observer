@@ -228,19 +228,95 @@ def test_webhook_accepts_any_country_spelling(webhook_client, country):
 
 
 @pytest.mark.django_db
-def test_webhook_rejects_an_unknown_country(webhook_client):
+def test_webhook_falls_back_to_the_state_for_an_unknown_country(webhook_client):
+    """Postel's Law: one bad field must not fail the whole deploy webhook."""
     payload = {
-        "name": "Nowhere",
+        "name": "Calgary",
         "state": "AB",
         "country": "Atlantis",
         "kind": "city",
+        "pages": 3,
     }
 
-    response = _post_webhook(webhook_client, "nowhere.ab", payload)
+    response = _post_webhook(webhook_client, "calgary.ab.canada", payload)
 
-    assert response.status_code == 400
-    assert "Unknown country" in response.json()["error"]
-    assert not Muni.objects.filter(subdomain="nowhere.ab").exists()
+    assert response.status_code == 201
+    assert str(Muni.objects.get(subdomain="calgary.ab.canada").country) == "CA"
+
+
+@pytest.mark.django_db
+def test_webhook_keeps_the_stored_country_for_an_unknown_country(webhook_client):
+    Muni.objects.create(
+        subdomain="bryan.ga", name="Bryan", state="GA", country="US", kind="city"
+    )
+    payload = {
+        "name": "Bryan County",
+        "state": "GA",
+        "country": "Atlantis",
+        "kind": "county",
+        "pages": 0,
+    }
+
+    response = _post_webhook(webhook_client, "bryan.ga", payload)
+
+    assert response.status_code == 200
+    muni = Muni.objects.get(subdomain="bryan.ga")
+    assert muni.name == "Bryan County"
+    assert str(muni.country) == "US"
+
+
+@pytest.mark.django_db
+def test_webhook_uses_the_default_for_an_unknown_country(webhook_client):
+    payload = {
+        "name": "Nowhere",
+        "state": "GA",
+        "country": "Atlantis",
+        "kind": "city",
+        "pages": 0,
+    }
+
+    response = _post_webhook(webhook_client, "nowhere.ga", payload)
+
+    assert response.status_code == 201
+    assert str(Muni.objects.get(subdomain="nowhere.ga").country) == "US"
+
+
+@pytest.mark.django_db
+def test_webhook_never_stores_an_unresolvable_country(webhook_client):
+    payload = {
+        "name": "Nowhere",
+        "state": "GA",
+        "country": "Atlantis",
+        "kind": "city",
+        "pages": 0,
+    }
+
+    _post_webhook(webhook_client, "nowhere.ga", payload)
+
+    assert not Muni.objects.filter(country="Atlantis").exists()
+
+
+@pytest.mark.django_db
+def test_webhook_repairs_a_previously_unresolvable_country(webhook_client):
+    Muni.objects.create(
+        subdomain="calgary.ab.canada",
+        name="Calgary",
+        state="AB",
+        country="US",
+        kind="city",
+    )
+    payload = {
+        "name": "Calgary",
+        "state": "AB",
+        "country": "Atlantis",
+        "kind": "city",
+        "pages": 0,
+    }
+
+    _post_webhook(webhook_client, "calgary.ab.canada", payload)
+
+    muni = Muni.objects.get(subdomain="calgary.ab.canada")
+    assert str(muni.country) == "CA"
 
 
 @pytest.mark.django_db
