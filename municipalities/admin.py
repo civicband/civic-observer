@@ -39,9 +39,10 @@ class MuniAdminForm(forms.ModelForm):
         model = Muni
         fields = "__all__"
 
-    def clean_country(self):
+    def clean_country(self) -> str:
+        # ``to_iso_code`` accepts a ``Country`` or a raw string.
         value = self.cleaned_data.get("country")
-        country = to_iso_code(value.code if hasattr(value, "code") else value)
+        country = to_iso_code(value)
         if not country:
             raise forms.ValidationError(f"Unknown country: {value!r}")
         return country
