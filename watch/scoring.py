@@ -166,9 +166,7 @@ def _us_q(prefix: str) -> Q:
     Mirrors the admin ``UsFilter``: a US place under a country-less subreddit
     counts as US.
     """
-    return Q(**{f"{prefix}__country": "US"}) | Q(
-        **{f"{prefix}__place__country": "US"}
-    )
+    return Q(**{f"{prefix}__country": "US"}) | Q(**{f"{prefix}__place__country": "US"})
 
 
 def filtered_queue_queryset(
@@ -365,9 +363,7 @@ def backlog_queryset(
                 distinct=True,
                 filter=active_thread,
             ),
-            latest_seen=Max(
-                "thread_places__thread__last_seen", filter=active_thread
-            ),
+            latest_seen=Max("thread_places__thread__last_seen", filter=active_thread),
             latest_note_status=_latest_note_status(),
         )
         .filter(subject_threads__gt=0)
@@ -394,9 +390,7 @@ def backlog_queryset(
     return queryset.order_by(*order)
 
 
-def backlog_thread_count(
-    *, status: str | None = None, sort: str | None = None
-) -> int:
+def backlog_thread_count(*, status: str | None = None, sort: str | None = None) -> int:
     """Return the distinct threads behind the current backlog places.
 
     A thread naming several uncovered places still counts once.  ``status`` and
