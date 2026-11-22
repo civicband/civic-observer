@@ -259,3 +259,31 @@ def test_triage_drops_unsafe_meeting_hit_url(admin_client):
 
     assert 'href="javascript:' not in content
     assert "View page" not in content
+
+
+@pytest.mark.parametrize(
+    ("key", "expected"),
+    [
+        (
+            "reddit:chicoca/abc123",
+            "https://www.reddit.com/r/chicoca/comments/abc123/",
+        ),
+        ("reddit:ChicoCA/ABC123", "https://www.reddit.com/r/ChicoCA/comments/ABC123/"),
+        ("https://example.com/a", "https://example.com/a"),
+        (
+            "https://news.ycombinator.com/item?id=123",
+            "https://news.ycombinator.com/item?id=123",
+        ),
+        ("javascript:alert(1)", ""),
+        ("reddit:", ""),
+        ("reddit:sub/", ""),
+        ("reddit:bad sub/abc", ""),
+        ("reddit:sub/abc/def", ""),
+        ("", ""),
+    ],
+)
+def test_thread_url_filter_builds_links(key, expected):
+    rendered = Template("{% load watch_tags %}{{ key|thread_url }}").render(
+        Context({"key": key})
+    )
+    assert rendered == expected
