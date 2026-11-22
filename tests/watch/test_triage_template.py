@@ -319,3 +319,26 @@ def test_triage_card_offers_reject_for_each_suggestion(admin_client):
 
     assert reverse("watch:place-reject", args=[thread.pk]) in content
     assert "Not a match" in content
+
+
+@pytest.mark.django_db
+def test_triage_card_links_thread_title_to_reddit(admin_client):
+    thread = ThreadFactory(key="reddit:test/abc1")
+
+    content = admin_client.get(
+        reverse("watch:triage"), {"thread": thread.pk}
+    ).content.decode()
+
+    assert "https://www.reddit.com/r/test/comments/abc1/" in content
+
+
+@pytest.mark.django_db
+def test_triage_card_renders_unlinkable_title_as_text(admin_client):
+    thread = ThreadFactory(key="not-a-url")
+
+    content = admin_client.get(
+        reverse("watch:triage"), {"thread": thread.pk}
+    ).content.decode()
+
+    assert "Untitled thread" in content or thread.title in content
+    assert "https://example.com/not-a-thread" not in content
