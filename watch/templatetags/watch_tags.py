@@ -28,6 +28,26 @@ def external_url(value: object) -> str:
     return ""
 
 
+@register.filter
+def thread_url(value: object) -> str:
+    """Return the public thread URL for a ``Thread.key``.
+
+    Reddit keys are stored as ``reddit:<subreddit>/<post id>``; everything
+    else (Hacker News, arbitrary URLs) falls back to ``value`` itself when it
+    is an absolute http(s) URL. Anything unrecognised returns ``""`` so the
+    template can render plain text instead of a broken link.
+    """
+    key = str(value or "").strip()
+    if key.startswith("reddit:"):
+        subreddit, _, post_id = key[len("reddit:") :].partition("/")
+        if not re.fullmatch(r"[A-Za-z0-9_]+", subreddit or ""):
+            return ""
+        if not re.fullmatch(r"[A-Za-z0-9]+", post_id):
+            return ""
+        return f"https://www.reddit.com/r/{subreddit}/comments/{post_id}/"
+    return external_url(key)
+
+
 def _keywords(keywords: str | Iterable[str] | None) -> list[str]:
     """Normalize a keyword string or iterable into a list of non-empty terms."""
     if not keywords:

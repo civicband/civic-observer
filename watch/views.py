@@ -174,7 +174,7 @@ def _backlog_place_list(
     if place_id is not None:
         queryset = queryset.filter(pk=place_id)
 
-    places = list(queryset)
+    places = list(queryset.select_related("muni"))
     for place in places:
         # Prefetched in full, then trimmed: a sliced prefetch queryset is not
         # portable across all supported Django database backends.
