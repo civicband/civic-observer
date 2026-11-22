@@ -184,7 +184,7 @@ def filtered_queue_queryset(
     example ``place`` or ``general``).  ``us`` (``yes``/``no``) mirrors the
     admin's US filter.  ``q`` matches the thread title or subreddit name
     case-insensitively.  ``sort`` chooses one of :data:`QUEUE_SORTS`; an
-    unknown value falls back to the default score ranking.  Unknown filter
+    unknown value falls back to the default newest-first ranking.  Unknown filter
     values are ignored so a stale bookmark still renders a sensible queue.
     """
     queryset = queue_queryset()
@@ -205,7 +205,7 @@ def filtered_queue_queryset(
             Q(title__icontains=q) | Q(subreddit__name__icontains=q)
         )
 
-    order = QUEUE_SORTS.get(sort or "", QUEUE_SORTS["score"])
+    order = QUEUE_SORTS.get(sort or "", QUEUE_SORTS["newest"])
     return queryset.order_by(*order)
 
 

@@ -510,3 +510,12 @@ def test_backlog_sort_by_recency():
     _subject(ThreadFactory(last_seen=timezone.now() - timedelta(days=5)), stale)
 
     assert list(backlog_queryset(sort="recency")) == [recent, stale]
+
+
+@pytest.mark.django_db
+def test_filtered_queue_defaults_to_newest_first():
+    newer = ThreadFactory(last_seen=timezone.now())
+    older = ThreadFactory(last_seen=timezone.now() - timedelta(days=1))
+
+    assert list(filtered_queue_queryset()) == [newer, older]
+    assert list(filtered_queue_queryset(sort="")) == [newer, older]
