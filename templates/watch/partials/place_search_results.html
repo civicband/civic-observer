@@ -3,7 +3,7 @@
         {% for place in places %}
             <li>
                 <button type="button"
-                        @click="$dispatch('place-picked', { id: '{{ place.pk }}' }); picked = '{{ place.pk }}'"
+                        @click="pickPlace('{{ place.pk }}')"
                         data-place-result="{{ place.pk }}"
                         class="flex w-full items-center justify-between gap-2 px-3 py-2 text-left hover:bg-gray-50 dark:hover:bg-gray-800">
                     <span class="min-w-0">

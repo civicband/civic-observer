@@ -2,8 +2,7 @@
 Inline place correction: a typeahead over existing places plus a
 "no place / wrong thread" action. Selecting a result posts the place id.
 {% endcomment %}
-<div class="mt-5 rounded-md border border-dashed border-gray-300 p-3 dark:border-gray-700"
-     x-data="{ picked: null }">
+<div class="mt-5 rounded-md border border-dashed border-gray-300 p-3 dark:border-gray-700">
     <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Correct place</h4>
     <form method="post"
           action="{% url 'watch:place-correct' thread.pk %}"
@@ -11,7 +10,7 @@ Inline place correction: a typeahead over existing places plus a
           hx-target="#triage-detail"
           hx-swap="innerHTML">
         {% csrf_token %}
-        <input type="hidden" name="place_id" x-model="picked">
+        <input type="hidden" name="place_id" :value="pickedPlace">
         <div class="mt-2 flex flex-wrap items-center gap-2">
             <label class="sr-only" for="place-search-{{ thread.pk }}">Search places</label>
             <input id="place-search-{{ thread.pk }}"
@@ -39,8 +38,7 @@ Inline place correction: a typeahead over existing places plus a
                    class="w-40 rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-400">
         </div>
         <div id="place-search-results-{{ thread.pk }}"
-             class="mt-2 text-sm"
-             @place-picked="picked = $event.detail.id"></div>
+             class="mt-2 text-sm"></div>
         <div class="mt-2 flex flex-wrap items-center gap-2">
             <button type="submit"
                     class="inline-flex items-center px-3 py-1.5 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
