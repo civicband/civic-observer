@@ -1,3 +1,4 @@
+import json
 from datetime import timedelta
 from unittest.mock import Mock, patch
 
@@ -175,3 +176,102 @@ class TestMuniCRUDPermissions:
         client.force_login(AdminUserFactory())
         response = client.get(reverse("munis:muni-create"))
         assert response.status_code == 200
+
+
+@pytest.fixture
+def webhook_client(client, settings, monkeypatch):
+    """Return an authenticated client for the deploy webhook."""
+    monkeypatch.setenv("WEBHOOK_SECRET", "test-secret-123")
+    client.defaults["HTTP_AUTHORIZATION"] = "Bearer test-secret-123"
+    return client
+
+
+def _post_webhook(client, subdomain, payload):
+    url = reverse("munis:muni-webhook-update", kwargs={"subdomain": subdomain})
+    return client.post(url, json.dumps(payload), content_type="application/json")
+
+
+@pytest.mark.django_db
+def test_webhook_stores_country_name_as_iso_code(webhook_client):
+    """civic-band forwards sites.country verbatim, often as "Canada"."""
+    payload = {
+        "name": "Calgary",
+        "state": "AB",
+        "country": "Canada",
+        "kind": "city",
+        "pages": 10,
+    }
+
+    response = _post_webhook(webhook_client, "calgary.ab.canada", payload)
+
+    assert response.status_code == 201
+    muni = Muni.objects.get(subdomain="calgary.ab.canada")
+    assert str(muni.country) == "CA"
+    assert response.json()["country"] == "CA"
+
+
+@pytest.mark.parametrize("country", ["CA", "ca", "CAN", " Canada ", "canada"])
+@pytest.mark.django_db
+def test_webhook_accepts_any_country_spelling(webhook_client, country):
+    payload = {
+        "name": "Calgary",
+        "state": "AB",
+        "country": country,
+        "kind": "city",
+        "pages": 10,
+    }
+
+    response = _post_webhook(webhook_client, "calgary.ab.canada", payload)
+
+    assert response.status_code == 201
+    assert str(Muni.objects.get(subdomain="calgary.ab.canada").country) == "CA"
+
+
+@pytest.mark.django_db
+def test_webhook_rejects_an_unknown_country(webhook_client):
+    payload = {
+        "name": "Nowhere",
+        "state": "AB",
+        "country": "Atlantis",
+        "kind": "city",
+    }
+
+    response = _post_webhook(webhook_client, "nowhere.ab", payload)
+
+    assert response.status_code == 400
+    assert "Unknown country" in response.json()["error"]
+    assert not Muni.objects.filter(subdomain="nowhere.ab").exists()
+
+
+@pytest.mark.django_db
+def test_webhook_repairs_a_country_already_stored_as_a_name(webhook_client):
+    muni = Muni.objects.create(
+        subdomain="calgary.ab.canada",
+        name="Calgary",
+        state="AB",
+        country="US",
+        kind="city",
+    )
+    payload = {
+        "name": "Calgary",
+        "state": "AB",
+        "country": "Canada",
+        "kind": "city",
+        "pages": 0,
+    }
+
+    response = _post_webhook(webhook_client, "calgary.ab.canada", payload)
+
+    assert response.status_code == 200
+    muni.refresh_from_db()
+    assert str(muni.country) == "CA"
+
+
+@pytest.mark.django_db
+def test_webhook_infers_canada_when_country_is_omitted(webhook_client):
+    payload = {"name": "Calgary", "state": "AB", "kind": "city", "pages": 0}
+
+    response = _post_webhook(webhook_client, "calgary.ab.canada", payload)
+
+    assert response.status_code == 201
+    assert str(Muni.objects.get(subdomain="calgary.ab.canada").country) == "CA"

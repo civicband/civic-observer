@@ -1,8 +1,10 @@
 import logging
 
+from django import forms
 from django.contrib import admin
 from django.db.models import Count
 
+from .countries import to_iso_code
 from .models import Muni
 
 logger = logging.getLogger(__name__)
@@ -30,8 +32,24 @@ class MuniWatchLinkFilter(admin.SimpleListFilter):
         return queryset
 
 
+class MuniAdminForm(forms.ModelForm):
+    """Normalize free-text country input to an ISO 3166-1 alpha-2 code."""
+
+    class Meta:
+        model = Muni
+        fields = "__all__"
+
+    def clean_country(self):
+        value = self.cleaned_data.get("country")
+        country = to_iso_code(value.code if hasattr(value, "code") else value)
+        if not country:
+            raise forms.ValidationError(f"Unknown country: {value!r}")
+        return country
+
+
 @admin.register(Muni)
 class MuniAdmin(admin.ModelAdmin):
+    form = MuniAdminForm
     list_display = [
         "name",
         "state",

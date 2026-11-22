@@ -8,6 +8,7 @@ from django.http import JsonResponse
 from django.views import View
 from neapolitan.views import CRUDView
 
+from .countries import country_for_state, to_iso_code
 from .filters import MuniFilter
 from .models import Muni
 
@@ -172,6 +173,22 @@ class MuniWebhookUpdateView(View):
 
         if not muni_data.get("name"):
             return JsonResponse({"error": "name field is required"}, status=400)
+
+        # The deploy pipeline forwards sites.country verbatim, so it may be a
+        # name ("Canada") rather than an ISO code. Muni.country is read as an
+        # alpha-2 code throughout the app, so normalize before storing and
+        # reject values that cannot be resolved instead of saving garbage.
+        if "country" in data:
+            country = to_iso_code(data["country"])
+            if not country:
+                return JsonResponse(
+                    {"error": f"Unknown country: {data['country']!r}"}, status=400
+                )
+            muni_data["country"] = country
+        elif not muni_data.get("country"):
+            implied = country_for_state(muni_data.get("state"))
+            if implied:
+                muni_data["country"] = implied
 
         # Get old page count before update to detect changes
         try:
