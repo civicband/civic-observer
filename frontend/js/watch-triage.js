@@ -32,6 +32,9 @@ document.addEventListener("alpine:init", function () {
       lastRejected: false,
       lastKey: null,
       lastKeyAt: 0,
+      // Place picked in the correction typeahead. Lives on this component so
+      // an HTMX swap of the detail pane does not lose the selection.
+      pickedPlace: null,
 
       init: function () {
         var self = this;
@@ -200,6 +203,10 @@ document.addEventListener("alpine:init", function () {
         this.lastRejected = false;
         submit.click();
         return true;
+      },
+
+      pickPlace: function (id) {
+        this.pickedPlace = String(id);
       },
 
       copyCitation: function (button) {

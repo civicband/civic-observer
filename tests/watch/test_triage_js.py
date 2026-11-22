@@ -133,3 +133,25 @@ def test_non_staff_account_menu_hides_triage_and_backlog(authenticated_client):
     content = authenticated_client.get(reverse("homepage")).content.decode()
     assert reverse("watch:triage") not in content
     assert reverse("watch:backlog") not in content
+
+
+def test_triage_script_owns_place_selection():
+    text = SCRIPT.read_text()
+    assert "pickedPlace" in text
+    assert "pickPlace: function" in text
+
+
+def test_place_typeahead_binds_selection_to_component():
+    correction = (
+        Path(settings.BASE_DIR) / "templates/watch/partials/place_correction.html"
+    ).read_text()
+    results = (
+        Path(settings.BASE_DIR) / "templates/watch/partials/place_search_results.html"
+    ).read_text()
+    # Selection lives on the triageKeyboard component, so it survives HTMX
+    # swaps of #triage-detail and the hidden input actually receives a value.
+    assert "pickPlace(" in results
+    assert 'name="place_id" :value="pickedPlace"' in correction
+    # A nested x-data would shadow the component and drop the selection.
+    assert "x-data" not in correction
+    assert "$dispatch('place-picked'" not in results
