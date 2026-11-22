@@ -887,3 +887,19 @@ def test_correction_is_harmless_when_place_has_no_label(admin_client):
     place = PlaceFactory()
     admin_client.post(correction_url(thread), {"place_id": place.id})
     assert ThreadLabel.objects.filter(thread=thread, place=place).count() == 1
+
+
+@pytest.mark.django_db
+def test_triage_card_explains_promote(admin_client):
+    thread = ThreadFactory()
+    place = PlaceFactory()
+    ThreadPlaceFactory(thread=thread, place=place, role="mentioned")
+
+    content = admin_client.get(
+        reverse("watch:triage"), {"thread": thread.pk}
+    ).content.decode()
+
+    # The promote button carries a tooltip explaining what promoting does.
+    assert 'data-action="promote"' in content
+    assert "subject place" in content
+    assert "backlog ranking" in content
