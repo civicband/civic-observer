@@ -382,3 +382,43 @@ def test_backlog_query_count_does_not_grow_with_places(admin_client):
         admin_client.get(url)
 
     assert len(many) == len(few)
+
+
+@pytest.mark.django_db
+def test_backlog_sample_threads_link_to_reddit(admin_client):
+    place = PlaceFactory(name="Linkedville", muni=None)
+    ThreadPlaceFactory(
+        thread=ThreadFactory(key="reddit:chicoca/abc123", title="Chico thread"),
+        place=place,
+        role="subject",
+    )
+
+    content = admin_client.get(reverse("watch:backlog")).content.decode()
+
+    assert "https://www.reddit.com/r/chicoca/comments/abc123/" in content
+    assert 'rel="noopener noreferrer"' in content
+
+
+@pytest.mark.django_db
+def test_backlog_sample_threads_without_reddit_key_are_plain_text(admin_client):
+    place = PlaceFactory(name="Quietville", muni=None)
+    ThreadPlaceFactory(
+        thread=ThreadFactory(key="not-a-url", title="Unlinked thread"),
+        place=place,
+        role="subject",
+    )
+
+    content = admin_client.get(reverse("watch:backlog")).content.decode()
+
+    assert "Unlinked thread" in content
+    assert 'href="not-a-url"' not in content
+
+
+@pytest.mark.django_db
+def test_backlog_never_lists_places_that_already_have_a_site(admin_client):
+    # The backlog is defined as places with no linked site, so place names are
+    # never links to a CivicBand site; only the sample threads link out.
+    place = PlaceWithMuniFactory(name="Linked Place")
+    _subject(place)
+
+    assert admin_client.get(reverse("watch:backlog")).context["places"] == []

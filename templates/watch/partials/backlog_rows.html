@@ -1,3 +1,4 @@
+{% load watch_tags %}
 {% if places %}
     {% for place in places %}
         <tr id="backlog-place-{{ place.pk }}" data-place="{{ place.pk }}">
@@ -32,7 +33,16 @@
                     {% for thread_place in place.sample_threads %}
                         <li class="break-words" data-sample-thread="{{ thread_place.pk }}">
                             <span class="text-gray-400 dark:text-gray-500">#{{ forloop.counter }}</span>
-                            {{ thread_place.thread.title|default:"Untitled thread"|truncatechars:90 }}
+                            {% with sample_url=thread_place.thread.key|thread_url %}
+                                {% if sample_url %}
+                                    <a href="{{ sample_url }}"
+                                       target="_blank"
+                                       rel="noopener noreferrer"
+                                       class="text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">{{ thread_place.thread.title|default:"Untitled thread"|truncatechars:90 }}</a>
+                                {% else %}
+                                    <span class="text-gray-700 dark:text-gray-300">{{ thread_place.thread.title|default:"Untitled thread"|truncatechars:90 }}</span>
+                                {% endif %}
+                            {% endwith %}
                             {% if thread_place.thread.subreddit %}
                                 <span class="text-xs text-gray-500 dark:text-gray-400">r/{{ thread_place.thread.subreddit.name }}</span>
                             {% endif %}
