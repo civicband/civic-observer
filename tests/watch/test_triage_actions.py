@@ -16,7 +16,7 @@ from tests.factories import (
     ThreadPlaceFactory,
 )
 from watch.lookup import build_query
-from watch.models import MutedCountry, PlaceAlias, ThreadPlace
+from watch.models import MutedCountry, PlaceAlias, ThreadLabel, ThreadPlace
 from watch.scoring import queue_queryset, thread_country
 
 
@@ -794,3 +794,96 @@ def test_triage_card_wires_place_correction_form(admin_client):
     assert 'name="matched_text"' in content
     assert 'name="role"' in content
     assert 'data-action="no_place"' in content
+
+
+def rejection_url(thread):
+    return reverse("watch:place-reject", args=[thread.id])
+
+
+@pytest.mark.django_db
+def test_reject_place_hides_suggestion_and_records_label(admin_client):
+    thread = ThreadFactory()
+    place = PlaceFactory(name="Wrongville")
+    ThreadPlaceFactory(thread=thread, place=place, role="subject")
+
+    response = admin_client.post(rejection_url(thread), {"place_id": place.id})
+
+    assert response.status_code == 302
+    label = ThreadLabel.objects.get(thread=thread, place=place)
+    assert label.is_useful is False
+    assert label.is_subject is False
+    # The extraction is kept so the decision stays auditable.
+    assert ThreadPlace.objects.filter(thread=thread, place=place).exists()
+
+
+@pytest.mark.django_db
+def test_rejected_place_moves_out_of_open_suggestions(admin_client):
+    thread = ThreadFactory()
+    place = PlaceFactory(name="Wrongville")
+    ThreadPlaceFactory(thread=thread, place=place, role="subject")
+    ThreadLabel.objects.create(thread=thread, place=place, is_useful=False)
+
+    response = admin_client.get(reverse("watch:triage"), {"thread": thread.pk})
+    context = response.context
+
+    assert place not in [tp.place for tp in context["subject_places"]]
+    assert [tp.place for tp in context["rejected_places"]] == [place]
+    content = response.content.decode()
+    assert "Rejected suggestions" in content
+    assert "Wrongville" in content
+
+
+@pytest.mark.django_db
+def test_reject_place_rejects_a_place_from_another_thread(admin_client):
+    thread = ThreadFactory()
+    other = ThreadFactory()
+    place = PlaceFactory()
+    ThreadPlaceFactory(thread=other, place=place, role="subject")
+
+    response = admin_client.post(rejection_url(thread), {"place_id": place.id})
+
+    assert response.status_code == 400
+    assert not ThreadLabel.objects.filter(thread=thread).exists()
+
+
+@pytest.mark.django_db
+def test_reject_place_requires_a_place_id(admin_client):
+    thread = ThreadFactory()
+    assert admin_client.post(rejection_url(thread), {}).status_code == 400
+
+
+@pytest.mark.django_db
+def test_reject_place_requires_staff(client):
+    thread = ThreadFactory()
+    place = PlaceFactory()
+    ThreadPlaceFactory(thread=thread, place=place, role="subject")
+    assert client.post(rejection_url(thread), {"place_id": place.id}).status_code in (
+        302,
+        403,
+    )
+    assert not ThreadLabel.objects.exists()
+
+
+@pytest.mark.django_db
+def test_correction_undoes_a_rejection(admin_client):
+    thread = ThreadFactory()
+    place = PlaceFactory(name="Wrongville")
+    ThreadPlaceFactory(thread=thread, place=place, role="subject")
+    ThreadLabel.objects.create(thread=thread, place=place, is_useful=False)
+
+    response = admin_client.post(
+        correction_url(thread), {"place_id": place.id, "role": "subject"}
+    )
+
+    assert response.status_code == 302
+    label = ThreadLabel.objects.get(thread=thread, place=place)
+    assert label.is_useful is True
+    assert label.is_subject is True
+
+
+@pytest.mark.django_db
+def test_correction_is_harmless_when_place_has_no_label(admin_client):
+    thread = ThreadFactory()
+    place = PlaceFactory()
+    admin_client.post(correction_url(thread), {"place_id": place.id})
+    assert ThreadLabel.objects.filter(thread=thread, place=place).count() == 1
