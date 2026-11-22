@@ -26,6 +26,7 @@ class TriageActionForm(forms.Form):
         MUTE_COUNTRY = "mute_country", "Mute country"
         EDIT_QUERY = "edit_query", "Edit query"
         NO_PLACE = "no_place", "No place"
+        REJECT_PLACE = "reject_place", "Reject place"
 
     action = forms.ChoiceField(choices=Action.choices)
     days = forms.IntegerField(min_value=1, max_value=90, required=False)
@@ -44,6 +45,12 @@ class PlaceCorrectionForm(forms.Form):
         required=False,
         initial=ThreadPlace.Role.SUBJECT,
     )
+
+
+class PlaceRejectionForm(forms.Form):
+    """Validate an operator's rejection of one suggested place for a thread."""
+
+    place_id = forms.UUIDField()
 
 
 class PlaceNoteForm(forms.ModelForm):

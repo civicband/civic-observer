@@ -111,7 +111,25 @@
                                         {% if place.place.muni %}<span>·</span> {{ place.place.muni.name }}{% endif %}
                                     </p>
                                 </div>
-                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">{{ place.get_role_display }}</span>
+                                <div class="flex shrink-0 items-center gap-2">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">{{ place.get_role_display }}</span>
+                                    <form class="inline-flex"
+                                          method="post"
+                                          action="{% url 'watch:place-reject' thread.pk %}"
+                                          hx-post="{% url 'watch:place-reject' thread.pk %}"
+                                          hx-target="#triage-detail"
+                                          hx-swap="innerHTML"
+                                          data-reject-first
+                                          data-action="reject-place">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="place_id" value="{{ place.place_id }}">
+                                        <button type="submit"
+                                                class="text-xs font-medium text-rose-600 hover:text-rose-500 dark:text-rose-400 dark:hover:text-rose-300"
+                                                title="Not a match: hide this suggestion">
+                                            Not a match
+                                        </button>
+                                    </form>
+                                </div>
                             </div>
 
                             {% include "watch/partials/meeting_hits.html" with hits=place.meeting_hits place=place.place %}
@@ -165,6 +183,53 @@
                                         <button type="submit"
                                                 class="font-medium text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300">
                                             Promote
+                                        </button>
+                                    </form>
+                                    <form class="inline-flex"
+                                          method="post"
+                                          action="{% url 'watch:place-reject' thread.pk %}"
+                                          hx-post="{% url 'watch:place-reject' thread.pk %}"
+                                          hx-target="#triage-detail"
+                                          hx-swap="innerHTML"
+                                          data-reject-first
+                                          data-action="reject-place">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="place_id" value="{{ place.place_id }}">
+                                        <button type="submit"
+                                                class="font-medium text-rose-600 hover:text-rose-500 dark:text-rose-400 dark:hover:text-rose-300"
+                                                title="Not a match: hide this suggestion">
+                                            Not a match
+                                        </button>
+                                    </form>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    </div>
+                {% endif %}
+
+                {% if rejected_places %}
+                    <div class="mt-5" data-rejected-places>
+                        <h4 class="text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Rejected suggestions</h4>
+                        <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">Marked “not a match”. Undo puts the suggestion back.</p>
+                        <div class="mt-2 flex flex-wrap gap-2">
+                            {% for place in rejected_places %}
+                                <div class="inline-flex items-center gap-2 rounded-full border border-gray-300 bg-gray-100 px-3 py-1 text-xs text-gray-600 line-through dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300"
+                                     data-rejected-place="{{ place.place_id }}">
+                                    <span>{{ place.place.name }}{% if place.place.state %}, {{ place.place.state }}{% endif %}</span>
+                                    <form class="inline-flex"
+                                          method="post"
+                                          action="{% url 'watch:place-correct' thread.pk %}"
+                                          hx-post="{% url 'watch:place-correct' thread.pk %}"
+                                          hx-target="#triage-detail"
+                                          hx-swap="innerHTML"
+                                          data-action="place-correct-undo">
+                                        {% csrf_token %}
+                                        <input type="hidden" name="place_id" value="{{ place.place_id }}">
+                                        <input type="hidden" name="role" value="{{ place.role }}">
+                                        <button type="submit"
+                                                class="font-medium no-underline text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 dark:hover:text-indigo-300"
+                                                title="Undo the rejection">
+                                            Undo
                                         </button>
                                     </form>
                                 </div>

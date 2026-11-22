@@ -11,8 +11,10 @@ from django.utils import timezone
 from tests.factories import (
     MeetingHitFactory,
     MentionFactory,
+    PlaceFactory,
     PlaceWithMuniFactory,
     ThreadFactory,
+    ThreadPlaceFactory,
 )
 from watch.models import ThreadPlace
 
@@ -287,3 +289,33 @@ def test_thread_url_filter_builds_links(key, expected):
         Context({"key": key})
     )
     assert rendered == expected
+
+
+@pytest.mark.django_db
+def test_triage_loads_keyboard_script_without_defer(admin_client):
+    """Alpine starts on DOMContentLoaded, so the component must be registered first.
+
+    A `defer`red classic script runs after DOMContentLoaded has fired, so
+    Alpine would never see `triageKeyboard` and every shortcut would be dead.
+    """
+    content = admin_client.get(reverse("watch:triage")).content.decode()
+
+    assert "js/watch-triage.js" in content
+    script = content.split("js/watch-triage.js")[0].rsplit("<script", 1)[1]
+    assert "defer" not in script
+    # It must land after Alpine so Alpine.data exists when it registers.
+    assert content.index("alpinejs") < content.index("js/watch-triage.js")
+
+
+@pytest.mark.django_db
+def test_triage_card_offers_reject_for_each_suggestion(admin_client):
+    thread = ThreadFactory()
+    place = PlaceFactory(name="Suggestedville")
+    ThreadPlaceFactory(thread=thread, place=place, role="subject")
+
+    content = admin_client.get(
+        reverse("watch:triage"), {"thread": thread.pk}
+    ).content.decode()
+
+    assert reverse("watch:place-reject", args=[thread.pk]) in content
+    assert "Not a match" in content

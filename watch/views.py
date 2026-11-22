@@ -25,7 +25,12 @@ from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views.generic import View
 
-from watch.forms import PlaceCorrectionForm, PlaceNoteForm, TriageActionForm
+from watch.forms import (
+    PlaceCorrectionForm,
+    PlaceNoteForm,
+    PlaceRejectionForm,
+    TriageActionForm,
+)
 from watch.ingest import enqueue_enrichment
 from watch.models import (
     MeetingHit,
@@ -233,15 +238,32 @@ def _triage_context(
         for hit in MeetingHit.objects.filter(thread=thread).select_related("place"):
             meeting_hits_by_place.setdefault(hit.place_id, []).append(hit)
 
+    # Operator judgements ("this place is wrong") hide a suggestion without
+    # deleting the extraction, so the review decision is visible and auditable.
+    rejected_place_ids: set[uuid.UUID] = set()
+    if thread is not None:
+        rejected_place_ids = set(
+            thread.labels.filter(place__isnull=False, is_useful=False).values_list(
+                "place_id", flat=True
+            )
+        )
+
+    open_places = [
+        place for place in thread_places if place.place_id not in rejected_place_ids
+    ]
+    rejected_places = [
+        place for place in thread_places if place.place_id in rejected_place_ids
+    ]
     subject_places = [
-        place for place in thread_places if place.role == ThreadPlace.Role.SUBJECT
+        place for place in open_places if place.role == ThreadPlace.Role.SUBJECT
     ]
     mentioned_places = [
-        place for place in thread_places if place.role == ThreadPlace.Role.MENTIONED
+        place for place in open_places if place.role == ThreadPlace.Role.MENTIONED
     ]
     for place in thread_places:
         # Convenience for templates: hits for this place without a lookup tag.
         place.meeting_hits = meeting_hits_by_place.get(place.place_id, [])  # type: ignore[attr-defined]
+        place.is_rejected = place.place_id in rejected_place_ids  # type: ignore[attr-defined]
 
     return {
         "thread": thread,
@@ -252,6 +274,7 @@ def _triage_context(
         "meeting_hits_by_place": meeting_hits_by_place,
         "subject_places": subject_places,
         "mentioned_places": mentioned_places,
+        "rejected_places": rejected_places,
         "also_posted_in": (
             thread.duplicates.select_related("subreddit").order_by("first_seen", "pk")
             if thread is not None
@@ -461,6 +484,16 @@ class PlaceCorrectionView(View):
                     "source": ThreadPlace.Source.MANUAL,
                 },
             )
+            # A manual assignment also clears a "not a match" judgement.
+            ThreadLabel.objects.update_or_create(
+                thread=thread,
+                place=place,
+                defaults={
+                    "is_subject": role == ThreadPlace.Role.SUBJECT,
+                    "is_useful": True,
+                    "created_by": request.user,
+                },
+            )
             if role == ThreadPlace.Role.SUBJECT:
                 self._update_subreddit_label(thread, place)
 
@@ -497,6 +530,36 @@ class PlaceCorrectionView(View):
                 "modified",
             ]
         )
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class PlaceRejectionView(View):
+    """Record that a suggested place is wrong for a thread.
+
+    The row is kept so the extraction stays auditable; triage filters it out
+    of the open suggestions and lists it under "Rejected suggestions".
+    """
+
+    def post(self, request: HttpRequest, thread_id: uuid.UUID) -> HttpResponse:
+        thread = get_object_or_404(Thread, pk=thread_id)
+        form = PlaceRejectionForm(request.POST)
+        if not form.is_valid():
+            return HttpResponseBadRequest("Invalid place rejection")
+
+        place_id = form.cleaned_data["place_id"]
+        if not ThreadPlace.objects.filter(thread=thread, place_id=place_id).exists():
+            return HttpResponseBadRequest("A valid place is required")
+
+        ThreadLabel.objects.update_or_create(
+            thread=thread,
+            place_id=place_id,
+            defaults={
+                "is_subject": False,
+                "is_useful": False,
+                "created_by": request.user,
+            },
+        )
+        return _after_action(request, thread, advance=False)
 
 
 @method_decorator(staff_member_required, name="dispatch")

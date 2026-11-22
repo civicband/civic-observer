@@ -22,11 +22,14 @@ document.addEventListener("alpine:init", function () {
         m: "mute_subreddit",
         x: "mute_country",
         e: "edit_query",
-        c: "copy_citation"
+        c: "copy_citation",
+        n: "reject_place",
+        u: "undo_reject"
       },
 
       busy: false,
       helpOpen: false,
+      lastRejected: false,
       lastKey: null,
       lastKeyAt: 0,
 
@@ -39,6 +42,12 @@ document.addEventListener("alpine:init", function () {
             });
           }
         );
+        // Remember which buttons we clicked so a rejection can be undone with
+        // `u` even after its "Undo" button moved into the rejected list.
+        this.$root.addEventListener("click", function (event) {
+          var button = event.target.closest && event.target.closest('[data-action="reject-place"] button');
+          if (button) self.lastRejected = true;
+        });
       },
 
       onKeydown: function (event) {
@@ -149,6 +158,9 @@ document.addEventListener("alpine:init", function () {
           return true;
         }
 
+        if (action === "reject_place") return this.rejectPlace();
+        if (action === "undo_reject") return this.undoReject();
+
         if (this.busy) return false;
         var form = this.$root.querySelector(
           'form[data-action="' + action + '"]'
@@ -161,6 +173,31 @@ document.addEventListener("alpine:init", function () {
         }
 
         this.busy = true;
+        submit.click();
+        return true;
+      },
+
+      // Reject the first open suggestion; press `n` again to reject the next.
+      rejectPlace: function () {
+        if (this.busy) return false;
+        var form = this.$root.querySelector('form[data-action="reject-place"]');
+        if (!form) return false;
+        var submit = form.querySelector('button[type="submit"]');
+        if (!submit) return false;
+        this.busy = true;
+        this.lastRejected = true;
+        submit.click();
+        return true;
+      },
+
+      undoReject: function () {
+        if (this.busy || !this.lastRejected) return false;
+        var form = this.$root.querySelector('form[data-action="place-correct-undo"]');
+        if (!form) return false;
+        var submit = form.querySelector('button[type="submit"]');
+        if (!submit) return false;
+        this.busy = true;
+        this.lastRejected = false;
         submit.click();
         return true;
       },

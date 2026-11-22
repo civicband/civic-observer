@@ -17,7 +17,7 @@ TRIAGE_CARD = Path(settings.BASE_DIR) / "templates/watch/partials/triage_card.ht
 
 def test_triage_script_has_shortcuts_and_copy():
     text = SCRIPT.read_text()
-    for key in ["j", "k", "r", "d", "s", "b", "p", "m", "x", "e", "c"]:
+    for key in ["j", "k", "r", "d", "s", "b", "p", "m", "x", "e", "c", "n", "u"]:
         assert f"{key}:" in text
     assert 'Alpine.data("triageKeyboard"' in text
     assert "navigator.clipboard.writeText" in text
@@ -42,6 +42,14 @@ def test_triage_script_ignores_form_controls_and_ime_repeats():
     assert "isTyping(event.target)" in text
     assert "event.repeat" in text
     assert "event.isComposing" in text
+
+
+def test_triage_script_can_reject_and_undo_a_place():
+    text = SCRIPT.read_text()
+    assert "rejectPlace" in text
+    assert "undoReject" in text
+    assert 'form[data-action="reject-place"]' in text
+    assert 'form[data-action="place-correct-undo"]' in text
 
 
 def test_triage_script_has_clipboard_fallback():
@@ -87,7 +95,9 @@ def test_rendered_triage_nav_links_carry_data_actions(admin_client):
 @pytest.mark.django_db
 def test_triage_page_loads_the_shortcut_script(admin_client):
     content = admin_client.get(reverse("watch:triage")).content.decode()
-    assert re.search(r'<script[^>]*src="[^"]*js/watch-triage\.js"[^>]*defer', content)
+    # Not deferred: Alpine boots on DOMContentLoaded, so the component must be
+    # registered before that fires or every shortcut silently stops working.
+    assert re.search(r'<script src="[^"]*js/watch-triage\.js"></script>', content)
     assert 'x-data="triageKeyboard"' in content
     assert '@keydown.window="onKeydown($event)"' in content
     assert '@copy-citation.window="copyCitation($event.detail.button)"' in content

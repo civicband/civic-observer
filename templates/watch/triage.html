@@ -4,7 +4,6 @@
 {% block title %}Triage - CivicObserver{% endblock %}
 
 {% block content %}
-    <script src="{% static 'js/watch-triage.js' %}" defer></script>
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6"
          x-data="triageKeyboard"
          @keydown.window="onKeydown($event)"
@@ -74,6 +73,10 @@
                     <dd class="text-gray-600 dark:text-gray-300">Mute subreddit</dd>
                     <dt class="font-mono text-gray-900 dark:text-gray-100">x</dt>
                     <dd class="text-gray-600 dark:text-gray-300">Mute country</dd>
+                    <dt class="font-mono text-gray-900 dark:text-gray-100">n</dt>
+                    <dd class="text-gray-600 dark:text-gray-300">Reject the first suggested place</dd>
+                    <dt class="font-mono text-gray-900 dark:text-gray-100">u</dt>
+                    <dd class="text-gray-600 dark:text-gray-300">Undo the last rejection</dd>
                     <dt class="font-mono text-gray-900 dark:text-gray-100">e</dt>
                     <dd class="text-gray-600 dark:text-gray-300">Edit query</dd>
                     <dt class="font-mono text-gray-900 dark:text-gray-100">c</dt>
@@ -89,3 +92,7 @@
         </div>
     </div>
 {% endblock content %}
+
+{% block scripts %}
+    <script src="{% static 'js/watch-triage.js' %}"></script>
+{% endblock scripts %}
