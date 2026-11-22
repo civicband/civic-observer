@@ -17,6 +17,25 @@
             </div>
         </div>
 
+        <section aria-labelledby="backlog-about-heading"
+                 class="mt-6 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-800 dark:bg-gray-900">
+            <h2 id="backlog-about-heading"
+                class="text-sm font-semibold text-gray-900 dark:text-gray-100">Places we don't cover yet, ranked by demand</h2>
+            <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
+                Every place below is mentioned on Reddit as a subject but isn't yet on CivicBand (no linked site).
+                The list is ranked by how much people talk about each place, so you can decide where to expand coverage next.
+                Triage handles threads about places we already cover — the backlog is the list of gaps those threads reveal.
+            </p>
+            <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                <span class="font-medium text-gray-900 dark:text-gray-100">How to use it:</span>
+                open a place, look at its sample threads, then save a note with a status —
+                <span class="font-medium">Open</span> (not reviewed yet),
+                <span class="font-medium">Maybe</span> (a candidate worth watching),
+                <span class="font-medium">Added</span> (coverage added; leaves this list),
+                <span class="font-medium">Rejected</span> (not worth adding; leaves this list).
+            </p>
+        </section>
+
         <div class="mt-6 flex flex-wrap items-center justify-between gap-3">
             <div class="flex flex-wrap gap-1" role="group" aria-label="Filter by status">
                 {% for value in status_filters %}
@@ -59,24 +78,29 @@
                             Place
                         </th>
                         <th scope="col"
+                            title="Census population (larger places break ties)"
                             class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                             Population
                         </th>
                         <th scope="col"
+                            title="Distinct Reddit threads naming this place as a subject, last 30 days"
                             class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                             Threads
                         </th>
                         <th scope="col"
+                            title="Distinct subreddits those threads came from"
                             class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                             Subreddits
                         </th>
                         <th scope="col"
+                            title="A few of the most recent threads behind the count"
                             class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                             Sample threads
                         </th>
                         <th scope="col"
+                            title="Your decision notes and status for this place"
                             class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                            Notes
+                            Decision
                         </th>
                     </tr>
                 </thead>

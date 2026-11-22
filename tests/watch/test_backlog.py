@@ -232,7 +232,23 @@ def test_backlog_renders_ranking_table(admin_client):
 @pytest.mark.django_db
 def test_backlog_empty_state(admin_client):
     response = admin_client.get(reverse("watch:backlog"))
-    assert "No places match this view." in response.content.decode()
+    content = response.content.decode()
+    assert "No uncovered places match this view." in content
+    assert "Try the" in content
+
+
+@pytest.mark.django_db
+def test_backlog_explains_purpose_and_workflow(admin_client):
+    response = admin_client.get(reverse("watch:backlog"))
+    content = response.content.decode()
+
+    assert "ranked by demand" in content
+    assert "How to use it:" in content
+    for status in ("Open", "Maybe", "Added", "Rejected"):
+        assert status in content
+    # Column help: renamed Notes column and tooltips.
+    assert "Decision" in content
+    assert "Distinct subreddits those threads came from" in content
 
 
 @pytest.mark.django_db
