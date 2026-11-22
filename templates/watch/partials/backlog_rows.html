@@ -84,7 +84,9 @@
     {% endfor %}
 {% else %}
     <tr>
-        <td colspan="6"
-            class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">No places match this view.</td>
+        <td colspan="6" class="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">
+            <p>No uncovered places match this view.</p>
+            <p class="mt-1 text-xs">Try the “all” filter, or check back after the next ingest.</p>
+        </td>
     </tr>
 {% endif %}
