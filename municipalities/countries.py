@@ -25,13 +25,14 @@ CANADIAN_COUNTRY = "CA"
 def to_iso_code(value: object) -> str:
     """Return the ISO 3166-1 alpha-2 code for ``value``, or ``""``.
 
-    Values are stripped and matched case-insensitively. Both codes
-    (``"ca"``, ``"CAN"``) and English names (``"Canada"``) resolve; anything
-    else, including an empty value, returns ``""`` so the caller can reject
-    it rather than store a value the rest of the app cannot read.
+    Values are whitespace-collapsed and matched case-insensitively. Both
+    codes (``"ca"``, ``"CAN"``) and English names (``"Canada"``,
+    ``"CANADA"``) resolve; anything else, including an empty value, returns
+    ``""`` so the caller can fall back rather than store a value the rest of
+    the app cannot read.
     """
     code = getattr(value, "code", None)
-    text = str(code if code is not None else (value or "")).strip()
+    text = " ".join(str(code if code is not None else (value or "")).split())
     if not text or text.lower() in {"none", "null"}:
         return ""
     return countries.alpha2(text) or countries.by_name(text)

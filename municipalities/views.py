@@ -158,6 +158,16 @@ class MuniWebhookUpdateView(View):
     def post(self, request, subdomain):
         return self._update_or_create(request, subdomain)
 
+    @staticmethod
+    def _stored_country(subdomain: str) -> str:
+        """Return the country already stored for ``subdomain``, or ``""``."""
+        stored = (
+            Muni.objects.filter(subdomain=subdomain)
+            .values_list("country", flat=True)
+            .first()
+        )
+        return to_iso_code(stored)
+
     def _update_or_create(self, request, subdomain):
         try:
             data = json.loads(request.body)
@@ -176,19 +186,19 @@ class MuniWebhookUpdateView(View):
 
         # The deploy pipeline forwards sites.country verbatim, so it may be a
         # name ("Canada") rather than an ISO code. Muni.country is read as an
-        # alpha-2 code throughout the app, so normalize before storing and
-        # reject values that cannot be resolved instead of saving garbage.
-        if "country" in data:
-            country = to_iso_code(data["country"])
-            if not country:
-                return JsonResponse(
-                    {"error": f"Unknown country: {data['country']!r}"}, status=400
-                )
+        # alpha-2 code throughout the app, so normalize before storing. Be
+        # liberal in what we accept: an unresolvable country falls back to the
+        # one implied by the state, then to the stored value, and only then to
+        # the field default, rather than failing the webhook over one field.
+        country = to_iso_code(data.get("country"))
+        if not country:
+            country = country_for_state(muni_data.get("state")) or self._stored_country(
+                subdomain
+            )
+        if country:
             muni_data["country"] = country
-        elif not muni_data.get("country"):
-            implied = country_for_state(muni_data.get("state"))
-            if implied:
-                muni_data["country"] = implied
+        else:
+            muni_data.pop("country", None)
 
         # Get old page count before update to detect changes
         try:
