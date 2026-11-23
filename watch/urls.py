@@ -9,6 +9,7 @@ from watch.views import (
     PlaceRejectionView,
     PlaceSearchView,
     TriageActionView,
+    TriageBulkActionView,
     TriageView,
 )
 
@@ -20,6 +21,11 @@ urlpatterns = [
         "triage/place-search/",
         PlaceSearchView.as_view(),
         name="place-search",
+    ),
+    path(
+        "triage/bulk/",
+        TriageBulkActionView.as_view(),
+        name="bulk",
     ),
     path(
         "triage/<uuid:thread_id>/action/",

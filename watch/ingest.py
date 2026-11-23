@@ -99,6 +99,37 @@ def _normalize_mention_text(text: str) -> str:
     return " ".join((text or "").lower().split())
 
 
+def _sync_canonical_activity(thread: Thread, observed_at: datetime) -> None:
+    """Reopen dismissed targets and keep cross-post activity on the canonical."""
+    if thread.status != Thread.Status.DISMISSED and thread.duplicate_of_id is None:
+        return
+
+    target_id = thread.duplicate_of_id or thread.pk
+    target = Thread.objects.select_for_update().filter(pk=target_id).first()
+    if target is None:
+        return
+
+    if target.status == Thread.Status.DISMISSED:
+        if target.dismissed_at is not None and observed_at < target.dismissed_at:
+            return
+
+        update_fields = ["status", "snoozed_until", "dismissed_at", "modified"]
+        target.status = Thread.Status.NEW
+        target.snoozed_until = None
+        target.dismissed_at = None
+        target.modified = timezone.now()
+        if target.pk != thread.pk and observed_at > target.last_seen:
+            target.last_seen = observed_at
+            update_fields.append("last_seen")
+        target.save(update_fields=update_fields)
+        return
+
+    if target.pk != thread.pk and observed_at > target.last_seen:
+        target.last_seen = observed_at
+        target.modified = timezone.now()
+        target.save(update_fields=["last_seen", "modified"])
+
+
 def is_duplicate_mention(row: dict, thread: Thread) -> bool:
     """Return true when ``row`` repeats an author's text inside ``thread``.
 
@@ -370,6 +401,7 @@ def _store_item(
             "modified",
         ]
     )
+    _sync_canonical_activity(thread, observed_at)
     if created:
         # Only a brand-new thread can be a cross-post of an existing one;
         # re-running ingest for a known thread must not change its grouping.

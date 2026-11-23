@@ -76,7 +76,9 @@ def test_triage_htmx_list_target_returns_only_the_list(admin_client):
         HTTP_HX_TARGET="triage-list",
     )
     assert response.status_code == 200
-    assert [t.name for t in response.templates] == ["watch/partials/triage_list.html"]
+    # The list is the root template; it may include sub-partials.
+    assert response.templates[0].name == "watch/partials/triage_list.html"
+    assert "watch/triage.html" not in [t.name for t in response.templates]
 
 
 @pytest.mark.django_db

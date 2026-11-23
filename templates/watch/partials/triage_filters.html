@@ -18,7 +18,7 @@ pushes the filter into the URL so the view is shareable.
                value="{{ filters.q|default:'' }}"
                placeholder="Filter by title or subreddit"
                class="w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-400">
-        <div class="grid grid-cols-3 gap-2">
+        <div class="grid grid-cols-2 gap-2">
             <label class="block">
                 <span class="text-xs text-gray-500 dark:text-gray-400">Covered</span>
                 <select name="covered"
@@ -47,6 +47,17 @@ pushes the filter into the URL so the view is shareable.
                     <option value="">Any</option>
                     <option value="yes"{% if filters.us == "yes" %} selected{% endif %}>US only</option>
                     <option value="no"{% if filters.us == "no" %} selected{% endif %}>Non-US only</option>
+                </select>
+            </label>
+            <label class="block">
+                <span class="text-xs text-gray-500 dark:text-gray-400">Age</span>
+                <select name="age"
+                        title="Threads whose first and last activity are both older than the cutoff."
+                        class="mt-1 w-full rounded-md border-gray-300 text-sm shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                    <option value="">Any</option>
+                    {% for value, label in age_options %}
+                        <option value="{{ value }}"{% if filters.age == value %} selected{% endif %}>{{ label }}</option>
+                    {% endfor %}
                 </select>
             </label>
         </div>

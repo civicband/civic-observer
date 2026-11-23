@@ -1,0 +1,32 @@
+{% comment %}
+Bulk actions for the triage queue. Lives inside #triage-list so its action URL
+is re-rendered with the active filters whenever the list refreshes.
+{% endcomment %}
+<form id="triage-bulk-form"
+      method="post"
+      action="{% url 'watch:bulk' %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}{% if thread %}{% if not filters %}?{% endif %}thread={{ thread.pk }}{% endif %}"
+      hx-post="{% url 'watch:bulk' %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}{% if thread %}{% if not filters %}?{% endif %}thread={{ thread.pk }}{% endif %}"
+      hx-target="#triage-list"
+      hx-swap="innerHTML"
+      hx-params="not thread_id"
+      hx-confirm="Close the selected threads? They will reopen automatically if a new matching mention arrives."
+      x-init="sync()"
+      class="sticky top-0 z-10 flex flex-wrap items-center gap-2 border-b border-gray-200 bg-white px-3 py-2 text-xs shadow-sm dark:border-gray-800 dark:bg-gray-900">
+    {% csrf_token %}
+    <input type="hidden" name="action" value="close">
+    <input type="hidden" name="thread_ids" id="triage-thread-ids" value="">
+    <label class="inline-flex items-center gap-2 font-medium text-gray-700 dark:text-gray-300">
+        <input id="triage-select-all"
+               type="checkbox"
+               class="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-indigo-400">
+        Select all
+    </label>
+    <span class="text-gray-500 dark:text-gray-400"><span x-text="count">0</span> selected</span>
+    <button type="submit"
+            disabled
+            :disabled="count === 0"
+            class="inline-flex items-center rounded-md border border-gray-300 bg-white px-2.5 py-1 font-medium text-gray-700 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:hover:bg-gray-800">
+        Close selected
+    </button>
+    <span class="text-gray-500 dark:text-gray-400">Closed threads reopen on a new matching mention.</span>
+</form>

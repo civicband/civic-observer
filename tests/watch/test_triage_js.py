@@ -52,6 +52,16 @@ def test_triage_script_can_reject_and_undo_a_place():
     assert 'form[data-action="place-correct-undo"]' in text
 
 
+def test_triage_script_registers_bulk_selection():
+    text = SCRIPT.read_text()
+    assert 'Alpine.data("triageBulk"' in text
+    assert 'input[name="thread_id"]' in text
+    assert '"triage-select-all"' in text
+    assert "triage-thread-ids" in text
+    assert '"htmx:afterSwap"' in text
+    assert '"htmx:oobAfterSwap"' in text
+
+
 def test_triage_script_has_clipboard_fallback():
     text = SCRIPT.read_text()
     assert 'document.execCommand("copy")' in text
@@ -94,11 +104,15 @@ def test_rendered_triage_nav_links_carry_data_actions(admin_client):
 
 @pytest.mark.django_db
 def test_triage_page_loads_the_shortcut_script(admin_client):
+    thread = ThreadFactory()
     content = admin_client.get(reverse("watch:triage")).content.decode()
     # Not deferred: Alpine boots on DOMContentLoaded, so the component must be
     # registered before that fires or every shortcut silently stops working.
     assert re.search(r'<script src="[^"]*js/watch-triage\.js"></script>', content)
     assert 'x-data="triageKeyboard"' in content
+    assert 'x-data="triageBulk"' in content
+    assert 'id="triage-select-all"' in content
+    assert f'value="{thread.pk}"' in content
     assert '@keydown.window="onKeydown($event)"' in content
     assert '@copy-citation.window="copyCitation($event.detail.button)"' in content
 

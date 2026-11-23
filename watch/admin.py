@@ -19,6 +19,7 @@ from .models import (
     Thread,
     ThreadLabel,
     ThreadPlace,
+    dismiss_threads,
 )
 
 
@@ -271,6 +272,7 @@ class ThreadAdmin(admin.ModelAdmin):
         updated = queryset.update(
             status=Thread.Status.SNOOZED,
             snoozed_until=now + timedelta(days=7),
+            dismissed_at=None,
             modified=now,
         )
         self.message_user(
@@ -284,6 +286,7 @@ class ThreadAdmin(admin.ModelAdmin):
         updated = queryset.update(
             status=Thread.Status.BACKLOG,
             snoozed_until=None,
+            dismissed_at=None,
             modified=timezone.now(),
         )
         self.message_user(
@@ -332,9 +335,12 @@ class ThreadAdmin(admin.ModelAdmin):
 
     def _set_status(self, queryset, status: str) -> int:
         """Set a terminal status and drop any stale snooze timestamp."""
+        if status == Thread.Status.DISMISSED:
+            return dismiss_threads(queryset)
         return queryset.update(
             status=status,
             snoozed_until=None,
+            dismissed_at=None,
             modified=timezone.now(),
         )
 

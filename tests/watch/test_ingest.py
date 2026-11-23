@@ -159,6 +159,218 @@ def test_rollup_does_not_overwrite_a_triage_update():
 
 
 @pytest.mark.django_db
+def test_new_mention_reopens_dismissed_thread():
+    when = datetime(2026, 1, 1, tzinfo=UTC)
+    thread = Thread.objects.create(
+        key="reddit:testtown/abc123",
+        first_seen=when,
+        last_seen=when,
+        status=Thread.Status.DISMISSED,
+        snoozed_until=datetime(2026, 2, 1, tzinfo=UTC),
+    )
+
+    assert ingest_page({"items": [item("alert-1")]}) == (0, 1, 0)
+
+    thread.refresh_from_db()
+    assert thread.status == Thread.Status.NEW
+    assert thread.snoozed_until is None
+
+
+@pytest.mark.django_db
+def test_new_mention_before_dismissal_does_not_reopen_dismissed_thread():
+    when = datetime(2026, 1, 1, tzinfo=UTC)
+    dismissed_at = datetime(2026, 1, 2, tzinfo=UTC)
+    thread = Thread.objects.create(
+        key="reddit:testtown/abc123",
+        first_seen=when,
+        last_seen=when,
+        status=Thread.Status.DISMISSED,
+        dismissed_at=dismissed_at,
+    )
+
+    assert ingest_page({"items": [item("alert-1")]}) == (0, 1, 0)
+
+    thread.refresh_from_db()
+    assert thread.status == Thread.Status.DISMISSED
+    assert thread.dismissed_at == dismissed_at
+
+
+@pytest.mark.django_db
+def test_new_mention_after_dismissal_reopens_and_clears_dismissed_at():
+    when = datetime(2025, 12, 31, tzinfo=UTC)
+    thread = Thread.objects.create(
+        key="reddit:testtown/abc123",
+        first_seen=when,
+        last_seen=when,
+        status=Thread.Status.DISMISSED,
+        dismissed_at=when,
+    )
+
+    assert ingest_page({"items": [item("alert-1")]}) == (0, 1, 0)
+
+    thread.refresh_from_db()
+    assert thread.status == Thread.Status.NEW
+    assert thread.dismissed_at is None
+
+
+@pytest.mark.django_db
+def test_reingesting_existing_mention_keeps_dismissed_thread_closed():
+    when = datetime(2026, 1, 1, tzinfo=UTC)
+    thread = Thread.objects.create(
+        key="reddit:testtown/abc123",
+        first_seen=when,
+        last_seen=when,
+        status=Thread.Status.DISMISSED,
+    )
+    Mention.objects.create(
+        id="alert-1",
+        thread=thread,
+        url="https://www.reddit.com/r/TestTown/comments/abc123/example/",
+        site="reddit",
+        kind=Mention.Kind.POST,
+        published_at=when,
+    )
+
+    assert ingest_page({"items": [item("alert-1")]}) == (1, 0, 0)
+
+    thread.refresh_from_db()
+    assert thread.status == Thread.Status.DISMISSED
+
+
+@pytest.mark.django_db
+def test_collapsed_duplicate_mention_keeps_dismissed_thread_closed():
+    when = datetime(2026, 1, 1, tzinfo=UTC)
+    thread = Thread.objects.create(
+        key="reddit:testtown/abc123",
+        first_seen=when,
+        last_seen=when,
+        status=Thread.Status.DISMISSED,
+    )
+    Mention.objects.create(
+        id="alert-1",
+        thread=thread,
+        url="https://www.reddit.com/r/TestTown/comments/abc123/example/",
+        site="reddit",
+        kind=Mention.Kind.POST,
+        author="resident",
+        snippet_text="A civic meeting alert-1",
+        published_at=when,
+    )
+    post = item("alert-2")
+    post["content_html"] = "A <strong>civic</strong> meeting alert-1"
+
+    assert ingest_page({"items": [post]}) == (0, 0, 1)
+
+    thread.refresh_from_db()
+    assert thread.status == Thread.Status.DISMISSED
+
+
+@pytest.mark.django_db
+@pytest.mark.parametrize(
+    "status", [Thread.Status.REPLIED, Thread.Status.SNOOZED, Thread.Status.BACKLOG]
+)
+def test_new_mention_leaves_non_dismissed_threads_unchanged(status):
+    when = datetime(2026, 1, 1, tzinfo=UTC)
+    snoozed_until = datetime(2026, 2, 1, tzinfo=UTC)
+    thread = Thread.objects.create(
+        key="reddit:testtown/abc123",
+        first_seen=when,
+        last_seen=when,
+        status=status,
+        snoozed_until=snoozed_until if status == Thread.Status.SNOOZED else None,
+    )
+
+    assert ingest_page({"items": [item("alert-1")]}) == (0, 1, 0)
+
+    thread.refresh_from_db()
+    assert thread.status == status
+    assert thread.snoozed_until == (
+        snoozed_until if status == Thread.Status.SNOOZED else None
+    )
+
+
+@pytest.mark.django_db
+def test_new_mention_on_duplicate_reopens_canonical_and_advances_last_seen():
+    when = datetime(2025, 12, 1, tzinfo=UTC)
+    canonical = Thread.objects.create(
+        key="reddit:othertown/xyz123",
+        first_seen=when,
+        last_seen=when,
+        status=Thread.Status.DISMISSED,
+    )
+    duplicate = Thread.objects.create(
+        key="reddit:testtown/abc123",
+        first_seen=when,
+        last_seen=when,
+        status=Thread.Status.DISMISSED,
+        duplicate_of=canonical,
+    )
+
+    assert ingest_page({"items": [item("alert-1")]}) == (0, 1, 0)
+
+    canonical.refresh_from_db()
+    duplicate.refresh_from_db()
+    assert canonical.status == Thread.Status.NEW
+    assert canonical.last_seen == datetime(2026, 1, 1, tzinfo=UTC)
+    assert duplicate.status == Thread.Status.DISMISSED
+
+
+@pytest.mark.django_db
+def test_new_mention_on_duplicate_before_canonical_dismissal_does_not_reopen():
+    when = datetime(2025, 12, 1, tzinfo=UTC)
+    dismissed_at = datetime(2026, 1, 2, tzinfo=UTC)
+    canonical = Thread.objects.create(
+        key="reddit:othertown/xyz123",
+        first_seen=when,
+        last_seen=when,
+        status=Thread.Status.DISMISSED,
+        dismissed_at=dismissed_at,
+    )
+    duplicate = Thread.objects.create(
+        key="reddit:testtown/abc123",
+        first_seen=when,
+        last_seen=when,
+        status=Thread.Status.DISMISSED,
+        duplicate_of=canonical,
+    )
+
+    assert ingest_page({"items": [item("alert-1")]}) == (0, 1, 0)
+
+    canonical.refresh_from_db()
+    duplicate.refresh_from_db()
+    assert canonical.status == Thread.Status.DISMISSED
+    assert canonical.dismissed_at == dismissed_at
+    assert canonical.last_seen == when
+    assert duplicate.status == Thread.Status.DISMISSED
+
+
+@pytest.mark.django_db
+def test_new_mention_on_duplicate_advances_active_canonical_last_seen():
+    when = datetime(2025, 12, 1, tzinfo=UTC)
+    canonical = Thread.objects.create(
+        key="reddit:othertown/xyz123",
+        first_seen=when,
+        last_seen=when,
+        status=Thread.Status.NEW,
+    )
+    duplicate = Thread.objects.create(
+        key="reddit:testtown/abc123",
+        first_seen=when,
+        last_seen=when,
+        status=Thread.Status.NEW,
+        duplicate_of=canonical,
+    )
+
+    assert ingest_page({"items": [item("alert-1")]}) == (0, 1, 0)
+
+    canonical.refresh_from_db()
+    duplicate.refresh_from_db()
+    assert canonical.status == Thread.Status.NEW
+    assert canonical.last_seen == datetime(2026, 1, 1, tzinfo=UTC)
+    assert duplicate.status == Thread.Status.NEW
+
+
+@pytest.mark.django_db
 def test_reddit_item_without_subreddit_or_publication_date():
     post = item("alert-1", date=None)
     post["url"] = "https://redd.it/abc123"

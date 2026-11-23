@@ -1,15 +1,22 @@
 {% load watch_tags %}
 {% if rows %}
+    {% include "watch/partials/triage_bulk_bar.html" %}
     <ul class="divide-y divide-gray-200 dark:divide-gray-800">
         {% for row in rows %}
-            <li>
+            <li class="flex items-start gap-2 px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 {% if thread and thread.pk == row.pk %}bg-indigo-50 dark:bg-indigo-950{% endif %}">
+                <input type="checkbox"
+                       form="triage-bulk-form"
+                       name="thread_id"
+                       value="{{ row.pk }}"
+                       aria-label="Select {{ row.title|default:'untitled thread' }}"
+                       class="mt-1 rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 dark:border-gray-600 dark:bg-gray-800 dark:text-indigo-400">
                 <a href="{% url 'watch:triage' %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}thread={{ row.pk }}"
                    hx-get="{% url 'watch:triage' %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}thread={{ row.pk }}"
                    hx-target="#triage-detail"
                    hx-swap="innerHTML"
                    hx-push-url="true"
                    data-thread-row="{{ row.pk }}"
-                   class="block px-4 py-3 hover:bg-gray-50 dark:hover:bg-gray-800 {% if thread and thread.pk == row.pk %}bg-indigo-50 dark:bg-indigo-950{% endif %}">
+                   class="block min-w-0 flex-1">
                     <div class="flex items-start justify-between gap-2">
                         <span class="min-w-0 flex-1 text-sm font-medium text-gray-900 line-clamp-2 dark:text-gray-100">{{ row.title|default:"Untitled thread" }}</span>
                         <span class="shrink-0 rounded-full bg-gray-100 px-2 py-0.5 text-xs font-semibold tabular-nums text-gray-700 dark:bg-gray-800 dark:text-gray-300"
