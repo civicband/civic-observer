@@ -354,7 +354,9 @@ class Lens(TimeStampedModel):
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="lenses")
+    project = models.ForeignKey(
+        Project, on_delete=models.CASCADE, related_name="lenses"
+    )
     result_set = models.ForeignKey(
         ResultSet,
         on_delete=models.CASCADE,
@@ -392,4 +394,3 @@ class Lens(TimeStampedModel):
     @property
     def scope_label(self) -> str:
         return "Project" if self.is_project_scope else "Set"
-

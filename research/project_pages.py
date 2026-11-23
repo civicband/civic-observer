@@ -36,9 +36,7 @@ def _disposition_rank(disposition: str, default: int = 3) -> int:
 
 
 def _base_items(project: Project):
-    return SetItem.objects.filter(
-        result_set__project=project, result_set__status=READY
-    )
+    return SetItem.objects.filter(result_set__project=project, result_set__status=READY)
 
 
 def _text_page_ids(project: Project, text: str) -> list[str]:

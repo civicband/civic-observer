@@ -9,27 +9,82 @@ from django.db import migrations, models
 
 
 class Migration(migrations.Migration):
-
     dependencies = [
-        ('research', '0005_ignorerule_last_job_action_ignorerule_last_job_count_and_more'),
+        (
+            "research",
+            "0005_ignorerule_last_job_action_ignorerule_last_job_count_and_more",
+        ),
     ]
 
     operations = [
         migrations.CreateModel(
-            name='Lens',
+            name="Lens",
             fields=[
-                ('created', model_utils.fields.AutoCreatedField(default=django.utils.timezone.now, editable=False, verbose_name='created')),
-                ('modified', model_utils.fields.AutoLastModifiedField(default=django.utils.timezone.now, editable=False, verbose_name='modified')),
-                ('id', models.UUIDField(default=uuid.uuid4, editable=False, primary_key=True, serialize=False)),
-                ('name', models.CharField(max_length=200)),
-                ('conditions', models.JSONField(default=dict)),
-                ('project', models.ForeignKey(on_delete=django.db.models.deletion.CASCADE, related_name='lenses', to='research.project')),
-                ('promoted_set', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.SET_NULL, related_name='promoted_by_lenses', to='research.resultset')),
-                ('result_set', models.ForeignKey(blank=True, null=True, on_delete=django.db.models.deletion.CASCADE, related_name='lenses', to='research.resultset')),
+                (
+                    "created",
+                    model_utils.fields.AutoCreatedField(
+                        default=django.utils.timezone.now,
+                        editable=False,
+                        verbose_name="created",
+                    ),
+                ),
+                (
+                    "modified",
+                    model_utils.fields.AutoLastModifiedField(
+                        default=django.utils.timezone.now,
+                        editable=False,
+                        verbose_name="modified",
+                    ),
+                ),
+                (
+                    "id",
+                    models.UUIDField(
+                        default=uuid.uuid4,
+                        editable=False,
+                        primary_key=True,
+                        serialize=False,
+                    ),
+                ),
+                ("name", models.CharField(max_length=200)),
+                ("conditions", models.JSONField(default=dict)),
+                (
+                    "project",
+                    models.ForeignKey(
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="lenses",
+                        to="research.project",
+                    ),
+                ),
+                (
+                    "promoted_set",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.SET_NULL,
+                        related_name="promoted_by_lenses",
+                        to="research.resultset",
+                    ),
+                ),
+                (
+                    "result_set",
+                    models.ForeignKey(
+                        blank=True,
+                        null=True,
+                        on_delete=django.db.models.deletion.CASCADE,
+                        related_name="lenses",
+                        to="research.resultset",
+                    ),
+                ),
             ],
             options={
-                'ordering': ['name'],
-                'constraints': [models.UniqueConstraint(fields=('project', 'result_set', 'name'), name='research_lens_uniq_name', nulls_distinct=False)],
+                "ordering": ["name"],
+                "constraints": [
+                    models.UniqueConstraint(
+                        fields=("project", "result_set", "name"),
+                        name="research_lens_uniq_name",
+                        nulls_distinct=False,
+                    )
+                ],
             },
         ),
     ]

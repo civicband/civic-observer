@@ -88,7 +88,7 @@ class ActivityContext:
             payload = event.payload or {}
             if event.result_set_id:
                 set_ids.add(event.result_set_id)
-            for set_id in (payload.get("counts") or {}):
+            for set_id in payload.get("counts") or {}:
                 parsed = _to_uuid(set_id)
                 if parsed:
                     set_ids.add(parsed)
@@ -162,9 +162,7 @@ def _code_link(project: Project, code_id, *, dispositions: str = "u,r,i") -> str
     parsed = _to_uuid(code_id)
     if parsed is None:
         return None
-    return _project_pages_link(
-        project, f"code_any={parsed}&disposition={dispositions}"
-    )
+    return _project_pages_link(project, f"code_any={parsed}&disposition={dispositions}")
 
 
 def _page_links(project: Project, ctx: ActivityContext, page_ids, *, limit=5) -> list:
@@ -191,9 +189,7 @@ def _ignored_rule_rollup(ignored_by_rule, ctx: ActivityContext) -> list[str]:
     return parts
 
 
-def describe_event(
-    event: AuditEvent, ctx: ActivityContext
-) -> dict:
+def describe_event(event: AuditEvent, ctx: ActivityContext) -> dict:
     """Build a structured presentation for one event (no queries)."""
     project = ctx.project
     payload = event.payload or {}
@@ -207,7 +203,9 @@ def describe_event(
 
     if verb == "items.disposed":
         to = payload.get("to", "")
-        title = f"Marked {payload.get('count', 1)} page(s) {DISPOSITION_LABELS.get(to, to)}"
+        title = (
+            f"Marked {payload.get('count', 1)} page(s) {DISPOSITION_LABELS.get(to, to)}"
+        )
         reason = payload.get("reason", "")
         if reason:
             summary = f"Reason: {reason}"
@@ -220,7 +218,9 @@ def describe_event(
         counts.append(
             {
                 "label": "in set",
-                "href": _set_link(project, event.result_set_id, querystring=f"disposition={to}")
+                "href": _set_link(
+                    project, event.result_set_id, querystring=f"disposition={to}"
+                )
                 or "",
                 "note": ctx.set_name(event.result_set_id),
             }
@@ -292,7 +292,9 @@ def describe_event(
         if payload.get("deleted"):
             title = f"Deleted rule '{name}'"
         else:
-            title = f"{'Created' if verb == 'rule.created' else 'Changed'} rule '{name}'"
+            title = (
+                f"{'Created' if verb == 'rule.created' else 'Changed'} rule '{name}'"
+            )
         if payload.get("reason"):
             summary = f"Reason: {payload['reason']}"
 
