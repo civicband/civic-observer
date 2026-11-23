@@ -11,6 +11,31 @@ urlpatterns = [
     path("add-to-set/", views.AddToSetView.as_view(), name="add-to-set"),
     path("<uuid:project>/", views.ProjectDetailView.as_view(), name="project-detail"),
     path(
+        "<uuid:project>/pages/",
+        views.ProjectPagesView.as_view(),
+        name="project-pages",
+    ),
+    path(
+        "<uuid:project>/lenses/save/",
+        views.LensSaveView.as_view(),
+        name="lens-save",
+    ),
+    path(
+        "<uuid:project>/lenses/<uuid:lens>/update/",
+        views.LensUpdateView.as_view(),
+        name="lens-update",
+    ),
+    path(
+        "<uuid:project>/lenses/<uuid:lens>/delete/",
+        views.LensDeleteView.as_view(),
+        name="lens-delete",
+    ),
+    path(
+        "<uuid:project>/lenses/<uuid:lens>/promote/",
+        views.LensPromoteView.as_view(),
+        name="lens-promote",
+    ),
+    path(
         "<uuid:project>/timeline/",
         views.ProjectTimelineView.as_view(),
         name="project-timeline",

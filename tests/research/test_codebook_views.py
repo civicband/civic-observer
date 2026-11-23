@@ -49,6 +49,19 @@ class TestCodebookView:
         assert "No exclusion rule" in content
         assert "1 coding" in content
 
+    def test_coding_count_links_to_project_pages(self, client):
+        user = _login(client)
+        project = ProjectFactory(owner=user)
+        code = CodeFactory(project=project, name="Housing")
+        page = MeetingPageFactory()
+        CodingFactory(project=project, code=code, page=page)
+
+        response = client.get(reverse("research:codebook", args=[project.id]))
+
+        content = response.content.decode()
+        assert reverse("research:project-pages", args=[project.id]) in content
+        assert f"code_any={code.id}" in content
+
     def test_shows_exemplar_text(self, client):
         user = _login(client)
         project = ProjectFactory(owner=user)

@@ -1,0 +1,56 @@
+{% load research_markdown utm %}
+<div class="bg-white shadow rounded-lg border border-gray-200 p-6 dark:bg-gray-900 dark:border-gray-800">
+    <div class="flex items-start justify-between gap-4">
+        <div class="flex-1 min-w-0">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-gray-100">{{ row.page.meeting_name }}</h3>
+            <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-gray-500 dark:text-gray-400">
+                {% if row.page.municipality_name %}
+                    <span>{{ row.page.municipality_name }}{% if row.page.state %}, {{ row.page.state }}{% endif %}</span>
+                    <span>·</span>
+                {% endif %}
+                {% if row.meeting_date %}
+                    <span>{{ row.meeting_date|date:"F j, Y" }}</span>
+                    <span>·</span>
+                {% endif %}
+                <span>{{ row.page.document_type|capfirst }}</span>
+                <span>·</span>
+                <span>Page {{ row.page.page_number }}</span>
+            </div>
+        </div>
+        <div class="flex-shrink-0">
+            {% if row.disposition == "r" %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">Relevant</span>
+            {% elif row.disposition == "i" %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-200">Ignored</span>
+            {% else %}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200">Unreviewed</span>
+            {% endif %}
+        </div>
+    </div>
+
+    {% if row.page.text %}
+        <p class="mt-3 text-sm text-gray-700 leading-relaxed line-clamp-4 dark:text-gray-300">{{ row.page.text }}</p>
+    {% endif %}
+
+    <div class="mt-3 flex flex-wrap items-center gap-2 text-xs">
+        {% for membership in row.sets %}
+            <a href="{% url 'research:set-detail' project.id membership.id %}?disposition={{ membership.disposition }}"
+               class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700">
+                {{ membership.name }}
+            </a>
+        {% endfor %}
+        {% for code in row.codes %}
+            <span class="inline-flex items-center rounded-full border border-indigo-200 px-2.5 py-0.5 text-indigo-700 dark:border-indigo-800 dark:text-indigo-300">{{ code }}</span>
+        {% endfor %}
+        {% with page_url=row.page.civic_band_url %}
+            {% if page_url %}
+                <a href="{% civic_url page_url medium='research' campaign='project_pages' content='view_page' %}"
+                   target="_blank"
+                   rel="noopener noreferrer"
+                   class="ml-auto inline-flex items-center gap-1 text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">
+                    View on CivicBand
+                </a>
+            {% endif %}
+        {% endwith %}
+    </div>
+</div>

@@ -17,15 +17,20 @@
                 <h1 class="text-3xl font-bold tracking-tight text-gray-900 dark:text-gray-100">{{ result_set.name }}</h1>
                 <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
                     {% if result_set.status == "ready" %}
-                        {{ lens_count }} in this view ·
-                        <a href="{% url 'research:set-detail' result_set.project_id result_set.id %}?disposition=i"
-                           class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">{{ ignored_count }} ignored</a>
-                        · {{ result_set.item_count }} total
+                        <span class="mr-1 text-gray-500 dark:text-gray-400">{{ lens_count }} in this view:</span>
+                        {% for link in disposition_links %}
+                            <a href="?{{ link.querystring }}"
+                               class="inline-flex items-center rounded-full px-2.5 py-0.5 mr-1 text-xs font-medium border {% if link.value == 'r' %}border-emerald-200 bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 dark:border-emerald-800{% elif link.value == 'i' %}border-rose-200 bg-rose-50 text-rose-700 dark:bg-rose-950 dark:text-rose-300 dark:border-rose-800{% elif link.value == 'u' %}border-amber-200 bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300 dark:border-amber-800{% else %}border-gray-300 bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700{% endif %}">
+                                {{ link.label }}{% if link.value == 'r' %} ({{ disposition_counts.r }}){% elif link.value == 'i' %} ({{ disposition_counts.i }}){% elif link.value == 'u' %} ({{ disposition_counts.u }}){% else %} ({{ disposition_counts.total }}){% endif %}
+                            </a>
+                        {% endfor %}
                     {% elif result_set.status == "too_large" %}
                         at least {{ result_set.item_count }} page{{ result_set.item_count|pluralize }}
                     {% else %}
                         {{ result_set.item_count }} page{{ result_set.item_count|pluralize }}
                     {% endif %}
+                    · <a href="{% url 'research:project-pages' result_set.project_id %}"
+                         class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">Project pages</a>
                     · {{ result_set.get_status_display }}
                 </p>
                 {% if result_set.last_checked_at %}
@@ -87,6 +92,8 @@
                 </form>
             </div>
         </div>
+
+        {% include "research/partials/lens_bar.html" %}
 
         <div class="mt-6 bg-white shadow rounded-lg border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
             <div class="px-4 py-5 sm:p-6">

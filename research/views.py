@@ -27,6 +27,7 @@ from municipalities.models import Muni
 from searches import search_backends
 from searches.queryspec import QuerySpec
 
+from .activity import GROUP_LABELS, activity_summary, build_feed
 from .add_to_set import add_page_to_set, default_set_for_user
 from .audit import record_event
 from .browse import _encode_cursor, browse_set, filter_items, review_item, set_facets
@@ -44,8 +45,17 @@ from .codebook import (
 from .disposition import dispose_item, dispose_items, undo_disposition_event
 from .export import export_zip
 from .lens import Lens
+from .lenses import (
+    active_lens,
+    delete_lens,
+    lens_from_querystring,
+    lenses_for,
+    promote_lens,
+    save_lens,
+    update_lens,
+)
 from .materialize import create_result_set
-from .memos import create_memo, delete_memo, project_timeline, update_memo
+from .memos import create_memo, delete_memo, update_memo
 from .methods import build_methods
 from .models import (
     AuditEvent,
@@ -56,6 +66,14 @@ from .models import (
     Project,
     ResultSet,
     SetItem,
+)
+from .models import (
+    Lens as LensModel,
+)
+from .project_pages import (
+    browse_project_pages,
+    project_page_counts,
+    project_page_facets,
 )
 from .projects import create_project, project_list_for_user
 from .rules import is_empty, preview_rule, revert_rule, validate_rule_predicate
@@ -102,10 +120,9 @@ def _list_uuid_values(params, key: str) -> tuple[uuid.UUID, ...]:
 
 def _review_lens(params) -> tuple[Lens, bool]:
     """Parse review filters, defaulting to unreviewed-only."""
-    lens = Lens.from_querydict(params)
-    if "disposition" not in params:
-        lens = replace(lens, dispositions=("u",))
-    return lens, set(lens.dispositions) == {"u", "r"}
+    from .lenses import review_lens as _review_lens_impl
+
+    return _review_lens_impl(params)
 
 
 def _date_value(value: str | None) -> date | None:
@@ -440,10 +457,22 @@ class ProjectDetailView(LoginRequiredMixin, DetailView):
             ignored_count=Count(
                 "items",
                 filter=Q(items__disposition=SetItem.Disposition.IGNORED),
-            )
+            ),
+            relevant_count=Count(
+                "items",
+                filter=Q(items__disposition=SetItem.Disposition.RELEVANT),
+            ),
+            unreviewed_count=Count(
+                "items",
+                filter=Q(items__disposition=SetItem.Disposition.UNREVIEWED),
+            ),
         )
         context["sets"] = sets
         context["ignored_total"] = sum(result_set.ignored_count for result_set in sets)
+        context["relevant_total"] = sum(
+            result_set.relevant_count for result_set in sets
+        )
+        context["page_counts"] = project_page_counts(self.object)
         return context
 
 
@@ -458,8 +487,247 @@ class ProjectTimelineView(LoginRequiredMixin, DetailView):
 
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
-        context["timeline"] = project_timeline(self.object, limit=200)
+        params = self.request.GET
+        group = (params.get("group") or "").strip() or None
+        if group not in GROUP_LABELS:
+            group = None
+        result_set_id = params.get("set") or None
+        code_id = params.get("code") or None
+        actor_id = params.get("actor") or None
+        date_from = _date_value(params.get("date_from"))
+        date_to = _date_value(params.get("date_to"))
+
+        feed = build_feed(
+            self.object,
+            group=group,
+            result_set_id=result_set_id,
+            code_id=code_id,
+            actor_id=actor_id,
+            date_from=date_from,
+            date_to=date_to,
+            limit=200,
+        )
+        context["timeline"] = feed["entries"]
+        context["timeline_truncated"] = feed["truncated"]
+        context["summary"] = activity_summary(
+            self.object,
+            result_set_id=result_set_id,
+            code_id=code_id,
+            actor_id=actor_id,
+            date_from=date_from,
+            date_to=date_to,
+        )
+        context["active_group"] = group
+        context["group_links"] = self._group_links(group, context["summary"])
+        context["active_filters"] = {
+            "set": result_set_id,
+            "code": code_id,
+            "actor": actor_id,
+        }
         return context
+
+    @staticmethod
+    def _group_links(active: str | None, summary: dict) -> list[dict]:
+        by_group = summary.get("by_group", {})
+        links = [
+            {
+                "label": "All",
+                "group": "",
+                "active": active is None,
+                "count": sum(by_group.values()),
+            }
+        ]
+        for key, label in GROUP_LABELS.items():
+            links.append(
+                {
+                    "label": label,
+                    "group": key,
+                    "active": key == active,
+                    "count": by_group.get(key, 0),
+                }
+            )
+        return links
+
+
+class ProjectPagesView(LoginRequiredMixin, View):
+    template_name = "research/project_pages.html"
+
+    def get(self, request, project):
+        project_obj = get_object_or_404(Project, id=project, owner=request.user)
+        active, lens = active_lens(project_obj, request.GET, result_set=None)
+        after = request.GET.get("after") or None
+        try:
+            rows, next_cursor = browse_project_pages(
+                project_obj, lens, after=after
+            )
+        except ValueError:
+            rows, next_cursor = browse_project_pages(project_obj, lens)
+
+        facets = project_page_facets(project_obj, lens)
+        facets = self._municipality_names(facets)
+        counts = project_page_counts(project_obj)
+        return render(
+            request,
+            self.template_name,
+            {
+                "project": project_obj,
+                "active_lens": active,
+                "lens": lens,
+                "scope_lenses": lenses_for(project_obj, result_set=None),
+                "lens_scope": "project",
+                "lens_scope_id": "",
+                "querystring": lens.to_querystring(),
+                "rows": rows,
+                "next_cursor": next_cursor,
+                "facets": facets,
+                "page_counts": counts,
+                "disposition_links": _disposition_links_for(lens),
+                "facet_links": _facet_links_for(lens),
+            },
+        )
+
+    @staticmethod
+    def _municipality_names(facets: dict) -> dict:
+        rows = facets.get("municipalities", [])
+        names = dict(
+            Muni.objects.filter(
+                id__in=[row["municipality_id"] for row in rows]
+            ).values_list("id", "name")
+        )
+        for row in rows:
+            row["name"] = names.get(row["municipality_id"], "")
+        return facets
+
+
+def _disposition_links_for(lens: Lens) -> list[dict]:
+    labels = [
+        (SetItem.Disposition.RELEVANT, "Relevant"),
+        (SetItem.Disposition.UNREVIEWED, "Unreviewed"),
+        (SetItem.Disposition.IGNORED, "Ignored"),
+    ]
+    links = []
+    for value, label in labels:
+        links.append(
+            {
+                "value": value,
+                "label": label,
+                "querystring": replace(lens, dispositions=(value,)).to_querystring(
+                    include_dispositions=True
+                ),
+            }
+        )
+    links.append(
+        {
+            "value": "all",
+            "label": "All",
+            "querystring": replace(lens, dispositions=("r", "i", "u")).to_querystring(
+                include_dispositions=True
+            ),
+        }
+    )
+    return links
+
+
+def _facet_links_for(lens: Lens) -> dict:
+    links: dict[str, dict] = {"states": {}, "municipalities": {}, "document_types": {}}
+    for state in lens.states:
+        remaining = tuple(value for value in lens.states if value != state)
+        links["states"][state] = replace(
+            lens, states=remaining
+        ).to_querystring(include_dispositions=True)
+    for muni_id in lens.municipality_ids:
+        remaining_munis: tuple[uuid.UUID, ...] = tuple(
+            value for value in lens.municipality_ids if value != muni_id
+        )
+        links["municipalities"][str(muni_id)] = replace(
+            lens, municipality_ids=remaining_munis
+        ).to_querystring(include_dispositions=True)
+    if lens.document_type and lens.document_type != "all":
+        links["document_types"][lens.document_type] = replace(
+            lens, document_type="all"
+        ).to_querystring(include_dispositions=True)
+    return links
+
+
+def _lens_redirect(project_obj: Project, scope: str, result_set_id) -> str:
+    if scope == "set" and result_set_id:
+        return reverse(
+            "research:set-detail", args=[project_obj.id, result_set_id]
+        )
+    return reverse("research:project-pages", args=[project_obj.id])
+
+
+class LensSaveView(LoginRequiredMixin, View):
+    def post(self, request, project):
+        project_obj = get_object_or_404(Project, id=project, owner=request.user)
+        scope = request.POST.get("scope", "set")
+        result_set = None
+        if scope == "set":
+            result_set = get_object_or_404(
+                ResultSet,
+                id=request.POST.get("set"),
+                project=project_obj,
+            )
+        lens = lens_from_querystring(request.POST.get("lens", ""))
+        try:
+            save_lens(
+                project_obj,
+                name=request.POST.get("name", ""),
+                lens=lens,
+                result_set=result_set,
+                actor=request.user,
+            )
+        except ValueError as exc:
+            return HttpResponseBadRequest(str(exc))
+        return redirect(_lens_redirect(project_obj, scope, result_set and result_set.id))
+
+
+class LensUpdateView(LoginRequiredMixin, View):
+    def post(self, request, project, lens):
+        lens_obj = get_object_or_404(LensModel, id=lens, project__owner=request.user)
+        conditions = lens_from_querystring(request.POST.get("lens", ""))
+        try:
+            update_lens(
+                lens_obj,
+                name=request.POST.get("name"),
+                lens=conditions,
+                actor=request.user,
+            )
+        except ValueError as exc:
+            return HttpResponseBadRequest(str(exc))
+        return redirect(
+            _lens_redirect(
+                lens_obj.project, "set" if lens_obj.result_set_id else "project",
+                lens_obj.result_set_id,
+            )
+        )
+
+
+class LensDeleteView(LoginRequiredMixin, View):
+    def post(self, request, project, lens):
+        lens_obj = get_object_or_404(LensModel, id=lens, project__owner=request.user)
+        project_obj = lens_obj.project
+        result_set_id = lens_obj.result_set_id
+        delete_lens(lens_obj, actor=request.user)
+        return redirect(
+            _lens_redirect(
+                project_obj, "set" if result_set_id else "project", result_set_id
+            )
+        )
+
+
+class LensPromoteView(LoginRequiredMixin, View):
+    def post(self, request, project, lens):
+        lens_obj = get_object_or_404(LensModel, id=lens, project__owner=request.user)
+        try:
+            created = promote_lens(
+                lens_obj, name=request.POST.get("name") or None, actor=request.user
+            )
+        except ValueError as exc:
+            return HttpResponseBadRequest(str(exc))
+        return redirect(
+            "research:set-detail", project=lens_obj.project_id, set=created.id
+        )
 
 
 class MethodsView(LoginRequiredMixin, View):
@@ -519,9 +787,16 @@ class SetDetailView(LoginRequiredMixin, DetailView):
     def get_context_data(self, **kwargs):
         context = super().get_context_data(**kwargs)
         result_set = self.object
-        lens = Lens.from_querydict(self.request.GET)
+        active, lens = active_lens(
+            result_set.project, self.request.GET, result_set=result_set
+        )
 
         context["lens"] = lens
+        context["active_lens"] = active
+        context["project"] = result_set.project
+        context["scope_lenses"] = lenses_for(result_set.project, result_set=result_set)
+        context["lens_scope"] = "set"
+        context["lens_scope_id"] = result_set.id
         context["querystring"] = lens.to_querystring()
         context["review_querystring"] = replace(
             lens, dispositions=("u",)
@@ -537,6 +812,8 @@ class SetDetailView(LoginRequiredMixin, DetailView):
         context["codes"] = result_set.project.codes.filter(is_archived=False).order_by(
             "name"
         )
+        context["disposition_counts"] = self._disposition_counts(result_set, lens)
+        context["disposition_links"] = _disposition_links_for(lens)
 
         if result_set.status == ResultSet.Status.READY:
             after = self.request.GET.get("after") or None
@@ -547,9 +824,23 @@ class SetDetailView(LoginRequiredMixin, DetailView):
             context["items"] = items
             context["next_cursor"] = next_cursor
             context["facets"] = self._municipality_names(set_facets(result_set, lens))
+            context["facet_links"] = _facet_links_for(lens)
             context["lens_count"] = filter_items(result_set, lens).count()
 
         return context
+
+    @staticmethod
+    def _disposition_counts(result_set, lens: Lens) -> dict:
+        all_lens = replace(lens, dispositions=())
+        counts: dict[str, int] = {"r": 0, "i": 0, "u": 0}
+        for row in (
+            filter_items(result_set, all_lens)
+            .values("disposition")
+            .annotate(count=Count("id"))
+        ):
+            counts[row["disposition"]] = row["count"]
+        counts["total"] = counts["r"] + counts["i"] + counts["u"]
+        return counts
 
     @staticmethod
     def _municipality_names(facets: dict) -> dict:
@@ -572,7 +863,9 @@ class ExportView(LoginRequiredMixin, View):
             project_id=project,
             project__owner=request.user,
         )
-        lens = Lens.from_querydict(request.GET)
+        _active, lens = active_lens(
+            result_set.project, request.GET, result_set=result_set
+        )
         job_id = request.GET.get("job")
         if job_id:
             return self._job_response(request, result_set, job_id)
@@ -650,7 +943,9 @@ class SetStatusView(LoginRequiredMixin, View):
             "research/partials/set_status.html",
             {
                 "result_set": result_set,
-                "querystring": Lens.from_querydict(request.GET).to_querystring(),
+                "querystring": active_lens(
+                    result_set.project, request.GET, result_set=result_set
+                )[1].to_querystring(),
             },
             request=request,
         )
@@ -901,7 +1196,13 @@ class ReviewView(LoginRequiredMixin, View):
             project_id=project,
             project__owner=request.user,
         )
-        lens, review_all = _review_lens(request.GET)
+        active, lens = active_lens(
+            result_set.project, request.GET, result_set=result_set
+        )
+        if active is not None:
+            review_all = set(lens.dispositions) == {"u", "r"}
+        else:
+            lens, review_all = _review_lens(request.GET)
         after = request.GET.get("after") or None
         before = request.GET.get("before") or None
         try:
