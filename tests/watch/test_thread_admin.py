@@ -192,6 +192,7 @@ def test_mark_dismissed_action(admin_client):
     unselected.refresh_from_db()
     assert thread.status == "dismissed"
     assert thread.snoozed_until is None
+    assert thread.dismissed_at is not None
     assert unselected.status == "new"
     assert message_texts(response) == ["Marked 1 thread(s) as dismissed."]
 

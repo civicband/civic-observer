@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from django.conf import settings
 from django.db import models
@@ -141,6 +142,7 @@ class Thread(TimeStampedModel):
     mention_count = models.PositiveIntegerField(default=0)
     status = models.CharField(max_length=16, choices=Status, default=Status.NEW)
     snoozed_until = models.DateTimeField(null=True, blank=True)
+    dismissed_at = models.DateTimeField(null=True, blank=True, editable=False)
     notes = models.TextField(blank=True)
     duplicate_of = models.ForeignKey(
         "self",
@@ -164,6 +166,34 @@ class Thread(TimeStampedModel):
     def __str__(self):
         """Return a concise admin label."""
         return self.title or self.key
+
+    def dismiss(self, *, now: datetime | None = None) -> None:
+        """Mark this thread dismissed and record when it was closed."""
+        timestamp = now or timezone.now()
+        self.status = Thread.Status.DISMISSED
+        self.snoozed_until = None
+        self.dismissed_at = timestamp
+        self.save(
+            update_fields=[
+                "status",
+                "snoozed_until",
+                "dismissed_at",
+                "modified",
+            ]
+        )
+
+
+def dismiss_threads(
+    queryset: models.QuerySet[Thread], *, now: datetime | None = None
+) -> int:
+    """Mark a queryset of threads dismissed and record when they were closed."""
+    timestamp = now or timezone.now()
+    return queryset.update(
+        status=Thread.Status.DISMISSED,
+        snoozed_until=None,
+        dismissed_at=timestamp,
+        modified=timestamp,
+    )
 
 
 class ThreadLabel(models.Model):

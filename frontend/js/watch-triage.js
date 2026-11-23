@@ -247,4 +247,58 @@ document.addEventListener("alpine:init", function () {
       }
     };
   });
+
+  Alpine.data("triageBulk", function () {
+    return {
+      count: 0,
+
+      init: function () {
+        var self = this;
+        this.$root.addEventListener("change", function (event) {
+          var target = event.target;
+          if (!target) return;
+          if (target.id === "triage-select-all") {
+            var boxes = self.boxes();
+            for (var i = 0; i < boxes.length; i += 1) {
+              boxes[i].checked = target.checked;
+            }
+          }
+          self.sync();
+        });
+        // The list is swapped on filter changes, thread actions and bulk
+        // closes; fresh checkboxes are unchecked, so reset the count.
+        this.$root.addEventListener("htmx:afterSwap", function (event) {
+          if (event.target === self.$root) self.sync();
+        });
+        this.$root.addEventListener("htmx:oobAfterSwap", function (event) {
+          if (event.target === self.$root) self.sync();
+        });
+        this.sync();
+      },
+
+      boxes: function () {
+        return Array.prototype.slice.call(
+          this.$root.querySelectorAll('input[name="thread_id"]')
+        );
+      },
+
+      sync: function () {
+        var boxes = this.boxes();
+        var checked = [];
+        for (var i = 0; i < boxes.length; i += 1) {
+          if (boxes[i].checked) checked.push(boxes[i].value);
+        }
+        this.count = checked.length;
+
+        var hidden = this.$root.querySelector("#triage-thread-ids");
+        if (hidden) hidden.value = checked.join(",");
+
+        var all = this.$root.querySelector("#triage-select-all");
+        if (!all) return;
+        all.checked = boxes.length > 0 && checked.length === boxes.length;
+        all.indeterminate = checked.length > 0 && checked.length < boxes.length;
+        all.disabled = boxes.length === 0;
+      }
+    };
+  });
 });

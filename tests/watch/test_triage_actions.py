@@ -35,6 +35,7 @@ def test_replied_action_persists(admin_client):
     thread.refresh_from_db()
     assert response.status_code == 302
     assert thread.status == "replied"
+    assert thread.dismissed_at is None
 
 
 @pytest.mark.django_db
@@ -43,6 +44,7 @@ def test_dismiss_action_persists(admin_client):
     admin_client.post(action_url(thread), {"action": "dismiss"})
     thread.refresh_from_db()
     assert thread.status == "dismissed"
+    assert thread.dismissed_at is not None
 
 
 @pytest.mark.django_db

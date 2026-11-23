@@ -159,6 +159,13 @@ QUEUE_COVERED_CHOICES = ("yes", "no")
 #: Accepted ``us`` filter values for the filtered queue.
 QUEUE_US_CHOICES = ("yes", "no")
 
+#: Accepted ``age`` filter values for the filtered queue, in days.
+QUEUE_AGE_OPTIONS = (
+    ("1", "Older than 1 day"),
+    ("7", "Older than 7 days"),
+)
+QUEUE_AGE_CHOICES = tuple(value for value, _label in QUEUE_AGE_OPTIONS)
+
 
 def _us_q(prefix: str) -> Q:
     """Return a condition matching threads whose subreddit or place is US.
@@ -174,6 +181,7 @@ def filtered_queue_queryset(
     covered: str | None = None,
     kind: str | None = None,
     us: str | None = None,
+    age: str | None = None,
     sort: str | None = None,
     q: str | None = None,
 ) -> QuerySet[Thread]:
@@ -182,10 +190,12 @@ def filtered_queue_queryset(
     ``covered`` (``yes``/``no``) keeps only threads with or without a covered
     subject place.  ``kind`` keeps threads whose subreddit kind matches (for
     example ``place`` or ``general``).  ``us`` (``yes``/``no``) mirrors the
-    admin's US filter.  ``q`` matches the thread title or subreddit name
-    case-insensitively.  ``sort`` chooses one of :data:`QUEUE_SORTS`; an
-    unknown value falls back to the default newest-first ranking.  Unknown filter
-    values are ignored so a stale bookmark still renders a sensible queue.
+    admin's US filter.  ``age`` (``1``/``7``) keeps threads whose first and last
+    activity are both older than that many days.  ``q`` matches the thread
+    title or subreddit name case-insensitively.  ``sort`` chooses one of
+    :data:`QUEUE_SORTS`; an unknown value falls back to the default newest-first
+    ranking.  Unknown filter values are ignored so a stale bookmark still
+    renders a sensible queue.
     """
     queryset = queue_queryset()
 
@@ -199,6 +209,10 @@ def filtered_queue_queryset(
     if us in QUEUE_US_CHOICES:
         us_q = _us_q("subreddit")
         queryset = queryset.filter(us_q) if us == "yes" else queryset.exclude(us_q)
+
+    if age in QUEUE_AGE_CHOICES:
+        cutoff = timezone.now() - timedelta(days=int(age))
+        queryset = queryset.filter(first_seen__lt=cutoff, last_seen__lt=cutoff)
 
     if q:
         queryset = queryset.filter(

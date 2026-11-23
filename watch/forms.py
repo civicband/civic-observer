@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import uuid
+
 from django import forms
 from django.db import models
 
-from watch.models import PlaceNote, ThreadPlace
+from watch.models import PlaceNote, Thread, ThreadPlace
 
 
 class TriageActionForm(forms.Form):
@@ -33,6 +35,38 @@ class TriageActionForm(forms.Form):
     place_id = forms.UUIDField(required=False)
     country = forms.CharField(max_length=2, required=False)
     query = forms.CharField(max_length=500, required=False)
+
+
+class TriageBulkActionForm(forms.Form):
+    """Validate a bulk action applied to a selection of triage threads."""
+
+    class Action(models.TextChoices):
+        CLOSE = "close", "Close"
+
+    action = forms.ChoiceField(choices=Action.choices)
+    thread_id = forms.ModelMultipleChoiceField(
+        queryset=Thread.objects.all(), required=False
+    )
+    thread_ids = forms.CharField(required=False)
+
+    def clean_thread_ids(self) -> list[uuid.UUID]:
+        raw = (self.cleaned_data or {}).get("thread_ids") or ""
+        thread_ids: list[uuid.UUID] = []
+        for token in raw.split(","):
+            token = token.strip()
+            if not token:
+                continue
+            try:
+                thread_ids.append(uuid.UUID(token))
+            except (AttributeError, TypeError, ValueError) as exc:
+                raise forms.ValidationError("Invalid thread id") from exc
+        return thread_ids
+
+    def clean(self):
+        cleaned = super().clean() or {}
+        if not cleaned.get("thread_id") and not cleaned.get("thread_ids"):
+            raise forms.ValidationError("Select at least one thread.")
+        return cleaned
 
 
 class PlaceCorrectionForm(forms.Form):

@@ -30,6 +30,7 @@
             <aside class="lg:col-span-4 xl:col-span-3">
                 {% include "watch/partials/triage_filters.html" %}
                 <div id="triage-list"
+                     x-data="triageBulk"
                      class="mt-3 max-h-[calc(100vh-14rem)] overflow-y-auto rounded-lg border border-gray-200 bg-white shadow dark:border-gray-800 dark:bg-gray-900">
                     {% include "watch/partials/triage_list.html" %}
                 </div>

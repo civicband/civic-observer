@@ -436,6 +436,29 @@ def test_filtered_queue_sort_newest_and_oldest():
 
 
 @pytest.mark.django_db
+def test_filtered_queue_age_filter_requires_both_timestamps_to_be_old():
+    ten_days = timezone.now() - timedelta(days=10)
+    three_days = timezone.now() - timedelta(days=3)
+    recent = timezone.now() - timedelta(hours=1)
+
+    stale = ThreadFactory(first_seen=ten_days, last_seen=ten_days)
+    three_day_stale = ThreadFactory(first_seen=three_days, last_seen=three_days)
+    old_first_recent_last = ThreadFactory(first_seen=ten_days, last_seen=recent)
+    recent_first_old_last = ThreadFactory(first_seen=recent, last_seen=ten_days)
+    fresh = ThreadFactory(first_seen=recent, last_seen=recent)
+
+    assert set(filtered_queue_queryset(age="1")) == {stale, three_day_stale}
+    assert set(filtered_queue_queryset(age="7")) == {stale}
+    assert set(filtered_queue_queryset(age="bogus")) == {
+        stale,
+        three_day_stale,
+        old_first_recent_last,
+        recent_first_old_last,
+        fresh,
+    }
+
+
+@pytest.mark.django_db
 def test_filtered_next_and_previous_walk_only_the_filtered_queue():
     covered_a = ThreadFactory(last_seen=timezone.now())
     _subject(covered_a, PlaceWithMuniFactory())

@@ -7,6 +7,7 @@ import uuid
 from collections.abc import Mapping
 from datetime import timedelta
 from typing import Any
+from urllib.parse import parse_qs, urlparse
 
 from django.contrib.admin.views.decorators import staff_member_required
 from django.db import transaction
@@ -16,13 +17,16 @@ from django.db.models import (
     IntegerField,
     Prefetch,
     Q,
+    QuerySet,
     Value,
     When,
 )
 from django.http import Http404, HttpRequest, HttpResponse, HttpResponseBadRequest
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 from django.utils import timezone
 from django.utils.decorators import method_decorator
+from django.utils.http import urlencode
 from django.views.generic import View
 
 from watch.forms import (
@@ -30,6 +34,7 @@ from watch.forms import (
     PlaceNoteForm,
     PlaceRejectionForm,
     TriageActionForm,
+    TriageBulkActionForm,
 )
 from watch.ingest import enqueue_enrichment
 from watch.models import (
@@ -42,12 +47,15 @@ from watch.models import (
     Thread,
     ThreadLabel,
     ThreadPlace,
+    dismiss_threads,
 )
 from watch.normalize import normalize_key
 from watch.scoring import (
     BACKLOG_DAYS,
     BACKLOG_SORTS,
     BACKLOG_STATUS_FILTERS,
+    QUEUE_AGE_CHOICES,
+    QUEUE_AGE_OPTIONS,
     QUEUE_COVERED_CHOICES,
     QUEUE_SORTS,
     QUEUE_US_CHOICES,
@@ -65,6 +73,12 @@ TRIAGE_CARD_TEMPLATE = "watch/partials/triage_card.html"
 
 #: Queue list partial, swapped into ``#triage-list``.
 TRIAGE_LIST_TEMPLATE = "watch/partials/triage_list.html"
+
+#: Bulk action response: refreshed queue plus an out-of-band detail refresh.
+TRIAGE_BULK_RESPONSE_TEMPLATE = "watch/partials/triage_bulk_response.html"
+
+#: Maximum number of threads a single bulk close request may update.
+BULK_CLOSE_LIMIT = 5000
 
 #: Partial whose rows are swapped after a backlog note is saved.
 BACKLOG_ROWS_TEMPLATE = "watch/partials/backlog_rows.html"
@@ -93,6 +107,7 @@ _QUEUE_FILTER_KEYS = {
     "covered": QUEUE_COVERED_CHOICES,
     "kind": None,
     "us": QUEUE_US_CHOICES,
+    "age": QUEUE_AGE_CHOICES,
     "sort": tuple(QUEUE_SORTS),
     "q": None,
 }
@@ -139,6 +154,43 @@ def _queue_filters(request: HttpRequest) -> dict[str, str]:
 def _backlog_filters(request: HttpRequest) -> dict[str, str]:
     """Return the backlog filters from the query string."""
     return _clean_params(request, _BACKLOG_FILTER_KEYS)
+
+
+def _triage_url(filters: Mapping[str, str]) -> str:
+    """Return the triage URL for ``filters``."""
+    query = urlencode(filters)
+    url = reverse("watch:triage")
+    return f"{url}?{query}" if query else url
+
+
+def _request_query_value(request: HttpRequest, key: str) -> str | None:
+    """Read a query value from the current page URL, preferring HTMX's URL."""
+    current_url = request.headers.get("HX-Current-URL")
+    if current_url:
+        try:
+            query = urlparse(current_url).query
+        except ValueError:
+            return None
+        values = parse_qs(query).get(key)
+        return values[0] if values else None
+    return request.GET.get(key)
+
+
+def _bulk_detail_thread(
+    request: HttpRequest, queryset: QuerySet[Thread]
+) -> Thread | None:
+    """Return the thread still selected by the page URL, else the queue head."""
+    raw_thread_id = _request_query_value(request, "thread")
+    if raw_thread_id:
+        try:
+            thread_id = uuid.UUID(raw_thread_id)
+        except (AttributeError, TypeError, ValueError):
+            thread_id = None
+        if thread_id is not None:
+            selected = queryset.filter(pk=thread_id).first()
+            if selected is not None:
+                return selected
+    return queryset.first()
 
 
 def _sample_thread_places():
@@ -269,6 +321,7 @@ def _triage_context(
         "thread": thread,
         "rows": rows,
         "filters": filters,
+        "age_options": QUEUE_AGE_OPTIONS,
         "queue_count": queue_queryset_for_nav.count(),
         "thread_country": thread_country(thread) if thread else None,
         "meeting_hits_by_place": meeting_hits_by_place,
@@ -380,7 +433,15 @@ class TriageActionView(View):
             days = data.get("days") or 7
             thread.status = Thread.Status.SNOOZED
             thread.snoozed_until = timezone.now() + timedelta(days=days)
-            thread.save(update_fields=["status", "snoozed_until", "modified"])
+            thread.dismissed_at = None
+            thread.save(
+                update_fields=[
+                    "status",
+                    "snoozed_until",
+                    "dismissed_at",
+                    "modified",
+                ]
+            )
         elif action == TriageActionForm.Action.MUTE_SUBREDDIT:
             subreddit = thread.subreddit
             if subreddit is None:
@@ -422,9 +483,20 @@ class TriageActionView(View):
 
     def _set_status(self, thread: Thread, status: str) -> None:
         """Set a terminal status and drop any stale snooze timestamp."""
+        if status == Thread.Status.DISMISSED:
+            thread.dismiss()
+            return
         thread.status = status
         thread.snoozed_until = None
-        thread.save(update_fields=["status", "snoozed_until", "modified"])
+        thread.dismissed_at = None
+        thread.save(
+            update_fields=[
+                "status",
+                "snoozed_until",
+                "dismissed_at",
+                "modified",
+            ]
+        )
 
     def _edit_query(self, thread: Thread, data: dict[str, Any]) -> str | None:
         """Persist a query override and queue hit enrichment."""
@@ -458,6 +530,33 @@ class TriageActionView(View):
         if subject_places.count() != 1:
             return None
         return subject_places.first()
+
+
+@method_decorator(staff_member_required, name="dispatch")
+class TriageBulkActionView(View):
+    """Apply one bulk action to the selected threads in the triage queue."""
+
+    def post(self, request: HttpRequest) -> HttpResponse:
+        filters = _queue_filters(request)
+        form = TriageBulkActionForm(request.POST)
+        if not form.is_valid():
+            return HttpResponseBadRequest("Invalid bulk triage action")
+
+        if form.cleaned_data["action"] == TriageBulkActionForm.Action.CLOSE:
+            selected_ids = set(form.cleaned_data["thread_ids"])
+            selected_ids.update(thread.pk for thread in form.cleaned_data["thread_id"])
+            if len(selected_ids) > BULK_CLOSE_LIMIT:
+                return HttpResponseBadRequest("Too many threads selected")
+            dismiss_threads(
+                filtered_queue_queryset(**filters).filter(pk__in=selected_ids)
+            )
+
+        if not _is_htmx(request):
+            return redirect(_triage_url(filters))
+
+        shown = _bulk_detail_thread(request, filtered_queue_queryset(**filters))
+        context = _triage_context(shown, filters=filters)
+        return render(request, TRIAGE_BULK_RESPONSE_TEMPLATE, context)
 
 
 @method_decorator(staff_member_required, name="dispatch")

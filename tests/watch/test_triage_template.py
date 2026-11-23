@@ -17,6 +17,7 @@ from tests.factories import (
     ThreadPlaceFactory,
 )
 from watch.models import ThreadPlace
+from watch.scoring import QUEUE_AGE_OPTIONS
 
 
 @pytest.mark.django_db
@@ -342,3 +343,51 @@ def test_triage_card_renders_unlinkable_title_as_text(admin_client):
 
     assert "Untitled thread" in content or thread.title in content
     assert "https://example.com/not-a-thread" not in content
+
+
+@pytest.mark.django_db
+def test_triage_renders_age_filter_and_bulk_controls(admin_client):
+    thread = ThreadFactory()
+
+    content = admin_client.get(reverse("watch:triage")).content.decode()
+
+    assert 'name="age"' in content
+    assert "Older than 1 day" in content
+    assert "Older than 7 days" in content
+    assert 'id="triage-bulk-form"' in content
+    assert 'id="triage-select-all"' in content
+    assert 'id="triage-thread-ids"' in content
+    assert 'hx-params="not thread_id"' in content
+    assert 'name="thread_id"' in content
+    assert 'form="triage-bulk-form"' in content
+    assert f'value="{thread.pk}"' in content
+    assert "Close selected" in content
+
+
+@pytest.mark.django_db
+def test_triage_age_filter_narrows_the_queue(admin_client):
+    ten_days = timezone.now() - timedelta(days=10)
+    stale = ThreadFactory(first_seen=ten_days, last_seen=ten_days)
+    fresh = ThreadFactory()
+
+    response = admin_client.get(reverse("watch:triage"), {"age": "1"})
+
+    assert response.context["queue_count"] == 1
+    assert response.context["thread"] == stale
+    assert response.context["age_options"] == QUEUE_AGE_OPTIONS
+    assert fresh not in response.context["rows"]
+
+
+@pytest.mark.django_db
+def test_triage_bulk_action_carries_active_filters(admin_client):
+    ThreadFactory(
+        first_seen=timezone.now() - timedelta(days=10),
+        last_seen=timezone.now() - timedelta(days=10),
+    )
+
+    content = admin_client.get(
+        reverse("watch:triage"), {"age": "1", "sort": "oldest"}
+    ).content.decode()
+
+    assert reverse("watch:bulk") in content
+    assert "age=1&sort=oldest" in content
