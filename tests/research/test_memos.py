@@ -262,7 +262,7 @@ class TestMemoViews:
         content = response.content.decode()
         assert response.status_code == 200
         assert "A project note" in content
-        assert "set.materialized" in content
+        assert "Built set" in content
 
     def test_project_timeline_links_to_civic_band_page(self, client):
         user = _login(client)

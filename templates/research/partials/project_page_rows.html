@@ -1,0 +1,22 @@
+{% load research_markdown utm %}
+{% if rows %}
+    <div class="space-y-4">
+        {% for row in rows %}
+            {% include "research/partials/project_page_item.html" with row=row project=project %}
+        {% endfor %}
+    </div>
+
+    {% if next_cursor %}
+        <div class="mt-6 flex justify-end">
+            <a href="?{% if querystring %}{{ querystring }}&{% endif %}after={{ next_cursor|urlencode }}"
+               class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
+                Next
+            </a>
+        </div>
+    {% endif %}
+{% else %}
+    <div class="text-center py-12 bg-white rounded-lg border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
+        <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">No pages in this view</h3>
+        <p class="mt-2 text-gray-500 dark:text-gray-400">Try clearing filters or a different Lens.</p>
+    </div>
+{% endif %}

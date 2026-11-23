@@ -8,7 +8,8 @@
                         <span class="inline-block h-4 w-4 rounded-full border border-gray-200 dark:border-gray-800" style="background-color: {{ node.code.color }};"></span>
                     {% endif %}
                     <h3 class="text-lg font-medium text-gray-900 dark:text-gray-100">{{ node.code.name }}</h3>
-                    <span class="text-xs text-gray-500 dark:text-gray-400">{{ node.coding_count }} coding{{ node.coding_count|pluralize }}</span>
+                    <a href="{% url 'research:project-pages' project.id %}?code_any={{ node.code.id }}&disposition=u,r,i"
+                       class="text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">{{ node.coding_count }} coding{{ node.coding_count|pluralize }} · view coded pages</a>
                 </div>
                 {% if node.code.definition %}
                     <p class="mt-2 text-sm text-gray-700 dark:text-gray-300">{{ node.code.definition }}</p>

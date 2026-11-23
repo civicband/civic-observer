@@ -1,0 +1,81 @@
+{% load utm %}
+<div class="mt-6 bg-white shadow rounded-lg border border-gray-200 dark:bg-gray-900 dark:border-gray-800">
+    <div class="px-4 py-5 sm:p-6">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex items-center gap-2">
+                <h2 class="text-sm font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Lens</h2>
+                <span class="text-sm font-medium text-gray-900 dark:text-gray-100">
+                    {% if active_lens %}{{ active_lens.name }}{% else %}Unsaved view{% endif %}
+                </span>
+            </div>
+            <p class="text-xs text-gray-500 dark:text-gray-400">A Lens is a named view you can switch between and promote to a set.</p>
+        </div>
+
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+            <a href="?{% if lens_scope == 'set' %}disposition=r,i,u{% endif %}"
+               class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border {% if not active_lens and not querystring %}border-indigo-300 bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-800{% else %}border-gray-300 bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700{% endif %}">
+                All pages
+            </a>
+            {% for saved in scope_lenses %}
+                <a href="?lens={{ saved.id }}"
+                   class="inline-flex items-center rounded-full px-3 py-1 text-xs font-medium border {% if active_lens and active_lens.id == saved.id %}border-indigo-300 bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 dark:border-indigo-800{% else %}border-gray-300 bg-white text-gray-700 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700{% endif %}">
+                    {{ saved.name }}
+                </a>
+            {% endfor %}
+        </div>
+
+        {% if active_lens %}
+            <div class="mt-3 flex flex-wrap items-center gap-3 text-xs">
+                <details class="inline-block">
+                    <summary class="cursor-pointer text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">Rename</summary>
+                    <form method="post" action="{% url 'research:lens-update' project.id active_lens.id %}" class="mt-2 flex items-center gap-2">
+                        {% csrf_token %}
+                        <input type="hidden" name="lens" value="{{ querystring }}">
+                        <input type="text" name="name" value="{{ active_lens.name }}" required
+                               class="rounded-md border-gray-300 text-xs shadow-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                        <button type="submit" class="inline-flex items-center px-2.5 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">Save</button>
+                    </form>
+                </details>
+                <form method="post" action="{% url 'research:lens-promote' project.id active_lens.id %}" class="inline-flex items-center gap-2">
+                    {% csrf_token %}
+                    <input type="text" name="name" value="{{ active_lens.name }} set" required
+                           class="rounded-md border-gray-300 text-xs shadow-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+                    <button type="submit" class="inline-flex items-center px-2.5 py-1 border border-gray-300 text-xs font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">Promote to set</button>
+                </form>
+                {% if active_lens.promoted_set_id %}
+                    <a href="{% url 'research:set-detail' project.id active_lens.promoted_set_id %}"
+                       class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">Saved as set</a>
+                {% endif %}
+                <form method="post" action="{% url 'research:lens-delete' project.id active_lens.id %}">
+                    {% csrf_token %}
+                    <button type="submit" class="text-rose-600 hover:text-rose-800 dark:text-rose-400 dark:hover:text-rose-300">Delete Lens</button>
+                </form>
+            </div>
+        {% endif %}
+
+        <div class="mt-3 flex flex-wrap items-center gap-2">
+            {% if querystring %}
+                <span class="text-xs text-gray-500 dark:text-gray-400">Conditions:</span>
+                {% if lens.text %}<span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200">text: {{ lens.text }}</span>{% endif %}
+                {% for state in lens.states %}<span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200">state: {{ state }}</span>{% endfor %}
+                {% for muni_id in lens.municipality_ids %}<span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200">municipality</span>{% endfor %}
+                {% if lens.document_type != "all" %}<span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200">type: {{ lens.document_type }}</span>{% endif %}
+                {% if lens.date_from %}<span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200">from {{ lens.date_from|date:"M j, Y" }}</span>{% endif %}
+                {% if lens.date_to %}<span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200">to {{ lens.date_to|date:"M j, Y" }}</span>{% endif %}
+                {% if lens.codes_any or lens.codes_all or lens.codes_none or lens.uncoded %}<span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs text-gray-700 dark:bg-gray-800 dark:text-gray-200">codes</span>{% endif %}
+                <a href="?{% if lens_scope == 'set' %}disposition=r,i,u{% endif %}"
+                   class="text-xs text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">Clear</a>
+            {% endif %}
+        </div>
+
+        <form method="post" action="{% url 'research:lens-save' project.id %}" class="mt-3 flex flex-wrap items-center gap-2">
+            {% csrf_token %}
+            <input type="hidden" name="scope" value="{{ lens_scope }}">
+            {% if lens_scope == "set" %}<input type="hidden" name="set" value="{{ lens_scope_id }}">{% endif %}
+            <input type="hidden" name="lens" value="{{ querystring }}">
+            <input type="text" name="name" required placeholder="Name this Lens"
+                   class="rounded-md border-gray-300 text-xs shadow-sm dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100">
+            <button type="submit" class="inline-flex items-center px-3 py-1.5 border border-indigo-200 text-xs font-medium rounded-md text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900">Save view as Lens</button>
+        </form>
+    </div>
+</div>

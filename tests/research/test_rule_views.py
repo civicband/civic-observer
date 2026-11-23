@@ -54,6 +54,7 @@ class TestRuleViews:
         content = response.content.decode()
         assert "1 page currently ignored" in content
         assert "do not create a new set" in content
+        assert reverse("research:project-pages", args=[project.id]) in content
 
     def test_create_requires_login(self, client):
         _, project = self._project()

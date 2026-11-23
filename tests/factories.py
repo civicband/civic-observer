@@ -242,6 +242,15 @@ class AuditEventFactory(DjangoModelFactory):
     payload = factory.LazyFunction(dict)  # type: ignore
 
 
+class LensFactory(DjangoModelFactory):
+    class Meta:
+        model = research.models.Lens
+
+    project = factory.SubFactory(ProjectFactory)  # type: ignore
+    name = factory.Sequence(lambda n: f"Lens {n}")  # type: ignore
+    conditions = factory.LazyFunction(dict)  # type: ignore
+
+
 class PlaceFactory(DjangoModelFactory):
     class Meta:
         model = Place

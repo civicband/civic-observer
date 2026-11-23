@@ -18,11 +18,20 @@
                     <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{{ project.description }}</p>
                 {% endif %}
                 {% if ignored_total %}
-                    <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">{{ ignored_total }} ignored page{{ ignored_total|pluralize }} across sets.</p>
+                    <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                        {{ relevant_total }} relevant ·
+                        <a href="{% url 'research:project-pages' project.id %}?disposition=i"
+                           class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">{{ ignored_total }} ignored</a>
+                        across sets.
+                    </p>
                 {% endif %}
                 <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Ignore rules apply across every existing and future set; they do not create a new set.</p>
             </div>
             <div class="mt-4 sm:mt-0 flex flex-wrap items-center gap-2">
+                <a href="{% url 'research:project-pages' project.id %}"
+                   class="inline-flex items-center px-4 py-2 border border-indigo-200 text-sm font-medium rounded-md shadow-sm text-indigo-700 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950 dark:border-indigo-800 dark:text-indigo-300 dark:hover:bg-indigo-900">
+                    Pages
+                </a>
                 <a href="{% url 'research:project-timeline' project.id %}"
                    class="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 dark:bg-gray-900 dark:text-gray-300 dark:border-gray-700 dark:hover:bg-gray-800">
                     Timeline
@@ -156,6 +165,14 @@
                                                     {{ result_set.item_count }} page{{ result_set.item_count|pluralize }}
                                                 {% endif %}
                                                 {% if result_set.ignored_count %}· {{ result_set.ignored_count }} ignored{% endif %}
+                                            </span>
+                                            <span class="flex items-center gap-2">
+                                                <a href="{% url 'research:project-pages' project.id %}?disposition=r"
+                                                   class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">{{ result_set.relevant_count }} relevant</a>
+                                                <a href="{% url 'research:project-pages' project.id %}?disposition=i"
+                                                   class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">{{ result_set.ignored_count }} ignored</a>
+                                                <a href="{% url 'research:project-pages' project.id %}?disposition=u"
+                                                   class="text-indigo-600 hover:text-indigo-800 dark:text-indigo-400 dark:hover:text-indigo-300">{{ result_set.unreviewed_count }} unreviewed</a>
                                             </span>
                                             <span>Created {{ result_set.created|timesince }} ago</span>
                                         </div>

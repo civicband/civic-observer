@@ -220,6 +220,7 @@ def test_research_secondary_pages_have_dark_variants():
             TEMPLATES / "research/export.html",
             TEMPLATES / "research/methods.html",
             TEMPLATES / "research/timeline.html",
+            TEMPLATES / "research/project_pages.html",
             *sorted((TEMPLATES / "research/rules").rglob("*.html")),
             TEMPLATES / "research/partials/codebook_tree.html",
         ]

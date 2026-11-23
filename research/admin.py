@@ -5,6 +5,7 @@ from .models import (
     Code,
     Coding,
     IgnoreRule,
+    Lens,
     Memo,
     Project,
     ResultSet,
@@ -62,3 +63,9 @@ class AuditEventAdmin(admin.ModelAdmin):
     list_display = ["verb", "project", "result_set", "created"]
     list_filter = ["verb"]
     raw_id_fields = ["project", "actor", "result_set"]
+
+
+@admin.register(Lens)
+class LensAdmin(admin.ModelAdmin):
+    list_display = ["name", "project", "result_set", "modified"]
+    raw_id_fields = ["project", "result_set", "promoted_set"]

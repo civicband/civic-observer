@@ -105,6 +105,8 @@ class TestProjectDetailView:
         assert "1 ignored" in content
         assert "Ignore rules" in content
         assert "Timeline" in content
+        assert "Pages" in content
+        assert reverse("research:project-pages", args=[project.id]) in content
 
 
 @pytest.mark.django_db
@@ -318,8 +320,38 @@ class TestSetDetailView:
         )
 
         content = response.content.decode()
-        assert "1 ignored" in content
-        assert "?disposition=i" in content
+        assert "Ignored (1)" in content
+        assert "disposition=i" in content
+
+    def test_header_counts_link_to_disposition_views(self, client):
+        user, project, result_set = self._ready_set()
+        SetItemFactory(result_set=result_set, disposition="r")
+        SetItemFactory(result_set=result_set, disposition="i")
+        SetItemFactory(result_set=result_set, disposition="u")
+
+        client.force_login(user)
+        response = client.get(
+            reverse("research:set-detail", args=[project.id, result_set.id])
+        )
+
+        content = response.content.decode()
+        assert "Relevant (1)" in content
+        assert "Unreviewed (1)" in content
+        assert "Ignored (1)" in content
+        assert "disposition=r" in content
+        assert "disposition=u" in content
+
+    def test_renders_lens_bar(self, client):
+        user, project, result_set = self._ready_set()
+
+        client.force_login(user)
+        response = client.get(
+            reverse("research:set-detail", args=[project.id, result_set.id])
+        )
+
+        content = response.content.decode()
+        assert "Save view as Lens" in content
+        assert "Unsaved view" in content
 
     def test_review_link_defaults_to_unreviewed(self, client):
         user, project, result_set = self._ready_set()

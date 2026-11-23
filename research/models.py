@@ -343,3 +343,53 @@ class Memo(TimeStampedModel):
                 name="research_memo_at_most_one_target",
             )
         ]
+
+
+class Lens(TimeStampedModel):
+    """A named, reusable view of a set or of the whole project.
+
+    A Lens stores a canonical filter state (see ``research.lens.Lens``). When
+    ``result_set`` is set the Lens views that single set; when it is null the
+    Lens views every page across the project.
+    """
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    project = models.ForeignKey(Project, on_delete=models.CASCADE, related_name="lenses")
+    result_set = models.ForeignKey(
+        ResultSet,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="lenses",
+    )
+    name = models.CharField(max_length=200)
+    conditions = models.JSONField(default=dict)
+    promoted_set = models.ForeignKey(
+        ResultSet,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="promoted_by_lenses",
+    )
+
+    class Meta:
+        ordering = ["name"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["project", "result_set", "name"],
+                nulls_distinct=False,
+                name="research_lens_uniq_name",
+            )
+        ]
+
+    def __str__(self) -> str:
+        return self.name
+
+    @property
+    def is_project_scope(self) -> bool:
+        return self.result_set_id is None
+
+    @property
+    def scope_label(self) -> str:
+        return "Project" if self.is_project_scope else "Set"
+
