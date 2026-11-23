@@ -557,9 +557,7 @@ class ProjectPagesView(LoginRequiredMixin, View):
         active, lens = active_lens(project_obj, request.GET, result_set=None)
         after = request.GET.get("after") or None
         try:
-            rows, next_cursor = browse_project_pages(
-                project_obj, lens, after=after
-            )
+            rows, next_cursor = browse_project_pages(project_obj, lens, after=after)
         except ValueError:
             rows, next_cursor = browse_project_pages(project_obj, lens)
 
@@ -632,9 +630,9 @@ def _facet_links_for(lens: Lens) -> dict:
     links: dict[str, dict] = {"states": {}, "municipalities": {}, "document_types": {}}
     for state in lens.states:
         remaining = tuple(value for value in lens.states if value != state)
-        links["states"][state] = replace(
-            lens, states=remaining
-        ).to_querystring(include_dispositions=True)
+        links["states"][state] = replace(lens, states=remaining).to_querystring(
+            include_dispositions=True
+        )
     for muni_id in lens.municipality_ids:
         remaining_munis: tuple[uuid.UUID, ...] = tuple(
             value for value in lens.municipality_ids if value != muni_id
@@ -651,9 +649,7 @@ def _facet_links_for(lens: Lens) -> dict:
 
 def _lens_redirect(project_obj: Project, scope: str, result_set_id) -> str:
     if scope == "set" and result_set_id:
-        return reverse(
-            "research:set-detail", args=[project_obj.id, result_set_id]
-        )
+        return reverse("research:set-detail", args=[project_obj.id, result_set_id])
     return reverse("research:project-pages", args=[project_obj.id])
 
 
@@ -679,7 +675,9 @@ class LensSaveView(LoginRequiredMixin, View):
             )
         except ValueError as exc:
             return HttpResponseBadRequest(str(exc))
-        return redirect(_lens_redirect(project_obj, scope, result_set and result_set.id))
+        return redirect(
+            _lens_redirect(project_obj, scope, result_set and result_set.id)
+        )
 
 
 class LensUpdateView(LoginRequiredMixin, View):
@@ -697,7 +695,8 @@ class LensUpdateView(LoginRequiredMixin, View):
             return HttpResponseBadRequest(str(exc))
         return redirect(
             _lens_redirect(
-                lens_obj.project, "set" if lens_obj.result_set_id else "project",
+                lens_obj.project,
+                "set" if lens_obj.result_set_id else "project",
                 lens_obj.result_set_id,
             )
         )

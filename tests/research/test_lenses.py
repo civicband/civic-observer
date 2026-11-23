@@ -35,7 +35,9 @@ class TestLensServices:
         project = ProjectFactory()
         result_set = ResultSetFactory(project=project)
         lens_obj = save_lens(
-            project, name="Relevant housing", lens=_lens(dispositions=("r",)),
+            project,
+            name="Relevant housing",
+            lens=_lens(dispositions=("r",)),
             result_set=result_set,
         )
         assert lens_obj.result_set_id == result_set.id
@@ -44,7 +46,9 @@ class TestLensServices:
 
     def test_save_project_scoped_lens(self):
         project = ProjectFactory()
-        lens_obj = save_lens(project, name="All ignored", lens=_lens(dispositions=("i",)))
+        lens_obj = save_lens(
+            project, name="All ignored", lens=_lens(dispositions=("i",))
+        )
         assert lens_obj.is_project_scope is True
         assert lenses_for(project, result_set=None) == [lens_obj]
 
@@ -80,9 +84,7 @@ class TestLensServices:
         project = ProjectFactory()
         parent = ResultSetFactory(project=project, status=ResultSet.Status.READY)
         SetItemFactory(result_set=parent)
-        lens_obj = save_lens(
-            project, name="Child", lens=_lens(), result_set=parent
-        )
+        lens_obj = save_lens(project, name="Child", lens=_lens(), result_set=parent)
 
         created = promote_lens(lens_obj, actor=None)
 
@@ -94,9 +96,7 @@ class TestLensServices:
         project = ProjectFactory()
         result_set = ResultSetFactory(project=project, status=ResultSet.Status.READY)
         SetItemFactory(result_set=result_set, disposition="r")
-        lens_obj = save_lens(
-            project, name="Proj", lens=_lens(dispositions=("r",))
-        )
+        lens_obj = save_lens(project, name="Proj", lens=_lens(dispositions=("r",)))
 
         created = promote_lens(lens_obj)
 
@@ -112,7 +112,9 @@ class TestActiveLens:
         project = ProjectFactory()
         result_set = ResultSetFactory(project=project)
         lens_obj = save_lens(
-            project, name="Saved", lens=_lens(dispositions=("i",)),
+            project,
+            name="Saved",
+            lens=_lens(dispositions=("i",)),
             result_set=result_set,
         )
 
@@ -151,7 +153,12 @@ class TestLensViews:
 
         response = client.post(
             reverse("research:lens-save", args=[project.id]),
-            {"scope": "set", "set": str(result_set.id), "name": "Mine", "lens": "disposition=r"},
+            {
+                "scope": "set",
+                "set": str(result_set.id),
+                "name": "Mine",
+                "lens": "disposition=r",
+            },
         )
 
         assert response.status_code == 302
@@ -180,9 +187,7 @@ class TestLensViews:
         project = ProjectFactory(owner=user)
         result_set = ResultSetFactory(project=project, status=ResultSet.Status.READY)
         SetItemFactory(result_set=result_set)
-        lens_obj = LensFactory(
-            project=project, result_set=result_set, conditions={}
-        )
+        lens_obj = LensFactory(project=project, result_set=result_set, conditions={})
         response = client.post(
             reverse("research:lens-promote", args=[project.id, lens_obj.id]),
             {"name": "Promoted"},

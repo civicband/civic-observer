@@ -134,9 +134,7 @@ def promote_lens(lens_obj: LensModel, *, name: str | None = None, actor=None):
     else:
         parent = lens_obj.result_set
         assert parent is not None
-        created = freeze_lens(
-            parent, target_name, conditions, copy_dispositions=True
-        )
+        created = freeze_lens(parent, target_name, conditions, copy_dispositions=True)
     lens_obj.promoted_set = created
     lens_obj.save(update_fields=["promoted_set", "modified"])
     record_event(
