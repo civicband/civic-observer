@@ -106,6 +106,11 @@ urlpatterns = [
         name="item-disposition",
     ),
     path(
+        "<uuid:project>/sets/<uuid:set>/items/<int:item>/text/",
+        views.ItemTextView.as_view(),
+        name="item-text",
+    ),
+    path(
         "<uuid:project>/sets/<uuid:set>/review/",
         views.ReviewView.as_view(),
         name="set-review",

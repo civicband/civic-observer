@@ -30,7 +30,15 @@ from searches.queryspec import QuerySpec
 from .activity import GROUP_LABELS, activity_summary, build_feed
 from .add_to_set import add_page_to_set, default_set_for_user
 from .audit import record_event
-from .browse import _encode_cursor, browse_set, filter_items, review_item, set_facets
+from .browse import (
+    _encode_cursor,
+    browse_set,
+    disposition_counts,
+    filter_items,
+    load_page_text,
+    review_item,
+    set_facets,
+)
 from .codebook import (
     apply_code_to_lens,
     apply_code_to_pages,
@@ -151,11 +159,37 @@ def _spec_from_rule_form(post) -> QuerySpec:
 
 def _ignore_reasons(result_set: ResultSet) -> list[str]:
     return list(
-        SetItem.objects.filter(result_set__project=result_set.project)
+        SetItem.objects.filter(result_set=result_set)
         .exclude(ignore_reason="")
         .values_list("ignore_reason", flat=True)
         .distinct()
         .order_by("ignore_reason")[:20]
+    )
+
+
+def _set_counters_context(
+    result_set: ResultSet, lens: Lens, *, oob: bool = False
+) -> dict:
+    """Header count badges and the disposition facet, shared by full renders."""
+    facets = set_facets(result_set, lens, max_items=settings.RESEARCH_FACET_SYNC_MAX)
+    counts = disposition_counts(facets)
+    return {
+        "result_set": result_set,
+        "lens": lens,
+        "querystring": lens.to_querystring(),
+        "disposition_links": _disposition_links_for(lens, counts),
+        "lens_count": facets.get("total", 0),
+        "disposition_counts": counts,
+        "facets": facets,
+        "oob": oob,
+    }
+
+
+def _oob_counters(request, result_set: ResultSet, lens: Lens) -> str:
+    return render_to_string(
+        "research/partials/set_counter_numbers.html",
+        _set_counters_context(result_set, lens, oob=True),
+        request=request,
     )
 
 
@@ -597,7 +631,10 @@ class ProjectPagesView(LoginRequiredMixin, View):
         return facets
 
 
-def _disposition_links_for(lens: Lens) -> list[dict]:
+def _disposition_links_for(
+    lens: Lens, counts: dict[str, int] | None = None
+) -> list[dict]:
+    counts = counts or {}
     labels = [
         (SetItem.Disposition.RELEVANT, "Relevant"),
         (SetItem.Disposition.UNREVIEWED, "Unreviewed"),
@@ -609,6 +646,7 @@ def _disposition_links_for(lens: Lens) -> list[dict]:
             {
                 "value": value,
                 "label": label,
+                "count": counts.get(value, 0),
                 "querystring": replace(lens, dispositions=(value,)).to_querystring(
                     include_dispositions=True
                 ),
@@ -618,6 +656,7 @@ def _disposition_links_for(lens: Lens) -> list[dict]:
         {
             "value": "all",
             "label": "All",
+            "count": counts.get("total", 0),
             "querystring": replace(lens, dispositions=("r", "i", "u")).to_querystring(
                 include_dispositions=True
             ),
@@ -804,15 +843,12 @@ class SetDetailView(LoginRequiredMixin, DetailView):
         context["next_cursor"] = None
         context["facets"] = {}
         context["ignore_reasons"] = _ignore_reasons(result_set)
-        context["ignored_count"] = SetItem.objects.filter(
-            result_set=result_set,
-            disposition=SetItem.Disposition.IGNORED,
-        ).count()
         context["codes"] = result_set.project.codes.filter(is_archived=False).order_by(
             "name"
         )
-        context["disposition_counts"] = self._disposition_counts(result_set, lens)
         context["disposition_links"] = _disposition_links_for(lens)
+        context["lens_count"] = result_set.item_count
+        context["disposition_counts"] = disposition_counts({})
 
         if result_set.status == ResultSet.Status.READY:
             after = self.request.GET.get("after") or None
@@ -822,24 +858,19 @@ class SetDetailView(LoginRequiredMixin, DetailView):
                 items, next_cursor = browse_set(result_set, lens, after=None)
             context["items"] = items
             context["next_cursor"] = next_cursor
-            context["facets"] = self._municipality_names(set_facets(result_set, lens))
+            facets = self._municipality_names(
+                set_facets(
+                    result_set,
+                    lens,
+                    max_items=settings.RESEARCH_FACET_SYNC_MAX,
+                )
+            )
+            context["facets"] = facets
             context["facet_links"] = _facet_links_for(lens)
-            context["lens_count"] = filter_items(result_set, lens).count()
+            context["lens_count"] = facets.get("total", 0)
+            context["disposition_counts"] = disposition_counts(facets)
 
         return context
-
-    @staticmethod
-    def _disposition_counts(result_set, lens: Lens) -> dict:
-        all_lens = replace(lens, dispositions=())
-        counts: dict[str, int] = {"r": 0, "i": 0, "u": 0}
-        for row in (
-            filter_items(result_set, all_lens)
-            .values("disposition")
-            .annotate(count=Count("id"))
-        ):
-            counts[row["disposition"]] = row["count"]
-        counts["total"] = counts["r"] + counts["i"] + counts["u"]
-        return counts
 
     @staticmethod
     def _municipality_names(facets: dict) -> dict:
@@ -1020,9 +1051,7 @@ class DispositionView(LoginRequiredMixin, View):
             return HttpResponseBadRequest("Invalid disposition")
 
         set_item.refresh_from_db()
-        set_item.page_obj = MeetingPage.objects.in_bulk([set_item.page_id]).get(  # type: ignore[attr-defined]
-            set_item.page_id
-        )
+        set_item.page_obj = load_page_text(set_item.page_id)  # type: ignore[attr-defined]
         context = {
             "result_set": result_set,
             "lens": lens,
@@ -1041,10 +1070,35 @@ class DispositionView(LoginRequiredMixin, View):
                 next_item, cursor = review_item(result_set, lens)
             context["item"] = next_item
             context["cursor"] = cursor
-            return render(request, "research/partials/review_item.html", context)
+            html = render_to_string(
+                "research/partials/review_item.html", context, request=request
+            )
+            return HttpResponse(html + _oob_counters(request, result_set, lens))
         if lens.dispositions and set_item.disposition not in lens.dispositions:
-            return HttpResponse("")
-        return render(request, "research/partials/item.html", context)
+            return HttpResponse(_oob_counters(request, result_set, lens))
+        html = render_to_string("research/partials/item.html", context, request=request)
+        return HttpResponse(html + _oob_counters(request, result_set, lens))
+
+
+class ItemTextView(LoginRequiredMixin, View):
+    template_name = "research/partials/item_text.html"
+
+    def get(self, request, project, set, item):
+        set_item = get_object_or_404(
+            SetItem,
+            id=item,
+            result_set_id=set,
+            result_set__project_id=project,
+            result_set__project__owner=request.user,
+        )
+        page = load_page_text(set_item.page_id)
+        if page is None:
+            raise Http404
+        return render(
+            request,
+            self.template_name,
+            {"item_id": set_item.id, "page": page},
+        )
 
 
 class BulkActionView(LoginRequiredMixin, View):
@@ -1164,9 +1218,7 @@ class UndoView(LoginRequiredMixin, View):
             id=item_id,
             result_set=result_set,
         )
-        set_item.page_obj = MeetingPage.objects.in_bulk([set_item.page_id]).get(  # type: ignore[attr-defined]
-            set_item.page_id
-        )
+        set_item.page_obj = load_page_text(set_item.page_id)  # type: ignore[attr-defined]
         lens_query = request.POST.get("lens", "")
         if request.POST.get("next") == "review":
             lens, _ = _review_lens(QueryDict(lens_query))

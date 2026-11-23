@@ -6,7 +6,7 @@ from dataclasses import replace
 from datetime import date
 
 from django.db.models import Count, Exists, F, OuterRef, Q
-from django.db.models.functions import ExtractYear
+from django.db.models.functions import ExtractYear, Substr
 
 from meetings.models import MeetingPage
 from searches import search_backends
@@ -17,6 +17,50 @@ from .models import Coding, SetItem
 
 # Ids fetched per backend round-trip when resolving a text sub-search.
 PAGE_SIZE = 1000
+
+# Characters of page text shipped with each item card; the rest loads on demand.
+TEXT_PREVIEW_CHARS = 600
+
+CARD_PAGE_FIELDS = (
+    "id",
+    "document_id",
+    "page_number",
+    "page_image",
+    "document_type",
+    "meeting_name",
+    "municipality_name",
+    "municipality_subdomain",
+    "state",
+    "meeting_date",
+)
+
+
+def load_page_previews(page_ids) -> dict[str, MeetingPage]:
+    """Fetch cards' page rows with only a text preview, never the whole body.
+
+    ``text`` is deferred and filled with a substring of the column, so reading
+    ``page.text`` returns the preview without any deferred-field query.
+    """
+    pages = (
+        MeetingPage.objects.filter(id__in=page_ids)
+        .only(*CARD_PAGE_FIELDS, "text")
+        .order_by()
+    )
+    previews = dict(
+        MeetingPage.objects.filter(id__in=page_ids)
+        .order_by()
+        .values_list("id", Substr("text", 1, TEXT_PREVIEW_CHARS))
+    )
+    result: dict[str, MeetingPage] = {}
+    for page in pages:
+        page.text = previews.get(page.id, "")
+        result[page.id] = page
+    return result
+
+
+def load_page_text(page_id: str) -> MeetingPage | None:
+    """Fetch one page with its full text, for the lazy "Show more" expansion."""
+    return MeetingPage.objects.filter(pk=page_id).first()
 
 
 def filter_items(result_set, lens: Lens):
@@ -200,7 +244,7 @@ def review_item(
     if row is None:
         return None, None
 
-    row.page_obj = MeetingPage.objects.in_bulk([row.page_id]).get(row.page_id)
+    row.page_obj = load_page_previews([row.page_id]).get(row.page_id)
     return row, _encode_cursor(row, lens.order)
 
 
@@ -214,7 +258,7 @@ def browse_set(
 
     rows = list(items[: limit + 1])
     has_next = len(rows) > limit
-    pages = MeetingPage.objects.in_bulk([item.page_id for item in rows])
+    pages = load_page_previews([item.page_id for item in rows])
     rows = rows[:limit]
     for item in rows:
         item.page_obj = pages.get(item.page_id)
@@ -222,44 +266,68 @@ def browse_set(
     return rows, next_cursor
 
 
-def set_facets(result_set, lens: Lens) -> dict:
-    items = filter_items(result_set, lens)
+def set_facets(result_set, lens: Lens, *, max_items: int | None = None) -> dict:
+    """Facet counts for the current view in one grouped query per facet.
+
+    Disposition counts are always computed; they also give the view total, so
+    the set header needs no separate ``COUNT``. When the view holds more than
+    ``max_items`` items the remaining facets are skipped and ``truncated`` is
+    set, keeping huge sets fast.
+    """
+    base = filter_items(result_set, lens).order_by()
 
     dispositions = list(
-        items.values("disposition")
+        base.values("disposition")
         .annotate(count=Count("id"))
         .order_by("-count", "disposition")
     )
-    states = list(
-        items.exclude(state="")
+    total = sum(row["count"] for row in dispositions)
+
+    facets: dict = {
+        "disposition": dispositions,
+        "total": total,
+        "states": [],
+        "municipalities": [],
+        "years": [],
+        "document_types": [],
+        "truncated": False,
+    }
+    if max_items is not None and total > max_items:
+        facets["truncated"] = True
+        return facets
+
+    facets["states"] = list(
+        base.exclude(state="")
         .values("state")
         .annotate(count=Count("id"))
         .order_by("-count", "state")
     )
-    municipalities = list(
-        items.exclude(municipality_id__isnull=True)
+    facets["municipalities"] = list(
+        base.exclude(municipality_id__isnull=True)
         .values("municipality_id")
         .annotate(count=Count("id"))
         .order_by("-count", "municipality_id")[:20]
     )
-    years = list(
-        items.filter(meeting_date__isnull=False)
+    facets["years"] = list(
+        base.filter(meeting_date__isnull=False)
         .annotate(year=ExtractYear("meeting_date"))
         .values("year")
         .annotate(count=Count("id"))
         .order_by("year")
     )
-    document_types = list(
-        items.exclude(document_type="")
+    facets["document_types"] = list(
+        base.exclude(document_type="")
         .values("document_type")
         .annotate(count=Count("id"))
         .order_by("-count", "document_type")
     )
+    return facets
 
-    return {
-        "disposition": dispositions,
-        "states": states,
-        "municipalities": municipalities,
-        "years": years,
-        "document_types": document_types,
-    }
+
+def disposition_counts(facets: dict) -> dict[str, int]:
+    """Collapse the disposition facet rows into the header's count dict."""
+    counts: dict[str, int] = {"r": 0, "i": 0, "u": 0}
+    for row in facets.get("disposition", []):
+        counts[row["disposition"]] = row["count"]
+    counts["total"] = counts["r"] + counts["i"] + counts["u"]
+    return counts
