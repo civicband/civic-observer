@@ -126,8 +126,8 @@
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300">{{ place.get_role_display }}</span>
                                     <form class="inline-flex"
                                           method="post"
-                                          action="{% url 'watch:place-reject' thread.pk %}"
-                                          hx-post="{% url 'watch:place-reject' thread.pk %}"
+                                          action="{% url 'watch:place-reject' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
+                                          hx-post="{% url 'watch:place-reject' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
                                           hx-target="#triage-detail"
                                           hx-swap="innerHTML"
                                           data-reject-first
@@ -147,8 +147,8 @@
 
                             <form class="mt-4 flex flex-wrap items-center gap-2"
                                   method="post"
-                                  action="{% url 'watch:action' thread.pk %}"
-                                  hx-post="{% url 'watch:action' thread.pk %}"
+                                  action="{% url 'watch:action' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
+                                  hx-post="{% url 'watch:action' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
                                   hx-target="#triage-detail"
                                   hx-swap="innerHTML"
                                   data-action="edit_query">
@@ -183,8 +183,8 @@
                                     <span>{{ place.place.name }}{% if place.place.state %}, {{ place.place.state }}{% endif %}</span>
                                     <form class="inline-flex"
                                           method="post"
-                                          action="{% url 'watch:action' thread.pk %}"
-                                          hx-post="{% url 'watch:action' thread.pk %}"
+                                          action="{% url 'watch:action' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
+                                          hx-post="{% url 'watch:action' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
                                           hx-target="#triage-detail"
                                           hx-swap="innerHTML"
                                           data-action="promote">
@@ -199,8 +199,8 @@
                                     </form>
                                     <form class="inline-flex"
                                           method="post"
-                                          action="{% url 'watch:place-reject' thread.pk %}"
-                                          hx-post="{% url 'watch:place-reject' thread.pk %}"
+                                          action="{% url 'watch:place-reject' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
+                                          hx-post="{% url 'watch:place-reject' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
                                           hx-target="#triage-detail"
                                           hx-swap="innerHTML"
                                           data-reject-first
@@ -230,8 +230,8 @@
                                     <span>{{ place.place.name }}{% if place.place.state %}, {{ place.place.state }}{% endif %}</span>
                                     <form class="inline-flex"
                                           method="post"
-                                          action="{% url 'watch:place-correct' thread.pk %}"
-                                          hx-post="{% url 'watch:place-correct' thread.pk %}"
+                                          action="{% url 'watch:place-correct' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
+                                          hx-post="{% url 'watch:place-correct' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
                                           hx-target="#triage-detail"
                                           hx-swap="innerHTML"
                                           data-action="place-correct-undo">
@@ -257,8 +257,8 @@
         <div class="sticky bottom-0 z-10 mt-6 flex flex-wrap items-center gap-2 border-t border-gray-200 bg-white pt-4 dark:border-gray-800 dark:bg-gray-900">
             <form class="inline-flex"
                   method="post"
-                  action="{% url 'watch:action' thread.pk %}"
-                  hx-post="{% url 'watch:action' thread.pk %}"
+                  action="{% url 'watch:action' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
+                  hx-post="{% url 'watch:action' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
                   hx-target="#triage-detail"
                   hx-swap="innerHTML"
                   data-action="replied">
@@ -271,8 +271,8 @@
             </form>
             <form class="inline-flex"
                   method="post"
-                  action="{% url 'watch:action' thread.pk %}"
-                  hx-post="{% url 'watch:action' thread.pk %}"
+                  action="{% url 'watch:action' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
+                  hx-post="{% url 'watch:action' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
                   hx-target="#triage-detail"
                   hx-swap="innerHTML"
                   data-action="dismiss">
@@ -285,8 +285,8 @@
             </form>
             <form class="inline-flex items-center gap-1"
                   method="post"
-                  action="{% url 'watch:action' thread.pk %}"
-                  hx-post="{% url 'watch:action' thread.pk %}"
+                  action="{% url 'watch:action' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
+                  hx-post="{% url 'watch:action' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
                   hx-target="#triage-detail"
                   hx-swap="innerHTML"
                   data-action="snooze">
@@ -307,8 +307,8 @@
             </form>
             <form class="inline-flex"
                   method="post"
-                  action="{% url 'watch:action' thread.pk %}"
-                  hx-post="{% url 'watch:action' thread.pk %}"
+                  action="{% url 'watch:action' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
+                  hx-post="{% url 'watch:action' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
                   hx-target="#triage-detail"
                   hx-swap="innerHTML"
                   data-action="backlog">
@@ -321,8 +321,8 @@
             </form>
             <form class="inline-flex"
                   method="post"
-                  action="{% url 'watch:action' thread.pk %}"
-                  hx-post="{% url 'watch:action' thread.pk %}"
+                  action="{% url 'watch:action' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
+                  hx-post="{% url 'watch:action' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
                   hx-target="#triage-detail"
                   hx-swap="innerHTML"
                   data-action="mute_subreddit">
@@ -336,8 +336,8 @@
             {% if thread_country != "US" %}
                 <form class="inline-flex"
                       method="post"
-                      action="{% url 'watch:action' thread.pk %}"
-                      hx-post="{% url 'watch:action' thread.pk %}"
+                      action="{% url 'watch:action' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
+                      hx-post="{% url 'watch:action' thread.pk %}{% if filters %}?{% for key, value in filters.items %}{{ key }}={{ value|urlencode }}&{% endfor %}{% endif %}"
                       hx-target="#triage-detail"
                       hx-swap="innerHTML"
                       data-action="mute_country">

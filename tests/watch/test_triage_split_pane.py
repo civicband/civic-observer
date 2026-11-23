@@ -156,3 +156,39 @@ def test_triage_list_filters_by_subreddit_kind(admin_client):
 
     assert response.context["queue_count"] == 1
     assert response.context["thread"] == place_thread
+
+
+@pytest.mark.django_db
+def test_action_form_keeps_list_filters(admin_client):
+    ThreadFactory(title="Keep this one")
+
+    content = admin_client.get(
+        reverse("watch:triage"), {"covered": "no", "sort": "oldest"}
+    ).content.decode()
+
+    # Action forms must carry the active filters so the OOB list refresh and
+    # the next-thread advance stay inside the filtered queue.
+    assert "watch:action" not in content or "?covered=no&sort=oldest" in content
+    assert "covered=no&sort=oldest" in content
+
+
+@pytest.mark.django_db
+def test_action_after_post_keeps_filters_in_list(admin_client):
+    ThreadFactory(title="Filtered in", last_seen=timezone.now())
+    ThreadFactory(title="Filtered out", last_seen=timezone.now())
+    excluded = ThreadFactory(title="Already dismissed", last_seen=timezone.now())
+    excluded.status = "dismissed"
+    excluded.save(update_fields=["status"])
+
+    response = admin_client.post(
+        action_url(excluded),
+        {"action": "dismiss"},
+        HTTP_HX_REQUEST="true",
+        QUERY_STRING="covered=no",
+    )
+
+    body = response.content.decode()
+    assert "Filtered in" in body
+    assert "Filtered out" in body
+    # The dismissed thread stays out of the refreshed list, matching the filter.
+    assert "Already dismissed" not in body
