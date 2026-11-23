@@ -1,0 +1,4 @@
+<span id="lens-count" hx-swap-oob="true">{{ lens_count }}</span>
+{% for link in disposition_links %}
+    <span id="disposition-count-{{ link.value }}" hx-swap-oob="true">{{ link.count }}</span>
+{% endfor %}
