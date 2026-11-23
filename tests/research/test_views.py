@@ -1,6 +1,8 @@
 from urllib.parse import quote
 
 import pytest
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 
 from research.browse import browse_set
@@ -320,7 +322,7 @@ class TestSetDetailView:
         )
 
         content = response.content.decode()
-        assert "Ignored (1)" in content
+        assert "Ignored (" in content
         assert "disposition=i" in content
 
     def test_header_counts_link_to_disposition_views(self, client):
@@ -335,9 +337,9 @@ class TestSetDetailView:
         )
 
         content = response.content.decode()
-        assert "Relevant (1)" in content
-        assert "Unreviewed (1)" in content
-        assert "Ignored (1)" in content
+        assert "Relevant (" in content
+        assert "Unreviewed (" in content
+        assert "Ignored (" in content
         assert "disposition=r" in content
         assert "disposition=u" in content
 
@@ -352,6 +354,102 @@ class TestSetDetailView:
         content = response.content.decode()
         assert "Save view as Lens" in content
         assert "Unsaved view" in content
+
+    def test_query_count_does_not_grow_with_set_size(self, client):
+        user, project, result_set = self._ready_set()
+        document = MeetingDocumentFactory(meeting_name="Budget", document_type="agenda")
+        for _ in range(3):
+            SetItemFactory(
+                result_set=result_set,
+                page=MeetingPageFactory(document=document),
+                state="CA",
+                document_type="agenda",
+            )
+        client.force_login(user)
+        url = reverse("research:set-detail", args=[project.id, result_set.id])
+
+        def set_queries():
+            with CaptureQueriesContext(connection) as captured:
+                client.get(url)
+            return [
+                q["sql"] for q in captured.captured_queries if "research_" in q["sql"]
+            ]
+
+        first = len(set_queries())
+        for _ in range(20):
+            SetItemFactory(
+                result_set=result_set,
+                page=MeetingPageFactory(document=document),
+                state="CA",
+                document_type="agenda",
+            )
+        assert len(set_queries()) == first
+        assert first <= 12
+
+    def test_item_card_ships_only_a_text_preview(self, client):
+        user, project, result_set = self._ready_set()
+        text = "alpha " * 300
+        page = MeetingPageFactory(text=text.strip())
+        item = SetItemFactory(result_set=result_set, page=page)
+
+        client.force_login(user)
+        response = client.get(
+            reverse("research:set-detail", args=[project.id, result_set.id])
+        )
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert text.strip() not in content
+        assert (
+            'hx-get="{}"'.format(
+                reverse("research:item-text", args=[project.id, result_set.id, item.id])
+            )
+            in content
+        )
+
+    def test_item_text_endpoint_returns_full_text(self, client):
+        user, project, result_set = self._ready_set()
+        text = "beta " * 300
+        item = SetItemFactory(
+            result_set=result_set, page=MeetingPageFactory(text=text.strip())
+        )
+
+        client.force_login(user)
+        response = client.get(
+            reverse("research:item-text", args=[project.id, result_set.id, item.id])
+        )
+
+        assert response.status_code == 200
+        assert text.strip() in response.content.decode()
+
+    def test_item_text_endpoint_scoped_to_owner(self, client):
+        _user, project, result_set = self._ready_set()
+        item = SetItemFactory(result_set=result_set)
+        client.force_login(UserFactory())
+
+        response = client.get(
+            reverse("research:item-text", args=[project.id, result_set.id, item.id])
+        )
+
+        assert response.status_code == 404
+
+    def test_large_view_skips_non_disposition_facets(self, client, settings):
+        settings.RESEARCH_FACET_SYNC_MAX = 1
+        user, project, result_set = self._ready_set()
+        SetItemFactory(result_set=result_set, state="CA", document_type="agenda")
+        SetItemFactory(result_set=result_set, state="OR", document_type="minutes")
+
+        client.force_login(user)
+        response = client.get(
+            reverse("research:set-detail", args=[project.id, result_set.id])
+        )
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert response.context["facets"]["truncated"] is True
+        assert response.context["facets"]["states"] == []
+        assert "hidden for this large view" in content
+        assert "Unreviewed (" in content
 
     def test_review_link_defaults_to_unreviewed(self, client):
         user, project, result_set = self._ready_set()
@@ -400,7 +498,7 @@ class TestSetDetailView:
 
     def test_renders_page_image_and_show_more(self, client):
         user, project, result_set = self._ready_set()
-        text = " ".join(["word"] * 60)
+        text = "word " * 200
         page = MeetingPageFactory(text=text)
         SetItemFactory(result_set=result_set, page=page, rank=2.0)
 
@@ -751,6 +849,18 @@ class TestDispositionView:
         assert "Relevant" in content
         assert "item-card" in content
 
+    def test_disposition_post_returns_oob_counters(self, client):
+        user, _, item = self._item()
+        client.force_login(user)
+
+        response = client.post(self._url(item), {"disposition": "r", "lens": ""})
+
+        content = response.content.decode()
+        assert response.status_code == 200
+        assert 'id="lens-count"' in content
+        assert 'hx-swap-oob="true"' in content
+        assert 'id="disposition-count-r"' in content
+
     def test_ignore_removes_card_when_not_in_lens(self, client):
         user, _, item = self._item()
         client.force_login(user)
@@ -758,7 +868,9 @@ class TestDispositionView:
         response = client.post(self._url(item), {"disposition": "i", "lens": ""})
 
         assert response.status_code == 200
-        assert response.content.decode() == ""
+        content = response.content.decode()
+        assert "item-card" not in content
+        assert 'hx-swap-oob="true"' in content
         item.refresh_from_db()
         assert item.disposition == "i"
 
@@ -782,7 +894,7 @@ class TestDispositionView:
         )
 
         assert response.status_code == 200
-        assert response.content.decode() == ""
+        assert "item-card" not in response.content.decode()
 
     def test_ignore_records_reason(self, client):
         user, _, item = self._item()

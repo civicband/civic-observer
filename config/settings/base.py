@@ -212,6 +212,9 @@ RESEARCH_JOB_TIMEOUT = env.int("RESEARCH_JOB_TIMEOUT", 1800)
 RESEARCH_STATEMENT_TIMEOUT_MS = env.int("RESEARCH_STATEMENT_TIMEOUT_MS", 900_000)
 RESEARCH_USE_SQL_MATERIALIZATION = env.bool("RESEARCH_USE_SQL_MATERIALIZATION", True)
 RESEARCH_INLINE_EXPORT_MAX_ROWS = env.int("RESEARCH_INLINE_EXPORT_MAX_ROWS", 10_000)
+# Above this many items in the current view, skip state/municipality/year/type
+# facet counts on the set browser and show disposition counts only.
+RESEARCH_FACET_SYNC_MAX = env.int("RESEARCH_FACET_SYNC_MAX", 100_000)
 
 # Backfill Configuration
 INCREMENTAL_BACKFILL_MONTHS = 6  # ±6 months from today
