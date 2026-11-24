@@ -27,10 +27,11 @@
                         <span>{{ row.last_seen|timesince }} ago</span>
                         {% if row.mention_count %}<span>·</span><span>{{ row.mention_count }} mention{{ row.mention_count|pluralize }}</span>{% endif %}
                     </div>
-                    <div class="mt-1.5 flex flex-wrap gap-1">
-                        {% if row.is_covered %}<span class="rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">Covered</span>{% endif %}
-                        {% if row.is_recent %}<span class="rounded bg-blue-100 px-1.5 py-0.5 text-[11px] font-medium text-blue-800 dark:bg-blue-950 dark:text-blue-200">Recent</span>{% endif %}
-                        {% if row.has_question %}<span class="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200">Question</span>{% endif %}
+                    <div class="mt-1.5 flex flex-wrap items-center gap-1">
+                        {% if row.is_covered %}<span class="rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200" title="Subject place covered by a municipality">Covered <span class="tabular-nums">+{{ row.covered_points }}</span></span>{% endif %}
+                        {% if row.is_recent %}<span class="rounded bg-blue-100 px-1.5 py-0.5 text-[11px] font-medium text-blue-800 dark:bg-blue-950 dark:text-blue-200" title="Seen in the last {{ recent_hours }} hours">Recent <span class="tabular-nums">+{{ row.recent_points }}</span></span>{% endif %}
+                        {% if row.has_question %}<span class="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 dark:bg-amber-950 dark:text-amber-200" title="Title or a snippet asks a question">Question <span class="tabular-nums">+{{ row.question_points }}</span></span>{% endif %}
+                        {% if row.mention_points %}<span class="rounded bg-gray-100 px-1.5 py-0.5 text-[11px] font-medium text-gray-700 dark:bg-gray-800 dark:text-gray-300" title="Mention volume, capped at {{ mention_cap }}">Mentions <span class="tabular-nums">+{{ row.mention_points }}</span></span>{% endif %}
                     </div>
                 </a>
             </li>
