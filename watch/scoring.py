@@ -113,6 +113,19 @@ def _annotate_score(queryset: QuerySet[Thread], now=None) -> QuerySet[Thread]:
         is_covered=_choice_int(covered),
         is_recent=_choice_int(Q(last_seen__gte=recent_cutoff)),
         has_question=_choice_int(asks_question),
+        covered_points=ExpressionWrapper(
+            _choice_int(covered) * COVERED_WEIGHT,
+            output_field=IntegerField(),
+        ),
+        recent_points=ExpressionWrapper(
+            _choice_int(Q(last_seen__gte=recent_cutoff)) * RECENT_WEIGHT,
+            output_field=IntegerField(),
+        ),
+        question_points=ExpressionWrapper(
+            _choice_int(asks_question) * QUESTION_WEIGHT,
+            output_field=IntegerField(),
+        ),
+        mention_points=Least(F("mention_count"), Value(MENTION_CAP)),
     ).annotate(
         score=ExpressionWrapper(
             F("is_covered") * COVERED_WEIGHT

@@ -58,12 +58,20 @@ def test_queue_annotations_score_components():
     assert threads[covered.pk].is_recent == 1
     assert threads[covered.pk].has_question == 1
     assert threads[covered.pk].score == 100 + 30 + 15 + 3
+    assert threads[covered.pk].covered_points == 100
+    assert threads[covered.pk].recent_points == 30
+    assert threads[covered.pk].question_points == 15
+    assert threads[covered.pk].mention_points == 3
     assert threads[recent.pk].is_covered == 0
     assert threads[recent.pk].is_recent == 1
     assert threads[recent.pk].has_question == 0
     assert threads[recent.pk].score == 30
+    assert threads[recent.pk].covered_points == 0
+    assert threads[recent.pk].recent_points == 30
+    assert threads[recent.pk].question_points == 0
     assert threads[old.pk].is_recent == 0
     assert threads[old.pk].score == 0
+    assert threads[old.pk].recent_points == 0
 
 
 @pytest.mark.django_db
@@ -98,6 +106,7 @@ def test_queue_mention_count_is_capped():
     thread = ThreadFactory(mention_count=50)
 
     assert queue_queryset().get(pk=thread.pk).score == RECENT_WEIGHT + MENTION_CAP
+    assert queue_queryset().get(pk=thread.pk).mention_points == MENTION_CAP
 
 
 @pytest.mark.django_db
